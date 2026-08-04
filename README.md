@@ -36,12 +36,11 @@ flowchart LR
   Gateway --> ProviderC[Codex / Antigravity / Grok / Claude Code / OpenCode Go OAuth]
 ```
 
-The Docker deployment runs three services:
+The Docker deployment runs two services:
 
 ```text
-xlyra-frontend  # nginx serves the web console and proxies /api/v1, /v1, /healthz, etc.
-xlyra-backend   # Go backend for the control API, gateway API, schedulers, and health checks
-xlyra-postgres  # PostgreSQL database
+xlyra     # single image: Go backend + React web console served by the built-in HTTP server
+postgres  # PostgreSQL database
 ```
 
 ## Gateway Endpoints

@@ -8,6 +8,7 @@
 ![Backend](https://img.shields.io/badge/backend-Go%201.26+-00ADD8.svg)
 ![Frontend](https://img.shields.io/badge/frontend-React%2019-61DAFB.svg)
 ![Database](https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg)
+[![Docker Pulls](https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg)](https://hub.docker.com/r/yachiiiiyo/xlyra)
 
 xLyra 把分散的中转站、官方模型接口、OAuth 账号和兼容接口收敛到一个控制台中，并向下游应用暴露统一的 OpenAI-style API 入口。它不是单站点反代，而是一个多站点编排层：负责接入、同步、授权、路由、失败转移、用量记录和成本估算。
 
@@ -35,12 +36,11 @@ flowchart LR
   Gateway --> ProviderC[Codex / Antigravity / Grok / Claude Code / OpenCode Go OAuth]
 ```
 
-Docker 部署时由三个服务组成：
+Docker 部署时由两个服务组成：
 
 ```text
-xlyra-frontend  # nginx 承载 Web 控制台，并代理 /api/v1、/v1、/healthz 等请求
-xlyra-backend   # Go 后端，提供控制面 API、网关 API、调度和健康检查
-xlyra-postgres  # PostgreSQL 数据库
+xlyra     # 单镜像：Go 后端 + React 控制台，由内置 HTTP Server 直接提供服务
+postgres  # PostgreSQL 数据库
 ```
 
 ## 网关端点
