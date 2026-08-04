@@ -1,0 +1,77 @@
+{
+  "headers": {
+    "time": "Time",
+    "actor": "Actor",
+    "action": "Action",
+    "result": "Result",
+    "ip": "IP",
+    "requestId": "Request ID"
+  },
+  "page": {
+    "eyebrow": "Operations",
+    "title": "Audit",
+    "description": "Review admin activity, security changes and access-token operations."
+  },
+  "filters": {
+    "searchAction": "Search actions",
+    "allActors": "All actors",
+    "allResults": "All results",
+    "success": "Success",
+    "failure": "Failure",
+    "dateFrom": "Start date",
+    "dateTo": "End date",
+    "clearFilters": "Clear filters"
+  },
+  "empty": {
+    "loading": "Loading audit records",
+    "noData": "No audit records",
+    "description": "Admin operation records will be displayed here."
+  },
+  "mobile": {
+    "allRecords": "All records",
+    "done": "Done",
+    "filtered": "Filtered",
+    "filters": "Filters",
+    "refresh": "Refresh",
+    "total": "{{count}} total"
+  },
+  "actions": {
+    "auth.bootstrap": "Created first admin",
+    "auth.login": "Login",
+    "auth.logout": "Logout",
+    "profile.update": "Updated admin profile",
+    "profile.password.update": "Changed password",
+    "profile.session.delete": "Deleted session",
+    "profile.sessions.delete_others": "Deleted other sessions",
+    "profile.access_token.replace": "Created or updated access token",
+    "profile.access_token.enabled": "Toggled access token status",
+    "profile.access_token.delete": "Deleted access token",
+    "profile.totp.setup": "Generated TOTP secret",
+    "profile.totp.enable": "Enabled TOTP",
+    "profile.totp.disable": "Disabled TOTP"
+  },
+  "mutation": {
+    "default": "Modified admin config",
+    "delete": "Deleted {{target}}",
+    "refresh": "Refreshed {{target}}",
+    "sync": "Synced {{target}}",
+    "create": "Created {{target}}",
+    "toggleStatus": "Toggled {{target}} status",
+    "updatePrice": "Updated {{target}} pricing",
+    "update": "Updated {{target}}",
+    "modify": "Modified {{target}}"
+  },
+  "targets": {
+    "default": "admin config",
+    "sites": "sites",
+    "siteModels": "site models",
+    "sitePricings": "site pricing",
+    "modelPrices": "model prices",
+    "apiKeys": "API keys",
+    "oauth": "OAuth connections",
+    "routes": "route config",
+    "settings": "global settings",
+    "profile": "admin profile",
+    "newapi": "NewAPI info"
+  }
+}

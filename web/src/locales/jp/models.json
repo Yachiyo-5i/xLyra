@@ -1,0 +1,101 @@
+{
+  "page": {
+    "loadFailed": "モデルページの読み込みに失敗しました",
+    "eyebrow": "リソース",
+    "title": "モデル",
+    "description": "モデルマーケットを参照し、サイト別価格を確認し、正規モデルマッピングを管理します。"
+  },
+  "filters": {
+    "brand": "ブランド",
+    "site": "サイト",
+    "allBrands": "すべてのブランド",
+    "allSites": "すべてのサイト",
+    "search": "モデルを検索",
+    "catalog": "モデル照合"
+  },
+  "empty": {
+    "noModels": "モデルがありません",
+    "noModelsDesc": "現在のフィルターで表示できるモデルはありません。"
+  },
+  "card": {
+    "copied": "コピーしました",
+    "headers": {
+      "site": "サイト",
+      "upstreamModel": "上流モデル",
+      "group": "グループ",
+      "apiKeys": "API キー",
+      "protocol": "プロトコル",
+      "inputPrice": "入力価格",
+      "outputPrice": "出力価格",
+      "cachePrice": "キャッシュ読取",
+      "cacheWritePrice": "キャッシュ書込",
+      "cacheWrite5mPrice": "キャッシュ書込(5m)",
+      "cacheWrite1hPrice": "キャッシュ書込(1h)",
+      "groupRatio": "グループ倍率"
+    },
+    "perRequestUnit": "{{price}}/回",
+    "keyGroup": {
+      "codexTooltip": "{{enabled}} 個の利用可能な Codex アカウント / 合計 {{total}} 個",
+      "keyTooltip": "グループ内の有効キー {{enabled}} 個 / 合計 {{total}} 個"
+    }
+  },
+  "catalog": {
+    "title": "モデル照合",
+    "searchStandard": "正規モデルを検索",
+    "createStandardLabel": "正規モデルを作成",
+    "noStandardModels": "正規モデルがありません",
+    "alias": "エイリアス",
+    "addAliasPlaceholder": "エイリアスを追加",
+    "addAlias": "追加",
+    "noAliases": "エイリアスがありません",
+    "deleteAliasLabel": "エイリアス {{alias}} を削除",
+    "unmatched": "未一致",
+    "searchUnmatched": "未一致モデルを検索",
+    "bind": "紐付け",
+    "create": "作成",
+    "noUnmatched": "未一致モデルがありません",
+    "unbind": "紐付け解除",
+    "archiveModelLabel": "正規モデル {{model}} をアーカイブ",
+    "archiveDialog": {
+      "title": "正規モデルを削除",
+      "confirm": "正規モデル「{{model}}」を削除しますか？モデル照合リストでは非表示になり、後で上流モデルが再び紐付くと再表示されます。",
+      "confirmDefault": "この正規モデルを削除しますか？",
+      "cancel": "キャンセル",
+      "confirmAction": "削除"
+    },
+    "loading": "読み込み中",
+    "noLinkedModels": "リンク済みモデルがありません",
+    "headers": {
+      "site": "サイト",
+      "model": "モデル",
+      "source": "ソース",
+      "confidence": "信頼度"
+    },
+    "createSurface": {
+      "title": "正規モデルを作成",
+      "modelKey": "モデルキー",
+      "displayName": "表示名",
+      "cancel": "キャンセル",
+      "save": "保存"
+    },
+    "toast": {
+      "aliasAdded": "エイリアスを追加しました",
+      "aliasAddFailed": "エイリアスの追加に失敗しました",
+      "aliasDeleted": "エイリアスを削除しました",
+      "aliasDeleteFailed": "エイリアスの削除に失敗しました",
+      "modelCreatedBound": "正規モデルを作成して紐付けました",
+      "modelCreated": "正規モデルを作成しました",
+      "modelCreateFailed": "正規モデルの作成に失敗しました",
+      "modelArchived": "正規モデルをアーカイブしました",
+      "modelArchiveFailed": "正規モデルのアーカイブに失敗しました",
+      "modelBound": "モデルを紐付けました",
+      "modelUnbound": "モデルの紐付けを解除しました",
+      "modelBindFailed": "モデルの紐付けに失敗しました"
+    }
+  },
+  "matchSource": {
+    "manual": "手動",
+    "auto": "自動",
+    "unmatched": "未一致"
+  }
+}

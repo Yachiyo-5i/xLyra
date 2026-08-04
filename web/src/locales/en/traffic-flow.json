@@ -1,0 +1,81 @@
+{
+  "header": {
+    "title": "Gateway Live Traffic Cockpit",
+    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT"
+  },
+  "status": {
+    "live": "Live connection",
+    "reconnecting": "Reconnecting",
+    "loading": "Loading topology",
+    "waiting": "Waiting for gateway traffic"
+  },
+  "desktopRequired": {
+    "eyebrow": "DESKTOP EXPERIENCE",
+    "title": "Open this page on desktop Web",
+    "description": "Traffic Flow requires a desktop-size display. Open it in a desktop browser at least 1024px wide.",
+    "back": "Back to dashboard"
+  },
+  "actions": {
+    "pause": "Pause animation",
+    "resume": "Resume animation",
+    "refresh": "Reload",
+    "fullscreen": "Enter fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "close": "Close details"
+  },
+  "metrics": {
+    "label": "Live metrics",
+    "inFlight": "In flight",
+    "routed": "Routed channels",
+    "returning": "Responses returning",
+    "nodes": "Topology nodes",
+    "tokens": "Window tokens",
+    "mode": "Run mode"
+  },
+  "tokenDetails": {
+    "title": "Window token usage",
+    "downstream": "Downstream keys",
+    "upstream": "Upstream sites",
+    "empty": "No token usage in this window"
+  },
+  "map": { "label": "Live request topology" },
+  "core": {
+    "title": "XLYRA GATEWAY",
+    "subtitle": "Gateway core",
+    "active": "ACTIVE ROUTING",
+    "ready": "ROUTING READY"
+  },
+  "lanes": {
+    "downstream": "Downstream",
+    "downstreamCaption": "DOWNSTREAM KEYS",
+    "gateway": "Gateway core",
+    "upstream": "Upstream sites",
+    "upstreamCaption": "UPSTREAM SITES"
+  },
+  "legend": {
+    "request": "Request",
+    "response": "Response"
+  },
+  "footer": { "desktopOnly": "Desktop live view" },
+  "activity": {
+    "label": "Live request queue",
+    "empty": "No requests in flight"
+  },
+  "phase": {
+    "accepted": "Accepted",
+    "routed": "Routed",
+    "responding": "Responding",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "inspector": {
+    "request": "Request details",
+    "unknownModel": "Unknown model",
+    "downstream": "Downstream key",
+    "upstream": "Upstream site",
+    "phase": "Current phase",
+    "attempt": "Route attempt",
+    "waiting": "Waiting for route"
+  }
+}

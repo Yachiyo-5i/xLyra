@@ -1,0 +1,67 @@
+{
+  "title": "Key Usage Portal",
+  "disabled": "This page is currently unavailable.",
+  "signOut": "Sign out",
+  "invalidKey": "The key is invalid or disabled.",
+  "loadFailed": "Failed to load",
+  "gate": {
+    "title": "View key usage",
+    "description": "Paste your downstream API key to view quota and request details. The key is only used for this lookup.",
+    "placeholder": "xlyra-...",
+    "remember": "Remember key on this device",
+    "submit": "Look up",
+    "hint": "Paste your downstream API key above to view usage.",
+    "switchTitle": "Switch key"
+  },
+  "overview": {
+    "quota": "Quota limit",
+    "status": "Status",
+    "active": "Active",
+    "used": "Used",
+    "remaining": "Remaining",
+    "unlimited": "Unlimited"
+  },
+  "summary": {
+    "title": "Last {{days}} days",
+    "totalRequests": "{{count}} requests",
+    "seriesCost": "Cost",
+    "seriesTokens": "Tokens",
+    "seriesRequests": "Success"
+  },
+  "requests": {
+    "title": "Request details",
+    "empty": "No requests yet.",
+    "time": "Time",
+    "model": "Model",
+    "site": "Site",
+    "status": "Status",
+    "tokens": "Tokens",
+    "cost": "Cost",
+    "latency": "Latency",
+    "prev": "Previous",
+    "next": "Next",
+    "input": "Input",
+    "output": "Output",
+    "cache": "cache {{count}}",
+    "cacheWrite": "cache write {{count}}",
+    "endpoint": "Endpoint",
+    "upstream": "Upstream"
+  },
+  "filters": {
+    "statusAll": "All status",
+    "statusSuccess": "Success",
+    "statusFailed": "Failed",
+    "modelAll": "All models",
+    "rangeAll": "All time",
+    "range7d": "Last 7d",
+    "range30d": "Last 30d",
+    "status": "Status",
+    "model": "Model",
+    "range": "Time range",
+    "rangeToday": "Today"
+  },
+  "stats": {
+    "tokens": "Tokens",
+    "cost": "Cost"
+  }
+}

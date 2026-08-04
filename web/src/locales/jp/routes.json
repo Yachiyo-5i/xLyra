@@ -1,0 +1,126 @@
+{
+  "card": {
+    "routable": "ルーティング可能",
+    "routableRank": "ルーティング可能 #{{rank}}",
+    "configured": "設定済み",
+    "request": "リクエスト",
+    "noRequest": "リクエストなし",
+    "successRate": "成功率",
+    "cooldown": "クールダウン {{count}}",
+    "latency": "レイテンシ",
+    "siteCount": "サイト",
+    "lastRoute": "直近 {{site}}"
+  },
+  "sort": {
+    "title": "並び替え",
+    "default": "デフォルト",
+    "successDesc": "成功率 ↓",
+    "successAsc": "成功率 ↑",
+    "candidatesDesc": "候補数 ↓",
+    "candidatesAsc": "候補数 ↑"
+  },
+  "filters": {
+    "all": "すべて"
+  },
+  "mobile": {
+    "filters": "フィルター",
+    "clear": "クリア",
+    "done": "完了"
+  },
+  "workspace": {
+    "loadFailed": "ルートデータの読み込みに失敗しました",
+    "eyebrow": "操作",
+    "title": "ルート",
+    "description": "モデルのルーティング候補、上流可用性、最近のルート記録を管理します。",
+    "search": "モデルを検索",
+    "refresh": "更新",
+    "brand": "ブランド",
+    "site": "サイト",
+    "noModels": "モデルがありません",
+    "noModelsDesc": "No models match the current search criteria.",
+    "toast": {
+      "modelToggleFailed": "モデル切り替えの更新に失敗しました",
+      "cooldownCleared": "クールダウンを解除しました",
+      "cooldownClearFailed": "クールダウン解除に失敗しました"
+    }
+  },
+  "details": {
+    "tabs": {
+      "routing": "ルーティング概要",
+      "traces": "リクエストトレース",
+      "cooldowns": "クールダウン管理"
+    },
+    "currentRoute": {
+      "title": "現在のルート",
+      "noAvailableRoute": "利用可能なルートがありません",
+      "fallbackHint": "設定済みサイトモデルを下に表示しています",
+      "current": "現在",
+      "routable": "ルーティング可能 #{{rank}}"
+    },
+    "coverage": {
+      "title": "サイトモデル",
+      "loadFailed": "サイトモデルの読み込みに失敗しました",
+      "noConfig": "サイトモデル設定がありません",
+      "group": "グループ {{name}}",
+      "switchLabel": "{{site}} {{apiKey}} {{model}} を切り替え"
+    },
+    "traces": {
+      "title": "最近のトレース",
+      "loadFailed": "最近のトレースの読み込みに失敗しました",
+      "success": "成功",
+      "failure": "失敗",
+      "failover": "フェイルオーバー {{count}} 回",
+      "noTraces": "トレースがありません"
+    },
+    "cooldowns": {
+      "title": "アクティブなクールダウン",
+      "remaining": "残り {{duration}}",
+      "clear": "クリア",
+      "noCooldowns": "クールダウンなし"
+    }
+  },
+  "channels": {
+    "routable": "ルーティング可能",
+    "routableRank": "ルーティング可能 #{{rank}}",
+    "cooling": "クールダウン中",
+    "siteDisabled": "サイト無効",
+    "modelDisabled": "モデル無効",
+    "keyDisabled": "キー無効",
+    "keyIncomplete": "キー未完了",
+    "notCandidate": "候補外",
+    "updating": "更新中",
+    "siteDisabledHint": "サイトが無効なためモデルを切り替えられません",
+    "keyDisabledHint": "キーが無効なためモデルを切り替えられません"
+  },
+  "format": {
+    "scopeSite": "サイト",
+    "scopeModel": "モデル",
+    "scopeCredential": "認証情報",
+    "unknownSite": "不明なサイト",
+    "modelPrefix": "Model {{name}}",
+    "specifiedModel": "指定モデル",
+    "upstreamCredential": "上流認証情報",
+    "entireSite": "サイト全体",
+    "sourceHealthCheck": "ヘルスチェック",
+    "sourceForwardFailed": "転送失敗",
+    "sourceManual": "手動クールダウン",
+    "sourceUnknown": "不明なソース",
+    "reasonHealthUnhealthy": "サイトヘルスチェック異常",
+    "reasonHealthDefault": "サイトヘルスチェックによりクールダウンが発生しました",
+    "reasonTimeout": "上流タイムアウト",
+    "reasonTransport": "上流接続に失敗しました",
+    "reason5xx": "上流サービスエラー",
+    "reason404": "上流モデルが見つかりません",
+    "reason429": "上流でレート制限されました",
+    "reason401": "上流認証が無効です",
+    "reason403": "上流アクセスが拒否されました",
+    "reasonDefault": "クールダウンが発生しました",
+    "healthNoRequest": "モデルヘルス: リクエストなし",
+    "healthRequests": "リクエスト: {{count}}",
+    "healthSuccessRate": "成功: {{rate}}",
+    "healthLatency": "レイテンシ: {{latency}}",
+    "pricingPerRequest": "リクエスト単価 {{price}}",
+    "pricingTokens": "入力 {{input}} / 出力 {{output}}",
+    "perRequestUnit": "{{price}}/回"
+  }
+}

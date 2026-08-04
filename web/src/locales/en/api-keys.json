@@ -1,0 +1,213 @@
+{
+  "quota": {
+    "unlimited": "Unlimited",
+    "used": "Used {{amount}}",
+    "total": "Total",
+    "daily": "Day",
+    "weekly": "Week"
+  },
+  "modelsDraw": {
+    "search": "Search models...",
+    "noModels": "No models"
+  },
+  "table": {
+    "headers": {
+      "key": "Key",
+      "models": "Models",
+      "sites": "Sites",
+      "quota": "Quota",
+      "rateLimit": "Rate Limit",
+      "lastUsed": "Last Used",
+      "expiresAt": "Expires",
+      "status": "Status"
+    },
+    "permanent": "Permanent",
+    "actions": "Key actions",
+    "edit": "Edit",
+    "resetQuota": "Reset quota",
+    "delete": "Delete",
+    "copySuccess": "Key copied",
+    "copyFailed": "Copy failed",
+    "copyMenu": {
+      "xlyra": "Copy xlyra- prefix",
+      "sk": "Copy sk- prefix",
+      "original": "Copy original key"
+    },
+    "policy": {
+      "allModels": "All models",
+      "allModelsInScope": "All models in current range",
+      "selectedModels": "{{count}} model(s)",
+      "allSites": "All sites",
+      "selectedSites": "{{count}} site(s)",
+      "selectedSitesAndGroups": "{{siteCount}} site(s) / {{groupCount}} group(s)"
+    },
+    "relative": {
+      "justNow": "just now"
+    },
+    "rateLimit": {
+      "disabled": "Disabled",
+      "unlimited": "Unlimited"
+    },
+    "empty": {
+      "title": "No API keys",
+      "description": "Create a key to start calling the unified gateway."
+    }
+  },
+  "workspace": {
+    "loadFailed": "Failed to load API keys",
+    "eyebrow": "Resources",
+    "title": "API Keys",
+    "description": "Manage downstream gateway keys, quotas and model access policies.",
+    "search": "Search keys...",
+    "endpointCopyTitle": "Copy gateway endpoint",
+    "endpointCopied": "Gateway endpoint copied",
+    "endpointCopyFailed": "Failed to copy gateway endpoint",
+    "policy": {
+      "all": "All models",
+      "allowAll": "Allow all",
+      "allowList": "Allow list"
+    },
+    "status": {
+      "all": "All statuses",
+      "active": "Enabled",
+      "disabled": "Disabled"
+    },
+    "refreshAll": "Refresh all",
+    "createKey": "Create key",
+    "resetQuotaDialog": {
+      "title": "Reset quota",
+      "description": "Select one or more periodic quotas to reset for \"{{name}}\". Total usage and quota settings will not change.",
+      "daily": "Daily quota",
+      "dailyDescription": "Used ${{used}} in the current period; resets to zero",
+      "weekly": "Weekly quota",
+      "weeklyDescription": "Used ${{used}} in the current period; resets to zero",
+      "cancel": "Cancel",
+      "confirm": "Reset quota"
+    },
+    "deleteDialog": {
+      "title": "Delete key",
+      "confirm": "Delete「{{name}}」? This action cannot be undone.",
+      "confirmDefault": "Delete this key?",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "toast": {
+      "keyUpdated": "Key updated",
+      "keyCreated": "Key created",
+      "saveFailed": "Save failed",
+      "statusFailed": "Failed to update status",
+      "keyDeleted": "Key deleted",
+      "deleteFailed": "Delete failed",
+      "quotaReset": "Quota reset",
+      "quotaResetFailed": "Failed to reset quota"
+    }
+  },
+  "form": {
+    "editTitle": "Edit key",
+    "createTitle": "Create key",
+    "sections": {
+      "basic": "Basic info",
+      "access": "Access control",
+      "expires": "Expiration",
+      "quota": "Quota limit",
+      "advanced": "Advanced settings"
+    },
+    "fields": {
+      "name": "Key name",
+      "namePlaceholder": "e.g. Production",
+      "enabled": "Enabled",
+      "useCustomKey": "Use custom API key",
+      "customKey": "Custom API key",
+      "customKeyPlaceholder": "Enter custom key",
+      "siteAccess": "Site access",
+      "sitePolicyAll": "All sites",
+      "sitePolicyList": "Custom range",
+      "siteGroups": "Site groups",
+      "siteGroupsHint": "Groups are dynamic grants. Changes to a group's sites affect this key immediately.",
+      "siteGroupsPlaceholder": "Select groups",
+      "siteGroupsSearch": "Search groups",
+      "noSiteGroups": "No groups",
+      "groupSiteCount": "{{count}} site(s)",
+      "extraSites": "Extra sites",
+      "extraSitesHint": "Add sites outside the selected groups. Sites inherited from groups must be removed from the group.",
+      "siteSearch": "Search sites...",
+      "siteTypeAll": "All types",
+      "showDisabledSites": "Show disabled sites",
+      "selectedCount": "{{count}} selected",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "noSites": "No available sites",
+      "customSiteCount": "{{count}} final site(s), {{direct}} extra, {{inherited}} inherited",
+      "directSiteCount": "{{count}} direct, {{inherited}} inherited from groups",
+      "disabledSite": "Disabled",
+      "inheritedFromGroup": "Group",
+      "modelAccess": "Model access",
+      "modelPolicyAll": "All models",
+      "modelPolicyAllInScope": "All models in current range",
+      "modelPolicyList": "Custom models",
+      "modelScopeSummary": "Current custom range has {{siteCount}} site(s) and {{modelCount}} available model(s), expanded by source site and checked by default.",
+      "modelScopeSummaryLoading": "Loading available models from {{siteCount}} current site(s)...",
+      "selectSitesFirst": "Select sites first to view available models",
+      "modelSearch": "Search models...",
+      "brandAll": "All brands",
+      "noModels": "No models",
+      "neverExpire": "Never expire",
+      "expiresDate": "Expires date",
+      "pickDate": "Pick a date",
+      "quotaLimit": "Total quota",
+      "quotaDesc": "Unit: USD ($) · Empty or 0 means unlimited · Total used ${{used}}",
+      "quotaDailyLimit": "Daily quota limit",
+      "quotaDailyDesc": "Empty or 0 means unlimited · Resets daily · Used ${{used}} in the current period",
+      "quotaWeeklyLimit": "Weekly quota limit",
+      "quotaWeeklyDesc": "Empty or 0 means unlimited · Resets every Monday · Used ${{used}} in the current period"
+    },
+    "advanced": {
+      "modelMapping": "Model mapping",
+      "modelMappingDesc": "Map downstream model names to canonical models by rules. Three pattern forms: exact name, prefix wildcard (e.g. gpt-4*), and a single * as catch-all. Precedence is fixed: exact > longest prefix > catch-all. Exact aliases are listed in /v1/models. Hard: always rewrite to the target model. Soft: route with the original model first, falling back to the target only when the original has no available upstream (all cooling down or not deployed).",
+      "downstreamPlaceholder": "Model name / prefix* / *",
+      "selectModelPlaceholder": "Select model",
+      "duplicateKey": "Duplicate rule pattern",
+      "add": "Add",
+      "rateLimit": "Rate limit",
+      "rateLimitDesc": "Request rate limit. When disabled, only global config applies.",
+      "rpm": "Concurrent in-flight limit (RPM)",
+      "rpmDesc": "Maximum in-flight requests for this key at any moment; excess requests queue for up to 60s. Leave empty for unlimited.",
+      "tpm": "Tokens per minute",
+      "tpmDesc": "Max tokens per minute for text models. Leave empty for unlimited.",
+      "imageBridge": "Image tool bridge",
+      "imageBridgeDesc": "When the upstream cannot generate images natively, the gateway executes it with the selected image model and returns the image per protocol. Incurs extra costs.",
+      "imageBridgeModel": "Image model",
+      "imageBridgeModelDesc": "Only image models available on enabled sites are listed. This config itself authorizes the model.",
+      "imageBridgeSite": "Image site",
+      "imageBridgeSiteDesc": "Only enabled sites offering the selected model are listed; auto routing picks a site by model.",
+      "imageBridgeSiteAuto": "Auto routing",
+      "imageBridgeLoading": "Loading available models…",
+      "imageBridgeNoModels": "No image models available on enabled sites",
+      "modeHard": "Hard",
+      "modeSoft": "Soft"
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "validation": {
+      "nameRequired": "Please enter a key name",
+      "customKeyRequired": "Please enter a custom API key",
+      "customKeyWhitespace": "Custom API key cannot contain leading or trailing spaces",
+      "customKeyFormat": "Custom API key can only contain letters, numbers, and hyphen -",
+      "quotaInvalid": "Please enter a valid quota",
+      "quotaTooLow": "Quota cannot be less than already used amount (${{used}})",
+      "quotaDailyInvalid": "Please enter a valid daily quota",
+      "quotaDailyTooLow": "Daily quota cannot be less than current-period usage (${{used}})",
+      "quotaWeeklyInvalid": "Please enter a valid weekly quota",
+      "quotaWeeklyTooLow": "Weekly quota cannot be less than current-period usage (${{used}})",
+      "rateLimitRequired": "At least one limit is required when rate limiting is enabled",
+      "rpmInvalid": "In-flight limit must be an integer greater than 0",
+      "tpmInvalid": "TPM must be a positive integer",
+      "expiresRequired": "Please select an expiration date",
+      "expiresPast": "Expiration must be in the future",
+      "mappingDuplicate": "Duplicate mapping rule \"{{key}}\"",
+      "imageBridgeModelRequired": "An image model is required when the image bridge is enabled"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+    <script>
+      ;(function () {
+        var varName = '--app-viewport-height'
+        function isStandalone() {
+          return (
+            window.navigator.standalone === true ||
+            window.matchMedia('(display-mode: standalone)').matches ||
+            window.matchMedia('(display-mode: fullscreen)').matches
+          )
+        }
+        function syncAppViewportHeight() {
+          var root = document.documentElement
+          if (isStandalone()) {
+            root.dataset.standalone = 'true'
+            root.style.setProperty(varName, '100vh')
+            return
+          }
+          delete root.dataset.standalone
+          root.style.removeProperty(varName)
+        }
+        syncAppViewportHeight()
+        window.addEventListener('resize', syncAppViewportHeight, { passive: true })
+        window.addEventListener('orientationchange', syncAppViewportHeight, { passive: true })
+        window.addEventListener('pageshow', syncAppViewportHeight, { passive: true })
+      })()
+    </script>
+    <meta name="application-name" content="xLyra" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="xLyra" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#f4f7fb" />
+    <title>xLyra</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

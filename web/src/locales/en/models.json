@@ -1,0 +1,101 @@
+{
+  "page": {
+    "loadFailed": "Failed to load models page",
+    "eyebrow": "Resources",
+    "title": "Models",
+    "description": "Browse model marketplace, view pricing across sites, and manage canonical model mappings."
+  },
+  "filters": {
+    "brand": "Brand",
+    "site": "Site",
+    "allBrands": "All brands",
+    "allSites": "All sites",
+    "search": "Search models",
+    "catalog": "Model matching"
+  },
+  "empty": {
+    "noModels": "No models",
+    "noModelsDesc": "No models to display with the current filters."
+  },
+  "card": {
+    "copied": "Copied",
+    "headers": {
+      "site": "Site",
+      "upstreamModel": "Upstream Model",
+      "group": "Group",
+      "apiKeys": "ApiKeys",
+      "protocol": "Protocol",
+      "inputPrice": "Input Price",
+      "outputPrice": "Output Price",
+      "cachePrice": "Cache Read",
+      "cacheWritePrice": "Cache Write",
+      "cacheWrite5mPrice": "Cache Write(5m)",
+      "cacheWrite1hPrice": "Cache Write(1h)",
+      "groupRatio": "Group Ratio"
+    },
+    "perRequestUnit": "{{price}}/req",
+    "keyGroup": {
+      "codexTooltip": "{{enabled}} available Codex accounts / {{total}} total Codex accounts",
+      "keyTooltip": "{{enabled}} enabled keys in group / {{total}} total keys in group"
+    }
+  },
+  "catalog": {
+    "title": "Model matching",
+    "searchStandard": "Search canonical models",
+    "createStandardLabel": "Create canonical model",
+    "noStandardModels": "No canonical models",
+    "alias": "Alias",
+    "addAliasPlaceholder": "Add alias",
+    "addAlias": "Add",
+    "noAliases": "No aliases",
+    "deleteAliasLabel": "Delete alias {{alias}}",
+    "unmatched": "Unmatched",
+    "searchUnmatched": "Search unmatched models",
+    "bind": "Bind",
+    "create": "Create",
+    "noUnmatched": "No unmatched models",
+    "unbind": "Unbind",
+    "archiveModelLabel": "Archive canonical model {{model}}",
+    "archiveDialog": {
+      "title": "Delete canonical model",
+      "confirm": "Delete canonical model \"{{model}}\"? It will be hidden from model matching, and will appear again if an upstream model is bound to it later.",
+      "confirmDefault": "Delete this canonical model?",
+      "cancel": "Cancel",
+      "confirmAction": "Delete"
+    },
+    "loading": "Loading",
+    "noLinkedModels": "No linked models",
+    "headers": {
+      "site": "Site",
+      "model": "Model",
+      "source": "Source",
+      "confidence": "Confidence"
+    },
+    "createSurface": {
+      "title": "Create canonical model",
+      "modelKey": "Model key",
+      "displayName": "Display name",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "toast": {
+      "aliasAdded": "Alias added",
+      "aliasAddFailed": "Failed to add alias",
+      "aliasDeleted": "Alias deleted",
+      "aliasDeleteFailed": "Failed to delete alias",
+      "modelCreatedBound": "Canonical model created and bound",
+      "modelCreated": "Canonical model created",
+      "modelCreateFailed": "Failed to create canonical model",
+      "modelArchived": "Canonical model archived",
+      "modelArchiveFailed": "Failed to archive canonical model",
+      "modelBound": "Model bound",
+      "modelUnbound": "Model unbound",
+      "modelBindFailed": "Failed to bind model"
+    }
+  },
+  "matchSource": {
+    "manual": "Manual",
+    "auto": "Auto",
+    "unmatched": "Unmatched"
+  }
+}

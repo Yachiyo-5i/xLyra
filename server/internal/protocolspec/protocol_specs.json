@@ -1,0 +1,1624 @@
+{
+  "version": 1,
+  "protocols": {
+    "openai_chat": {
+      "events": {
+        "created": {
+          "name": "chat.completion.chunk",
+          "data_path": "choices[].delta.role"
+        },
+        "text_delta": {
+          "name": "chat.completion.chunk",
+          "delta_path": "choices[].delta.content"
+        },
+        "tool_call_delta": {
+          "name": "chat.completion.chunk",
+          "delta_path": "choices[].delta.tool_calls[].function.arguments"
+        },
+        "usage": {
+          "name": "chat.completion.chunk",
+          "data_path": "usage"
+        },
+        "completed": {
+          "name": "chat.completion.chunk",
+          "data_path": "choices[].finish_reason"
+        },
+        "incomplete": {
+          "name": "chat.completion.chunk",
+          "data_path": "choices[].finish_reason"
+        },
+        "error": {
+          "name": "error"
+        }
+      },
+      "param_mappings": [
+        {
+          "canonical": "stream",
+          "upstream": "stream"
+        },
+        {
+          "canonical": "stream_options",
+          "upstream": "stream_options"
+        },
+        {
+          "canonical": "temperature",
+          "upstream": "temperature"
+        },
+        {
+          "canonical": "top_p",
+          "upstream": "top_p"
+        },
+        {
+          "canonical": "parallel_tool_calls",
+          "upstream": "parallel_tool_calls"
+        },
+        {
+          "canonical": "metadata",
+          "upstream": "metadata"
+        },
+        {
+          "canonical": "user",
+          "upstream": "user"
+        }
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "stream_options",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "max_completion_tokens",
+          "tools",
+          "tool_choice",
+          "parallel_tool_calls",
+          "response_format",
+          "metadata",
+          "user",
+          "stop"
+        ],
+        "validation": {
+          "temperature": {"type": "number", "min": 0, "max": 2},
+          "top_p": {"type": "number", "min": 0, "max": 1},
+          "max_tokens": {"type": "integer", "min": 1},
+          "max_completion_tokens": {"type": "integer", "min": 1}
+        }
+      },
+      "capabilities": {
+        "text_delta": true,
+        "tool_calls": true,
+        "usage": true,
+        "refusal": false,
+        "reasoning_summary": false,
+        "encrypted_reasoning": false,
+        "thinking": false,
+        "thinking_signature": false,
+        "advanced_tool_events": false
+      },
+      "reasoning": {
+        "default": "metadata",
+        "encrypted_reasoning": "strip",
+        "reasoning_summary": "metadata",
+        "thinking": "passthrough",
+        "thinking_signature": "passthrough"
+      }
+    },
+    "openai_responses": {
+      "events": {
+        "created": {
+          "name": "response.created"
+        },
+        "response_in_progress": {
+          "name": "response.in_progress"
+        },
+        "text_delta": {
+          "name": "response.output_text.delta",
+          "delta_path": "delta"
+        },
+        "text_done": {
+          "name": "response.output_text.done",
+          "data_path": "text"
+        },
+        "refusal_delta": {
+          "name": "response.refusal.delta",
+          "delta_path": "delta"
+        },
+        "annotation_added": {
+          "name": "response.output_text.annotation.added",
+          "data_path": "annotation"
+        },
+        "tool_call_delta": {
+          "name": "response.function_call_arguments.delta",
+          "delta_path": "delta"
+        },
+        "tool_call_arguments_done": {
+          "name": "response.function_call_arguments.done",
+          "data_path": "arguments"
+        },
+        "output_item_added": {
+          "name": "response.output_item.added",
+          "data_path": "item"
+        },
+        "output_item_done": {
+          "name": "response.output_item.done",
+          "data_path": "item"
+        },
+        "content_part_added": {
+          "name": "response.content_part.added",
+          "data_path": "part"
+        },
+        "content_part_done": {
+          "name": "response.content_part.done",
+          "data_path": "part"
+        },
+        "usage": {
+          "name": "response.completed",
+          "data_path": "response.usage"
+        },
+        "completed": {
+          "name": "response.completed"
+        },
+        "incomplete": {
+          "name": "response.incomplete"
+        },
+        "error": {
+          "name": "response.error"
+        },
+        "reasoning_delta": {
+          "name": "response.reasoning_delta",
+          "delta_path": "delta"
+        },
+        "reasoning_summary_delta": {
+          "name": "response.reasoning_summary.delta",
+          "delta_path": "delta"
+        },
+        "encrypted_reasoning_delta": {
+          "name": "response.reasoning.encrypted_content.delta",
+          "delta_path": "delta"
+        },
+        "encrypted_reasoning_done": {
+          "name": "response.reasoning.encrypted_content.done"
+        },
+        "advanced_event": {
+          "name": "response.*",
+          "data_path": "$"
+        },
+        "tool_result": {
+          "name": "response.output_item.*",
+          "data_path": "item"
+        },
+        "mcp_event": {
+          "name": "response.mcp_*",
+          "data_path": "$"
+        },
+        "approval_event": {
+          "name": "response.approval_*",
+          "data_path": "$"
+        },
+        "computer_event": {
+          "name": "response.computer_call.*",
+          "data_path": "$"
+        },
+        "image_partial": {
+          "name": "response.image_generation_call.partial_image",
+          "data_path": "$"
+        }
+      },
+      "param_mappings": [
+        {
+          "canonical": "stream",
+          "upstream": "stream"
+        },
+        {
+          "canonical": "stream_options",
+          "upstream": "stream_options"
+        },
+        {
+          "canonical": "temperature",
+          "upstream": "temperature"
+        },
+        {
+          "canonical": "top_p",
+          "upstream": "top_p"
+        },
+        {
+          "canonical": "metadata",
+          "upstream": "metadata"
+        },
+        {
+          "canonical": "user",
+          "upstream": "user"
+        },
+        {
+          "canonical": "store",
+          "upstream": "store"
+        },
+        {
+          "canonical": "parallel_tool_calls",
+          "upstream": "parallel_tool_calls"
+        },
+        {
+          "canonical": "service_tier",
+          "upstream": "service_tier"
+        }
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "input",
+          "instructions",
+          "stream",
+          "stream_options",
+          "temperature",
+          "top_p",
+          "max_output_tokens",
+          "tools",
+          "tool_choice",
+          "parallel_tool_calls",
+          "text",
+          "reasoning",
+          "include",
+          "store",
+          "metadata",
+          "user",
+          "truncation",
+          "service_tier"
+        ],
+        "validation": {
+          "temperature": {"type": "number", "min": 0, "max": 2},
+          "top_p": {"type": "number", "min": 0, "max": 1},
+          "max_output_tokens": {"type": "integer", "min": 1}
+        }
+      },
+      "capabilities": {
+        "text_delta": true,
+        "tool_calls": true,
+        "tool_results": true,
+        "usage": true,
+        "refusal": true,
+        "reasoning_summary": true,
+        "encrypted_reasoning": true,
+        "thinking": false,
+        "thinking_signature": false,
+        "image_generation": true,
+        "advanced_tool_events": true,
+        "advanced_event_passthrough": true
+      },
+      "reasoning": {
+        "default": "metadata",
+        "encrypted_reasoning": "passthrough",
+        "reasoning_summary": "passthrough",
+        "thinking": "passthrough",
+        "thinking_signature": "passthrough"
+      }
+    },
+    "codex_responses": {
+      "base_protocol": "openai_responses",
+      "events": {},
+      "request_params": {
+        "unsupported": [
+          "metadata"
+        ]
+      },
+      "capabilities": {
+        "encrypted_reasoning": true,
+        "image_generation": true,
+        "advanced_tool_events": true
+      },
+      "reasoning": {
+        "encrypted_reasoning": "passthrough",
+        "reasoning_summary": "metadata"
+      }
+    },
+    "anthropic_messages": {
+      "events": {
+        "created": {
+          "name": "message_start",
+          "data_path": "message"
+        },
+        "text_delta": {
+          "name": "content_block_delta",
+          "delta_path": "delta.text",
+          "condition": {
+            "delta.type": "text_delta"
+          }
+        },
+        "tool_call_delta": {
+          "name": "content_block_delta",
+          "delta_path": "delta.partial_json",
+          "condition": {
+            "delta.type": "input_json_delta"
+          }
+        },
+        "tool_call_started": {
+          "name": "content_block_start",
+          "condition": {
+            "content_block.type": "tool_use"
+          }
+        },
+        "output_item_done": {
+          "name": "content_block_stop"
+        },
+        "usage": {
+          "name": "message_delta",
+          "data_path": "usage"
+        },
+        "completed": {
+          "name": "message_stop"
+        },
+        "incomplete": {
+          "name": "message_delta",
+          "condition": {
+            "delta.stop_reason": "max_tokens"
+          }
+        },
+        "error": {
+          "name": "error",
+          "data_path": "error"
+        },
+        "thinking_delta": {
+          "name": "content_block_delta",
+          "delta_path": "delta.thinking",
+          "condition": {
+            "delta.type": "thinking_delta"
+          }
+        },
+        "thinking_signature_delta": {
+          "name": "content_block_delta",
+          "delta_path": "delta.signature",
+          "condition": {
+            "delta.type": "signature_delta"
+          }
+        }
+      },
+      "param_mappings": [
+        {
+          "canonical": "stream",
+          "upstream": "stream"
+        },
+        {
+          "canonical": "temperature",
+          "upstream": "temperature"
+        },
+        {
+          "canonical": "top_p",
+          "upstream": "top_p"
+        },
+        {
+          "canonical": "top_k",
+          "upstream": "top_k"
+        },
+        {
+          "canonical": "metadata",
+          "upstream": "metadata"
+        },
+        {
+          "canonical": "stop_sequences",
+          "upstream": "stop_sequences"
+        },
+        {
+          "canonical": "thinking",
+          "upstream": "thinking"
+        },
+        {
+          "canonical": "output_config",
+          "upstream": "output_config"
+        }
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "system",
+          "stream",
+          "max_tokens",
+          "temperature",
+          "top_p",
+          "top_k",
+          "tools",
+          "tool_choice",
+          "metadata",
+          "stop_sequences",
+          "thinking",
+          "output_config"
+        ],
+        "validation": {
+          "temperature": {"type": "number", "min": 0, "max": 1},
+          "top_p": {"type": "number", "min": 0, "max": 1},
+          "top_k": {"type": "integer", "min": 1},
+          "max_tokens": {"type": "integer", "min": 1}
+        }
+      },
+      "capabilities": {
+        "text_delta": true,
+        "tool_calls": true,
+        "tool_results": true,
+        "usage": true,
+        "thinking": true,
+        "thinking_signature": true,
+        "advanced_tool_events": true
+      },
+      "reasoning": {
+        "default": "metadata",
+        "encrypted_reasoning": "strip",
+        "reasoning_summary": "metadata",
+        "thinking": "passthrough",
+        "thinking_signature": "passthrough"
+      }
+    },
+    "antigravity_gemini": {
+      "events": {
+        "text_delta": {
+          "name": "generateContentResponse",
+          "delta_path": "candidates[].content.parts[].text"
+        },
+        "tool_call_delta": {
+          "name": "generateContentResponse",
+          "data_path": "candidates[].content.parts[].functionCall"
+        },
+        "usage": {
+          "name": "generateContentResponse",
+          "data_path": "usageMetadata"
+        },
+        "completed": {
+          "name": "generateContentResponse",
+          "data_path": "candidates[].finishReason"
+        },
+        "error": {
+          "name": "error"
+        }
+      },
+      "request_params": {
+        "supported": [
+          "model",
+          "contents",
+          "systemInstruction",
+          "tools",
+          "toolConfig",
+          "generationConfig",
+          "safetySettings"
+        ]
+      },
+      "capabilities": {
+        "text_delta": true,
+        "tool_calls": true,
+        "usage": true,
+        "image_generation": true,
+        "thinking": true
+      },
+      "reasoning": {
+        "default": "metadata",
+        "thinking": "metadata",
+        "thinking_signature": "strip"
+      }
+    },
+    "google_gemini": {
+      "base_protocol": "antigravity_gemini",
+      "events": {},
+      "request_params": {
+        "supported": [
+          "contents",
+          "systemInstruction",
+          "tools",
+          "toolConfig",
+          "generationConfig",
+          "safetySettings"
+        ]
+      },
+      "capabilities": {
+        "text_delta": true,
+        "tool_calls": true,
+        "usage": true,
+        "thinking": true
+      }
+    },
+    "openai_images": {
+      "events": {
+        "image_generation_started": {
+          "name": "image_generation.started"
+        },
+        "image_partial_delta": {
+          "name": "image_generation.partial_image"
+        },
+        "image_done": {
+          "name": "image_generation.completed"
+        }
+      },
+      "request_params": {
+        "supported": [
+          "model",
+          "prompt",
+          "n",
+          "size",
+          "quality",
+          "background",
+          "response_format",
+          "moderation",
+          "output_format",
+          "output_compression",
+          "user"
+        ]
+      },
+      "capabilities": {
+        "image_generation": true,
+        "image_partial": true
+      }
+    },
+    "openai_embeddings": {
+      "request_params": {
+        "supported": [
+          "model",
+          "input",
+          "encoding_format",
+          "dimensions",
+          "user"
+        ]
+      },
+      "capabilities": {
+        "embeddings": true
+      }
+    },
+    "openai_audio_speech": {
+      "request_params": {
+        "supported": [
+          "model",
+          "input",
+          "voice",
+          "response_format",
+          "speed",
+          "instructions",
+          "stream_format"
+        ]
+      },
+      "capabilities": {
+        "audio_speech": true
+      }
+    }
+  },
+  "providers": {
+    "openai": {
+      "protocol": "openai_responses",
+      "official_base_url": "https://api.openai.com",
+      "documentation": [
+        "https://platform.openai.com/docs/models",
+        "https://platform.openai.com/docs/api-reference/responses"
+      ],
+      "reasoning": {
+        "default": "metadata",
+        "reasoning_summary": "passthrough"
+      }
+    },
+    "opencode_go": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://opencode.ai/zen/go",
+      "documentation": [
+        "https://opencode.ai/docs/go/"
+      ],
+      "paths": {
+        "openai_chat": {
+          "path": "/v1/chat/completions"
+        },
+        "openai_responses": {
+          "path": "/v1/responses"
+        },
+        "anthropic_messages": {
+          "path": "/v1/messages"
+        }
+      },
+      "protocol_request_params": {
+        "anthropic_messages": {
+          "defaults": {
+            "max_tokens": 8192
+          }
+        }
+      },
+      "model_endpoint_types": [
+        {
+          "models": [
+            "gpt-5.6-luna"
+          ],
+          "supported_endpoint_types": [
+            "openai-response"
+          ]
+        },
+        {
+          "prefixes": [
+            "minimax-",
+            "qwen"
+          ],
+          "supported_endpoint_types": [
+            "anthropic-messages"
+          ]
+        },
+        {
+          "prefixes": [
+            "grok-",
+            "glm-",
+            "kimi-",
+            "deepseek-",
+            "mimo-",
+            "hy3"
+          ],
+          "supported_endpoint_types": [
+            "openai"
+          ]
+        }
+      ]
+    },
+    "codex": {
+      "protocol": "codex_responses",
+      "request_params": {
+        "unsupported": [
+          "temperature",
+          "top_p",
+          "top_k",
+          "max_output_tokens",
+          "max_completion_tokens",
+          "stream_options",
+          "context_management",
+          "truncation",
+          "prompt_cache_retention",
+          "user",
+          "metadata"
+        ],
+        "unsupported_with_image_generation": [
+          "n"
+        ],
+        "allowed_values": {
+          "service_tier": [
+            "fast",
+            "priority"
+          ]
+        },
+        "forced": {
+          "stream": true,
+          "store": false,
+          "parallel_tool_calls": true,
+          "include": [
+            "reasoning.encrypted_content"
+          ]
+        }
+      },
+      "capabilities": {
+        "encrypted_reasoning": true,
+        "image_generation": true,
+        "advanced_tool_events": true
+      },
+      "reasoning": {
+        "encrypted_reasoning": "passthrough",
+        "reasoning_summary": "metadata"
+      }
+    },
+  "anthropic": {
+    "protocol": "anthropic_messages",
+    "official_base_url": "https://api.anthropic.com",
+    "documentation": [
+      "https://docs.anthropic.com/en/docs/about-claude/models",
+      "https://docs.anthropic.com/en/api/messages"
+      ],
+      "request_params": {
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "thinking": "passthrough",
+        "thinking_signature": "passthrough"
+      }
+    },
+    "claude_code": {
+      "protocol": "anthropic_messages",
+      "official_base_url": "https://api.anthropic.com",
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models",
+        "https://docs.anthropic.com/en/api/messages"
+      ],
+      "request_params": {
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "thinking": "passthrough",
+        "thinking_signature": "passthrough"
+      }
+    },
+    "google_gemini": {
+      "protocol": "google_gemini",
+      "official_base_url": "https://generativelanguage.googleapis.com",
+      "documentation": [
+        "https://ai.google.dev/gemini-api/docs/models",
+        "https://ai.google.dev/gemini-api/docs/text-generation"
+      ],
+      "reasoning": {
+        "thinking": "metadata"
+      }
+    },
+    "zhipu": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "path": "/chat/completions",
+      "paths": {
+        "openai_chat": {
+          "path": "/chat/completions"
+        },
+        "openai_embeddings": {
+          "path": "/embeddings"
+        },
+        "openai_images": {
+          "path": "/images/generations"
+        }
+      },
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "base_url": "https://open.bigmodel.cn/api/anthropic",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      },
+      "documentation": [
+        "https://docs.bigmodel.cn/cn/guide/models",
+        "https://docs.bigmodel.cn/cn/api-reference/模型-api/对话补全",
+        "https://docs.bigmodel.cn/cn/guide/develop/claude/introduction"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice",
+          "thinking"
+        ],
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "reasoning_summary": "metadata",
+        "thinking": "metadata"
+      }
+    },
+    "glm_code": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+      "path": "/chat/completions",
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "base_url": "https://open.bigmodel.cn/api/anthropic",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      },
+      "documentation": [
+        "https://docs.bigmodel.cn/cn/coding-plan/tool/others",
+        "https://docs.bigmodel.cn/cn/guide/develop/claude/introduction"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice",
+          "thinking"
+        ],
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "reasoning_summary": "metadata",
+        "thinking": "metadata"
+      }
+    },
+    "minimax": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://api.minimaxi.com",
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "base_path": "/anthropic",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      },
+      "documentation": [
+        "https://platform.minimaxi.com/docs/api-reference/text-openai-api",
+        "https://platform.minimaxi.com/docs/api-reference/text-anthropic-api"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice"
+        ],
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "thinking": "metadata"
+      }
+    },
+    "moonshot": {
+      "protocol": "openai_chat",
+      "documentation": [
+        "https://platform.kimi.com/docs/api/overview",
+        "https://platform.kimi.com/docs/api/models-overview",
+        "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/pricing/chat"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice"
+        ]
+      },
+      "reasoning": {
+        "thinking": "metadata"
+      },
+      "official_base_url": "https://api.moonshot.cn"
+    },
+    "dashscope": {
+      "protocol": "openai_chat",
+      "documentation": [
+        "https://help.aliyun.com/zh/model-studio/models",
+        "https://help.aliyun.com/zh/model-studio/use-qwen-by-calling-api"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice",
+          "enable_thinking",
+          "thinking_budget"
+        ]
+      },
+      "reasoning": {
+        "thinking": "metadata",
+        "reasoning_summary": "metadata"
+      }
+    },
+    "deepseek": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://api.deepseek.com",
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "base_path": "/anthropic",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      },
+      "documentation": [
+        "https://api-docs.deepseek.com/api/create-chat-completion",
+        "https://api-docs.deepseek.com/guides/reasoning_model",
+        "https://api-docs.deepseek.com/zh-cn/guides/anthropic_api"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice",
+          "response_format"
+        ],
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "reasoning_summary": "metadata"
+      }
+    },
+    "xiaomi_mimo": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://token-plan-cn.xiaomimimo.com",
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "base_path": "/anthropic",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      },
+      "documentation": [
+        "https://huggingface.co/XiaomiMiMo"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice"
+        ],
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "reasoning_summary": "metadata"
+      },
+      "capabilities": {
+        "thinking_roundtrip_degrade_missing": true
+      }
+    },
+    "kimi_code": {
+      "protocol": "openai_chat",
+      "official_base_url": "https://api.kimi.com/coding",
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      },
+      "documentation": [
+        "https://www.kimi.com/code/docs/"
+      ],
+      "request_params": {
+        "supported": [
+          "model",
+          "messages",
+          "stream",
+          "temperature",
+          "top_p",
+          "max_tokens",
+          "tools",
+          "tool_choice",
+          "response_format"
+        ],
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
+      "reasoning": {
+        "thinking": "metadata"
+      }
+    }
+  },
+  "models": {
+    "gpt-5*": {
+      "provider": "openai",
+      "request_params": {
+        "supported": [
+          "model",
+          "input",
+          "messages",
+          "instructions",
+          "stream",
+          "stream_options",
+          "tools",
+          "tool_choice",
+          "parallel_tool_calls",
+          "text",
+          "reasoning",
+          "include",
+          "store",
+          "metadata",
+          "service_tier"
+        ]
+      },
+      "capabilities": {
+        "reasoning_summary": true,
+        "text_format": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.openai.com/docs/models"
+      ]
+    },
+    "gpt-4.1*": {
+      "provider": "openai",
+      "capabilities": {
+        "text_format": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.openai.com/docs/models"
+      ]
+    },
+    "gpt-4o*": {
+      "provider": "openai",
+      "capabilities": {
+        "text_format": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.openai.com/docs/models"
+      ]
+    },
+    "o1*": {
+      "provider": "openai",
+      "capabilities": {
+        "reasoning_summary": true,
+        "text_format": true
+      },
+      "documentation": [
+        "https://platform.openai.com/docs/models"
+      ]
+    },
+    "o3*": {
+      "provider": "openai",
+      "capabilities": {
+        "reasoning_summary": true,
+        "text_format": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.openai.com/docs/models"
+      ]
+    },
+    "o4*": {
+      "provider": "openai",
+      "capabilities": {
+        "reasoning_summary": true,
+        "text_format": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.openai.com/docs/models"
+      ]
+    },
+    "claude-opus-4*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "thinking": true,
+        "thinking_signature": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models",
+        "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"
+      ]
+    },
+    "claude-sonnet-4*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "thinking": true,
+        "thinking_signature": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models",
+        "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"
+      ]
+    },
+    "claude-sonnet-5*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "thinking": true,
+        "thinking_signature": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models",
+        "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"
+      ]
+    },
+    "claude-haiku-4*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "thinking": true,
+        "thinking_signature": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models",
+        "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"
+      ]
+    },
+    "claude-fable-5*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "thinking": true,
+        "thinking_signature": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models",
+        "https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking"
+      ]
+    },
+    "claude-3-7*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "thinking": true,
+        "thinking_signature": true,
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models"
+      ]
+    },
+    "claude*": {
+      "provider": "anthropic",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://docs.anthropic.com/en/docs/about-claude/models"
+      ]
+    },
+    "gemini-3*": {
+      "provider": "google_gemini",
+      "capabilities": {
+        "thinking": true,
+        "tool_calls": true,
+        "image_generation": true
+      },
+      "documentation": [
+        "https://ai.google.dev/gemini-api/docs/models"
+      ]
+    },
+    "gemini-2.5*": {
+      "provider": "google_gemini",
+      "capabilities": {
+        "thinking": true,
+        "tool_calls": true,
+        "image_generation": true
+      },
+      "documentation": [
+        "https://ai.google.dev/gemini-api/docs/models",
+        "https://ai.google.dev/gemini-api/docs/thinking"
+      ]
+    },
+    "glm-5*": {
+      "provider": "zhipu",
+      "capabilities": {
+        "tool_calls": true,
+        "reasoning_summary": true
+      },
+      "documentation": [
+        "https://docs.bigmodel.cn/cn/guide/models"
+      ]
+    },
+    "glm-4.7*": {
+      "provider": "zhipu",
+      "capabilities": {
+        "tool_calls": true,
+        "reasoning_summary": true
+      },
+      "documentation": [
+        "https://docs.bigmodel.cn/cn/guide/models"
+      ]
+    },
+    "glm-4.6*": {
+      "provider": "zhipu",
+      "capabilities": {
+        "tool_calls": true,
+        "reasoning_summary": true
+      },
+      "documentation": [
+        "https://docs.bigmodel.cn/cn/guide/models"
+      ]
+    },
+    "glm-4.5*": {
+      "provider": "zhipu",
+      "capabilities": {
+        "tool_calls": true,
+        "reasoning_summary": true
+      },
+      "documentation": [
+        "https://docs.bigmodel.cn/cn/guide/models"
+      ]
+    },
+    "minimax-m2*": {
+      "provider": "minimax",
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.minimaxi.com/docs/api-reference/text-openai-api",
+        "https://platform.minimaxi.com/docs/api-reference/text-anthropic-api"
+      ]
+    },
+    "minimax-text-01*": {
+      "provider": "minimax",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.minimaxi.com/docs/api-reference/text-openai-api"
+      ]
+    },
+    "kimi-k2.5*": {
+      "provider": "moonshot",
+      "request_params": {
+        "fixed": {
+          "temperature": 0.6,
+          "top_p": 1,
+          "n": 1,
+          "presence_penalty": 0,
+          "frequency_penalty": 0
+        }
+      },
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.kimi.com/docs/api/overview",
+        "https://platform.kimi.com/docs/api/models-overview",
+        "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/pricing/chat"
+      ]
+    },
+    "kimi-k2.6*": {
+      "provider": "moonshot",
+      "request_params": {
+        "fixed": {
+          "temperature": 1,
+          "top_p": 1,
+          "n": 1,
+          "presence_penalty": 0,
+          "frequency_penalty": 0
+        }
+      },
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.kimi.com/docs/api/overview",
+        "https://platform.kimi.com/docs/api/models-overview",
+        "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/pricing/chat"
+      ]
+    },
+    "kimi-k2-thinking*": {
+      "provider": "moonshot",
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.kimi.com/docs/api/overview",
+        "https://platform.kimi.com/docs/api/models-overview",
+        "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/pricing/chat"
+      ]
+    },
+    "kimi-k2*": {
+      "provider": "moonshot",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.kimi.com/docs/api/overview",
+        "https://platform.kimi.com/docs/api/models-overview",
+        "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/pricing/chat"
+      ]
+    },
+    "moonshot-v1*": {
+      "provider": "moonshot",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://platform.kimi.com/docs/api/overview",
+        "https://platform.kimi.com/docs/api/models-overview",
+        "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/pricing/chat"
+      ]
+    },
+    "qwen3*": {
+      "provider": "dashscope",
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true
+      },
+      "documentation": [
+        "https://help.aliyun.com/zh/model-studio/models",
+        "https://help.aliyun.com/zh/model-studio/deep-thinking"
+      ]
+    },
+    "qwen-plus*": {
+      "provider": "dashscope",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://help.aliyun.com/zh/model-studio/models"
+      ]
+    },
+    "qwen-max*": {
+      "provider": "dashscope",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://help.aliyun.com/zh/model-studio/models"
+      ]
+    },
+    "qwen-coder*": {
+      "provider": "dashscope",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://help.aliyun.com/zh/model-studio/models"
+      ]
+    },
+    "qwen-vl*": {
+      "provider": "dashscope",
+      "capabilities": {
+        "tool_calls": true,
+        "image_generation": false
+      },
+      "documentation": [
+        "https://help.aliyun.com/zh/model-studio/models"
+      ]
+    },
+    "deepseek-v4*": {
+      "provider": "deepseek",
+      "capabilities": {
+        "thinking": true,
+        "thinking_roundtrip": true,
+        "tool_calls": true,
+        "anthropic_messages": true,
+        "strict_tools_beta": true
+      },
+      "documentation": [
+        "https://api-docs.deepseek.com/zh-cn/guides/thinking_mode",
+        "https://api-docs.deepseek.com/zh-cn/guides/tool_calls",
+        "https://api-docs.deepseek.com/zh-cn/guides/anthropic_api"
+      ]
+    },
+    "deepseek-chat": {
+      "provider": "deepseek",
+      "capabilities": {
+        "tool_calls": true
+      },
+      "documentation": [
+        "https://api-docs.deepseek.com/quick_start/pricing"
+      ]
+    },
+    "deepseek-reasoner": {
+      "provider": "deepseek",
+      "request_params": {
+        "unsupported": [
+          "temperature",
+          "top_p",
+          "presence_penalty",
+          "frequency_penalty",
+          "logprobs",
+          "top_logprobs"
+        ]
+      },
+      "capabilities": {
+        "reasoning_summary": true,
+        "tool_calls": false
+      },
+      "documentation": [
+        "https://api-docs.deepseek.com/guides/reasoning_model"
+      ]
+    },
+    "mimo-v2.5-pro*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "reasoning_summary": true,
+        "tool_calls": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true,
+        "vision": true,
+        "audio": true,
+        "video": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo-v2.5": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "reasoning_summary": true,
+        "tool_calls": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo-v2-omni*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "reasoning_summary": true,
+        "tool_calls": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true,
+        "vision": true,
+        "audio": true,
+        "video": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo-v2-pro*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "reasoning_summary": true,
+        "tool_calls": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo-v2-flash*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "reasoning_summary": true,
+        "tool_calls": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo-v2-tts*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "audio": true
+      },
+      "request_params": {
+        "unsupported": [
+          "tools",
+          "tool_choice",
+          "response_format"
+        ]
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo-v2.5-tts*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "audio": true
+      },
+      "request_params": {
+        "unsupported": [
+          "tools",
+          "tool_choice",
+          "response_format"
+        ]
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "mimo*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "tool_calls": true,
+        "reasoning_summary": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "xiaomimimo/*": {
+      "provider": "xiaomi_mimo",
+      "capabilities": {
+        "tool_calls": true,
+        "reasoning_summary": true,
+        "anthropic_messages": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://platform.xiaomimimo.com/#/docs"
+      ]
+    },
+    "kimi-k2.5-code*": {
+      "provider": "kimi_code",
+      "request_params": {
+        "fixed": {
+          "temperature": 0.6,
+          "top_p": 1,
+          "n": 1,
+          "presence_penalty": 0,
+          "frequency_penalty": 0
+        }
+      },
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true
+      },
+      "documentation": [
+        "https://www.kimi.com/code/docs/"
+      ]
+    },
+    "k3": {
+      "provider": "kimi_code",
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true,
+        "anthropic_messages": true
+      },
+      "documentation": [
+        "https://www.kimi.com/code/docs/kimi-code/models.html"
+      ]
+    },
+    "kimi-k3*": {
+      "provider": "kimi_code",
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true,
+        "anthropic_messages": true
+      },
+      "documentation": [
+        "https://www.kimi.com/code/docs/kimi-code/models.html"
+      ]
+    },
+    "kimi-for-coding*": {
+      "provider": "kimi_code",
+      "capabilities": {
+        "tool_calls": true,
+        "thinking": true,
+        "thinking_roundtrip": true,
+        "anthropic_messages": true
+      },
+      "documentation": [
+        "https://www.kimi.com/code/docs/kimi-code/models.html"
+      ]
+    }
+  }
+}

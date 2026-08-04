@@ -1,0 +1,101 @@
+{
+  "page": {
+    "loadFailed": "模型页读取失败",
+    "eyebrow": "资源",
+    "title": "模型",
+    "description": "浏览模型市场、查看各站点价格，并管理标准模型映射。"
+  },
+  "filters": {
+    "brand": "品牌",
+    "site": "站点",
+    "allBrands": "全部品牌",
+    "allSites": "全部站点",
+    "search": "搜索模型",
+    "catalog": "模型匹配"
+  },
+  "empty": {
+    "noModels": "没有模型",
+    "noModelsDesc": "当前筛选条件下没有可展示的模型。"
+  },
+  "card": {
+    "copied": "已复制",
+    "headers": {
+      "site": "站点",
+      "upstreamModel": "上游模型",
+      "group": "分组",
+      "apiKeys": "ApiKeys",
+      "protocol": "协议",
+      "inputPrice": "输入价格",
+      "outputPrice": "输出价格",
+      "cachePrice": "缓存读取",
+      "cacheWritePrice": "缓存写入",
+      "cacheWrite5mPrice": "缓存写入(5m)",
+      "cacheWrite1hPrice": "缓存写入(1h)",
+      "groupRatio": "组倍率"
+    },
+    "perRequestUnit": "{{price}}/次",
+    "keyGroup": {
+      "codexTooltip": "{{enabled}} 个可用 Codex 账号 / 共 {{total}} 个 Codex 账号",
+      "keyTooltip": "该分组 {{enabled}} 个启用 Key / 该分组共 {{total}} 个 Key"
+    }
+  },
+  "catalog": {
+    "title": "模型匹配",
+    "searchStandard": "搜索标准模型",
+    "createStandardLabel": "新建标准模型",
+    "noStandardModels": "暂无标准模型",
+    "alias": "Alias",
+    "addAliasPlaceholder": "新增 alias",
+    "addAlias": "添加",
+    "noAliases": "暂无 alias",
+    "deleteAliasLabel": "删除 alias {{alias}}",
+    "unmatched": "未命中",
+    "searchUnmatched": "搜索未命中模型",
+    "bind": "绑定",
+    "create": "新建",
+    "noUnmatched": "暂无未命中模型",
+    "unbind": "解绑",
+    "archiveModelLabel": "归档标准模型 {{model}}",
+    "archiveDialog": {
+      "title": "删除标准模型",
+      "confirm": "确定要删除标准模型「{{model}}」吗？删除后将从模型匹配列表中隐藏，后续有上游模型重新绑定时会再次显示。",
+      "confirmDefault": "确定要删除该标准模型吗？",
+      "cancel": "取消",
+      "confirmAction": "删除"
+    },
+    "loading": "加载中",
+    "noLinkedModels": "暂无关联模型",
+    "headers": {
+      "site": "站点",
+      "model": "模型",
+      "source": "来源",
+      "confidence": "置信度"
+    },
+    "createSurface": {
+      "title": "新增标准模型",
+      "modelKey": "标准模型名",
+      "displayName": "显示名称",
+      "cancel": "取消",
+      "save": "保存"
+    },
+    "toast": {
+      "aliasAdded": "Alias 已添加",
+      "aliasAddFailed": "Alias 添加失败",
+      "aliasDeleted": "Alias 已删除",
+      "aliasDeleteFailed": "Alias 删除失败",
+      "modelCreatedBound": "标准模型已创建并绑定",
+      "modelCreated": "标准模型已创建",
+      "modelCreateFailed": "标准模型创建失败",
+      "modelArchived": "标准模型已归档",
+      "modelArchiveFailed": "标准模型归档失败",
+      "modelBound": "模型已绑定",
+      "modelUnbound": "模型已解绑",
+      "modelBindFailed": "模型绑定失败"
+    }
+  },
+  "matchSource": {
+    "manual": "手动",
+    "auto": "自动",
+    "unmatched": "未命中"
+  }
+}

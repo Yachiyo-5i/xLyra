@@ -1,0 +1,297 @@
+{
+  "sources": {
+    "codexSubtitle": "通过 OAuth 接入 OpenAI Codex 账号",
+    "antigravitySubtitle": "通过 OAuth 接入 Antigravity 账号",
+    "claudeCodeSubtitle": "通过 OAuth 接入 Claude Code 订阅账号",
+    "comingSoon": "即将支持",
+    "generating": "生成中"
+  },
+  "status": {
+    "connected": "已连接",
+    "pendingSync": "检测中",
+    "expired": "已过期",
+    "error": "异常",
+    "reconnectRequired": "需要重新授权"
+  },
+  "workspace": {
+    "loadFailed": "OAuth 连接读取失败",
+    "pageHeader": {
+      "eyebrow": "资源",
+      "title": "OAuth",
+      "description": "管理 OAuth 连接、额度与模型访问。"
+    },
+    "search": "搜索账号",
+    "provider": {
+      "label": "来源",
+      "all": "全部来源"
+    },
+    "statusFilter": {
+      "label": "状态",
+      "all": "全部状态",
+      "connected": "已连接",
+      "pendingSync": "检测中",
+      "reconnectRequired": "需要重新授权",
+      "expired": "已过期",
+      "error": "异常"
+    },
+    "refreshAll": "刷新全部",
+    "import": "导入",
+    "createNew": "新建接入",
+    "errorAccounts": "异常账号",
+    "empty": {
+      "title": "还没有 OAuth 接入",
+      "description": "点击右上角新建接入，或直接导入账号 JSON。"
+    },
+    "noMatch": {
+      "title": "没有匹配的接入",
+      "description": "当前筛选条件下没有找到 OAuth 接入。"
+    },
+    "deleteDialog": {
+      "title": "删除接入",
+      "confirm": "确认删除「{{provider}}」接入？绑定的站点及关联数据将一并删除，删除后不可恢复。",
+      "confirmDefault": "确认删除当前接入？删除后不可恢复。",
+      "cancel": "取消",
+      "delete": "确认删除"
+    },
+    "toast": {
+      "linkGenerated": "认证链接已生成",
+      "linkFailed": "生成认证链接失败",
+      "authSuccess": "认证接入成功",
+      "authPartial": "认证已完成，部分数据刷新失败",
+      "callbackFailed": "回调提交失败",
+      "refreshed": "连接已刷新",
+      "refreshFailed": "连接刷新失败",
+      "statusFailed": "状态更新失败",
+      "refreshAllDone": "全部刷新完成",
+      "refreshAllFailed": "刷新失败",
+      "deleted": "接入已删除",
+      "deleteFailed": "删除失败",
+      "exported": "账号已导出",
+      "exportFailed": "账号导出失败",
+      "importDone": "导入已接收：{{queued}} 个检测中，{{failed}} 个失败",
+      "importFailed": "导入失败",
+      "oauthSuccess": "OAuth 接入成功",
+      "oauthPartial": "OAuth 已接入",
+      "oauthPartialDesc": "账号已绑定，部分数据刷新稍后可手动刷新。",
+      "oauthFailed": "OAuth 接入失败",
+      "oauthFailedDesc": "请重新发起认证。",
+      "reauthMissingSite": "当前连接没有绑定站点，无法重新认证",
+      "linkCopied": "认证链接已复制"
+    }
+  },
+  "edit": {
+    "title": "编辑站点",
+    "sections": {
+      "basic": "基础信息",
+      "routing": "路由设置",
+      "groups": "分组配置"
+    },
+    "fields": {
+      "siteName": "站点名称",
+      "enableRouting": "启用路由",
+      "enableRoutingDesc": "关闭后该站点暂时不参与路由。",
+      "siteType": "站点类型",
+      "account": "账号",
+      "routingPriority": "路由权重",
+      "routingPriorityHint": "默认 1.0，可设置 1.0 - 5.0，权重越高优先路由。",
+      "siteGroups": "所属分组",
+      "siteGroupsHint": "账号站点加入分组后，授权该分组的下游密钥可使用此账号。",
+      "siteGroupsPlaceholder": "选择分组",
+      "siteGroupsSearch": "搜索分组",
+      "noSiteGroups": "暂无分组",
+      "groupSiteCount": "{{count}} 个站点",
+      "proxy": "代理",
+      "proxyDesc": "选择该账号站点请求使用的代理；直连表示不使用代理。",
+      "proxyDirect": "直连"
+    },
+    "validation": {
+      "priorityRequired": "请输入路由权重",
+      "priorityFormat": "路由权重仅支持 1 位小数",
+      "priorityRange": "路由权重范围为 1.0 - 5.0"
+    },
+    "toast": {
+      "saved": "站点信息已更新",
+      "saveFailed": "更新失败"
+    },
+    "actions": {
+      "save": "保存修改",
+      "cancel": "取消"
+    }
+  },
+  "create": {
+    "title": "新建 OAuth 接入",
+    "reauthTitle": "重新认证 OAuth 接入",
+    "authorizeUrl": "官方认证 URL",
+    "copyLink": "复制链接",
+    "openPage": "打开页面",
+    "instructions": "点击上方链接打开官方登录页面。Codex/Antigravity 完成后复制最终 URL，Claude Code 完成后复制 authorization_code#state。",
+    "resultUrl": "登录后的结果",
+    "resultPlaceholder": "粘贴登录后的 URL 或 authorization_code#state",
+    "submit": "提交",
+    "back": "返回"
+  },
+  "import": {
+    "title": "导入 OAuth 账号",
+    "mode": {
+      "files": "上传文件",
+      "json": "粘贴 JSON"
+    },
+    "dropzone": "点击选择、拖拽或粘贴文件到此处",
+    "fileHint": "支持 sub2api 和 CPA 格式的 .json 文件，可多选",
+    "selectedCount": "已选择 {{count}} 个文件",
+    "jsonLabel": "JSON 内容",
+    "jsonPlaceholder": "粘贴导出的 JSON 内容",
+    "jsonRequired": "请粘贴 JSON 内容",
+    "jsonInvalid": "JSON 格式不正确",
+    "result": {
+      "total": "共 {{total}} 个账号",
+      "succeeded": "{{count}} 已接收",
+      "failed": "{{count}} 失败",
+      "site": "站点: {{name}}",
+      "success": "成功",
+      "fail": "失败",
+      "status": {
+        "queued": "已入队检测",
+        "failed": "导入失败",
+        "unknown": "未知状态"
+      }
+    },
+    "actions": {
+      "import": "导入",
+      "importWithCount": "导入 ({{count}} 个文件)",
+      "cancel": "取消",
+      "done": "完成"
+    }
+  },
+  "card": {
+    "account": "账号",
+    "site": "站点",
+    "group": "分组",
+    "usage": "用量",
+    "weight": "权重",
+    "updatedAt": "更新时间",
+    "lastUpdate": "最近更新 {{time}}",
+    "updatedAtMode": {
+      "showAbsolute": "切换为绝对时间",
+      "showRelative": "切换为相对时间"
+    },
+    "errorInfo": "异常信息",
+    "models": "模型",
+    "modelsFailed": "模型数据读取失败",
+    "modelsLoading": "读取中",
+    "modelsCount": "{{count}} 个可用模型",
+    "viewModels": "查看模型",
+    "modelsDrawTitle": "{{provider}} 可用模型",
+    "nonRefreshable": "不可自动续期",
+    "nonRefreshableDescription": "该账号缺少 refresh token，access token 过期后需要重新导入或重新登录。",
+    "toast": {
+      "modelFailed": "模型更新失败"
+    },
+    "actions": {
+      "reconnect": "重新认证",
+      "refresh": "刷新",
+      "export": "导出",
+      "test": "测试",
+      "usageSplit": "查看用量分账",
+      "edit": "编辑",
+      "delete": "删除"
+    }
+  },
+  "split": {
+    "title": "用量分账",
+    "description": "选择一个或多个站点，按自然日统计下游 API Key 的消耗占比。",
+    "descriptionWithTarget": "{{target}} · {{range}}",
+    "targetRequired": "请选择站点",
+    "loading": "正在读取分账数据",
+    "loadFailed": "分账数据读取失败",
+    "filters": {
+      "target": "站点",
+      "searchSites": "搜索站点",
+      "emptySites": "暂无可选站点",
+      "selectedSites": "个站点",
+      "deletedSite": "已删除",
+      "oauthGroup": "OAuth 账号",
+      "sitesGroup": "Sites",
+      "dateFrom": "开始日期",
+      "dateTo": "结束日期",
+      "refresh": "刷新"
+    },
+    "ranges": {
+      "days": "{{count}} 天",
+      "allShort": "不限",
+      "all": "时间不限",
+      "between": "{{from}} 至 {{to}}"
+    },
+    "metrics": {
+      "totalCost": "总消耗",
+      "totalTokens": "总 Tokens",
+      "apiKeys": "下游 Key",
+      "requests": "请求数",
+      "cost": "额度",
+      "tokens": "Tokens"
+    },
+    "chart": {
+      "title": "消耗占比",
+      "description": "按 API Key 排序展示 Top 消耗。"
+    },
+    "table": {
+      "title": "分账明细",
+      "totalPrice": "分账总价",
+      "totalPricePlaceholder": "输入总价",
+      "apiKey": "API Key",
+      "cost": "消耗",
+      "share": "占比",
+      "actualPrice": "实际价格",
+      "tokens": "Tokens",
+      "requests": "请求",
+      "successRate": "成功率"
+    },
+    "empty": {
+      "title": "暂无分账数据",
+      "description": "当前时间段内没有可归属到下游 API Key 的用量。"
+    }
+  },
+  "quota": {
+    "title": "额度",
+    "allModels": "全部模型额度",
+    "allQuotas": "全部额度",
+    "modelQuota": "模型额度",
+    "fiveHour": "5 小时",
+    "weekly": "7 天",
+    "remaining": "剩余 {{percent}}",
+    "resetCredits": {
+      "count": "{{count}} 张重置卡",
+      "title": "额度重置卡",
+      "description": "每次使用会消耗 1 张，将同时重置 5 小时与 7 天两个额度窗口。",
+      "empty": "当前没有可用的额度重置卡",
+      "tableHeaders": {
+        "granted": "发放时间",
+        "expires": "过期时间"
+      },
+      "priorityHint": "默认选中最先过期的卡，点击表格行可指定使用某一张。",
+      "close": "关闭",
+      "useOne": "使用 1 张",
+      "confirmTitle": "确认使用重置卡",
+      "confirmDescription": "将消耗 1 张额度重置卡，同时重置 5 小时与 7 天两个额度窗口。确认继续？",
+      "cancel": "取消",
+      "confirmUse": "确认使用",
+      "missingConnection": "缺少连接 ID",
+      "toast": {
+        "success": "额度重置卡已使用",
+        "failed": "额度重置卡使用失败",
+        "nothingToReset": "当前没有可重置的额度窗口",
+        "noCredit": "没有可用的额度重置卡"
+      }
+    }
+  },
+  "callback": {
+    "emptyUrl": "请先粘贴登录后的结果",
+    "invalidUrl": "URL 格式不正确",
+    "authFailed": "认证失败",
+    "noParams": "未识别到可用的 OAuth 结果参数",
+    "missingClaudeCodeSession": "请先为 Claude Code 生成认证链接"
+  },
+  "utils": {
+    "justNow": "刚刚"
+  }
+}

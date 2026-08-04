@@ -1,0 +1,126 @@
+{
+  "card": {
+    "routable": "Routable",
+    "routableRank": "Routable #{{rank}}",
+    "configured": "Configured",
+    "request": "Requests",
+    "noRequest": "No requests",
+    "successRate": "Success rate",
+    "cooldown": "Cooldown {{count}}",
+    "latency": "Latency",
+    "siteCount": "Sites",
+    "lastRoute": "Last {{site}}"
+  },
+  "sort": {
+    "title": "Sort",
+    "default": "Default",
+    "successDesc": "Success rate ↓",
+    "successAsc": "Success rate ↑",
+    "candidatesDesc": "Candidates ↓",
+    "candidatesAsc": "Candidates ↑"
+  },
+  "filters": {
+    "all": "All"
+  },
+  "mobile": {
+    "filters": "Filters",
+    "clear": "Clear",
+    "done": "Done"
+  },
+  "workspace": {
+    "loadFailed": "Failed to load route data",
+    "eyebrow": "Operations",
+    "title": "Routes",
+    "description": "Manage model routing candidates, upstream availability and recent route records.",
+    "search": "Search models",
+    "refresh": "Refresh",
+    "brand": "Brand",
+    "site": "Site",
+    "noModels": "No models",
+    "noModelsDesc": "No models match the current search criteria.",
+    "toast": {
+      "modelToggleFailed": "Failed to update model toggle",
+      "cooldownCleared": "Cooldown cleared",
+      "cooldownClearFailed": "Failed to clear cooldown"
+    }
+  },
+  "details": {
+    "tabs": {
+      "routing": "Routing overview",
+      "traces": "Request traces",
+      "cooldowns": "Cooldown management"
+    },
+    "currentRoute": {
+      "title": "Current route",
+      "noAvailableRoute": "No available route",
+      "fallbackHint": "Showing configured site models below",
+      "current": "Current",
+      "routable": "Routable #{{rank}}"
+    },
+    "coverage": {
+      "title": "Site models",
+      "loadFailed": "Failed to load site models",
+      "noConfig": "No site model configuration",
+      "group": "Group {{name}}",
+      "switchLabel": "Toggle {{site}} {{apiKey}} {{model}}"
+    },
+    "traces": {
+      "title": "Recent traces",
+      "loadFailed": "Failed to load recent traces",
+      "success": "Success",
+      "failure": "Failure",
+      "failover": "Failover {{count}}x",
+      "noTraces": "No traces"
+    },
+    "cooldowns": {
+      "title": "Active cooldowns",
+      "remaining": "{{duration}} remaining",
+      "clear": "Clear",
+      "noCooldowns": "No cooldowns"
+    }
+  },
+  "channels": {
+    "routable": "Routable",
+    "routableRank": "Routable #{{rank}}",
+    "cooling": "Cooling",
+    "siteDisabled": "Site disabled",
+    "modelDisabled": "Model disabled",
+    "keyDisabled": "Key disabled",
+    "keyIncomplete": "Key incomplete",
+    "notCandidate": "Not in candidates",
+    "updating": "Updating",
+    "siteDisabledHint": "Site disabled, cannot toggle model",
+    "keyDisabledHint": "Key disabled, cannot toggle model"
+  },
+  "format": {
+    "scopeSite": "Site",
+    "scopeModel": "Model",
+    "scopeCredential": "Credential",
+    "unknownSite": "Unknown site",
+    "modelPrefix": "Model {{name}}",
+    "specifiedModel": "Specified model",
+    "upstreamCredential": "Upstream credential",
+    "entireSite": "Entire site",
+    "sourceHealthCheck": "Health check",
+    "sourceForwardFailed": "Forward failed",
+    "sourceManual": "Manual cooldown",
+    "sourceUnknown": "Unknown source",
+    "reasonHealthUnhealthy": "Site health check unhealthy",
+    "reasonHealthDefault": "Site health check triggered cooldown",
+    "reasonTimeout": "Upstream timeout",
+    "reasonTransport": "Upstream connection failed",
+    "reason5xx": "Upstream service error",
+    "reason404": "Upstream model not found",
+    "reason429": "Upstream rate limited",
+    "reason401": "Upstream auth invalid",
+    "reason403": "Upstream access denied",
+    "reasonDefault": "Cooldown triggered",
+    "healthNoRequest": "Model health: no requests",
+    "healthRequests": "Requests: {{count}}",
+    "healthSuccessRate": "Success: {{rate}}",
+    "healthLatency": "Latency: {{latency}}",
+    "pricingPerRequest": "Per-request {{price}}",
+    "pricingTokens": "Input {{input}} / Output {{output}}",
+    "perRequestUnit": "{{price}}/req"
+  }
+}

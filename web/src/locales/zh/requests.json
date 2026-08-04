@@ -1,0 +1,128 @@
+{
+  "table": {
+    "headers": {
+      "time": "时间",
+      "model": "模型",
+      "apiKey": "下游密钥",
+      "site": "站点",
+      "status": "状态",
+      "latency": "用时",
+      "input": "输入",
+      "output": "输出",
+      "cost": "花费"
+    },
+    "test": "测试",
+    "success": "成功",
+    "failure": "失败",
+    "responseMode": {
+      "stream": "流",
+      "nonStream": "非流"
+    },
+    "cache": "缓存 {{tokens}}",
+    "empty": {
+      "title": "没有请求日志",
+      "description": "当前没有可展示的转发请求记录。"
+    }
+  },
+  "filters": {
+    "dateFrom": "起始日期",
+    "timeFrom": "起始时间",
+    "dateTo": "结束日期",
+    "timeTo": "结束时间",
+    "totalCost": "总花费 {{cost}}",
+    "totalTokens": "总 Tokens {{tokens}}",
+    "totalCostUnsupported": "当前筛选暂不支持精确总花费",
+    "rpmTooltip": "最近 1 分钟的请求数",
+    "tpmTooltip": "最近 1 分钟的实际 token 数",
+    "searchRequestId": "搜索请求 ID",
+    "searchUnified": "搜索请求 ID、模型或站点",
+    "searchModel": "搜索模型",
+    "allStatuses": "全部状态",
+    "success": "成功",
+    "failure": "失败",
+    "allSites": "全部站点",
+    "allApiKeys": "全部下游密钥",
+    "clearFilters": "清空筛选",
+    "hideWithoutSite": "隐藏无站点",
+    "hideWithoutSiteLabel": "隐藏没有上游站点的请求",
+    "autoRefresh": "自动刷新",
+    "autoRefreshLabel": "自动刷新请求日志",
+    "refresh": "刷新"
+  },
+  "tokens": {
+    "total": "总 Tokens",
+    "input": "输入 Tokens",
+    "output": "输出 Tokens",
+    "cached": "缓存命中 Tokens",
+    "hitRate": "缓存命中率"
+  },
+  "detail": {
+    "loading": "读取详情中",
+    "loadFailed": "详情读取失败：{{message}}",
+    "requestId": "请求ID",
+    "request": "请求",
+    "downstreamModel": "下游模型",
+    "upstreamModel": "上游模型",
+    "transport": "传输",
+    "status": "状态",
+    "success": "成功",
+    "failure": "失败",
+    "statusCode": "状态码",
+    "site": "站点",
+    "group": "分组",
+    "usage": "用量",
+    "input": "输入",
+    "output": "输出",
+    "cache": "缓存",
+    "cacheWrite": "缓存写入",
+    "ratio": "倍率",
+    "billing": "计费",
+    "inputPrice": "输入价格",
+    "outputPrice": "输出价格",
+    "cachePrice": "缓存价格",
+    "perRequestPrice": "按次价格",
+    "mode": "模式",
+    "totalCost": "总花费",
+    "path": "路径",
+    "downstream": "下游",
+    "upstream": "上游",
+    "failureLabel": "失败",
+    "ratioModel": "模型倍率",
+    "ratioCompletion": "补全倍率",
+    "ratioCache": "缓存倍率",
+    "ratioGroup": "分组倍率",
+    "formula": {
+      "perRequest": "按次 {{price}}",
+      "input": "输入 {{tokens}} tokens / 1M tokens * {{price}}",
+      "cache": "缓存读取 {{tokens}} tokens / 1M tokens * {{price}}",
+      "cacheWrite": "缓存写入 {{tokens}} tokens / 1M tokens * {{price}}",
+      "cacheWrite5m": "缓存写入(5m) {{tokens}} tokens / 1M tokens * {{price}}",
+      "cacheWrite1h": "缓存写入(1h) {{tokens}} tokens / 1M tokens * {{price}}",
+      "output": "输出 {{tokens}} tokens / 1M tokens * {{price}}",
+      "perRequestUnit": "{{price}}/次"
+    },
+    "longContext": "长上下文计价",
+    "longContextApplied": "已按长上下文档计价"
+  },
+  "modelMapping": {
+    "downstreamRequest": "下游请求",
+    "actualUpstream": "实际上游",
+    "mappedModel": "，映射模型：{{model}}",
+    "title": "下游请求：{{downstream}}，实际上游：{{actual}}{{mapped}}",
+    "softFallback": "兜底",
+    "mode": "映射方式",
+    "softFallbackDesc": "软映射兜底生效（原模型无可用上游）"
+  },
+  "mobile": {
+    "filters": "筛选",
+    "done": "完成",
+    "statusCode": "状态码 {{code}}",
+    "tokens": "输入 {{input}} / 输出 {{output}}"
+  },
+  "page": {
+    "loadFailed": "请求日志读取失败",
+    "eyebrow": "运维",
+    "title": "请求",
+    "description": "检查网关请求日志、路由结果和用量花费。"
+  }
+}

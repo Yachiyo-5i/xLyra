@@ -1,0 +1,246 @@
+{
+  "page": {
+    "loadFailed": "Failed to load dashboard",
+    "eyebrow": "Overview",
+    "title": "Dashboard",
+    "description": "Cost, flow, performance, and routing state.",
+    "retry": "Retry",
+    "noData": "No data",
+    "noDataDesc": "Dashboard data is empty",
+    "refresh": "Refresh",
+    "refreshCooldowns": "Refresh cooldowns",
+    "update": "Updated",
+    "clearAll": "Clear all",
+    "clear": "Clear",
+    "clearSuccess": "Cooldown cleared",
+    "clearAllSuccess": "All cooldowns cleared",
+    "clearFailed": "Failed to clear",
+    "clearMissingSite": "Missing site info, cannot clear"
+  },
+  "kpis": {
+    "cost": "Cost",
+    "today": "Today",
+    "total": "Total",
+    "yesterdayCost": "Yesterday",
+    "requestsTokens": "Requests & Tokens",
+    "todayRequests": "Today's Requests",
+    "todayTotalRequests": "Today's / Total Requests",
+    "todayTokens": "Today's Tokens",
+    "todayTotalTokens": "Today's / Total Tokens",
+    "yesterdayRequests": "Yesterday's Requests",
+    "yesterdayTokens": "Yesterday's Tokens",
+    "successRate": "Success Rate",
+    "performance": "Performance",
+    "completedRpm": "Completed (1m)"
+  },
+  "tokens": {
+    "total": "Total tokens",
+    "input": "Input tokens",
+    "output": "Output tokens",
+    "cached": "Cached tokens",
+    "hitRate": "Cache hit rate"
+  },
+  "charts": {
+    "modelCost": "Model Cost",
+    "modelRequests": "Model Requests",
+    "siteCost": "Site Cost",
+    "siteRequests": "Site Requests",
+    "model": "Model",
+    "site": "Site",
+    "trend": "{{days}} day trend",
+    "summary": "{{days}} day summary",
+    "cost": "Cost",
+    "times": "times"
+  },
+  "contributions": {
+    "title": "Tokens Activity",
+    "description": "Daily usage by downstream key",
+    "apiKeyFilter": "API key",
+    "currentStreakLabel": "Current streak",
+    "longestStreakLabel": "Longest streak",
+    "monthTokensLabel": "This month",
+    "daysValue": "{{count}} days",
+    "tooltipCost": "Cost {{value}}",
+    "tooltipTokens": "Tokens {{value}}",
+    "dayLabel": "{{date}}, cost {{cost}}, tokens {{tokens}}",
+    "legendLess": "Less",
+    "legendMore": "More",
+    "empty": "No downstream key token data",
+    "weekdays": {
+      "mon": "Mon",
+      "wed": "Wed",
+      "fri": "Fri"
+    }
+  },
+  "ranges": {
+    "7d": "7 days",
+    "30d": "30 days",
+    "90d": "90 days"
+  },
+  "resources": {
+    "title": "System Resources",
+    "connecting": "Connecting",
+    "waitingReconnect": "Waiting to reconnect",
+    "realtime": "Realtime",
+    "tabs": {
+      "overview": "Overview",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "disk": "Disk",
+      "network": "Network"
+    },
+    "metrics": {
+      "usage": "Usage",
+      "used": "Used",
+      "available": "Available",
+      "cores": "Cores",
+      "capacity": "Capacity",
+      "mountPoint": "Mount point",
+      "readWrite": "Read/Write",
+      "read": "Read",
+      "write": "Write",
+      "download": "Download",
+      "upload": "Upload",
+      "total": "Total",
+      "current": "Current",
+      "peak": "Peak",
+      "updatedAt": "Updated"
+    },
+    "status": {
+      "connecting": "{{label}} data connecting",
+      "waiting": "Waiting for realtime data"
+    },
+    "description": {
+      "available": "Available {{value}}",
+      "readWrite": "Read {{read}} · Write {{write}}",
+      "totalReadWrite": "Total read {{read}} / write {{write}}"
+    }
+  },
+  "risks": {
+    "title": "Needs Attention",
+    "description": "Routing, pricing, health and request anomalies",
+    "empty": "No items need attention",
+    "severity": {
+      "neutral": "Info",
+      "warning": "Warning",
+      "error": "Error"
+    },
+    "insufficient": "No available candidates",
+    "lowCandidates": "Insufficient candidates",
+    "routeCandidateDetail": "{{key}} has few routable candidates",
+    "highLatency": "High latency"
+  },
+  "cooldowns": {
+    "title": "Cooling Routes",
+    "description": "Site and model route status",
+    "empty": "No routes are cooling down",
+    "scope": {
+      "model": "Model",
+      "credential": "Key",
+      "site": "Site"
+    }
+  },
+  "uptime": {
+    "title": "Site Uptime",
+    "recent24h": "Last 24 hours",
+    "legend": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "down": "Down",
+      "idle": "No data"
+    },
+    "empty": "No {{type}} sites"
+  },
+  "failureReasons": {
+    "no_route_candidates": "No available upstream candidates",
+    "model_not_allowed": "Downstream key does not allow the requested model",
+    "downstream_client_cancelled": "Client disconnected before upstream responded",
+    "upstream_http_error": "Upstream HTTP error",
+    "upstream_timeout": "Upstream request timeout",
+    "rate_limit_exceeded": "Rate limit exceeded",
+    "unknown": "Unknown failure"
+  },
+  "failureTitles": {
+    "no_route_candidates": "No route",
+    "model_not_allowed": "Model unauthorized",
+    "downstream_client_cancelled": "Client cancelled",
+    "upstream_http_error": "Upstream error",
+    "upstream_timeout": "Upstream timeout",
+    "rate_limit_exceeded": "Rate limited",
+    "default": "Failed request"
+  },
+  "cooldownReasons": {
+    "site_unhealthy": "Site health check failed",
+    "usage_limit_reached": "Account usage limit reached",
+    "upstream_http_error": "Upstream request error",
+    "upstream_timeout": "Upstream request timeout"
+  },
+  "cooldownSources": {
+    "site_health": "Health check",
+    "gateway": "Gateway request",
+    "manual": "Manual"
+  },
+  "attentionTypes": {
+    "no_route_candidates": "No available upstream candidates",
+    "low_route_candidates": "Few upstream candidates",
+    "active_cooldown": "Routes are cooling down",
+    "site_unhealthy": "Site health check failed",
+    "missing_model_pricing": "Model pricing missing",
+    "high_failure_rate": "High site failure rate",
+    "rate_limit_exceeded": "Rate limit triggered",
+    "high_latency": "High request latency"
+  },
+  "attention": {
+    "title": {
+      "no_route_candidates": "{{model}} has no available upstream",
+      "low_route_candidates": "{{model}} has few available upstreams",
+      "active_cooldown_site": "{{site}} is cooling down",
+      "active_cooldown_model": "{{model}} is cooling down on {{site}}",
+      "active_cooldown_credential": "{{site}} upstream credential is cooling down",
+      "site_unhealthy": "{{site}} health check failed",
+      "missing_model_pricing": "{{count}} site models are missing pricing",
+      "high_failure_rate": "{{site}} has a high failure rate over the last 7 days",
+      "rate_limit_exceeded": "Requests were rate limited over the last 7 days",
+      "high_latency_site_model": "{{site}} / {{model}} has high request latency",
+      "high_latency_model": "{{model}} has high request latency"
+    },
+    "detail": {
+      "no_route_candidates_active": "This model had downstream traffic in the last 24 hours, but currently has no available upstream. New requests will fail.",
+      "no_route_candidates_idle": "This model is configured on sites but currently has no available upstream. Check model enablement, pricing, site health, or active cooldowns.",
+      "low_route_candidates": "{{eligible}} / {{total}} upstreams are available. Requests can still run, but failover coverage is weak.",
+      "active_cooldown": "This route target is temporarily excluded from routing. Wait for the cooldown to end or inspect the recent failure reason.",
+      "active_cooldown_credential": "This upstream credential is temporarily excluded from routing. Check API key status, quota, or upstream failures.",
+      "site_unhealthy": "This site is unavailable and may affect all model routes under it. Check the endpoint, network, auth, or upstream blocking.",
+      "missing_model_pricing": "Missing prices can make cost statistics and route policies inaccurate. Add pricing for non-NewAPI sources.",
+      "high_failure_rate": "This site's recent success rate is {{rate}}. Inspect failed requests and decide whether to disable, down-rank, or adjust routing.",
+      "rate_limit_exceeded": "Downstream callers received 429 responses. Check global or API key RPM/TPM limits.",
+      "high_latency": "P95 latency is {{latency}}. Check upstream response speed or consider lowering route priority."
+    },
+    "actions": {
+      "no_route_candidates": "Review routes",
+      "low_route_candidates": "Review routes",
+      "active_cooldown": "View impact",
+      "site_unhealthy": "View site",
+      "missing_model_pricing": "Add pricing",
+      "high_failure_rate": "View failed requests",
+      "rate_limit_exceeded": "View rate-limited requests",
+      "high_latency": "View slow requests",
+      "open_routes": "Review routes",
+      "open_sites": "View site",
+      "open_site_api_keys": "View API keys",
+      "open_model_prices": "Add pricing",
+      "open_requests": "View requests"
+    }
+  },
+  "severityLabels": {
+    "critical": "Critical",
+    "warning": "Warning",
+    "info": "Info",
+    "default": "Info"
+  },
+  "latency": {
+    "detail": "{{site}} / {{model}} P95 latency high"
+  },
+  "unknownSite": "Unknown site",
+  "failureCount": "{{count}} times"
+}

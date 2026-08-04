@@ -1,0 +1,102 @@
+{
+  "eyebrow": "デバッグ",
+  "title": "プレイグラウンド",
+  "description": "下流キーを選び、ゲートウェイ経由でチャットと画像モデルを直接呼び出し、ルーティングと課金をエンドツーエンドで検証します。",
+  "mode": {
+    "chat": "チャット",
+    "image": "画像"
+  },
+  "noKeys": {
+    "title": "利用できる下流キーがありません",
+    "description": "まず「API キー」ページで下流キーを作成してから、ここでテストしてください。"
+  },
+  "credential": {
+    "keyLabel": "下流キー",
+    "keyPlaceholder": "キーを選択",
+    "modelLabel": "モデル",
+    "modelLoading": "モデルを読み込み中…",
+    "modelPlaceholder": "モデルを選択",
+    "refreshModels": "モデルを更新"
+  },
+  "conversations": {
+    "new": "新しいチャット",
+    "empty": "会話はまだありません",
+    "untitled": "無題のチャット",
+    "delete": "会話を削除",
+    "history": "会話履歴",
+    "recent": "最近"
+  },
+  "chat": {
+    "empty": "メッセージを入力して会話を始めましょう。",
+    "inputPlaceholder": "メッセージを入力…",
+    "hint": "Enter で送信、Shift+Enter で改行",
+    "stop": "停止",
+    "send": "送信",
+    "reasoning": "推論",
+    "usage": "入力 {{prompt}} · 出力 {{completion}} · 合計 {{total}} トークン",
+    "elapsedDuration": "経過 {{duration}}",
+    "responseDuration": "合計 {{duration}}",
+    "errorGeneric": "リクエストに失敗しました",
+    "greeting": "今日は何をお手伝いしましょう？",
+    "suggestImage": "画像を生成",
+    "suggestWrite": "文章を書く",
+    "suggestWritePrompt": "次のテーマで文章を書いて：",
+    "suggestExplain": "コードを説明",
+    "suggestExplainPrompt": "このコードの動作を説明してください：\n",
+    "disclaimer": "応答は選択した上流モデルによる生成です。内容はご確認ください。",
+    "thinking": "思考中…",
+    "attach": "添付ファイルを追加",
+    "removeAttachment": "添付ファイルを削除",
+    "attachmentLimit": "添付できるファイルは最大 {{count}} 件です",
+    "attachmentTooLarge": "{{name}} は 5 MB を超えています",
+    "attachmentReadFailed": "添付ファイルを読み込めませんでした"
+  },
+  "image": {
+    "modeGeneration": "生成",
+    "modeEdit": "編集",
+    "removeFile": "画像を削除",
+    "upload": "アップロード",
+    "promptPlaceholder": "欲しい画像を説明してください…",
+    "size": "サイズ",
+    "sizeAuto": "自動",
+    "generate": "生成",
+    "empty": "生成された画像がここに表示されます。",
+    "elapsedDuration": "経過 {{duration}}",
+    "responseDuration": "合計 {{duration}}",
+    "clear": "クリア",
+    "errorGeneric": "生成に失敗しました",
+    "greeting": "どんな画像を作りますか？",
+    "attach": "参照画像を添付（編集）",
+    "download": "ダウンロード"
+  },
+  "actions": {
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "copyFailed": "コピーに失敗しました",
+    "edit": "編集",
+    "regenerate": "再生成",
+    "cancel": "キャンセル",
+    "send": "送信",
+    "confirm": "確認",
+    "delete": "削除",
+    "expandMore": "もっと見る",
+    "collapse": "折りたたむ"
+  },
+  "confirm": {
+    "deleteConversation": "この会話を削除？",
+    "regenerate": "この返信を再生成？",
+    "regenerateImage": "最後の画像を再生成しますか？"
+  },
+  "picker": {
+    "model": "モデル",
+    "reasoning": "推論強度",
+    "noModels": "利用可能なモデルがありません"
+  },
+  "effort": {
+    "low": "軽",
+    "medium": "中",
+    "high": "高",
+    "xhigh": "超高",
+    "max": "最大"
+  }
+}

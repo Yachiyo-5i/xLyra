@@ -1,0 +1,570 @@
+{
+  "general": {
+    "title": "一般設定",
+    "description": "基本的な実行時オプション。",
+    "loading": "設定を読み込み中...",
+    "saved": "一般設定を保存しました",
+    "saveFailed": "保存に失敗しました",
+    "security": {
+      "title": "セキュリティ設定",
+      "sessionLifetime": "セッション有効期間",
+      "sessionLifetimeDesc": "管理者セッションの有効期間です。0 は期限なしを意味します。デフォルト: 24 時間。"
+    },
+    "tasks": {
+      "title": "スケジュールタスク",
+      "siteRefreshCron": "サイト更新 Cron",
+      "newAPICheckinCron": "NewAPI チェックイン Cron"
+    },
+    "whitelist": {
+      "title": "IP ホワイトリスト",
+      "ipAddress": "IP アドレス",
+      "ipAddressDesc": "1 行に 1 つの IP。CIDR 範囲に対応しています。",
+      "summary": "{{total}} アドレス、{{valid}} 有効",
+      "invalidAddress": "無効なアドレス"
+    },
+    "log": {
+      "title": "ログ設定",
+      "level": "ログレベル",
+      "autoCleanup": "自動クリーンアップ",
+      "retentionDays": "保持日数"
+    },
+    "data": {
+      "title": "データ詳細",
+      "requestDetailAutoCleanup": "リクエスト詳細の自動クリーンアップ",
+      "requestDetailRetentionDays": "リクエスト詳細の保持日数",
+      "requestDetailRetentionDesc": "日次サマリーが完了した後、この日数を超えた request_logs と usage_records の詳細を削除します。"
+    },
+    "validation": {
+      "cronInvalid": "Cron 式が無効です",
+      "cronInvalidWithMessage": "Cron 式が無効です: {{message}}",
+      "cronRequired": "Cron 式を入力してください",
+      "siteRefreshCronInvalid": "サイト更新 Cron が無効です",
+      "newAPICheckinCronInvalid": "NewAPI チェックイン Cron が無効です",
+      "whitelistIPInvalid": "ホワイトリスト IP が無効です",
+      "retentionConfigInvalid": "ログ保持設定が無効です",
+      "requestDetailRetentionConfigInvalid": "リクエスト詳細保持設定が無効です",
+      "sessionLifetimeInvalid": "セッション有効期間が無効です",
+      "retentionDaysRequired": "保持日数を入力してください",
+      "retentionDaysPositive": "保持日数は正の整数である必要があります",
+      "sessionLifetimeRequired": "セッション有効期間を入力してください",
+      "sessionLifetimeInteger": "セッション有効期間は整数（時間）で入力してください",
+      "sessionLifetimeRange": "セッション有効期間は 0〜720 時間にしてください"
+    }
+  },
+  "profile": {
+    "title": "プロフィール",
+    "description": "アカウントとセキュリティ設定",
+    "adminInfo": {
+      "title": "管理者情報",
+      "username": "ユーザー名",
+      "nickname": "ニックネーム",
+      "avatar": "アバター",
+      "uploadAvatar": "アバターをアップロード",
+      "clearAvatar": "クリア",
+      "avatarImageRequired": "画像ファイルを選択してください",
+      "avatarTooLarge": "アバター画像は {{size}} を超えられません",
+      "avatarReadFailed": "アバターの読み込みに失敗しました",
+      "saveButton": "保存",
+      "saved": "管理者情報を更新しました",
+      "saveFailed": "更新に失敗しました"
+    },
+    "password": {
+      "title": "パスワード変更",
+      "currentPassword": "現在のパスワード",
+      "currentPasswordPlaceholder": "現在のパスワードを入力",
+      "newPassword": "新しいパスワード",
+      "newPasswordPlaceholder": "新しいパスワードを入力",
+      "confirmPassword": "パスワード確認",
+      "confirmPasswordPlaceholder": "新しいパスワードをもう一度入力",
+      "updateButton": "パスワードを更新",
+      "updated": "パスワードを更新しました",
+      "updateFailed": "パスワード更新に失敗しました",
+      "mismatch": "新しいパスワードが一致しません"
+    },
+    "totp": {
+      "title": "二要素認証",
+      "enabled": "有効",
+      "disabled": "無効",
+      "enableButton": "有効化",
+      "disableButton": "2FA を無効化",
+      "setupFailed": "2FA 初期化に失敗しました",
+      "enabledSuccess": "2FA を有効化しました",
+      "enableFailed": "2FA 有効化に失敗しました",
+      "disabledSuccess": "2FA を無効化しました",
+      "disableFailed": "2FA 無効化に失敗しました",
+      "setupSheet": {
+        "title": "二要素認証を有効化",
+        "step1": "認証アプリを開く",
+        "step2": "QR コードをスキャン",
+        "step3": "コードを入力",
+        "backupKey": "バックアップキー",
+        "copy": "コピー",
+        "copied": "キーをコピーしました",
+        "codePlaceholder": "認証コードを入力",
+        "noQRCode": "現在 QR コードを生成できません",
+        "finish": "設定を完了",
+        "cancel": "キャンセル"
+      }
+    },
+    "accessToken": {
+      "title": "アクセストークン",
+      "enabled": "有効",
+      "disabled": "無効",
+      "notCreated": "未作成",
+      "createButton": "作成",
+      "updateButton": "更新",
+      "enableButton": "有効化",
+      "disableButton": "無効化",
+      "deleteButton": "削除",
+      "createdAndCopied": "アクセストークンを作成してコピーしました",
+      "created": "アクセストークンを作成しました",
+      "createFailed": "アクセストークンの作成に失敗しました",
+      "statusUpdated": "ステータスを更新しました",
+      "statusUpdateFailed": "ステータス更新に失敗しました",
+      "deleted": "アクセストークンを削除しました",
+      "deleteFailed": "削除に失敗しました",
+      "createdDialog": {
+        "title": "アクセストークンを作成しました",
+        "description": "安全な場所に保存してください。閉じた後は再表示されません。",
+        "copied": "コピーしました",
+        "copy": "コピー",
+        "done": "完了"
+      },
+      "deleteDialog": {
+        "title": "アクセストークンを削除",
+        "description": "このトークンを使用している外部ツールは管理 API にアクセスできなくなります。",
+        "cancel": "キャンセル",
+        "confirm": "削除"
+      }
+    },
+    "sessions": {
+      "title": "セッション",
+      "deleteOtherSessions": "他のセッションを削除",
+      "status": "ステータス",
+      "ip": "IP",
+      "lastActive": "最終アクティブ",
+      "expires": "有効期限",
+      "actions": "操作",
+      "current": "現在",
+      "other": "その他",
+      "delete": "削除",
+      "deleted": "セッションを削除しました",
+      "otherDeleted": "他のセッションを削除しました",
+      "deleteFailed": "セッション削除に失敗しました"
+    }
+  },
+  "systemProxy": {
+    "title": "システムプロキシ",
+    "description": "サイトや OAuth アカウントで再利用できるシステムプロキシを管理します。",
+    "loading": "設定を読み込み中...",
+    "newProxy": "新しいプロキシ",
+    "loadFailed": "プロキシ設定の読み込みに失敗しました",
+    "search": "プロキシを検索",
+    "empty": {
+      "title": "プロキシはありません",
+      "description": "プロキシを追加すると、サイトや OAuth アカウント設定で選択できます。"
+    },
+    "actions": {
+      "create": "プロキシを追加",
+      "test": "テスト",
+      "edit": "編集",
+      "save": "保存",
+      "delete": "削除",
+      "cancel": "キャンセル"
+    },
+    "test": {
+      "untested": "未テスト",
+      "testing": "テスト中",
+      "success": "利用可能 · {{latency}}ms",
+      "failed": "失敗"
+    },
+    "form": {
+      "createTitle": "プロキシを追加",
+      "editTitle": "プロキシを編集",
+      "name": "プロキシ名",
+      "namePlaceholder": "例: ローカルプロキシ",
+      "type": "プロキシタイプ",
+      "url": "プロキシ URL",
+      "urlHint": "HTTP プロキシは http:// または https://、SOCKS プロキシは socks5:// を使います。"
+    },
+    "validation": {
+      "nameRequired": "プロキシ名を入力してください",
+      "urlRequired": "プロキシ URL を入力してください",
+      "typeInvalid": "プロキシタイプが無効です",
+      "urlInvalid": "プロキシ URL が無効です",
+      "nameDuplicate": "プロキシ名は重複できません",
+      "socksScheme": "SOCKS5 プロキシ URL は socks5:// で始まる必要があります",
+      "httpScheme": "HTTP/HTTPS プロキシ URL は http:// または https:// で始まる必要があります"
+    },
+    "toast": {
+      "saved": "プロキシ設定を保存しました",
+      "saveFailed": "保存に失敗しました",
+      "deleted": "プロキシを削除しました",
+      "deleteFailed": "削除に失敗しました",
+      "testFailed": "テストに失敗しました"
+    },
+    "deleteDialog": {
+      "title": "プロキシを削除",
+      "confirm": "プロキシ「{{name}}」を削除しますか？このプロキシを参照しているサイトは、更新されるまで無効な参照を保持します。",
+      "confirmDefault": "このプロキシを削除しますか？"
+    }
+  },
+  "rateLimit": {
+    "title": "レート制限",
+    "description": "リクエストレート制限",
+    "loading": "設定を読み込み中...",
+    "saved": "レート制限設定を保存しました",
+    "saveFailed": "保存に失敗しました",
+    "rateLimit": "レート制限",
+    "rateLimitDesc": "グローバルリクエストレート制限です。無効時は ApiKey 単位の制限のみ適用されます。",
+    "rpmLimit": "同時処理中リクエスト上限（RPM）",
+    "rpmLimitDesc": "全キー合計の同時処理中リクエスト数の上限です。超過分は最長 60 秒キューで待機します。空欄なら無制限です。",
+    "tpmLimit": "TPM 上限",
+    "tpmLimitDesc": "テキストモデルの 1 分あたり最大トークン数。空欄なら無制限です。",
+    "validation": {
+      "atLeastOneRequired": "レート制限を有効にする場合、少なくとも 1 つの上限が必要です",
+      "rpmPositiveInteger": "処理中リクエスト上限は 0 より大きい整数で指定してください",
+      "tpmPositiveInteger": "TPM は正の整数である必要があります"
+    }
+  },
+  "backup": {
+    "eyebrow": "設定",
+    "title": "データ移行",
+    "description": "サイト、モデル、キー、履歴をバックアップし、移行や再インストール後の復元に使えます。",
+    "passphrase": "バックアップ用パスフレーズ",
+    "confirmPassphrase": "もう一度入力",
+    "passphraseDesc": "このパスフレーズは、このバックアップファイルを開くためだけに使います。別途保管してください。",
+    "validation": {
+      "passphraseRequired": "バックアップ用パスフレーズを入力してください",
+      "passphraseMismatch": "パスフレーズが一致しません",
+      "fileRequired": "バックアップファイルを選択してください",
+      "fileInvalid": "ファイル形式が正しくありません。.xlyra のバックアップファイルを選択してください"
+    },
+    "export": {
+      "title": "データをエクスポート",
+      "action": "エクスポート",
+      "dialogTitle": "バックアップ用パスフレーズを設定",
+      "dialogDescription": "復元に必要なデータと一部の認証情報をバックアップします。このエクスポート用のパスフレーズを設定してください。",
+      "confirmAction": "エクスポートを開始",
+      "success": "バックアップファイルを作成しました",
+      "failed": "エクスポートに失敗しました",
+      "noticeSensitive": "サイト、モデル、認証情報、OAuth アカウント、下流 API Key、リクエストログ、使用量記録を含みます。",
+      "noticePassphrase": "パスフレーズは安全に保管してください。インポート時にもう一度必要です。",
+      "noticeUsersExcluded": "管理者アカウント、セッション、2FA、管理者アクセストークン、監査ログは含まれません。"
+    },
+    "import": {
+      "title": "データをインポート",
+      "file": "バックアップファイル",
+      "passphraseDesc": "このバックアップを書き出したときのパスフレーズを入力してください。",
+      "action": "インポート",
+      "dialogTitle": "バックアップファイルをインポート",
+      "dropzone": "ファイルをドロップ、またはクリックして選択",
+      "fileHint": "xLyra バックアップファイルのみ（.xlyra）",
+      "removeFile": "ファイルを削除",
+      "success": "インポートが完了しました",
+      "failed": "インポートに失敗しました",
+      "summary": "{{rows}} 行のデータと {{configKeys}} 個の設定グループを復元しました。ページを更新してください。状態が反映されない場合はサービスを再起動してください。",
+      "noticeOverwrite": "インポートすると現在の業務データを上書きします。必要であれば先にこの環境をバックアップしてください。",
+      "noticePreserved": "管理者アカウント、セッション、2FA、管理者アクセストークンは保持されます。",
+      "noticeRestart": "ヘルス状態、ルートクールダウン、レート制限ウィンドウは復元されず、システムが再作成します。",
+      "confirmTitle": "インポートの確認",
+      "confirmDescription": "現在のサイト、モデル、認証情報、下流 API Key、リクエストログ、使用量記録、設定ファイルを置き換えます。",
+      "confirmAction": "インポートして上書き"
+    },
+    "tabs": {
+      "manual": "手動バックアップ",
+      "automatic": "自動バックアップ"
+    },
+    "automatic": {
+      "title": "自動バックアップ",
+      "loading": "自動バックアップ設定を読み込み中...",
+      "saveSuccess": "自動バックアップ設定を保存しました",
+      "saveFailed": "自動バックアップ設定の保存に失敗しました",
+      "testAction": "接続をテスト",
+      "testSuccess": "S3 ストレージに接続できました",
+      "testFailed": "S3 ストレージ接続テストに失敗しました",
+      "runAction": "今すぐバックアップ",
+      "runSuccess": "自動バックアップタスクを開始しました",
+      "runFailed": "自動バックアップの開始に失敗しました",
+      "restoreFailed": "リモートバックアップの復元に失敗しました",
+      "deleteSuccess": "リモートバックアップを削除しました",
+      "deleteFailed": "リモートバックアップの削除に失敗しました",
+      "restoreConfirmTitle": "現在のデータを上書きしますか？",
+      "restoreConfirmDescription": "{{filename}} で現在の業務データと設定を上書きします。この操作は元に戻せません。",
+      "restoreConfirmAction": "上書きする",
+      "deleteConfirmTitle": "リモートバックアップを削除しますか？",
+      "deleteConfirmDescription": "{{filename}} を S3 ストレージから削除します。この操作は元に戻せません。",
+      "deleteConfirmAction": "削除する",
+      "noticeNoSecrets": "バックアップファイルには自動バックアップの非機密設定のみを含め、S3 Secret Key とバックアップファイルのパスフレーズは含めません。",
+      "noticeImportKeepsCurrent": "復元時、このインスタンスに既存の自動バックアップ設定がある場合は、その設定を保持し、バックアップ内の設定では上書きしません。",
+      "storage": {
+        "title": "S3 互換ストレージ",
+        "endpoint": "Endpoint",
+        "region": "Region",
+        "bucket": "Bucket",
+        "prefix": "オブジェクトプレフィックス",
+        "accessKey": "Access Key",
+        "secretKey": "Secret Key",
+        "secretSaved": "保存済み：{{value}}。空欄なら変更しません。",
+        "forcePathStyle": "Path-style アクセス",
+        "useSSL": "HTTPS を使用",
+        "skipTLSVerify": "TLS 検証をスキップ"
+      },
+      "schedule": {
+        "title": "バックアップ設定",
+        "enabled": "自動バックアップを有効化",
+        "cron": "Cron 式",
+        "retention": "保持数",
+        "passphrase": "バックアップファイル用パスフレーズ",
+        "passphraseDesc": "生成される .xlyra ファイルはこのパスフレーズで暗号化されます。",
+        "passphraseSaved": "保存済み：{{value}}。空欄なら変更しません。"
+      },
+      "files": {
+        "title": "リモートバックアップファイル",
+        "refresh": "更新",
+        "loading": "リモートバックアップファイルを読み込み中...",
+        "empty": "現在の S3 設定配下にバックアップファイルはありません。",
+        "notReady": "完全な S3 設定とバックアップファイル用パスフレーズを保存すると、リモートバックアップファイルを表示できます。",
+        "running": "バックアップ中",
+        "failed": "失敗",
+        "restore": "上書き復元",
+        "delete": "削除"
+      },
+      "validation": {
+        "required": "自動バックアップ設定を入力してください",
+        "cronRequired": "Cron 式を入力してください",
+        "cronInvalid": "Cron 式が無効です",
+        "cronInvalidWithMessage": "Cron 式が無効です：{{message}}",
+        "retentionInvalid": "保持数が無効です",
+        "retentionRequired": "保持数を入力してください",
+        "retentionPositive": "保持数は 0 より大きい整数である必要があります",
+        "retentionMax": "保持数は {{max}} 以下にしてください"
+      }
+    }
+  },
+  "modelsPrice": {
+    "eyebrow": "設定",
+    "title": "モデル価格",
+    "description": "モデル価格の確認と保守",
+    "allPrices": "すべての価格",
+    "missingPrices": "不足している価格",
+    "saveFailed": "保存に失敗しました",
+    "savedSuccess": "モデル価格を保存しました",
+    "savedDescription": "{{count}} 件の変更を送信しました",
+    "notBoundToModel": "正規モデルに紐付いていないため一括送信できません",
+    "loading": "モデル価格を読み込み中...",
+    "noData": "モデル価格データがありません",
+    "empty": {
+      "title": "モデル価格データがありません",
+      "description": "サイトモデルを同期すると、モデル価格がここに表示されます。"
+    },
+    "saveChanges": "変更を保存",
+    "batchEdit": "一括編集",
+    "readOnly": "読み取り専用",
+    "headers": {
+      "model": "モデル / サイト",
+      "group": "グループ",
+      "billing": "課金",
+      "inputPrice": "入力価格",
+      "outputPrice": "出力価格",
+      "audioOutputPrice": "音声出力単価",
+      "cachePrice": "キャッシュ読取",
+      "cacheWritePrice": "キャッシュ書込",
+      "cacheWrite5mPrice": "キャッシュ書込(5m)",
+      "cacheWrite1hPrice": "キャッシュ書込(1h)",
+      "perRequestPrice": "リクエスト単価",
+      "groupRatio": "グループ倍率",
+      "status": "ステータス"
+    },
+    "subtitle": {
+      "sites": "{{count}} サイト",
+      "editable": "{{count}} 件編集可能",
+      "noPrice": "価格なし",
+      "perRequest": "リクエスト単価 {{price}}",
+      "tokenPrice": "入力 {{input}} / 出力 {{output}}"
+    },
+    "badges": {
+      "missing": "不足 {{count}}",
+      "manual": "手動 {{count}}",
+      "synced": "同期済み {{count}}",
+      "noBatch": "一括不可",
+      "noBatchTooltip": "正規モデルに紐付いていないため一括送信できません",
+      "noEditableTooltip": "編集可能なサイトモデルがありません"
+    },
+    "statusLabels": {
+      "missing": "不足",
+      "manual": "手動",
+      "synced": "同期済み",
+      "priced": "価格設定済み"
+    },
+    "billingLabels": {
+      "all": "すべての課金",
+      "tokens": "トークン単位",
+      "perRequest": "リクエスト単価"
+    },
+    "statusFilter": {
+      "all": "すべての状態",
+      "manual": "手動",
+      "synced": "同期済み",
+      "missing": "不足"
+    },
+    "searchPlaceholder": "モデルまたはサイトを検索",
+    "validation": {
+      "inputPrice": "入力価格",
+      "outputPrice": "出力価格",
+      "audioOutputPrice": "音声出力単価",
+      "cachePrice": "キャッシュ読取価格",
+      "cacheWritePrice": "キャッシュ書込価格",
+      "cacheWrite1hPrice": "キャッシュ書込(1h)価格",
+      "perRequestPrice": "リクエスト単価",
+      "groupRatio": "グループ倍率",
+      "audioRequiresInput": "音声出力単価には正の入力価格が必要です",
+      "tokenRequiresInputOrOutput": "トークン課金には入力価格または出力価格が少なくとも必要です",
+      "perRequestRequiresValue": "リクエスト単価課金にはリクエスト単価が必要です",
+      "nonNegativeNumber": "0 以上の数値である必要があります"
+    },
+    "perRequestSuffix": "/回",
+    "resetButton": "リセット",
+    "resetTooltip": "手動価格をクリアし、同期元の価格に戻します",
+    "resetDialogTitle": "モデル価格のリセット",
+    "resetConfirm": "このモデルの価格を同期元に戻しますか？手動変更はクリアされます。",
+    "resetFailed": "価格のリセットに失敗しました",
+    "resetAllButton": "全てリセット",
+    "resetAllDialogTitle": "サイト全体の手動価格をリセット",
+    "resetAllConfirm": "このサイトの手動変更 {{count}} 件を全て同期元の価格にリセットしますか？",
+    "resetAllSuccess": "全ての手動価格をリセットしました",
+    "siteFilter": {
+      "label": "サイト",
+      "all": "全サイト"
+    },
+    "siteView": {
+      "summary": "{{total}} モデル · {{manual}} 件手動設定",
+      "modelCount": "{{count}} モデル"
+    },
+    "ariaLabels": {
+      "collapse": "サイト価格を折りたたむ",
+      "expand": "サイト価格を展開"
+    }
+  },
+  "global": {
+    "eyebrow": "設定",
+    "title": "グローバル設定",
+    "description": "カテゴリ別にグローバル設定を管理します。",
+    "nav": {
+      "general": "一般",
+      "profile": "プロフィール",
+      "systemProxy": "システムプロキシ",
+      "rateLimit": "レート制限",
+      "siteGroups": "グループ設定",
+      "backup": "インポート / エクスポート",
+      "portal": "キーポータル"
+    }
+  },
+  "siteGroups": {
+    "title": "グループ設定",
+    "description": "サイトを再利用できるグループにまとめ、下流 API キーへまとめて付与します。",
+    "loading": "グループを読み込み中...",
+    "loadFailed": "グループの読み込みに失敗しました",
+    "search": "グループを検索",
+    "enabled": "有効",
+    "disabled": "無効",
+    "noSites": "サイトがありません",
+    "empty": {
+      "title": "グループがありません",
+      "description": "グループを作成すると、サイトや API キーで再利用できます。"
+    },
+    "form": {
+      "createTitle": "グループを作成",
+      "editTitle": "グループを編集",
+      "name": "グループ名",
+      "slug": "識別子",
+      "description": "説明",
+      "sortOrder": "並び順",
+      "sites": "サイト",
+      "sitesPlaceholder": "サイトを選択",
+      "siteSearch": "サイトを検索",
+      "enabled": "グループを有効化"
+    },
+    "actions": {
+      "create": "作成",
+      "save": "保存",
+      "edit": "編集",
+      "delete": "削除",
+      "cancel": "キャンセル",
+      "cancelEdit": "編集をキャンセル"
+    },
+    "validation": {
+      "nameRequired": "グループ名を入力してください",
+      "sortOrderInvalid": "並び順は整数である必要があります"
+    },
+    "toast": {
+      "saved": "グループを保存しました",
+      "saveFailed": "保存に失敗しました",
+      "deleted": "グループを削除しました",
+      "deleteFailed": "削除に失敗しました"
+    },
+    "deleteDialog": {
+      "title": "グループを削除",
+      "confirm": "グループ「{{name}}」を削除しますか？API キー上の該当グループ権限も削除されます。",
+      "confirmDefault": "このグループを削除しますか？"
+    }
+  },
+  "notifications": {
+    "eyebrow": "設定",
+    "title": "通知設定",
+    "description": "アラートルール、通知チャネル、インシデントエスカレーションポリシーを設定します。"
+  },
+  "portal": {
+    "title": "キー利用ポータル",
+    "description": "ログイン不要の公開ページを提供し、下流 API キーで残高とリクエスト詳細を確認できます。",
+    "saved": "ポータル設定を保存しました",
+    "saveFailed": "保存に失敗しました",
+    "loading": "読み込み中…",
+    "enabled": {
+      "title": "ポータルを有効化",
+      "desc": "無効にすると /portal ページと関連エンドポイントは 404 を返します。"
+    },
+    "modules": {
+      "title": "モジュール",
+      "summary": "利用トレンド",
+      "summaryDesc": "直近 N 日間のリクエストとコストの推移を表示します。",
+      "requests": "リクエスト詳細",
+      "requestsDesc": "キーのリクエスト履歴をページ表示します。",
+      "summaryDays": "トレンド日数",
+      "summaryDaysDesc": "トレンド集計の日数（1-90）。",
+      "pageSize": "詳細のページ上限",
+      "pageSizeDesc": "リクエスト詳細の 1 ページ最大件数（1-200）。"
+    },
+    "dimensions": {
+      "title": "表示項目",
+      "desc": "リクエスト詳細でユーザーに表示する項目を制御します。非表示の項目はフロントに返しません。",
+      "site": "サイト",
+      "siteDesc": "サイト名 / タイプ(機密、非表示推奨)。",
+      "model": "モデル",
+      "modelDesc": "正規モデルと上流モデル名。",
+      "tokens": "トークン",
+      "tokensDesc": "入力 / 出力 / 合計トークン。",
+      "cost": "コスト",
+      "costDesc": "推定コストと通貨。",
+      "latency": "レイテンシ",
+      "latencyDesc": "リクエストの所要時間。",
+      "endpoint": "エンドポイント",
+      "endpointDesc": "リクエストのエンドポイントパス。",
+      "upstream": "上流アドレス",
+      "upstreamDesc": "上流 URL とパス（機密、既定は無効）。",
+      "error": "エラー情報",
+      "errorDesc": "失敗リクエストのエラー種別。"
+    },
+    "validation": {
+      "invalid": "設定に無効な値があります",
+      "range": "{{min}} から {{max}} の範囲で指定してください"
+    },
+    "link": {
+      "title": "公開リンク",
+      "desc": "このリンクをユーザーに共有すると、自分の下流キーを貼り付けて利用状況を確認できます。",
+      "copy": "コピー",
+      "copied": "リンクをコピーしました",
+      "copyFailed": "コピーに失敗しました"
+    }
+  }
+}

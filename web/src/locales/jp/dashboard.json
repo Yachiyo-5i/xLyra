@@ -1,0 +1,243 @@
+{
+  "page": {
+    "loadFailed": "ダッシュボードの読み込みに失敗しました",
+    "eyebrow": "概要",
+    "title": "ダッシュボード",
+    "description": "コスト、トラフィック、性能、ルーティング状態を確認します。",
+    "retry": "再試行",
+    "noData": "データがありません",
+    "noDataDesc": "ダッシュボードデータが空です",
+    "refresh": "更新",
+    "refreshCooldowns": "クールダウン更新",
+    "update": "更新日時",
+    "clearAll": "すべてクリア",
+    "clear": "クリア",
+    "clearSuccess": "クールダウンを解除しました",
+    "clearAllSuccess": "すべてのクールダウンを解除しました",
+    "clearFailed": "クリアに失敗しました",
+    "clearMissingSite": "サイト情報が不足しているためクリアできません"
+  },
+  "kpis": {
+    "cost": "コスト",
+    "today": "今日",
+    "total": "合計",
+    "requestsTokens": "リクエストとトークン",
+    "todayRequests": "今日のリクエスト",
+    "todayTotalRequests": "今日 / 合計リクエスト",
+    "todayTokens": "今日のトークン",
+    "todayTotalTokens": "今日 / 合計トークン",
+    "successRate": "成功率",
+    "performance": "性能",
+    "completedRpm": "直近1分の完了"
+  },
+  "tokens": {
+    "total": "総トークン",
+    "input": "入力トークン",
+    "output": "出力トークン",
+    "cached": "キャッシュヒットトークン",
+    "hitRate": "キャッシュヒット率"
+  },
+  "charts": {
+    "modelCost": "モデルコスト",
+    "modelRequests": "モデルリクエスト",
+    "siteCost": "サイトコスト",
+    "siteRequests": "サイトリクエスト",
+    "model": "モデル",
+    "site": "サイト",
+    "trend": "{{days}} 日トレンド",
+    "summary": "{{days}} 日サマリー",
+    "cost": "コスト",
+    "times": "回"
+  },
+  "contributions": {
+    "title": "Tokens アクティビティ",
+    "description": "下流キー別の日次使用量",
+    "apiKeyFilter": "API Key",
+    "currentStreakLabel": "連続日数",
+    "longestStreakLabel": "最長連続",
+    "monthTokensLabel": "今月 Tokens",
+    "daysValue": "{{count}} 日",
+    "tooltipCost": "コスト {{value}}",
+    "tooltipTokens": "Tokens {{value}}",
+    "dayLabel": "{{date}}、コスト {{cost}}、Tokens {{tokens}}",
+    "legendLess": "Less",
+    "legendMore": "More",
+    "empty": "下流キーの Tokens データがありません",
+    "weekdays": {
+      "mon": "月",
+      "wed": "水",
+      "fri": "金"
+    }
+  },
+  "ranges": {
+    "7d": "7 日",
+    "30d": "30 日",
+    "90d": "90 日"
+  },
+  "resources": {
+    "title": "システムリソース",
+    "connecting": "接続中",
+    "waitingReconnect": "再接続待ち",
+    "realtime": "リアルタイム",
+    "tabs": {
+      "overview": "概要",
+      "cpu": "CPU",
+      "memory": "メモリ",
+      "disk": "ディスク",
+      "network": "ネットワーク"
+    },
+    "metrics": {
+      "usage": "使用量",
+      "used": "使用済み",
+      "available": "利用可能",
+      "cores": "コア",
+      "capacity": "容量",
+      "mountPoint": "マウントポイント",
+      "readWrite": "読み取り/書き込み",
+      "read": "読み取り",
+      "write": "書き込み",
+      "download": "ダウンロード",
+      "upload": "アップロード",
+      "total": "合計",
+      "current": "現在",
+      "peak": "ピーク",
+      "updatedAt": "更新日時"
+    },
+    "status": {
+      "connecting": "{{label}} データ接続中",
+      "waiting": "リアルタイムデータを待機中"
+    },
+    "description": {
+      "available": "利用可能 {{value}}",
+      "readWrite": "読み取り {{read}} · 書き込み {{write}}",
+      "totalReadWrite": "累計 読み取り {{read}} / 書き込み {{write}}"
+    }
+  },
+  "risks": {
+    "title": "要確認",
+    "description": "ルーティング、価格、ヘルス、リクエスト異常",
+    "empty": "確認が必要な項目はありません",
+    "severity": {
+      "neutral": "情報",
+      "warning": "警告",
+      "error": "エラー"
+    },
+    "insufficient": "利用可能な候補がありません",
+    "lowCandidates": "候補が不足しています",
+    "routeCandidateDetail": "{{key}} のルーティング候補が少ないです",
+    "highLatency": "高レイテンシ"
+  },
+  "cooldowns": {
+    "title": "クールダウン中のルート",
+    "description": "サイトとモデルのルート状態",
+    "empty": "クールダウン中のルートはありません",
+    "scope": {
+      "model": "モデル",
+      "credential": "キー",
+      "site": "サイト"
+    }
+  },
+  "uptime": {
+    "title": "サイト稼働状況",
+    "recent24h": "直近 24 時間",
+    "legend": {
+      "healthy": "正常",
+      "degraded": "不安定",
+      "down": "停止",
+      "idle": "データがありません"
+    },
+    "empty": "{{type}} サイトがありません"
+  },
+  "failureReasons": {
+    "no_route_candidates": "利用可能な上流候補がありません",
+    "model_not_allowed": "下流キーは要求されたモデルを許可していません",
+    "downstream_client_cancelled": "上流応答前にクライアントが切断しました",
+    "upstream_http_error": "上流 HTTP エラー",
+    "upstream_timeout": "上流リクエストタイムアウト",
+    "rate_limit_exceeded": "レート制限を超過しました",
+    "unknown": "不明な失敗"
+  },
+  "failureTitles": {
+    "no_route_candidates": "ルートなし",
+    "model_not_allowed": "モデル未承認",
+    "downstream_client_cancelled": "クライアントがキャンセルしました",
+    "upstream_http_error": "上流エラー",
+    "upstream_timeout": "上流タイムアウト",
+    "rate_limit_exceeded": "レート制限",
+    "default": "失敗したリクエスト"
+  },
+  "cooldownReasons": {
+    "site_unhealthy": "サイトヘルスチェックに失敗しました",
+    "usage_limit_reached": "アカウント使用上限に達しました",
+    "upstream_http_error": "上流リクエストエラー",
+    "upstream_timeout": "上流リクエストタイムアウト"
+  },
+  "cooldownSources": {
+    "site_health": "ヘルスチェック",
+    "gateway": "ゲートウェイリクエスト",
+    "manual": "手動"
+  },
+  "attentionTypes": {
+    "no_route_candidates": "利用可能な上流候補がありません",
+    "low_route_candidates": "上流候補が少ないです",
+    "active_cooldown": "ルートがクールダウン中です",
+    "site_unhealthy": "サイトヘルスチェックに失敗しました",
+    "missing_model_pricing": "モデル価格が不足しています",
+    "high_failure_rate": "サイト失敗率が高いです",
+    "rate_limit_exceeded": "レート制限が発生しました",
+    "high_latency": "リクエストレイテンシが高いです"
+  },
+  "attention": {
+    "title": {
+      "no_route_candidates": "{{model}} に利用可能な上流がありません",
+      "low_route_candidates": "{{model}} の利用可能な上流が少ないです",
+      "active_cooldown_site": "{{site}} はクールダウン中です",
+      "active_cooldown_model": "{{model}} は {{site}} でクールダウン中です",
+      "active_cooldown_credential": "{{site}} の上流認証情報はクールダウン中です",
+      "site_unhealthy": "{{site}} のヘルスチェックに失敗しました",
+      "missing_model_pricing": "{{count}} 個のサイトモデルに価格がありません",
+      "high_failure_rate": "{{site}} は直近 7 日間の失敗率が高いです",
+      "rate_limit_exceeded": "直近 7 日間にレート制限されたリクエストがあります",
+      "high_latency_site_model": "{{site}} / {{model}} のリクエストレイテンシが高いです",
+      "high_latency_model": "{{model}} のリクエストレイテンシが高いです"
+    },
+    "detail": {
+      "no_route_candidates_active": "このモデルは直近 24 時間に下流トラフィックがありましたが、現在利用可能な上流がありません。新しいリクエストは失敗します。",
+      "no_route_candidates_idle": "このモデルはサイトに設定されていますが、現在利用可能な上流がありません。モデルの有効状態、価格、サイトヘルス、クールダウンを確認してください。",
+      "low_route_candidates": "{{eligible}} / {{total}} の上流が利用可能です。リクエストは可能ですが、フェイルオーバー耐性が弱いです。",
+      "active_cooldown": "このルート対象は一時的にルーティングから除外されています。クールダウン終了を待つか、直近の失敗理由を確認してください。",
+      "active_cooldown_credential": "この上流認証情報は一時的にルーティングから除外されています。API キー状態、クォータ、上流失敗を確認してください。",
+      "site_unhealthy": "このサイトは利用できず、配下のすべてのモデルルートに影響する可能性があります。エンドポイント、ネットワーク、認証、上流ブロックを確認してください。",
+      "missing_model_pricing": "価格不足によりコスト統計やルートポリシーが不正確になる可能性があります。非 NewAPI ソースの価格を追加してください。",
+      "high_failure_rate": "このサイトの最近の成功率は {{rate}} です。失敗リクエストを確認し、無効化、優先度低下、ルーティング調整を検討してください。",
+      "rate_limit_exceeded": "下流呼び出し元が 429 応答を受け取りました。グローバルまたは API キーの RPM/TPM 上限を確認してください。",
+      "high_latency": "P95 レイテンシは {{latency}} です。上流応答速度を確認するか、ルート優先度の引き下げを検討してください。"
+    },
+    "actions": {
+      "no_route_candidates": "ルートを確認",
+      "low_route_candidates": "ルートを確認",
+      "active_cooldown": "影響範囲を表示",
+      "site_unhealthy": "サイトを表示",
+      "missing_model_pricing": "価格を追加",
+      "high_failure_rate": "失敗リクエストを表示",
+      "rate_limit_exceeded": "レート制限リクエストを表示",
+      "high_latency": "遅いリクエストを表示",
+      "open_routes": "ルートを確認",
+      "open_sites": "サイトを表示",
+      "open_site_api_keys": "API キーを表示",
+      "open_model_prices": "価格を追加",
+      "open_requests": "リクエストを表示"
+    }
+  },
+  "severityLabels": {
+    "critical": "重大",
+    "warning": "警告",
+    "info": "情報",
+    "default": "情報"
+  },
+  "latency": {
+    "detail": "{{site}} / {{model}} の P95 レイテンシが高いです"
+  },
+  "unknownSite": "不明なサイト",
+  "failureCount": "{{count}} 回"
+}

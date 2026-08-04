@@ -1,0 +1,570 @@
+{
+  "general": {
+    "title": "通用设置",
+    "description": "基础运行时选项。",
+    "loading": "正在读取设置...",
+    "saved": "通用设置已保存",
+    "saveFailed": "保存失败",
+    "security": {
+      "title": "安全设置",
+      "sessionLifetime": "登录有效期",
+      "sessionLifetimeDesc": "管理员登录后保持有效的时间。0 表示不过期，默认 24 小时。"
+    },
+    "tasks": {
+      "title": "定时任务",
+      "siteRefreshCron": "站点刷新 Cron",
+      "newAPICheckinCron": "NewAPI 签到 Cron"
+    },
+    "whitelist": {
+      "title": "白名单 IP",
+      "ipAddress": "IP 地址",
+      "ipAddressDesc": "一行一个 IP，支持 CIDR 段。",
+      "summary": "{{total}} 条地址，{{valid}} 条有效",
+      "invalidAddress": "无效地址"
+    },
+    "log": {
+      "title": "日志配置",
+      "level": "日志级别",
+      "autoCleanup": "自动清理",
+      "retentionDays": "保留天数"
+    },
+    "data": {
+      "title": "数据明细",
+      "requestDetailAutoCleanup": "自动清理请求明细",
+      "requestDetailRetentionDays": "请求明细保留天数",
+      "requestDetailRetentionDesc": "日汇总完成后，系统会清理超过该天数的 request_logs 与 usage_records 明细。"
+    },
+    "validation": {
+      "cronInvalid": "Cron 表达式无效",
+      "cronInvalidWithMessage": "Cron 表达式无效：{{message}}",
+      "cronRequired": "请填写 Cron 表达式",
+      "siteRefreshCronInvalid": "站点刷新 Cron 不合法",
+      "newAPICheckinCronInvalid": "NewAPI 签到 Cron 不合法",
+      "whitelistIPInvalid": "白名单 IP 不合法",
+      "retentionConfigInvalid": "日志保留配置不合法",
+      "requestDetailRetentionConfigInvalid": "请求明细保留配置不合法",
+      "sessionLifetimeInvalid": "登录有效期不合法",
+      "retentionDaysRequired": "请填写保留天数",
+      "retentionDaysPositive": "保留天数必须是大于 0 的整数",
+      "sessionLifetimeRequired": "请填写登录有效期",
+      "sessionLifetimeInteger": "登录有效期必须是整数小时",
+      "sessionLifetimeRange": "登录有效期必须在 0 到 720 小时之间"
+    }
+  },
+  "profile": {
+    "title": "个人信息",
+    "description": "账号与安全设置",
+    "adminInfo": {
+      "title": "管理员信息",
+      "username": "用户名",
+      "nickname": "昵称",
+      "avatar": "头像",
+      "uploadAvatar": "上传头像",
+      "clearAvatar": "清除",
+      "avatarImageRequired": "请选择图片文件",
+      "avatarTooLarge": "头像图片不能超过 {{size}}",
+      "avatarReadFailed": "头像读取失败",
+      "saveButton": "保存信息",
+      "saved": "管理员信息已更新",
+      "saveFailed": "更新失败"
+    },
+    "password": {
+      "title": "修改密码",
+      "currentPassword": "当前密码",
+      "currentPasswordPlaceholder": "请输入当前密码",
+      "newPassword": "新密码",
+      "newPasswordPlaceholder": "请输入新密码",
+      "confirmPassword": "确认新密码",
+      "confirmPasswordPlaceholder": "请再次输入新密码",
+      "updateButton": "更新密码",
+      "updated": "密码已更新",
+      "updateFailed": "密码更新失败",
+      "mismatch": "两次输入的新密码不一致"
+    },
+    "totp": {
+      "title": "两步验证",
+      "enabled": "已启用",
+      "disabled": "未启用",
+      "enableButton": "启用",
+      "disableButton": "关闭两步验证",
+      "setupFailed": "两步验证初始化失败",
+      "enabledSuccess": "两步验证已启用",
+      "enableFailed": "两步验证启用失败",
+      "disabledSuccess": "两步验证已关闭",
+      "disableFailed": "两步验证关闭失败",
+      "setupSheet": {
+        "title": "启用两步验证",
+        "step1": "打开验证器",
+        "step2": "扫描二维码",
+        "step3": "输入验证码",
+        "backupKey": "备用密钥",
+        "copy": "复制",
+        "copied": "密钥已复制",
+        "codePlaceholder": "请输入验证码",
+        "noQRCode": "暂时无法生成二维码",
+        "finish": "完成启用",
+        "cancel": "取消"
+      }
+    },
+    "accessToken": {
+      "title": "访问令牌",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "notCreated": "未创建",
+      "createButton": "创建",
+      "updateButton": "更新",
+      "enableButton": "启用",
+      "disableButton": "停用",
+      "deleteButton": "删除",
+      "createdAndCopied": "访问令牌已创建并复制",
+      "created": "访问令牌已创建",
+      "createFailed": "访问令牌创建失败",
+      "statusUpdated": "状态已更新",
+      "statusUpdateFailed": "状态更新失败",
+      "deleted": "访问令牌已删除",
+      "deleteFailed": "删除失败",
+      "createdDialog": {
+        "title": "访问令牌已创建",
+        "description": "请妥善保存，关闭后将不再显示明文。",
+        "copied": "已复制",
+        "copy": "复制",
+        "done": "完成"
+      },
+      "deleteDialog": {
+        "title": "删除访问令牌",
+        "description": "删除后，使用该令牌的外部工具将无法继续访问管理接口。",
+        "cancel": "取消",
+        "confirm": "删除"
+      }
+    },
+    "sessions": {
+      "title": "会话",
+      "deleteOtherSessions": "删除其他会话",
+      "status": "状态",
+      "ip": "IP",
+      "lastActive": "最近活跃",
+      "expires": "过期时间",
+      "actions": "操作",
+      "current": "当前",
+      "other": "其他",
+      "delete": "删除",
+      "deleted": "会话已删除",
+      "otherDeleted": "其他会话已删除",
+      "deleteFailed": "会话删除失败"
+    }
+  },
+  "systemProxy": {
+    "title": "系统代理",
+    "description": "维护可复用的系统代理，供站点和 OAuth 账号选择。",
+    "loading": "正在读取设置...",
+    "newProxy": "新代理",
+    "loadFailed": "代理配置读取失败",
+    "search": "搜索代理",
+    "empty": {
+      "title": "暂无代理",
+      "description": "添加代理后，可在站点或 OAuth 账号配置中选择使用。"
+    },
+    "actions": {
+      "create": "添加代理",
+      "test": "测试",
+      "edit": "编辑",
+      "save": "保存",
+      "delete": "删除",
+      "cancel": "取消"
+    },
+    "test": {
+      "untested": "未测试",
+      "testing": "测试中",
+      "success": "可用 · {{latency}}ms",
+      "failed": "失败"
+    },
+    "form": {
+      "createTitle": "添加代理",
+      "editTitle": "编辑代理",
+      "name": "代理名称",
+      "namePlaceholder": "例如 本机代理",
+      "type": "代理类型",
+      "url": "代理地址",
+      "urlHint": "HTTP/HTTPS 代理使用 http:// 或 https://，SOCKS 代理使用 socks5://。"
+    },
+    "validation": {
+      "nameRequired": "请输入代理名称",
+      "urlRequired": "请输入代理地址",
+      "typeInvalid": "代理类型无效",
+      "urlInvalid": "代理地址格式无效",
+      "nameDuplicate": "代理名称不能重复",
+      "socksScheme": "SOCKS5 代理地址必须以 socks5:// 开头",
+      "httpScheme": "HTTP/HTTPS 代理地址必须以 http:// 或 https:// 开头"
+    },
+    "toast": {
+      "saved": "代理配置已保存",
+      "saveFailed": "保存失败",
+      "deleted": "代理已删除",
+      "deleteFailed": "删除失败",
+      "testFailed": "测试失败"
+    },
+    "deleteDialog": {
+      "title": "删除代理",
+      "confirm": "确定删除代理「{{name}}」？已选择该代理的站点请求会在下次保存站点配置前引用失效。",
+      "confirmDefault": "确定删除该代理？"
+    }
+  },
+  "rateLimit": {
+    "title": "全局限流",
+    "description": "请求频率限制",
+    "loading": "正在读取设置...",
+    "saved": "全局限流配置已保存",
+    "saveFailed": "保存失败",
+    "rateLimit": "速率限制",
+    "rateLimitDesc": "全局请求速率限制。关闭后仅受各 ApiKey 配置限制。",
+    "rpmLimit": "同时在途请求上限（RPM）",
+    "rpmLimitDesc": "限制所有密钥同一时刻的在途请求总数，超出的请求进入队列等待（最长 60 秒），留空表示不限制。",
+    "tpmLimit": "每分钟 Token 数",
+    "tpmLimitDesc": "限制文本模型每分钟最多消耗多少 token，留空表示不限 token。",
+    "validation": {
+      "atLeastOneRequired": "启用全局调用频率时，至少填写一项上限",
+      "rpmPositiveInteger": "在途请求上限必须是大于 0 的整数",
+      "tpmPositiveInteger": "每分钟 Token 数必须是大于 0 的整数"
+    }
+  },
+  "backup": {
+    "eyebrow": "设置",
+    "title": "数据迁移",
+    "description": "备份站点、模型、密钥与历史记录，用于迁移或重装后恢复。",
+    "passphrase": "备份口令",
+    "confirmPassphrase": "再输入一次",
+    "passphraseDesc": "口令只用于打开这份备份文件，请单独保存。",
+    "validation": {
+      "passphraseRequired": "请输入备份口令",
+      "passphraseMismatch": "两次输入的口令不一致",
+      "fileRequired": "请选择备份文件",
+      "fileInvalid": "文件格式不正确，请选择 .xlyra 备份文件"
+    },
+    "export": {
+      "title": "导出数据",
+      "action": "导出",
+      "dialogTitle": "设置备份口令",
+      "dialogDescription": "备份文件会保存可恢复的数据和部分敏感凭据。请为这次导出设置口令。",
+      "confirmAction": "开始导出",
+      "success": "备份文件已生成",
+      "failed": "导出失败",
+      "noticeSensitive": "包含站点、模型、凭据、OAuth 账号、下游 API Key、请求日志与用量记录。",
+      "noticePassphrase": "请妥善保存口令，导入时需要再次输入。",
+      "noticeUsersExcluded": "不包含管理员账号、登录会话、两步验证、管理员访问令牌和审计日志。"
+    },
+    "import": {
+      "title": "导入数据",
+      "file": "备份文件",
+      "passphraseDesc": "输入这份备份导出时设置的口令。",
+      "action": "导入",
+      "dialogTitle": "导入备份文件",
+      "dropzone": "拖入文件，或点击选择",
+      "fileHint": "仅支持 xLyra 备份文件（.xlyra）",
+      "removeFile": "移除文件",
+      "success": "导入完成",
+      "failed": "导入失败",
+      "summary": "已恢复 {{rows}} 行数据和 {{configKeys}} 个配置分组。建议刷新页面；如服务状态未更新，请重启后再检查。",
+      "noticeOverwrite": "导入会覆盖当前业务数据，请先确认已备份现有环境。",
+      "noticePreserved": "管理员账号、登录会话、两步验证和管理员访问令牌会保留。",
+      "noticeRestart": "健康状态、路由冷却和限流窗口不会恢复，会由系统重新生成。",
+      "confirmTitle": "确认导入",
+      "confirmDescription": "导入后将替换当前站点、模型、凭据、下游 API Key、请求日志、用量记录和配置文件。",
+      "confirmAction": "确认导入并覆盖"
+    },
+    "tabs": {
+      "manual": "手动备份",
+      "automatic": "自动备份"
+    },
+    "automatic": {
+      "title": "自动备份",
+      "loading": "正在读取自动备份配置...",
+      "saveSuccess": "自动备份配置已保存",
+      "saveFailed": "保存自动备份配置失败",
+      "testAction": "测试连接",
+      "testSuccess": "S3 存储连接正常",
+      "testFailed": "S3 存储连接失败",
+      "runAction": "立即备份",
+      "runSuccess": "自动备份任务已开始",
+      "runFailed": "启动自动备份失败",
+      "restoreFailed": "恢复远端备份失败",
+      "deleteSuccess": "远端备份已删除",
+      "deleteFailed": "删除远端备份失败",
+      "restoreConfirmTitle": "确认覆盖当前数据",
+      "restoreConfirmDescription": "将使用 {{filename}} 覆盖当前业务数据和配置。此操作不可撤销。",
+      "restoreConfirmAction": "确认覆盖",
+      "deleteConfirmTitle": "确认删除远端备份",
+      "deleteConfirmDescription": "将从 S3 存储中删除 {{filename}}。此操作不可撤销。",
+      "deleteConfirmAction": "确认删除",
+      "noticeNoSecrets": "备份文件会保留自动备份的非敏感配置，但不会包含 S3 Secret Key 和备份文件密钥。",
+      "noticeImportKeepsCurrent": "恢复时如果当前实例已有自动备份配置，会保留当前实例配置，不用备份包里的配置覆盖。",
+      "storage": {
+        "title": "S3 兼容存储",
+        "endpoint": "Endpoint",
+        "region": "Region",
+        "bucket": "Bucket",
+        "prefix": "对象前缀",
+        "accessKey": "Access Key",
+        "secretKey": "Secret Key",
+        "secretSaved": "已保存：{{value}}。留空则保持不变。",
+        "forcePathStyle": "Path-style 访问",
+        "useSSL": "使用 HTTPS",
+        "skipTLSVerify": "跳过 TLS 校验"
+      },
+      "schedule": {
+        "title": "备份配置",
+        "enabled": "启用自动备份",
+        "cron": "Cron 表达式",
+        "retention": "保留份数",
+        "passphrase": "备份文件密钥",
+        "passphraseDesc": "自动备份生成的 .xlyra 文件会使用此密钥加密。",
+        "passphraseSaved": "已保存：{{value}}。留空则保持不变。"
+      },
+      "files": {
+        "title": "远端备份文件",
+        "refresh": "刷新",
+        "loading": "正在读取远端备份文件...",
+        "empty": "当前 S3 配置下暂无备份文件。",
+        "notReady": "保存完整 S3 配置和备份文件密钥后，可以查看远端备份文件。",
+        "running": "备份中",
+        "failed": "失败",
+        "restore": "覆盖恢复",
+        "delete": "删除"
+      },
+      "validation": {
+        "required": "请补全自动备份配置",
+        "cronRequired": "请填写 Cron 表达式",
+        "cronInvalid": "Cron 表达式无效",
+        "cronInvalidWithMessage": "Cron 表达式无效：{{message}}",
+        "retentionInvalid": "保留份数不合法",
+        "retentionRequired": "请填写保留份数",
+        "retentionPositive": "保留份数必须是大于 0 的整数",
+        "retentionMax": "保留份数不能超过 {{max}}"
+      }
+    }
+  },
+  "modelsPrice": {
+    "eyebrow": "设置",
+    "title": "模型价格",
+    "description": "查看和维护模型价格",
+    "allPrices": "全部价格",
+    "missingPrices": "缺失价格",
+    "saveFailed": "保存失败",
+    "savedSuccess": "模型价格已保存",
+    "savedDescription": "已提交 {{count}} 项修改",
+    "notBoundToModel": "未绑定标准模型，不能批量提交",
+    "loading": "正在读取模型价格...",
+    "noData": "暂无模型价格数据",
+    "empty": {
+      "title": "暂无模型价格数据",
+      "description": "同步站点模型后，模型价格会在这里展示。"
+    },
+    "saveChanges": "保存修改",
+    "batchEdit": "批量编辑",
+    "readOnly": "只读",
+    "headers": {
+      "model": "模型 / 站点",
+      "group": "分组",
+      "billing": "计费",
+      "inputPrice": "输入价格",
+      "outputPrice": "输出价格",
+      "audioOutputPrice": "音频输出价",
+      "cachePrice": "缓存读取",
+      "cacheWritePrice": "缓存写入",
+      "cacheWrite5mPrice": "缓存写入(5m)",
+      "cacheWrite1hPrice": "缓存写入(1h)",
+      "perRequestPrice": "按次价格",
+      "groupRatio": "组倍率",
+      "status": "状态"
+    },
+    "subtitle": {
+      "sites": "{{count}} 站点",
+      "editable": "{{count}} 可编辑",
+      "noPrice": "暂无价格",
+      "perRequest": "按次 {{price}}",
+      "tokenPrice": "输入 {{input}} / 输出 {{output}}"
+    },
+    "badges": {
+      "missing": "缺失 {{count}}",
+      "manual": "手动 {{count}}",
+      "synced": "同步 {{count}}",
+      "noBatch": "不可批量",
+      "noBatchTooltip": "未绑定标准模型，不能批量提交",
+      "noEditableTooltip": "没有可编辑的站点模型"
+    },
+    "statusLabels": {
+      "missing": "缺失",
+      "manual": "手动",
+      "synced": "同步",
+      "priced": "已定价"
+    },
+    "billingLabels": {
+      "all": "全部计费",
+      "tokens": "按 token",
+      "perRequest": "按次"
+    },
+    "statusFilter": {
+      "all": "全部状态",
+      "manual": "手动",
+      "synced": "同步",
+      "missing": "缺失"
+    },
+    "searchPlaceholder": "搜索模型或站点",
+    "validation": {
+      "inputPrice": "输入价格",
+      "outputPrice": "输出价格",
+      "audioOutputPrice": "音频输出价",
+      "cachePrice": "缓存读取",
+      "cacheWritePrice": "缓存写入",
+      "cacheWrite1hPrice": "缓存写入(1h)价格",
+      "perRequestPrice": "按次价格",
+      "groupRatio": "组倍率",
+      "audioRequiresInput": "设置音频输出价需填写正数输入价格",
+      "tokenRequiresInputOrOutput": "按 token 计费至少填写输入价格或输出价格",
+      "perRequestRequiresValue": "按次计费需要填写按次价格",
+      "nonNegativeNumber": "必须是大于等于 0 的数字"
+    },
+    "perRequestSuffix": "/次",
+    "resetButton": "重置",
+    "resetTooltip": "清除手动价格，恢复为同步来源价格",
+    "resetDialogTitle": "重置模型价格",
+    "resetConfirm": "确认将此模型价格重置为同步来源价格？手动修改将被清除。",
+    "resetFailed": "重置价格失败",
+    "resetAllButton": "全部重置",
+    "resetAllDialogTitle": "重置站点全部手动价格",
+    "resetAllConfirm": "确认将此站点下 {{count}} 个手动修改的模型价格全部重置为同步来源价格？",
+    "resetAllSuccess": "已重置全部手动价格",
+    "siteFilter": {
+      "label": "站点",
+      "all": "全部站点"
+    },
+    "siteView": {
+      "summary": "共 {{total}} 个模型 · {{manual}} 个手动定价",
+      "modelCount": "{{count}} 个模型"
+    },
+    "ariaLabels": {
+      "collapse": "收起站点价格",
+      "expand": "展开站点价格"
+    }
+  },
+  "global": {
+    "eyebrow": "设置",
+    "title": "全局设置",
+    "description": "按类别管理全局设置。",
+    "nav": {
+      "general": "通用设置",
+      "profile": "个人信息",
+      "systemProxy": "系统代理",
+      "rateLimit": "全局限流",
+      "siteGroups": "分组配置",
+      "backup": "导入导出",
+      "portal": "密钥门户"
+    }
+  },
+  "siteGroups": {
+    "title": "分组配置",
+    "description": "将站点归入可复用分组，供下游 API Key 批量授权。",
+    "loading": "正在读取分组...",
+    "loadFailed": "分组读取失败",
+    "search": "搜索分组",
+    "enabled": "启用",
+    "disabled": "停用",
+    "noSites": "暂无站点",
+    "empty": {
+      "title": "暂无分组",
+      "description": "创建一个分组后，可在站点或 API Key 中复用。"
+    },
+    "form": {
+      "createTitle": "新建分组",
+      "editTitle": "编辑分组",
+      "name": "分组名称",
+      "slug": "标识",
+      "description": "描述",
+      "sortOrder": "排序",
+      "sites": "站点",
+      "sitesPlaceholder": "选择站点",
+      "siteSearch": "搜索站点",
+      "enabled": "启用分组"
+    },
+    "actions": {
+      "create": "创建",
+      "save": "保存",
+      "edit": "编辑",
+      "delete": "删除",
+      "cancel": "取消",
+      "cancelEdit": "取消编辑"
+    },
+    "validation": {
+      "nameRequired": "请输入分组名称",
+      "sortOrderInvalid": "排序必须是整数"
+    },
+    "toast": {
+      "saved": "分组已保存",
+      "saveFailed": "保存失败",
+      "deleted": "分组已删除",
+      "deleteFailed": "删除失败"
+    },
+    "deleteDialog": {
+      "title": "删除分组",
+      "confirm": "确定删除分组「{{name}}」？此操作会移除 API Key 上的对应分组授权。",
+      "confirmDefault": "确定删除该分组？"
+    }
+  },
+  "notifications": {
+    "eyebrow": "设置",
+    "title": "通知配置",
+    "description": "配置告警规则、通知渠道和事件升级策略。"
+  },
+  "portal": {
+    "title": "密钥用量门户",
+    "description": "开放一个无需登录的公开页面，用户凭下游 API 密钥即可查看额度与请求详情。",
+    "saved": "门户配置已保存",
+    "saveFailed": "保存失败",
+    "loading": "加载中…",
+    "enabled": {
+      "title": "启用门户",
+      "desc": "关闭后 /portal 页面及其接口一律返回 404。"
+    },
+    "modules": {
+      "title": "模块",
+      "summary": "用量趋势图",
+      "summaryDesc": "展示近 N 天的请求与花费趋势。",
+      "requests": "请求明细",
+      "requestsDesc": "展示该密钥的分页请求记录。",
+      "summaryDays": "趋势天数",
+      "summaryDaysDesc": "趋势图统计的天数（1-90）。",
+      "pageSize": "明细每页上限",
+      "pageSizeDesc": "请求明细每页最大条数（1-200）。"
+    },
+    "dimensions": {
+      "title": "可见维度",
+      "desc": "控制请求明细中对用户可见的字段，隐藏的字段不会返回到前端。",
+      "site": "站点",
+      "siteDesc": "站点名称 / 类型(较敏感,建议关闭)。",
+      "model": "模型",
+      "modelDesc": "规范模型与上游模型名。",
+      "tokens": "Token 用量",
+      "tokensDesc": "输入 / 输出 / 总 token 数。",
+      "cost": "花费",
+      "costDesc": "估算花费与币种。",
+      "latency": "延迟",
+      "latencyDesc": "请求耗时。",
+      "endpoint": "端点",
+      "endpointDesc": "请求的端点路径。",
+      "upstream": "上游地址",
+      "upstreamDesc": "上游 URL 与路径（较敏感，建议关闭）。",
+      "error": "错误信息",
+      "errorDesc": "失败请求的错误类型。"
+    },
+    "validation": {
+      "invalid": "配置存在无效项",
+      "range": "需在 {{min}} 到 {{max}} 之间"
+    },
+    "link": {
+      "title": "公开访问链接",
+      "desc": "将此链接发给用户，他们粘贴自己的下游密钥即可查看用量。",
+      "copy": "复制",
+      "copied": "链接已复制",
+      "copyFailed": "复制失败"
+    }
+  }
+}

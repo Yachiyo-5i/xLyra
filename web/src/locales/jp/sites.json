@@ -1,0 +1,361 @@
+{
+  "page": {
+    "loadFailed": "サイト一覧の読み込みに失敗しました",
+    "eyebrow": "リソース",
+    "title": "サイト",
+    "description": "API サイト、認証情報、モデル同期を管理し、ルーティング重みと優先度を設定します。",
+    "retry": "再試行",
+    "unknownError": "不明なエラー",
+    "search": "サイト名またはアドレスを検索",
+    "all": "すべて",
+    "refreshAll": "すべて更新",
+    "addSite": "サイトを追加",
+    "emptyFiltered": "フィルターに一致するサイトがありません",
+    "emptyFilteredDesc": "検索語またはフィルター条件を調整してください。",
+    "emptyTitle": "サイトがまだありません",
+    "emptyDesc": "最初のサイトを追加して開始してください。",
+    "abnormalSites": "異常サイト",
+    "deleteDialog": {
+      "title": "サイトを削除",
+      "confirm": "サイト「{{name}}」を削除しますか？同期済みモデル、API キー、状態データも削除されます。この操作は元に戻せません。",
+      "confirmDefault": "このサイトを削除しますか？この操作は元に戻せません。",
+      "cancel": "キャンセル",
+      "delete": "削除を確認"
+    },
+    "toast": {
+      "createFailed": "作成に失敗しました",
+      "saveFailed": "保存に失敗しました",
+      "deleteFailed": "削除に失敗しました",
+      "refreshFailed": "更新に失敗しました",
+      "refreshIncomplete": "Refresh incomplete",
+      "refreshPartialFailed": "一部のサイト更新に失敗しました",
+      "refreshPartialDesc": "{{count}} サイトの更新に失敗しました",
+      "refreshPartialDescFallback": "一部のサイト更新に失敗しました",
+      "statusFailed": "サイト状態の更新に失敗しました"
+    }
+  },
+  "table": {
+    "headers": {
+      "site": "サイト",
+      "health": "ヘルス",
+      "resources": "リソース",
+      "balance": "残高",
+      "usage": "使用量",
+      "models": "モデル",
+      "apiKeys": "API キー",
+      "accounts": "アカウント",
+      "priority": "重み",
+      "routing": "ルーティング",
+      "updatedAt": "更新日時"
+    },
+    "health": {
+      "unchecked": "未確認",
+      "healthy": "正常",
+      "abnormal": "Abnormal"
+    },
+    "quotaDetails": {
+      "keyAvailable": "キーの利用可能枠",
+      "totalLimit": "上限",
+      "keyUsed": "キーの使用量",
+      "tokenBalance": "トークン残高",
+      "tokenUsed": "トークン使用量",
+      "accountBalance": "アカウント残高",
+      "used": "使用量",
+      "remaining": "残り",
+      "unlimited": "無制限",
+      "fiveHourQuota": "5時間枠",
+      "weeklyQuota": "週間枠"
+    },
+    "ariaLabels": {
+      "refresh": "{{name}} を更新",
+      "test": "{{name}} をテスト",
+      "edit": "{{name}} を編集",
+      "delete": "{{name}} を削除",
+      "toggle": "{{name}} を切り替え"
+    },
+    "resources": {
+      "models": "{{count}} 個のモデル",
+      "keys": "{{enabled}}/{{total}} 個のキー",
+      "accounts": "{{count}} アカウント"
+    },
+    "updatedAtMode": {
+      "showAbsolute": "絶対時刻に切り替え",
+      "showRelative": "相対時刻に切り替え"
+    }
+  },
+  "form": {
+    "createTitle": "サイトを追加",
+    "editTitle": "サイトを編集",
+    "sections": {
+      "basic": "基本情報",
+      "connection": "接続",
+      "auth": "認証",
+      "grokAccounts": "アカウントのインポート",
+      "groups": "グループ",
+      "routing": "ルーティング",
+      "advanced": "Advanced"
+    },
+    "fields": {
+      "name": "サイト名",
+      "namePlaceholder": "識別しやすいサイト名を付けてください",
+      "siteType": "サイトタイプ",
+      "baseUrl": "ベース URL",
+      "baseUrlPlaceholder": "https://api.example.com",
+      "baseUrlBuiltinHint": "空欄の場合は内蔵の公式アドレスを使用します: {{url}}",
+      "baseUrlBuiltinDomesticHint": "空欄の場合は内蔵の中国リージョン公式アドレスを使用します: {{url}}。国際リージョンまたは他のリージョンでは対応するベース URL を入力してください。プロトコルパスは自動で処理されます。",
+      "baseUrlOptionalHint": "空欄の場合は内蔵の公式アドレスを使用します。",
+      "apiKey": "上流 API キー",
+      "apiKeyPlaceholder": "sk-your-api-key",
+      "apiKeyEditHint": "空欄のままにすると既存の API キーを保持します。",
+      "xlyraAuthMode": "認証方式",
+      "xlyraAccessTokenMode": "アクセストークン",
+      "xlyraApiKeyMode": "単一 API キー",
+      "xlyraAccessToken": "xLyra アクセストークン",
+      "xlyraAccessTokenPlaceholder": "xlyra-admin-...",
+      "xlyraAccessTokenHint": "xLyra 管理 API から上流キーとモデルデータを同期します。",
+      "xlyraApiKey": "xLyra 下流 API キー",
+      "xlyraApiKeyHint": "/v1/models からこのキーで利用可能なモデルを取得します。",
+      "routingPriority": "ルーティング重み",
+      "routingPriorityHint": "デフォルト 1.0、範囲 1.0 - 5.0。重みが高いほど優先的にルーティングされます。",
+      "systemToken": "システム認証トークン",
+      "systemTokenPlaceholder": "NewAPI システムレベルアクセストークン",
+      "systemTokenHint": "サイトとモデルを管理するためのシステムレベル認証トークンです。",
+      "userId": "ユーザー ID",
+      "userIdPlaceholder": "ユーザー ID を入力",
+      "enableRouting": "ルーティングを有効化",
+      "enableRoutingDesc": "無効にすると、このサイトはルーティングに参加しません。",
+      "siteGroups": "所属グループ",
+      "siteGroupsHint": "サイトをグループに追加すると、そのグループを付与された下流キーがこのサイトを利用できます。",
+      "siteGroupsPlaceholder": "グループを選択",
+      "siteGroupsSearch": "グループを検索",
+      "noSiteGroups": "グループがありません",
+      "groupSiteCount": "{{count}} 個のサイト",
+      "proxy": "プロキシ",
+      "proxyDesc": "このサイトの上流リクエストで使うプロキシを選択します。直結はプロキシを使いません。",
+      "proxyDirect": "直結",
+      "clientImpersonation": "クライアント偽装",
+      "clientImpersonationDesc": "上流に選択したクライアントとして認識させます。",
+      "impersonateCodexClient": "Codex クライアントとして偽装",
+      "impersonateCodexClientDesc": "上流に Codex クライアントとして認識させます。",
+      "impersonateClaudeCodeClient": "Claude Code クライアントとして偽装",
+      "impersonateClaudeCodeClientDesc": "上流に Claude Code クライアントとして認識させます。",
+      "requestHeaders": "リクエストヘッダー",
+      "requestHeadersDesc": "このサイトの上流リクエストにカスタムヘッダーを追加します。",
+      "headerKeyPlaceholder": "ヘッダー名",
+      "headerValuePlaceholder": "ヘッダー値",
+      "quotaProbe": "上流ソフトウェア（残高プローブ）",
+      "quotaProbeDesc": "このサイトの背後で実際に動作しているソフトウェアを選択すると、ゲートウェイが各認証情報の利用可能残高を定期的に取得して表示します。API キー認証のサイトのみ対象です。",
+      "quotaProbeNone": "無効"
+    },
+    "categories": {
+      "official": "公式",
+      "relay": "中継接続",
+      "other": "その他"
+    },
+    "providerSubtitles": {
+      "opencode_go": "OpenCode Go プランの API キーを接続",
+      "openai": "OpenAI プラットフォームの API キーで接続",
+      "anthropic": "Anthropic Messages API キーで接続",
+      "google_gemini": "Google AI Studio API キーで接続",
+      "deepseek": "DeepSeek プラットフォームの API キーで接続",
+      "minimax": "MiniMax プラットフォームの API キーで接続",
+      "xiaomi_mimo": "Xiaomi MiMo API キーで接続",
+      "moonshot": "Moonshot プラットフォームの API キーで接続",
+      "kimi_code": "Kimi コーディングモデル API キーで接続",
+      "zhipu": "Zhipu GLM 汎用 API キーで接続",
+      "glm_code": "GLM Coding Plan API キーで接続",
+      "newapi": "自ホストまたはサードパーティパネルにはシステムトークンを使用",
+      "xlyra": "アクセストークンまたは単一の下流 API キーで xLyra ゲートウェイに接続",
+      "grok": "xAI アカウントのデバイス認証で Grok に接続（複数アカウント対応）"
+    },
+    "validation": {
+      "nameRequired": "サイト名を入力してください",
+      "typeRequired": "サイトタイプを選択してください",
+      "urlRequired": "ベース URL を入力してください",
+      "urlInvalid": "有効な URL を入力してください",
+      "apiKeyRequired": "上流 API キーを入力してください",
+      "priorityRequired": "ルーティング重みを入力してください",
+      "priorityFormat": "ルーティング重みは小数 1 桁まで対応します",
+      "priorityRange": "ルーティング重みは 1.0〜5.0 にしてください",
+      "tokenRequired": "システム認証トークンを入力してください",
+      "userIdRequired": "ユーザー ID を入力してください",
+      "userIdNumeric": "ユーザー ID は数字で入力してください",
+      "headerNameRequired": "ヘッダー名を入力してください",
+      "urlContainsV1": "/v1 を含める必要はありません。自動的に追加されます"
+    },
+    "actions": {
+      "save": "変更を保存",
+      "create": "作成",
+      "cancel": "キャンセル",
+      "advanced": "Advanced Settings",
+      "addHeader": "ヘッダーを追加",
+      "removeHeader": "ヘッダーを削除"
+    },
+    "grokDeviceHint": "Grok アカウントはサイト作成後に追加します。サイトのアカウントパネルを開き、xAI デバイス認証でログインしてください。"
+  },
+  "apiKeys": {
+    "title": "API キー",
+    "modelsTitle": "利用可能モデル",
+    "defaultKey": "Apikey 1",
+    "add": "Apikey を追加",
+    "addTitle": "Apikey を追加",
+    "back": "サイト設定に戻る",
+    "backToKeys": "API キー一覧に戻る",
+    "name": "キー名",
+    "upstreamName": "上流名",
+    "routingPriority": "ルーティング優先度",
+    "costMultiplier": "グループ倍率",
+    "editConfig": "キー設定を編集",
+    "editConfigLabel": "{{name}} の設定を編集",
+    "noKey": "キーなし",
+    "complete": "補完",
+    "delete": "Apikey を削除",
+    "deleteLabel": "{{name}} を削除",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "copyTooltip": "クリックして平文 API キーをコピー",
+    "noCopyTooltip": "利用可能な平文 API キーがありません",
+    "copied": "API キーをコピーしました",
+    "toggleLabel": "{{name}} を切り替え",
+    "loading": "読み込み中",
+    "noModels": "モデルがありません",
+    "toast": {
+      "createFailed": "API キー作成に失敗しました",
+      "created": "API キーを作成しました",
+      "deleteFailed": "API キー削除に失敗しました",
+      "deleted": "API キーを削除しました",
+      "updateFailed": "API キー更新に失敗しました",
+      "updated": "更新日時",
+      "modelToggleFailed": "モデル切り替えに失敗しました"
+    },
+    "deleteDialog": {
+      "title": "Apikey を削除",
+      "confirm": "「{{name}}」を削除しますか？利用可能モデルとステータスも削除されます。",
+      "confirmDefault": "この Apikey を削除しますか？",
+      "delete": "削除を確認"
+    },
+    "quotaProbeFailed": "残高プローブ失敗",
+    "openCodeGoPlan": "Go $12 / 5時間 · $30 / 週 · $60 / 月 · 公式リアルタイム照会なし",
+    "openCodeGoLimited": "{{window}}上限に到達しました。{{reset}}にリセット",
+    "openCodeGoUnavailable": "OpenCode は API キーのリアルタイム使用枠照会を提供していません",
+    "sync": {
+      "synced": "同期済み",
+      "failed": "失敗",
+      "partial": "一部",
+      "stale": "上流で削除済み",
+      "unknown": "未同期"
+    }
+  },
+  "grokAccounts": {
+    "title": "Grok アカウント",
+    "add": "アカウントを追加",
+    "loading": "アカウントを読み込み中",
+    "empty": "Grok アカウントがありません",
+    "unnamed": "Grok アカウント",
+    "models": "モデル",
+    "refresh": "アカウントを更新",
+    "refreshAll": "すべて更新",
+    "reauthorize": "アカウントを再認証",
+    "delete": "アカウントを削除",
+    "toggleLabel": "{{name}} を切り替え",
+    "cancel": "キャンセル",
+    "toast": {
+      "created": "アカウントを作成しました",
+      "updateFailed": "アカウントの更新に失敗しました",
+      "updated": "アカウントを更新しました",
+      "deleteFailed": "アカウントの削除に失敗しました",
+      "deleted": "アカウントを削除しました",
+      "refreshed": "アカウントを更新しました",
+      "refreshFailed": "アカウントの更新に失敗しました",
+      "refreshedAll": "すべてのアカウントを更新しました",
+      "refreshAllPartial": "一部のアカウント更新に失敗しました",
+      "refreshAllPartialDesc": "{{count}} アカウントの更新に失敗しました",
+      "refreshAllFailed": "アカウントの一括更新に失敗しました"
+    },
+    "deleteDialog": {
+      "title": "Grok アカウントを削除",
+      "confirm": "{{name}} を削除しますか？ステータス、クォータ、モデル関連も削除されます。",
+      "delete": "削除"
+    },
+    "device": {
+      "title": "Grok アカウントを追加",
+      "reauthTitle": "Grok アカウントを再認証",
+      "starting": "デバイスコードを取得中…",
+      "instructions": "xAI の認証ページで以下のコードを入力し、アクセスを承認してください：",
+      "authorize": "認証ページを開く",
+      "waiting": "承認を待っています…"
+    },
+    "sync": {
+      "synced": "同期済み",
+      "failed": "失敗",
+      "reauthRequired": "再認証が必要",
+      "stale": "前回同期したモデルを使用中",
+      "partial": "一部",
+      "unknown": "未同期"
+    }
+  },
+  "test": {
+    "title": "{{name}} モデルテスト",
+    "headers": {
+      "model": "モデル",
+      "status": "ステータス",
+      "latency": "レイテンシ",
+      "action": "操作"
+    },
+    "status": {
+      "success": "成功",
+      "failed": "失敗",
+      "untested": "未テスト"
+    },
+    "credential": {
+      "auto": "Key を自動選択"
+    },
+    "test": "テスト",
+    "toast": {
+      "testFailed": "テストに失敗しました"
+    },
+    "empty": "テスト可能なモデルがありません"
+  },
+  "models": {
+    "title": "モデル",
+    "add": {
+      "action": "モデルを追加",
+      "upstreamName": "上流モデル名",
+      "upstreamPlaceholder": "上流モデル名を入力",
+      "canonicalModel": "標準モデル",
+      "canonicalPlaceholder": "標準モデルを選択",
+      "endpointTypes": "エンドポイント種別",
+      "endpointPlaceholder": "エンドポイント種別を選択",
+      "apiKeys": "有効な API Key に追加",
+      "apiKeysPlaceholder": "API Key を選択",
+      "searchPlaceholder": "検索...",
+      "emptyOptions": "選択肢がありません",
+      "enabled": "モデルを有効化",
+      "cancel": "キャンセル",
+      "submit": "作成"
+    },
+    "manageManual": {
+      "action": "手動管理",
+      "done": "完了"
+    },
+    "delete": {
+      "action": "モデルを削除",
+      "ariaLabel": "{{name}} を削除",
+      "title": "手動モデルを削除",
+      "description": "削除すると、{{name}} はこのサイトとゲートウェイの利用可能モデルから削除されます。",
+      "descriptionDefault": "削除すると、このモデルはサイトとゲートウェイの利用可能モデルから削除されます。",
+      "cancel": "キャンセル",
+      "confirm": "削除"
+    },
+    "toast": {
+      "updateFailed": "モデル更新に失敗しました",
+      "createFailed": "モデル作成に失敗しました",
+      "createSuccess": "モデルを作成しました",
+      "deleteFailed": "モデル削除に失敗しました",
+      "deleteSuccess": "モデルを削除しました"
+    }
+  },
+  "utils": {
+    "justNow": "たった今"
+  }
+}

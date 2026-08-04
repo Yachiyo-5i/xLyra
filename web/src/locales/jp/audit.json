@@ -1,0 +1,77 @@
+{
+  "headers": {
+    "time": "時刻",
+    "actor": "実行者",
+    "action": "操作",
+    "result": "結果",
+    "ip": "IP",
+    "requestId": "リクエスト ID"
+  },
+  "page": {
+    "eyebrow": "操作",
+    "title": "監査",
+    "description": "管理者操作、セキュリティ変更、アクセストークン操作を確認します。"
+  },
+  "filters": {
+    "searchAction": "操作を検索",
+    "allActors": "すべての実行者",
+    "allResults": "すべての結果",
+    "success": "成功",
+    "failure": "失敗",
+    "dateFrom": "開始日",
+    "dateTo": "終了日",
+    "clearFilters": "フィルターをクリア"
+  },
+  "empty": {
+    "loading": "監査レコードを読み込み中",
+    "noData": "監査レコードがありません",
+    "description": "管理者操作レコードがここに表示されます。"
+  },
+  "mobile": {
+    "allRecords": "すべての記録",
+    "done": "完了",
+    "filtered": "フィルター中",
+    "filters": "フィルター",
+    "refresh": "更新",
+    "total": "合計 {{count}} 件"
+  },
+  "actions": {
+    "auth.bootstrap": "初期管理者を作成しました",
+    "auth.login": "ログイン",
+    "auth.logout": "ログアウト",
+    "profile.update": "管理者プロフィールを更新しました",
+    "profile.password.update": "パスワードを変更しました",
+    "profile.session.delete": "セッションを削除しました",
+    "profile.sessions.delete_others": "他のセッションを削除しました",
+    "profile.access_token.replace": "アクセストークンを作成または更新しました",
+    "profile.access_token.enabled": "アクセストークンの状態を切り替えました",
+    "profile.access_token.delete": "アクセストークンを削除しました",
+    "profile.totp.setup": "TOTP シークレットを生成しました",
+    "profile.totp.enable": "TOTP を有効化しました",
+    "profile.totp.disable": "TOTP を無効化しました"
+  },
+  "mutation": {
+    "default": "管理設定を変更しました",
+    "delete": "{{target}} を削除しました",
+    "refresh": "{{target}} を更新しました",
+    "sync": "{{target}} を同期しました",
+    "create": "{{target}} を作成しました",
+    "toggleStatus": "{{target}} の状態を切り替えました",
+    "updatePrice": "{{target}} の価格を更新しました",
+    "update": "{{target}} を更新しました",
+    "modify": "{{target}} を変更しました"
+  },
+  "targets": {
+    "default": "管理設定",
+    "sites": "サイト",
+    "siteModels": "サイトモデル",
+    "sitePricings": "サイト価格",
+    "modelPrices": "モデル価格",
+    "apiKeys": "API キー",
+    "oauth": "OAuth 接続",
+    "routes": "ルート設定",
+    "settings": "グローバル設定",
+    "profile": "管理者プロフィール",
+    "newapi": "NewAPI 情報"
+  }
+}

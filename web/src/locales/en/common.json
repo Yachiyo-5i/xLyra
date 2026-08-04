@@ -1,0 +1,93 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "search": "Search",
+    "refresh": "Refresh",
+    "create": "Create",
+    "edit": "Edit",
+    "close": "Close",
+    "submit": "Submit",
+    "reset": "Reset",
+    "back": "Back",
+    "next": "Next",
+    "copy": "Copy",
+    "export": "Export",
+    "import": "Import",
+    "enable": "Enable",
+    "disable": "Disable",
+    "clear": "Clear"
+  },
+  "status": {
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "loading": "Loading...",
+    "noData": "No data",
+    "success": "Success",
+    "failed": "Failed",
+    "pending": "Pending",
+    "active": "Active",
+    "inactive": "Inactive",
+    "selected": "selected"
+  },
+  "nav": {
+    "workspace": "Workspace",
+    "overview": "Overview",
+    "dashboard": "Dashboard",
+    "resources": "Resources",
+    "sites": "Sites",
+    "oauth": "OAuth",
+    "models": "Models",
+    "apiKeys": "API Keys",
+    "operations": "Operations",
+    "routes": "Routes",
+    "requests": "Requests",
+    "trafficFlow": "Traffic Flow",
+    "playground": "Model Playground",
+    "audit": "Audit",
+    "settings": "Settings",
+    "globalSettings": "Global Settings",
+    "notificationConfig": "Notification Config",
+    "modelsPrice": "Models Price",
+    "backup": "Configuration Backup",
+    "profile": "Profile"
+  },
+  "app": {
+    "adminConsole": "Admin Console"
+  },
+  "userMenu": {
+    "profile": "Profile",
+    "systemSettings": "System Settings",
+    "audit": "Audit",
+    "logout": "Logout",
+    "logoutSuccess": "Logged out",
+    "logoutFailed": "Logout failed"
+  },
+  "theme": {
+    "modeLight": "Light",
+    "modeDark": "Dark",
+    "modeSystem": "System",
+    "baseDefault": "Default",
+    "displayDark": "Dark",
+    "displayLight": "Light"
+  },
+  "brands": {
+    "otherBrand": "Other Brands",
+    "all": "All"
+  },
+  "auth": {
+    "serviceUnavailable": "Auth service is temporarily unavailable"
+  },
+  "pwaUpdate": {
+    "title": "Update available",
+    "description": "Reload to use the latest version.",
+    "reload": "Reload",
+    "reloading": "Updating..."
+  },
+  "notFound": {
+    "title": "Oops! Page Not Found!",
+    "description": "It seems like the page you're looking for does not exist or might have been removed."
+  }
+}

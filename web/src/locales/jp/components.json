@@ -1,0 +1,84 @@
+{
+  "authGuard": {
+    "checkingTitle": "コンソールアクセスを確認中",
+    "checkingDesc": "システム登録状態とセッション Cookie またはトークンを確認しています。",
+    "errorTitle": "認証チェックに失敗しました",
+    "errorDesc": "認証サービスに接続できません。後でもう一度お試しください。",
+    "preparingTitle": "認証入口を準備中",
+    "preparingDesc": "登録ページまたはログインページの表示を判定しています。",
+    "unavailableTitle": "認証入口を利用できません",
+    "unavailableDesc": "初期化状態を取得できません。後でもう一度お試しください。",
+    "serviceErrorTitle": "バックエンドサービスを利用できません",
+    "serviceErrorDesc": "バックエンドサービスで一時的な問題が発生しています。後ほどページを再読み込みしてください。"
+  },
+  "themeSwitcher": {
+    "openLabel": "テーマ切り替えを開く",
+    "appearance": "外観",
+    "title": "テーマ",
+    "description": "モード、ベース、アクセント。現在は {{mode}} です。",
+    "mode": "モード",
+    "base": "ベース",
+    "accent": "アクセント",
+    "systemHint": "システム設定に従います。現在は {{mode}} と判定されています。"
+  },
+  "modelsDraw": {
+    "searchPlaceholder": "モデルを検索",
+    "headers": {
+      "model": "モデル",
+      "enabled": "有効",
+      "actions": "操作"
+    },
+    "loading": "読み込み中",
+    "noModels": "モデルがありません",
+    "copyName": "クリックしてモデル名をコピー",
+    "copied": "モデル名をコピーしました",
+    "copyFailed": "コピーに失敗しました",
+    "enableAll": "すべて有効",
+    "disableAll": "すべて無効",
+    "toggleLabel": "{{name}} を切り替え"
+  },
+  "pagination": {
+    "label": "ページネーション",
+    "pagePrefix": "",
+    "pageSuffix": "ページ、",
+    "totalPages": "全 {{count}} ページ",
+    "totalItems": "、{{count}} 件",
+    "previous": "前へ",
+    "next": "次へ",
+    "more": "さらにページ",
+    "first": "最初のページへ",
+    "last": "最後のページへ",
+    "perPage": "件/ページ",
+    "perPagePlaceholder": "ページあたり"
+  },
+  "divergingChart": {
+    "positive": "正",
+    "negative": "負"
+  },
+  "select": {
+    "placeholder": "オプションを選択",
+    "ungrouped": "未分類",
+    "searchPlaceholder": "検索..."
+  },
+  "navigation": {
+    "open": "ナビゲーションを開く",
+    "close": "ナビゲーションを閉じる",
+    "closeOverlay": "ナビゲーションオーバーレイを閉じる"
+  },
+  "datePicker": {
+    "clear": "日付をクリア"
+  },
+  "timePicker": {
+    "clear": "時刻をクリア",
+    "hour": "時",
+    "minute": "分"
+  },
+  "topbar": {
+    "language": {
+      "label": "言語を選択",
+      "zh": "中文",
+      "en": "English",
+      "jp": "日本語"
+    }
+  }
+}

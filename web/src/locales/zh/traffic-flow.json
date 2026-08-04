@@ -1,0 +1,81 @@
+{
+  "header": {
+    "title": "网关实时流量驾驶舱",
+    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT"
+  },
+  "status": {
+    "live": "实时连接",
+    "reconnecting": "正在重连",
+    "loading": "正在载入拓扑",
+    "waiting": "等待请求进入网关"
+  },
+  "desktopRequired": {
+    "eyebrow": "DESKTOP EXPERIENCE",
+    "title": "请使用桌面端 Web 打开",
+    "description": "实时流图需要桌面级显示区域，请在宽度至少 1024px 的桌面浏览器中访问。",
+    "back": "返回仪表盘"
+  },
+  "actions": {
+    "pause": "暂停动画",
+    "resume": "继续动画",
+    "refresh": "重新载入",
+    "fullscreen": "进入全屏",
+    "exitFullscreen": "退出全屏",
+    "close": "关闭详情"
+  },
+  "metrics": {
+    "label": "实时指标",
+    "inFlight": "在途请求",
+    "routed": "已路由通道",
+    "returning": "响应返回中",
+    "nodes": "拓扑节点",
+    "tokens": "窗口 Tokens",
+    "mode": "运行模式"
+  },
+  "tokenDetails": {
+    "title": "窗口 Token 用量",
+    "downstream": "下游密钥",
+    "upstream": "上游站点",
+    "empty": "本窗口暂无 Token 用量"
+  },
+  "map": { "label": "实时请求拓扑" },
+  "core": {
+    "title": "XLYRA GATEWAY",
+    "subtitle": "网关核心",
+    "active": "ACTIVE ROUTING",
+    "ready": "ROUTING READY"
+  },
+  "lanes": {
+    "downstream": "下游接入",
+    "downstreamCaption": "DOWNSTREAM KEYS",
+    "gateway": "网关核心",
+    "upstream": "上游站点",
+    "upstreamCaption": "UPSTREAM SITES"
+  },
+  "legend": {
+    "request": "请求流",
+    "response": "响应流"
+  },
+  "footer": { "desktopOnly": "桌面实时视图" },
+  "activity": {
+    "label": "实时请求队列",
+    "empty": "当前没有在途请求"
+  },
+  "phase": {
+    "accepted": "已接入",
+    "routed": "已路由",
+    "responding": "响应中",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "inspector": {
+    "request": "请求详情",
+    "unknownModel": "未知模型",
+    "downstream": "下游密钥",
+    "upstream": "上游站点",
+    "phase": "当前阶段",
+    "attempt": "路由尝试",
+    "waiting": "等待路由"
+  }
+}

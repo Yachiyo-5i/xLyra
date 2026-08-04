@@ -1,0 +1,213 @@
+{
+  "quota": {
+    "unlimited": "無制限",
+    "used": "{{amount}} 使用済み",
+    "total": "合計",
+    "daily": "日",
+    "weekly": "週"
+  },
+  "modelsDraw": {
+    "search": "モデルを検索...",
+    "noModels": "モデルがありません"
+  },
+  "table": {
+    "headers": {
+      "key": "キー",
+      "models": "モデル",
+      "sites": "サイト",
+      "quota": "クォータ",
+      "rateLimit": "レート制限",
+      "lastUsed": "最終使用",
+      "expiresAt": "有効期限",
+      "status": "ステータス"
+    },
+    "permanent": "無期限",
+    "actions": "キー操作",
+    "edit": "編集",
+    "resetQuota": "クォータをリセット",
+    "delete": "削除",
+    "copySuccess": "キーをコピーしました",
+    "copyFailed": "コピーに失敗しました",
+    "copyMenu": {
+      "xlyra": "xlyra- プレフィックスでコピー",
+      "sk": "sk- プレフィックスでコピー",
+      "original": "元のキーをコピー"
+    },
+    "policy": {
+      "allModels": "すべてのモデル",
+      "allModelsInScope": "現在の範囲内のすべてのモデル",
+      "selectedModels": "{{count}} 個のモデル",
+      "allSites": "すべてのサイト",
+      "selectedSites": "{{count}} 個のサイト",
+      "selectedSitesAndGroups": "{{siteCount}} 個のサイト / {{groupCount}} 個のグループ"
+    },
+    "relative": {
+      "justNow": "たった今"
+    },
+    "rateLimit": {
+      "disabled": "無効",
+      "unlimited": "無制限"
+    },
+    "empty": {
+      "title": "API キーがありません",
+      "description": "統合ゲートウェイを呼び出すにはキーを作成してください。"
+    }
+  },
+  "workspace": {
+    "loadFailed": "API キーの読み込みに失敗しました",
+    "eyebrow": "リソース",
+    "title": "API キー",
+    "description": "下流ゲートウェイキー、クォータ、モデルアクセスポリシーを管理します。",
+    "search": "キーを検索...",
+    "endpointCopyTitle": "ゲートウェイエンドポイントをコピー",
+    "endpointCopied": "ゲートウェイエンドポイントをコピーしました",
+    "endpointCopyFailed": "ゲートウェイエンドポイントのコピーに失敗しました",
+    "policy": {
+      "all": "すべてのモデル",
+      "allowAll": "すべて許可",
+      "allowList": "許可リスト"
+    },
+    "status": {
+      "all": "すべてのステータス",
+      "active": "有効",
+      "disabled": "無効"
+    },
+    "refreshAll": "すべて更新",
+    "createKey": "キーを作成",
+    "resetQuotaDialog": {
+      "title": "クォータをリセット",
+      "description": "「{{name}}」でリセットする周期クォータを1つ以上選択します。合計使用量とクォータ設定は変更されません。",
+      "daily": "日次クォータ",
+      "dailyDescription": "現在の期間で ${{used}} 使用済み。実行後はゼロになります",
+      "weekly": "週次クォータ",
+      "weeklyDescription": "現在の期間で ${{used}} 使用済み。実行後はゼロになります",
+      "cancel": "キャンセル",
+      "confirm": "リセット"
+    },
+    "deleteDialog": {
+      "title": "キーを削除",
+      "confirm": "「{{name}}」を削除しますか？この操作は元に戻せません。",
+      "confirmDefault": "このキーを削除しますか？",
+      "cancel": "キャンセル",
+      "delete": "削除"
+    },
+    "toast": {
+      "keyUpdated": "キーを更新しました",
+      "keyCreated": "キーを作成しました",
+      "saveFailed": "保存に失敗しました",
+      "statusFailed": "ステータスの更新に失敗しました",
+      "keyDeleted": "キーを削除しました",
+      "deleteFailed": "削除に失敗しました",
+      "quotaReset": "クォータをリセットしました",
+      "quotaResetFailed": "クォータのリセットに失敗しました"
+    }
+  },
+  "form": {
+    "editTitle": "キーを編集",
+    "createTitle": "キーを作成",
+    "sections": {
+      "basic": "基本情報",
+      "access": "アクセス制御",
+      "expires": "有効期限",
+      "quota": "クォータ上限",
+      "advanced": "詳細設定"
+    },
+    "fields": {
+      "name": "キー名",
+      "namePlaceholder": "例: Production",
+      "enabled": "有効",
+      "useCustomKey": "カスタム API キーを使用",
+      "customKey": "カスタム API キー",
+      "customKeyPlaceholder": "カスタムキーを入力",
+      "siteAccess": "サイトアクセス",
+      "sitePolicyAll": "すべてのサイト",
+      "sitePolicyList": "カスタム範囲",
+      "siteGroups": "サイトグループ",
+      "siteGroupsHint": "グループは動的な権限です。グループ内サイトの変更はこのキーに即時反映されます。",
+      "siteGroupsPlaceholder": "グループを選択",
+      "siteGroupsSearch": "グループを検索",
+      "noSiteGroups": "グループがありません",
+      "groupSiteCount": "{{count}} 個のサイト",
+      "extraSites": "追加サイト",
+      "extraSitesHint": "選択したグループ以外のサイトを追加します。グループ継承のサイトはグループ側で削除します。",
+      "siteSearch": "サイトを検索...",
+      "siteTypeAll": "すべての種類",
+      "showDisabledSites": "無効なサイトを表示",
+      "selectedCount": "{{count}} 件選択済み",
+      "selectAll": "すべて選択",
+      "deselectAll": "すべて解除",
+      "noSites": "利用可能なサイトがありません",
+      "customSiteCount": "最終 {{count}} 件、追加 {{direct}} 件、グループ継承 {{inherited}} 件",
+      "directSiteCount": "直接選択 {{count}} 件、グループ継承 {{inherited}} 件",
+      "disabledSite": "無効",
+      "inheritedFromGroup": "グループ",
+      "modelAccess": "モデルアクセス",
+      "modelPolicyAll": "すべてのモデル",
+      "modelPolicyAllInScope": "現在の範囲内のすべてのモデル",
+      "modelPolicyList": "カスタムモデル",
+      "modelScopeSummary": "現在のカスタム範囲には {{siteCount}} 件のサイト、{{modelCount}} 件の利用可能モデルがあり、ソースサイト別に展開されデフォルトで選択されます。",
+      "modelScopeSummaryLoading": "現在の {{siteCount}} 件のサイトから利用可能モデルを読み込み中...",
+      "selectSitesFirst": "利用可能なモデルを表示するには、先にサイトを選択してください",
+      "modelSearch": "モデルを検索...",
+      "brandAll": "すべてのブランド",
+      "noModels": "モデルがありません",
+      "neverExpire": "期限なし",
+      "expiresDate": "有効期限日",
+      "pickDate": "日付を選択",
+      "quotaLimit": "合計クォータ上限",
+      "quotaDesc": "単位: USD ($) · 空欄または 0 は無制限 · 累計 ${{used}} 使用済み",
+      "quotaDailyLimit": "日次クォータ上限",
+      "quotaDailyDesc": "空欄または 0 は無制限 · 毎日リセット · 現在の期間で ${{used}} 使用済み",
+      "quotaWeeklyLimit": "週次クォータ上限",
+      "quotaWeeklyDesc": "空欄または 0 は無制限 · 毎週月曜日にリセット · 現在の期間で ${{used}} 使用済み"
+    },
+    "advanced": {
+      "modelMapping": "モデルマッピング",
+      "modelMappingDesc": "下流モデル名をルールで正規モデルへマッピングします。パターンは3種類：完全一致、前方一致ワイルドカード（例 gpt-4*）、単独の * はフォールバック。優先順位は固定で 完全一致 > 最長前方一致 > フォールバック。完全一致のエイリアスは /v1/models に表示されます。 ハード：常にターゲットモデルへ書き換えます。ソフト：まず元のモデルでルーティングし、元のモデルに利用可能な上流がない場合（全てクールダウン中または未デプロイ）のみターゲットへフォールバックします。",
+      "downstreamPlaceholder": "モデル名 / 前方一致* / *",
+      "selectModelPlaceholder": "モデルを選択",
+      "duplicateKey": "ルールのパターンが重複しています",
+      "add": "追加",
+      "rateLimit": "レート制限",
+      "rateLimitDesc": "リクエストのレート制限です。無効時はグローバル設定のみ適用されます。",
+      "rpm": "同時処理中リクエスト上限（RPM）",
+      "rpmDesc": "このキーが同時に持てる処理中リクエスト数の上限です。超過分は最長 60 秒キューで待機します。空欄なら無制限です。",
+      "tpm": "1 分あたりのトークン数",
+      "tpmDesc": "テキストモデルの 1 分あたり最大トークン数。空欄なら無制限です。",
+      "imageBridge": "画像ツールブリッジ",
+      "imageBridgeDesc": "上流がネイティブに画像生成できない場合、ゲートウェイが選択した画像モデルで代理実行し、プロトコルに従って画像を返します。追加コストが発生します。",
+      "imageBridgeModel": "画像モデル",
+      "imageBridgeModelDesc": "有効なサイトで利用可能な画像モデルのみ表示されます。この設定自体がモデルの利用許可となります。",
+      "imageBridgeSite": "画像サイト",
+      "imageBridgeSiteDesc": "選択したモデルを提供する有効なサイトのみ表示されます。自動ルーティングではモデルに基づきサイトを選択します。",
+      "imageBridgeSiteAuto": "自動ルーティング",
+      "imageBridgeLoading": "利用可能なモデルを読み込み中…",
+      "imageBridgeNoModels": "有効なサイトに利用可能な画像モデルがありません",
+      "modeHard": "ハード",
+      "modeSoft": "ソフト"
+    },
+    "actions": {
+      "save": "保存",
+      "cancel": "キャンセル"
+    },
+    "validation": {
+      "nameRequired": "キー名を入力してください",
+      "customKeyRequired": "カスタム API キーを入力してください",
+      "customKeyWhitespace": "カスタム API キーの先頭または末尾にスペースは使用できません",
+      "customKeyFormat": "カスタム API キーに使用できるのは英字、数字、ハイフン - のみです",
+      "quotaInvalid": "有効なクォータを入力してください",
+      "quotaTooLow": "クォータは使用済み金額 (${{used}}) 未満にはできません",
+      "quotaDailyInvalid": "有効な日次クォータを入力してください",
+      "quotaDailyTooLow": "日次クォータは現在の期間の使用額 (${{used}}) 未満にはできません",
+      "quotaWeeklyInvalid": "有効な週次クォータを入力してください",
+      "quotaWeeklyTooLow": "週次クォータは現在の期間の使用額 (${{used}}) 未満にはできません",
+      "rateLimitRequired": "レート制限を有効にする場合、少なくとも 1 つの上限が必要です",
+      "rpmInvalid": "処理中リクエスト上限は 0 より大きい整数で指定してください",
+      "tpmInvalid": "TPM は正の整数である必要があります",
+      "expiresRequired": "有効期限日を選択してください",
+      "expiresPast": "有効期限は未来の日付にしてください",
+      "mappingDuplicate": "マッピングルール「{{key}}」が重複しています",
+      "imageBridgeModelRequired": "画像ブリッジを有効にする場合、画像モデルの選択が必要です"
+    }
+  }
+}

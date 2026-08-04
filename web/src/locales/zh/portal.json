@@ -1,0 +1,67 @@
+{
+  "title": "密钥用量门户",
+  "disabled": "该页面当前未开放。",
+  "signOut": "退出",
+  "invalidKey": "密钥无效或已停用。",
+  "loadFailed": "加载失败",
+  "gate": {
+    "title": "查看密钥用量",
+    "description": "粘贴你的下游 API 密钥以查看额度与请求详情。密钥仅用于本次查询。",
+    "placeholder": "xlyra-...",
+    "remember": "在此设备记住密钥",
+    "submit": "查询",
+    "hint": "在上方粘贴你的下游 API 密钥以查看用量。",
+    "switchTitle": "切换密钥"
+  },
+  "overview": {
+    "quota": "额度上限",
+    "status": "状态",
+    "active": "正常",
+    "used": "已使用",
+    "remaining": "剩余",
+    "unlimited": "无限制"
+  },
+  "summary": {
+    "title": "近 {{days}} 天用量",
+    "totalRequests": "共 {{count}} 次请求",
+    "seriesCost": "消耗额度",
+    "seriesTokens": "消耗 Token",
+    "seriesRequests": "成功请求"
+  },
+  "requests": {
+    "title": "请求明细",
+    "empty": "暂无请求记录。",
+    "time": "时间",
+    "model": "模型",
+    "site": "站点",
+    "status": "状态",
+    "tokens": "Tokens",
+    "cost": "花费",
+    "latency": "延迟",
+    "prev": "上一页",
+    "next": "下一页",
+    "input": "输入",
+    "output": "输出",
+    "cache": "缓存 {{count}}",
+    "cacheWrite": "缓存写入 {{count}}",
+    "endpoint": "端点",
+    "upstream": "上游地址"
+  },
+  "filters": {
+    "statusAll": "全部状态",
+    "statusSuccess": "成功",
+    "statusFailed": "失败",
+    "modelAll": "全部模型",
+    "rangeAll": "全部时间",
+    "range7d": "近 7 天",
+    "range30d": "近 30 天",
+    "status": "状态",
+    "model": "模型",
+    "range": "时间范围",
+    "rangeToday": "今天"
+  },
+  "stats": {
+    "tokens": "消耗 Token",
+    "cost": "消耗额度"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "authGuard": {
+    "checkingTitle": "Checking console access",
+    "checkingDesc": "Verifying system registration and session cookie or token.",
+    "errorTitle": "Auth check failed",
+    "errorDesc": "Cannot connect to the auth service. Please try again later.",
+    "preparingTitle": "Preparing auth entry",
+    "preparingDesc": "Determining whether to show registration or login page.",
+    "unavailableTitle": "Auth entry unavailable",
+    "unavailableDesc": "Cannot retrieve initialization status. Please try again later.",
+    "serviceErrorTitle": "Backend service unavailable",
+    "serviceErrorDesc": "The backend service is temporarily unavailable. Please refresh the page later."
+  },
+  "themeSwitcher": {
+    "openLabel": "Open theme switcher",
+    "appearance": "Appearance",
+    "title": "Theme",
+    "description": "Mode, base, accent. Currently {{mode}}.",
+    "mode": "Mode",
+    "base": "Base",
+    "accent": "Accent",
+    "systemHint": "Follows system, currently resolved to {{mode}}."
+  },
+  "modelsDraw": {
+    "searchPlaceholder": "Search models",
+    "headers": {
+      "model": "Model",
+      "enabled": "Enabled",
+      "actions": "Actions"
+    },
+    "loading": "Loading",
+    "noModels": "No models",
+    "copyName": "Click to copy model name",
+    "copied": "Model name copied",
+    "copyFailed": "Copy failed",
+    "enableAll": "Enable all",
+    "disableAll": "Disable all",
+    "toggleLabel": "Toggle {{name}}"
+  },
+  "pagination": {
+    "label": "pagination",
+    "pagePrefix": "Page",
+    "pageSuffix": ",",
+    "totalPages": "of {{count}}",
+    "totalItems": ", {{count}} items",
+    "previous": "Previous",
+    "next": "Next",
+    "more": "More pages",
+    "first": "Go to first page",
+    "last": "Go to last page",
+    "perPage": "per page",
+    "perPagePlaceholder": "Per page"
+  },
+  "divergingChart": {
+    "positive": "Positive",
+    "negative": "Negative"
+  },
+  "select": {
+    "placeholder": "Select options",
+    "ungrouped": "Ungrouped",
+    "searchPlaceholder": "Search..."
+  },
+  "navigation": {
+    "open": "Open navigation",
+    "close": "Close navigation",
+    "closeOverlay": "Close navigation overlay"
+  },
+  "datePicker": {
+    "clear": "Clear date"
+  },
+  "timePicker": {
+    "clear": "Clear time",
+    "hour": "Hour",
+    "minute": "Minute"
+  },
+  "topbar": {
+    "language": {
+      "label": "Choose language",
+      "zh": "中文",
+      "en": "English",
+      "jp": "日本語"
+    }
+  }
+}

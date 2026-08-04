@@ -1,0 +1,128 @@
+{
+  "table": {
+    "headers": {
+      "time": "時刻",
+      "model": "モデル",
+      "apiKey": "API Key",
+      "site": "サイト",
+      "status": "ステータス",
+      "latency": "レイテンシ",
+      "input": "入力",
+      "output": "出力",
+      "cost": "コスト"
+    },
+    "test": "テスト",
+    "success": "成功",
+    "failure": "失敗",
+    "responseMode": {
+      "stream": "ストリーム",
+      "nonStream": "非ストリーム"
+    },
+    "cache": "キャッシュ {{tokens}}",
+    "empty": {
+      "title": "リクエストログがありません",
+      "description": "表示できる転送リクエスト記録はありません。"
+    }
+  },
+  "filters": {
+    "dateFrom": "開始日",
+    "timeFrom": "開始時刻",
+    "dateTo": "終了日",
+    "timeTo": "終了時刻",
+    "totalCost": "総コスト {{cost}}",
+    "totalTokens": "総トークン {{tokens}}",
+    "totalCostUnsupported": "現在のフィルターでは正確な総コストは利用できません",
+    "rpmTooltip": "直近 1 分のリクエスト数",
+    "tpmTooltip": "直近 1 分の実トークン数",
+    "searchRequestId": "リクエスト ID を検索",
+    "searchUnified": "リクエスト ID、モデル、サイトを検索",
+    "searchModel": "モデルを検索",
+    "allStatuses": "すべてのステータス",
+    "success": "成功",
+    "failure": "失敗",
+    "allSites": "すべてのサイト",
+    "allApiKeys": "すべての API キー",
+    "clearFilters": "フィルターをクリア",
+    "hideWithoutSite": "サイトなしを非表示",
+    "hideWithoutSiteLabel": "上流サイトのないリクエストを非表示",
+    "autoRefresh": "自動更新",
+    "autoRefreshLabel": "リクエストログを自動更新",
+    "refresh": "更新"
+  },
+  "tokens": {
+    "total": "総トークン",
+    "input": "入力トークン",
+    "output": "出力トークン",
+    "cached": "キャッシュヒットトークン",
+    "hitRate": "キャッシュヒット率"
+  },
+  "detail": {
+    "loading": "詳細を読み込み中",
+    "loadFailed": "詳細の読み込みに失敗しました: {{message}}",
+    "requestId": "リクエスト ID",
+    "request": "リクエスト",
+    "downstreamModel": "下流モデル",
+    "upstreamModel": "上流モデル",
+    "transport": "トランスポート",
+    "status": "ステータス",
+    "success": "成功",
+    "failure": "失敗",
+    "statusCode": "ステータスコード",
+    "site": "サイト",
+    "group": "グループ",
+    "usage": "使用量",
+    "input": "入力",
+    "output": "出力",
+    "cache": "キャッシュ",
+    "cacheWrite": "キャッシュ書込",
+    "ratio": "倍率",
+    "billing": "課金",
+    "inputPrice": "入力価格",
+    "outputPrice": "出力価格",
+    "cachePrice": "キャッシュ価格",
+    "perRequestPrice": "リクエスト単価",
+    "mode": "モード",
+    "totalCost": "総コスト",
+    "path": "パス",
+    "downstream": "下流",
+    "upstream": "上流",
+    "failureLabel": "失敗",
+    "ratioModel": "モデル倍率",
+    "ratioCompletion": "出力倍率",
+    "ratioCache": "キャッシュ倍率",
+    "ratioGroup": "グループ倍率",
+    "formula": {
+      "perRequest": "リクエスト単価 {{price}}",
+      "input": "入力 {{tokens}} トークン / 100万トークン * {{price}}",
+      "cache": "キャッシュ読取 {{tokens}} トークン / 100万トークン * {{price}}",
+      "cacheWrite": "キャッシュ書込 {{tokens}} トークン / 100万トークン * {{price}}",
+      "cacheWrite5m": "キャッシュ書込(5m) {{tokens}} トークン / 100万トークン * {{price}}",
+      "cacheWrite1h": "キャッシュ書込(1h) {{tokens}} トークン / 100万トークン * {{price}}",
+      "output": "出力 {{tokens}} トークン / 100万トークン * {{price}}",
+      "perRequestUnit": "{{price}}/回"
+    },
+    "longContext": "長文脈課金",
+    "longContextApplied": "長文脈レートを適用"
+  },
+  "modelMapping": {
+    "downstreamRequest": "下流リクエスト",
+    "actualUpstream": "実際の上流",
+    "mappedModel": "、マッピングモデル: {{model}}",
+    "title": "下流リクエスト: {{downstream}}、実際の上流: {{actual}}{{mapped}}",
+    "softFallback": "フォールバック",
+    "mode": "マッピング方式",
+    "softFallbackDesc": "ソフトマッピングのフォールバックが作動（元のモデルに利用可能な上流なし）"
+  },
+  "mobile": {
+    "filters": "フィルター",
+    "done": "完了",
+    "statusCode": "ステータス {{code}}",
+    "tokens": "入力 {{input}} / 出力 {{output}}"
+  },
+  "page": {
+    "loadFailed": "リクエストログの読み込みに失敗しました",
+    "eyebrow": "操作",
+    "title": "リクエスト",
+    "description": "ゲートウェイのリクエストログ、ルーティング結果、使用コストを確認します。"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "eyebrow": "调试",
+  "title": "对话测试",
+  "description": "选择一个下游密钥，直接通过网关调用对话与图片模型，端到端验证路由与计费。",
+  "mode": {
+    "chat": "对话",
+    "image": "图片"
+  },
+  "noKeys": {
+    "title": "暂无可用的下游密钥",
+    "description": "请先在「API 密钥」页面创建一个下游密钥，再回到此处进行测试。"
+  },
+  "credential": {
+    "keyLabel": "下游密钥",
+    "keyPlaceholder": "选择一个密钥",
+    "modelLabel": "模型",
+    "modelLoading": "加载模型中…",
+    "modelPlaceholder": "选择一个模型",
+    "refreshModels": "刷新模型列表"
+  },
+  "conversations": {
+    "new": "新建对话",
+    "empty": "还没有对话",
+    "untitled": "未命名对话",
+    "delete": "删除对话",
+    "history": "历史记录",
+    "recent": "最近"
+  },
+  "chat": {
+    "empty": "输入消息开始对话。",
+    "inputPlaceholder": "输入消息…",
+    "hint": "Enter 发送，Shift+Enter 换行",
+    "stop": "停止",
+    "send": "发送",
+    "reasoning": "思考过程",
+    "usage": "输入 {{prompt}} · 输出 {{completion}} · 合计 {{total}} tokens",
+    "elapsedDuration": "已用时 {{duration}}",
+    "responseDuration": "总耗时 {{duration}}",
+    "errorGeneric": "请求失败",
+    "greeting": "今天想聊些什么？",
+    "suggestImage": "生成图片",
+    "suggestWrite": "帮我写作",
+    "suggestWritePrompt": "帮我写一段关于",
+    "suggestExplain": "解释代码",
+    "suggestExplainPrompt": "请解释这段代码的作用：\n",
+    "disclaimer": "内容由所选上游模型生成，请自行核查。",
+    "thinking": "正在思考…",
+    "attach": "添加附件",
+    "removeAttachment": "移除附件",
+    "attachmentLimit": "最多添加 {{count}} 个附件",
+    "attachmentTooLarge": "{{name}} 超过 5 MB",
+    "attachmentReadFailed": "附件读取失败"
+  },
+  "image": {
+    "modeGeneration": "文生图",
+    "modeEdit": "图生图",
+    "removeFile": "移除图片",
+    "upload": "上传",
+    "promptPlaceholder": "描述你想要的图片…",
+    "size": "尺寸",
+    "sizeAuto": "自动",
+    "generate": "生成",
+    "empty": "生成的图片会显示在这里。",
+    "elapsedDuration": "已用时 {{duration}}",
+    "responseDuration": "总耗时 {{duration}}",
+    "clear": "清空",
+    "errorGeneric": "生成失败",
+    "greeting": "想生成什么图片？",
+    "attach": "上传参考图（图生图）",
+    "download": "下载"
+  },
+  "actions": {
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
+    "edit": "编辑",
+    "regenerate": "重新生成",
+    "cancel": "取消",
+    "send": "发送",
+    "confirm": "确认",
+    "delete": "删除",
+    "expandMore": "展开更多",
+    "collapse": "收起"
+  },
+  "confirm": {
+    "deleteConversation": "删除此对话？",
+    "regenerate": "重新生成当前回复？",
+    "regenerateImage": "重新生成最后一张图片？"
+  },
+  "picker": {
+    "model": "模型",
+    "reasoning": "推理强度",
+    "noModels": "暂无可用模型"
+  },
+  "effort": {
+    "low": "轻度",
+    "medium": "中",
+    "high": "高",
+    "xhigh": "极高",
+    "max": "最高"
+  }
+}

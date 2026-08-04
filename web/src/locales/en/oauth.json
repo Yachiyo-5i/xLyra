@@ -1,0 +1,297 @@
+{
+  "sources": {
+    "codexSubtitle": "Connect OpenAI Codex account via OAuth",
+    "antigravitySubtitle": "Connect Antigravity account via OAuth",
+    "claudeCodeSubtitle": "Connect Claude Code subscription via OAuth",
+    "comingSoon": "Coming soon",
+    "generating": "Generating"
+  },
+  "status": {
+    "connected": "Connected",
+    "pendingSync": "Checking",
+    "expired": "Expired",
+    "error": "Error",
+    "reconnectRequired": "Reconnect required"
+  },
+  "workspace": {
+    "loadFailed": "Failed to load OAuth connections",
+    "pageHeader": {
+      "eyebrow": "Resources",
+      "title": "OAuth",
+      "description": "Manage OAuth connections, quotas and model access."
+    },
+    "search": "Search accounts...",
+    "provider": {
+      "label": "Provider",
+      "all": "All providers"
+    },
+    "statusFilter": {
+      "label": "Status",
+      "all": "All statuses",
+      "connected": "Connected",
+      "pendingSync": "Checking",
+      "reconnectRequired": "Reconnect required",
+      "expired": "Expired",
+      "error": "Error"
+    },
+    "refreshAll": "Refresh all",
+    "import": "Import",
+    "createNew": "New connection",
+    "errorAccounts": "Error accounts",
+    "empty": {
+      "title": "No OAuth connections yet",
+      "description": "Click New connection, or import an account JSON directly."
+    },
+    "noMatch": {
+      "title": "No matching connections",
+      "description": "No OAuth connections found with current filters."
+    },
+    "deleteDialog": {
+      "title": "Delete connection",
+      "confirm": "Delete「{{provider}}」connection? The bound site and associated data will be permanently removed.",
+      "confirmDefault": "Delete this connection? This cannot be undone.",
+      "cancel": "Cancel",
+      "delete": "Confirm delete"
+    },
+    "toast": {
+      "linkGenerated": "Auth link generated",
+      "linkFailed": "Failed to generate auth link",
+      "authSuccess": "Authentication successful",
+      "authPartial": "Authentication completed, some data refresh failed",
+      "callbackFailed": "Callback submission failed",
+      "refreshed": "Connection refreshed",
+      "refreshFailed": "Failed to refresh connection",
+      "statusFailed": "Failed to update status",
+      "refreshAllDone": "All connections refreshed",
+      "refreshAllFailed": "Refresh failed",
+      "deleted": "Connection deleted",
+      "deleteFailed": "Delete failed",
+      "exported": "Account exported",
+      "exportFailed": "Export failed",
+      "importDone": "Import accepted: {{queued}} checking, {{failed}} failed",
+      "importFailed": "Import failed",
+      "oauthSuccess": "OAuth connected",
+      "oauthPartial": "OAuth connected",
+      "oauthPartialDesc": "Account bound, some data can be refreshed manually later.",
+      "oauthFailed": "OAuth connection failed",
+      "oauthFailedDesc": "Please start authentication again.",
+      "reauthMissingSite": "This connection is not bound to a site and cannot be reconnected",
+      "linkCopied": "Auth link copied"
+    }
+  },
+  "edit": {
+    "title": "Edit site",
+    "sections": {
+      "basic": "Basic info",
+      "routing": "Routing settings",
+      "groups": "Groups"
+    },
+    "fields": {
+      "siteName": "Site name",
+      "enableRouting": "Enable routing",
+      "enableRoutingDesc": "When disabled, this site will not participate in routing.",
+      "siteType": "Site type",
+      "account": "Account",
+      "routingPriority": "Routing priority",
+      "routingPriorityHint": "Default 1.0, range 1.0 - 5.0. Higher priority routes first.",
+      "siteGroups": "Site groups",
+      "siteGroupsHint": "Downstream keys granted to these groups can use this account site.",
+      "siteGroupsPlaceholder": "Select groups",
+      "siteGroupsSearch": "Search groups",
+      "noSiteGroups": "No groups",
+      "groupSiteCount": "{{count}} site(s)",
+      "proxy": "Proxy",
+      "proxyDesc": "Choose the proxy for this account site's requests. Direct uses no proxy.",
+      "proxyDirect": "Direct"
+    },
+    "validation": {
+      "priorityRequired": "Please enter routing priority",
+      "priorityFormat": "Routing priority supports 1 decimal place",
+      "priorityRange": "Routing priority range is 1.0 - 5.0"
+    },
+    "toast": {
+      "saved": "Site info updated",
+      "saveFailed": "Update failed"
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel"
+    }
+  },
+  "create": {
+    "title": "New OAuth connection",
+    "reauthTitle": "Reconnect OAuth connection",
+    "authorizeUrl": "Official auth URL",
+    "copyLink": "Copy link",
+    "openPage": "Open page",
+    "instructions": "Open the official login page. For Codex/Antigravity, paste the final URL; for Claude Code, paste authorization_code#state.",
+    "resultUrl": "Post-login result",
+    "resultPlaceholder": "Paste the final URL or authorization_code#state",
+    "submit": "Submit",
+    "back": "Back"
+  },
+  "import": {
+    "title": "Import OAuth accounts",
+    "mode": {
+      "files": "Upload files",
+      "json": "Paste JSON"
+    },
+    "dropzone": "Click to select, drag, or paste files here",
+    "fileHint": "Supports sub2api and CPA .json files, multiple selection allowed",
+    "selectedCount": "{{count}} file(s) selected",
+    "jsonLabel": "JSON content",
+    "jsonPlaceholder": "Paste exported JSON content",
+    "jsonRequired": "Paste JSON content first",
+    "jsonInvalid": "Invalid JSON",
+    "result": {
+      "total": "{{total}} account(s) total",
+      "succeeded": "{{count}} accepted",
+      "failed": "{{count}} failed",
+      "site": "Site: {{name}}",
+      "success": "Success",
+      "fail": "Failed",
+      "status": {
+        "queued": "Queued for check",
+        "failed": "Import failed",
+        "unknown": "Unknown status"
+      }
+    },
+    "actions": {
+      "import": "Import",
+      "importWithCount": "Import ({{count}} file(s))",
+      "cancel": "Cancel",
+      "done": "Done"
+    }
+  },
+  "card": {
+    "account": "Account",
+    "site": "Site",
+    "group": "Group",
+    "usage": "Usage",
+    "weight": "Weight",
+    "updatedAt": "Updated",
+    "lastUpdate": "Last updated {{time}}",
+    "updatedAtMode": {
+      "showAbsolute": "Switch to absolute time",
+      "showRelative": "Switch to relative time"
+    },
+    "errorInfo": "Error details",
+    "models": "Models",
+    "modelsFailed": "Failed to load model data",
+    "modelsLoading": "Loading",
+    "modelsCount": "{{count}} available models",
+    "viewModels": "View models",
+    "modelsDrawTitle": "{{provider}} available models",
+    "nonRefreshable": "Cannot auto-renew",
+    "nonRefreshableDescription": "This account has no refresh token. Re-import or sign in again after the access token expires.",
+    "toast": {
+      "modelFailed": "Failed to update model"
+    },
+    "actions": {
+      "reconnect": "Reconnect",
+      "refresh": "Refresh",
+      "export": "Export",
+      "test": "Test",
+      "usageSplit": "View usage split",
+      "edit": "Edit",
+      "delete": "Delete"
+    }
+  },
+  "split": {
+    "title": "Usage split",
+    "description": "Choose one or more sites and split downstream API key usage by natural days.",
+    "descriptionWithTarget": "{{target}} · {{range}}",
+    "targetRequired": "Choose a site",
+    "loading": "Loading usage split",
+    "loadFailed": "Failed to load usage split",
+    "filters": {
+      "target": "Sites",
+      "searchSites": "Search sites",
+      "emptySites": "No sites available",
+      "selectedSites": "sites selected",
+      "deletedSite": "Deleted",
+      "oauthGroup": "OAuth accounts",
+      "sitesGroup": "Sites",
+      "dateFrom": "Start date",
+      "dateTo": "End date",
+      "refresh": "Refresh"
+    },
+    "ranges": {
+      "days": "{{count}} days",
+      "allShort": "All",
+      "all": "All time",
+      "between": "{{from}} to {{to}}"
+    },
+    "metrics": {
+      "totalCost": "Total cost",
+      "totalTokens": "Total tokens",
+      "apiKeys": "Downstream keys",
+      "requests": "Requests",
+      "cost": "Cost",
+      "tokens": "Tokens"
+    },
+    "chart": {
+      "title": "Cost share",
+      "description": "Top API keys sorted by usage."
+    },
+    "table": {
+      "title": "Split details",
+      "totalPrice": "Split total",
+      "totalPricePlaceholder": "Enter total",
+      "apiKey": "API Key",
+      "cost": "Cost",
+      "share": "Share",
+      "actualPrice": "Actual price",
+      "tokens": "Tokens",
+      "requests": "Requests",
+      "successRate": "Success"
+    },
+    "empty": {
+      "title": "No split data",
+      "description": "No usage in this range can be attributed to downstream API keys."
+    }
+  },
+  "quota": {
+    "title": "Quota",
+    "allModels": "All model quotas",
+    "allQuotas": "All quotas",
+    "modelQuota": "Model quota",
+    "fiveHour": "5 hours",
+    "weekly": "7 days",
+    "remaining": "{{percent}} remaining",
+    "resetCredits": {
+      "count": "{{count}} reset cards",
+      "title": "Quota reset cards",
+      "description": "Each use consumes 1 card and resets both the 5-hour and weekly quota windows.",
+      "empty": "No quota reset cards are available",
+      "tableHeaders": {
+        "granted": "Granted",
+        "expires": "Expires"
+      },
+      "priorityHint": "The earliest-expiring card is selected by default. Click a row to choose a specific card.",
+      "close": "Close",
+      "useOne": "Use 1 card",
+      "confirmTitle": "Use reset card?",
+      "confirmDescription": "This consumes 1 reset card and resets both the 5-hour and weekly quota windows. Continue?",
+      "cancel": "Cancel",
+      "confirmUse": "Use card",
+      "missingConnection": "Missing connection ID",
+      "toast": {
+        "success": "Quota reset card used",
+        "failed": "Failed to use quota reset card",
+        "nothingToReset": "No eligible quota window to reset",
+        "noCredit": "No quota reset cards available"
+      }
+    }
+  },
+  "callback": {
+    "emptyUrl": "Please paste the post-login result first",
+    "invalidUrl": "Invalid URL format",
+    "authFailed": "Authentication failed",
+    "noParams": "No usable OAuth result parameters found",
+    "missingClaudeCodeSession": "Generate a Claude Code auth link first"
+  },
+  "utils": {
+    "justNow": "just now"
+  }
+}

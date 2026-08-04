@@ -1,0 +1,570 @@
+{
+  "general": {
+    "title": "General Settings",
+    "description": "Basic runtime options.",
+    "loading": "Loading settings...",
+    "saved": "General settings saved",
+    "saveFailed": "Save failed",
+    "security": {
+      "title": "Security Settings",
+      "sessionLifetime": "Session Lifetime",
+      "sessionLifetimeDesc": "How long an admin session stays valid. Use 0 to never expire. Default: 24 hours."
+    },
+    "tasks": {
+      "title": "Scheduled Tasks",
+      "siteRefreshCron": "Site Refresh Cron",
+      "newAPICheckinCron": "NewAPI Checkin Cron"
+    },
+    "whitelist": {
+      "title": "IP Whitelist",
+      "ipAddress": "IP Address",
+      "ipAddressDesc": "One IP per line. CIDR ranges supported.",
+      "summary": "{{total}} address(es), {{valid}} valid",
+      "invalidAddress": "Invalid address"
+    },
+    "log": {
+      "title": "Log Configuration",
+      "level": "Log Level",
+      "autoCleanup": "Auto Cleanup",
+      "retentionDays": "Retention Days"
+    },
+    "data": {
+      "title": "Data Details",
+      "requestDetailAutoCleanup": "Auto Cleanup Request Details",
+      "requestDetailRetentionDays": "Request Detail Retention Days",
+      "requestDetailRetentionDesc": "After daily summaries are complete, request_logs and usage_records older than this value are cleaned up."
+    },
+    "validation": {
+      "cronInvalid": "Cron expression is invalid",
+      "cronInvalidWithMessage": "Cron expression is invalid: {{message}}",
+      "cronRequired": "Please enter a cron expression",
+      "siteRefreshCronInvalid": "Site refresh cron is invalid",
+      "newAPICheckinCronInvalid": "NewAPI checkin cron is invalid",
+      "whitelistIPInvalid": "Whitelist IP is invalid",
+      "retentionConfigInvalid": "Log retention config is invalid",
+      "requestDetailRetentionConfigInvalid": "Request detail retention config is invalid",
+      "sessionLifetimeInvalid": "Session lifetime is invalid",
+      "retentionDaysRequired": "Please enter retention days",
+      "retentionDaysPositive": "Retention days must be a positive integer",
+      "sessionLifetimeRequired": "Please enter session lifetime",
+      "sessionLifetimeInteger": "Session lifetime must be an integer (hours)",
+      "sessionLifetimeRange": "Session lifetime must be between 0 and 720 hours"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "Account and security settings",
+    "adminInfo": {
+      "title": "Admin Information",
+      "username": "Username",
+      "nickname": "Nickname",
+      "avatar": "Avatar",
+      "uploadAvatar": "Upload Avatar",
+      "clearAvatar": "Clear",
+      "avatarImageRequired": "Please select an image file",
+      "avatarTooLarge": "Avatar image cannot exceed {{size}}",
+      "avatarReadFailed": "Failed to read avatar",
+      "saveButton": "Save",
+      "saved": "Admin info updated",
+      "saveFailed": "Update failed"
+    },
+    "password": {
+      "title": "Change Password",
+      "currentPassword": "Current Password",
+      "currentPasswordPlaceholder": "Enter current password",
+      "newPassword": "New Password",
+      "newPasswordPlaceholder": "Enter new password",
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "Enter new password again",
+      "updateButton": "Update Password",
+      "updated": "Password updated",
+      "updateFailed": "Password update failed",
+      "mismatch": "New passwords do not match"
+    },
+    "totp": {
+      "title": "Two-Factor Authentication",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enableButton": "Enable",
+      "disableButton": "Disable 2FA",
+      "setupFailed": "2FA initialization failed",
+      "enabledSuccess": "2FA enabled",
+      "enableFailed": "2FA enable failed",
+      "disabledSuccess": "2FA disabled",
+      "disableFailed": "2FA disable failed",
+      "setupSheet": {
+        "title": "Enable Two-Factor Authentication",
+        "step1": "Open Authenticator",
+        "step2": "Scan QR Code",
+        "step3": "Enter Code",
+        "backupKey": "Backup Key",
+        "copy": "Copy",
+        "copied": "Key copied",
+        "codePlaceholder": "Enter verification code",
+        "noQRCode": "QR code cannot be generated at this time",
+        "finish": "Finish Setup",
+        "cancel": "Cancel"
+      }
+    },
+    "accessToken": {
+      "title": "Access Token",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "notCreated": "Not created",
+      "createButton": "Create",
+      "updateButton": "Update",
+      "enableButton": "Enable",
+      "disableButton": "Disable",
+      "deleteButton": "Delete",
+      "createdAndCopied": "Access token created and copied",
+      "created": "Access token created",
+      "createFailed": "Access token creation failed",
+      "statusUpdated": "Status updated",
+      "statusUpdateFailed": "Status update failed",
+      "deleted": "Access token deleted",
+      "deleteFailed": "Delete failed",
+      "createdDialog": {
+        "title": "Access Token Created",
+        "description": "Please save it securely. It will not be shown again after closing.",
+        "copied": "Copied",
+        "copy": "Copy",
+        "done": "Done"
+      },
+      "deleteDialog": {
+        "title": "Delete Access Token",
+        "description": "External tools using this token will lose access to the admin API.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      }
+    },
+    "sessions": {
+      "title": "Sessions",
+      "deleteOtherSessions": "Delete Other Sessions",
+      "status": "Status",
+      "ip": "IP",
+      "lastActive": "Last Active",
+      "expires": "Expires",
+      "actions": "Actions",
+      "current": "Current",
+      "other": "Other",
+      "delete": "Delete",
+      "deleted": "Session deleted",
+      "otherDeleted": "Other sessions deleted",
+      "deleteFailed": "Session delete failed"
+    }
+  },
+  "systemProxy": {
+    "title": "System Proxy",
+    "description": "Manage reusable system proxies for Sites and OAuth accounts.",
+    "loading": "Loading settings...",
+    "newProxy": "New proxy",
+    "loadFailed": "Failed to load proxy settings",
+    "search": "Search proxies",
+    "empty": {
+      "title": "No proxies",
+      "description": "Add a proxy, then select it from Site or OAuth account settings."
+    },
+    "actions": {
+      "create": "Add proxy",
+      "test": "Test",
+      "edit": "Edit",
+      "save": "Save",
+      "delete": "Delete",
+      "cancel": "Cancel"
+    },
+    "test": {
+      "untested": "Untested",
+      "testing": "Testing",
+      "success": "Available · {{latency}}ms",
+      "failed": "Failed"
+    },
+    "form": {
+      "createTitle": "Add proxy",
+      "editTitle": "Edit proxy",
+      "name": "Proxy name",
+      "namePlaceholder": "For example Local proxy",
+      "type": "Proxy type",
+      "url": "Proxy URL",
+      "urlHint": "Use http:// or https:// for HTTP proxies, and socks5:// for SOCKS proxies."
+    },
+    "validation": {
+      "nameRequired": "Proxy name is required",
+      "urlRequired": "Proxy URL is required",
+      "typeInvalid": "Proxy type is invalid",
+      "urlInvalid": "Proxy URL is invalid",
+      "nameDuplicate": "Proxy name must be unique",
+      "socksScheme": "SOCKS5 proxy URL must start with socks5://",
+      "httpScheme": "HTTP/HTTPS proxy URL must start with http:// or https://"
+    },
+    "toast": {
+      "saved": "Proxy settings saved",
+      "saveFailed": "Save failed",
+      "deleted": "Proxy deleted",
+      "deleteFailed": "Delete failed",
+      "testFailed": "Test failed"
+    },
+    "deleteDialog": {
+      "title": "Delete proxy",
+      "confirm": "Delete proxy \"{{name}}\"? Sites referencing it will keep an invalid reference until they are updated.",
+      "confirmDefault": "Delete this proxy?"
+    }
+  },
+  "rateLimit": {
+    "title": "Rate Limit",
+    "description": "Request rate limit",
+    "loading": "Loading settings...",
+    "saved": "Rate limit config saved",
+    "saveFailed": "Save failed",
+    "rateLimit": "Rate Limit",
+    "rateLimitDesc": "Global request rate limit. When disabled, only ApiKey-level limits apply.",
+    "rpmLimit": "Concurrent in-flight limit (RPM)",
+    "rpmLimitDesc": "Maximum in-flight requests across all keys at any moment; excess requests queue for up to 60s. Leave empty for unlimited.",
+    "tpmLimit": "TPM Limit",
+    "tpmLimitDesc": "Max tokens per minute for text models. Leave empty for unlimited.",
+    "validation": {
+      "atLeastOneRequired": "At least one limit is required when rate limiting is enabled",
+      "rpmPositiveInteger": "In-flight limit must be an integer greater than 0",
+      "tpmPositiveInteger": "TPM must be a positive integer"
+    }
+  },
+  "backup": {
+    "eyebrow": "Settings",
+    "title": "Data Migration",
+    "description": "Back up sites, models, keys, and history for migration or recovery after reinstalling.",
+    "passphrase": "Backup passphrase",
+    "confirmPassphrase": "Enter it again",
+    "passphraseDesc": "This passphrase opens this backup file only. Store it separately.",
+    "validation": {
+      "passphraseRequired": "Please enter the backup passphrase",
+      "passphraseMismatch": "The passphrases do not match",
+      "fileRequired": "Please select a backup file",
+      "fileInvalid": "Invalid file format. Select a .xlyra backup file"
+    },
+    "export": {
+      "title": "Export Data",
+      "action": "Export",
+      "dialogTitle": "Set a backup passphrase",
+      "dialogDescription": "The backup includes recoverable data and some sensitive credentials. Choose a passphrase for this export.",
+      "confirmAction": "Start export",
+      "success": "Backup file created",
+      "failed": "Export failed",
+      "noticeSensitive": "Includes sites, models, credentials, OAuth accounts, downstream API keys, request logs, and usage records.",
+      "noticePassphrase": "Keep the passphrase safe. You will need it again when importing.",
+      "noticeUsersExcluded": "Does not include admin accounts, sessions, 2FA, admin access tokens, or audit logs."
+    },
+    "import": {
+      "title": "Import Data",
+      "file": "Backup file",
+      "passphraseDesc": "Enter the passphrase set when this backup was exported.",
+      "action": "Import",
+      "dialogTitle": "Import backup file",
+      "dropzone": "Drop a file here, or click to choose",
+      "fileHint": "xLyra backup files only (.xlyra)",
+      "removeFile": "Remove file",
+      "success": "Import complete",
+      "failed": "Import failed",
+      "summary": "Restored {{rows}} rows and {{configKeys}} config group(s). Refresh the page; restart the service if runtime state has not updated.",
+      "noticeOverwrite": "Import overwrites current business data. Back up this environment first if you need it.",
+      "noticePreserved": "Admin accounts, sessions, 2FA, and admin access tokens are kept.",
+      "noticeRestart": "Health state, route cooldowns, and rate limit windows are not restored; the system will rebuild them.",
+      "confirmTitle": "Confirm import",
+      "confirmDescription": "Import replaces current sites, models, credentials, downstream API keys, request logs, usage records, and the config file.",
+      "confirmAction": "Import and overwrite"
+    },
+    "tabs": {
+      "manual": "Manual Backup",
+      "automatic": "Automatic Backup"
+    },
+    "automatic": {
+      "title": "Automatic Backup",
+      "loading": "Loading automatic backup settings...",
+      "saveSuccess": "Automatic backup settings saved",
+      "saveFailed": "Failed to save automatic backup settings",
+      "testAction": "Test connection",
+      "testSuccess": "S3 storage is reachable",
+      "testFailed": "S3 storage test failed",
+      "runAction": "Back up now",
+      "runSuccess": "Automatic backup task started",
+      "runFailed": "Failed to start automatic backup",
+      "restoreFailed": "Failed to restore remote backup",
+      "deleteSuccess": "Remote backup deleted",
+      "deleteFailed": "Failed to delete remote backup",
+      "restoreConfirmTitle": "Overwrite current data?",
+      "restoreConfirmDescription": "{{filename}} will overwrite current business data and configuration. This cannot be undone.",
+      "restoreConfirmAction": "Overwrite",
+      "deleteConfirmTitle": "Delete remote backup?",
+      "deleteConfirmDescription": "{{filename}} will be deleted from S3 storage. This cannot be undone.",
+      "deleteConfirmAction": "Delete",
+      "noticeNoSecrets": "Backup files keep non-sensitive automatic backup settings, but never include the S3 Secret Key or backup file passphrase.",
+      "noticeImportKeepsCurrent": "When restoring, an existing automatic backup configuration on this instance is kept and will not be overwritten by the backup package.",
+      "storage": {
+        "title": "S3 Compatible Storage",
+        "endpoint": "Endpoint",
+        "region": "Region",
+        "bucket": "Bucket",
+        "prefix": "Object prefix",
+        "accessKey": "Access Key",
+        "secretKey": "Secret Key",
+        "secretSaved": "Saved: {{value}}. Leave blank to keep it unchanged.",
+        "forcePathStyle": "Path-style access",
+        "useSSL": "Use HTTPS",
+        "skipTLSVerify": "Skip TLS verification"
+      },
+      "schedule": {
+        "title": "Backup Settings",
+        "enabled": "Enable automatic backup",
+        "cron": "Cron expression",
+        "retention": "Retention count",
+        "passphrase": "Backup file passphrase",
+        "passphraseDesc": "The generated .xlyra files are encrypted with this passphrase.",
+        "passphraseSaved": "Saved: {{value}}. Leave blank to keep it unchanged."
+      },
+      "files": {
+        "title": "Remote Backup Files",
+        "refresh": "Refresh",
+        "loading": "Loading remote backup files...",
+        "empty": "No backup files were found under the current S3 configuration.",
+        "notReady": "Save complete S3 settings and a backup file passphrase to view remote backup files.",
+        "running": "Backing up",
+        "failed": "Failed",
+        "restore": "Restore",
+        "delete": "Delete"
+      },
+      "validation": {
+        "required": "Complete the automatic backup settings",
+        "cronRequired": "Please enter a cron expression",
+        "cronInvalid": "Cron expression is invalid",
+        "cronInvalidWithMessage": "Cron expression is invalid: {{message}}",
+        "retentionInvalid": "Retention count is invalid",
+        "retentionRequired": "Please enter a retention count",
+        "retentionPositive": "Retention count must be a positive integer",
+        "retentionMax": "Retention count cannot exceed {{max}}"
+      }
+    }
+  },
+  "modelsPrice": {
+    "eyebrow": "Settings",
+    "title": "Models Price",
+    "description": "View and Maintain Model Prices",
+    "allPrices": "All Prices",
+    "missingPrices": "Missing Prices",
+    "saveFailed": "Save failed",
+    "savedSuccess": "Model prices saved",
+    "savedDescription": "{{count}} changes submitted",
+    "notBoundToModel": "Not bound to canonical model, cannot batch submit",
+    "loading": "Loading model prices...",
+    "noData": "No model price data",
+    "empty": {
+      "title": "No model price data",
+      "description": "Model prices will appear here after site models are synced."
+    },
+    "saveChanges": "Save Changes",
+    "batchEdit": "Batch Edit",
+    "readOnly": "Read only",
+    "headers": {
+      "model": "Model / Site",
+      "group": "Group",
+      "billing": "Billing",
+      "inputPrice": "Input Price",
+      "outputPrice": "Output Price",
+      "audioOutputPrice": "Audio output",
+      "cachePrice": "Cache Read",
+      "cacheWritePrice": "Cache Write",
+      "cacheWrite5mPrice": "Cache Write(5m)",
+      "cacheWrite1hPrice": "Cache Write(1h)",
+      "perRequestPrice": "Per Request",
+      "groupRatio": "Group Ratio",
+      "status": "Status"
+    },
+    "subtitle": {
+      "sites": "{{count}} sites",
+      "editable": "{{count}} editable",
+      "noPrice": "No price",
+      "perRequest": "Per request {{price}}",
+      "tokenPrice": "Input {{input}} / Output {{output}}"
+    },
+    "badges": {
+      "missing": "Missing {{count}}",
+      "manual": "Manual {{count}}",
+      "synced": "Synced {{count}}",
+      "noBatch": "No batch",
+      "noBatchTooltip": "Not bound to canonical model, cannot batch submit",
+      "noEditableTooltip": "No editable site models"
+    },
+    "statusLabels": {
+      "missing": "Missing",
+      "manual": "Manual",
+      "synced": "Synced",
+      "priced": "Priced"
+    },
+    "billingLabels": {
+      "all": "All Billing",
+      "tokens": "By Token",
+      "perRequest": "Per Request"
+    },
+    "statusFilter": {
+      "all": "All Status",
+      "manual": "Manual",
+      "synced": "Synced",
+      "missing": "Missing"
+    },
+    "searchPlaceholder": "Search models or sites",
+    "validation": {
+      "inputPrice": "Input price",
+      "outputPrice": "Output price",
+      "audioOutputPrice": "Audio output price",
+      "cachePrice": "Cache read price",
+      "cacheWritePrice": "Cache write price",
+      "cacheWrite1hPrice": "Cache write (1h) price",
+      "perRequestPrice": "Per-request price",
+      "groupRatio": "Group ratio",
+      "audioRequiresInput": "Audio output pricing requires a positive input price",
+      "tokenRequiresInputOrOutput": "Token billing requires at least input or output price",
+      "perRequestRequiresValue": "Per-request billing requires a per-request price",
+      "nonNegativeNumber": "Must be a number greater than or equal to 0"
+    },
+    "perRequestSuffix": "/req",
+    "resetButton": "Reset",
+    "resetTooltip": "Clear manual pricing and restore synced pricing",
+    "resetDialogTitle": "Reset Model Pricing",
+    "resetConfirm": "Reset this model's pricing to synced source? Manual changes will be cleared.",
+    "resetFailed": "Failed to reset pricing",
+    "resetAllButton": "Reset All",
+    "resetAllDialogTitle": "Reset All Manual Pricing",
+    "resetAllConfirm": "Reset all {{count}} manually modified model prices for this site to synced source?",
+    "resetAllSuccess": "All manual pricing has been reset",
+    "siteFilter": {
+      "label": "Site",
+      "all": "All sites"
+    },
+    "siteView": {
+      "summary": "{{total}} models · {{manual}} manually priced",
+      "modelCount": "{{count}} models"
+    },
+    "ariaLabels": {
+      "collapse": "Collapse site prices",
+      "expand": "Expand site prices"
+    }
+  },
+  "global": {
+    "eyebrow": "Settings",
+    "title": "Global Settings",
+    "description": "Manage global settings by category.",
+    "nav": {
+      "general": "General",
+      "profile": "Profile",
+      "systemProxy": "System Proxy",
+      "rateLimit": "Rate Limit",
+      "siteGroups": "Site Groups",
+      "backup": "Import / Export",
+      "portal": "Key portal"
+    }
+  },
+  "siteGroups": {
+    "title": "Site Groups",
+    "description": "Group sites into reusable grants for downstream API keys.",
+    "loading": "Loading site groups...",
+    "loadFailed": "Failed to load site groups",
+    "search": "Search groups",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "noSites": "No sites",
+    "empty": {
+      "title": "No site groups",
+      "description": "Create a group to reuse it from site and API key settings."
+    },
+    "form": {
+      "createTitle": "New group",
+      "editTitle": "Edit group",
+      "name": "Group name",
+      "slug": "Slug",
+      "description": "Description",
+      "sortOrder": "Sort order",
+      "sites": "Sites",
+      "sitesPlaceholder": "Select sites",
+      "siteSearch": "Search sites",
+      "enabled": "Enable group"
+    },
+    "actions": {
+      "create": "Create",
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "cancelEdit": "Cancel edit"
+    },
+    "validation": {
+      "nameRequired": "Please enter a group name",
+      "sortOrderInvalid": "Sort order must be an integer"
+    },
+    "toast": {
+      "saved": "Site group saved",
+      "saveFailed": "Save failed",
+      "deleted": "Site group deleted",
+      "deleteFailed": "Delete failed"
+    },
+    "deleteDialog": {
+      "title": "Delete group",
+      "confirm": "Delete group \"{{name}}\"? Matching API key group grants will also be removed.",
+      "confirmDefault": "Delete this group?"
+    }
+  },
+  "notifications": {
+    "eyebrow": "Settings",
+    "title": "Notification Config",
+    "description": "Configure alert rules, notification channels, and incident escalation policies."
+  },
+  "portal": {
+    "title": "Key Usage Portal",
+    "description": "Expose a public, login-free page where users can view quota and request details using their downstream API key.",
+    "saved": "Portal settings saved",
+    "saveFailed": "Failed to save",
+    "loading": "Loading…",
+    "enabled": {
+      "title": "Enable portal",
+      "desc": "When off, the /portal page and its endpoints return 404."
+    },
+    "modules": {
+      "title": "Modules",
+      "summary": "Usage trend chart",
+      "summaryDesc": "Show request and cost trend over the last N days.",
+      "requests": "Request details",
+      "requestsDesc": "Show paginated request records for the key.",
+      "summaryDays": "Trend days",
+      "summaryDaysDesc": "Days covered by the trend chart (1-90).",
+      "pageSize": "Details page size",
+      "pageSizeDesc": "Max rows per page for request details (1-200)."
+    },
+    "dimensions": {
+      "title": "Visible dimensions",
+      "desc": "Control which request-detail fields are visible to users. Hidden fields are never returned to the frontend.",
+      "site": "Site",
+      "siteDesc": "Site name / type (sensitive, consider hiding).",
+      "model": "Model",
+      "modelDesc": "Canonical and upstream model names.",
+      "tokens": "Token usage",
+      "tokensDesc": "Prompt / completion / total tokens.",
+      "cost": "Cost",
+      "costDesc": "Estimated cost and currency.",
+      "latency": "Latency",
+      "latencyDesc": "Request latency.",
+      "endpoint": "Endpoint",
+      "endpointDesc": "Request endpoint path.",
+      "upstream": "Upstream address",
+      "upstreamDesc": "Upstream URL and path (sensitive, off by default).",
+      "error": "Error info",
+      "errorDesc": "Error type for failed requests."
+    },
+    "validation": {
+      "invalid": "The configuration has invalid values",
+      "range": "must be between {{min}} and {{max}}"
+    },
+    "link": {
+      "title": "Public link",
+      "desc": "Share this link with users; they paste their own downstream key to view usage.",
+      "copy": "Copy",
+      "copied": "Link copied",
+      "copyFailed": "Copy failed"
+    }
+  }
+}

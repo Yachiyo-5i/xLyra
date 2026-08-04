@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: xlyra-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: xlyra
+      POSTGRES_USER: xlyra
+      POSTGRES_PASSWORD: postgres_password
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    networks:
+      - xlyra
+
+  xlyra:
+    image: yachiiiiyo/xlyra:latest
+    container_name: xlyra
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_NAME: xlyra
+      DB_USER: xlyra
+      DB_PASSWORD: postgres_password
+    volumes:
+      - ./data:/data
+    ports:
+      - "5801:5801"
+    networks:
+      - xlyra
+
+networks:
+  xlyra:
+    driver: bridge

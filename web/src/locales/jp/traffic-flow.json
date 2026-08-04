@@ -1,0 +1,81 @@
+{
+  "header": {
+    "title": "ゲートウェイ リアルタイム管制",
+    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT"
+  },
+  "status": {
+    "live": "ライブ接続",
+    "reconnecting": "再接続中",
+    "loading": "トポロジーを読み込み中",
+    "waiting": "ゲートウェイトラフィックを待機中"
+  },
+  "desktopRequired": {
+    "eyebrow": "DESKTOP EXPERIENCE",
+    "title": "デスクトップ版Webで開いてください",
+    "description": "トラフィックフローにはデスクトップ向けの表示領域が必要です。幅1024px以上のデスクトップブラウザで開いてください。",
+    "back": "ダッシュボードへ戻る"
+  },
+  "actions": {
+    "pause": "アニメーションを一時停止",
+    "resume": "アニメーションを再開",
+    "refresh": "再読み込み",
+    "fullscreen": "全画面表示",
+    "exitFullscreen": "全画面を終了",
+    "close": "詳細を閉じる"
+  },
+  "metrics": {
+    "label": "リアルタイム指標",
+    "inFlight": "処理中",
+    "routed": "ルーティング済み",
+    "returning": "応答中",
+    "nodes": "ノード",
+    "tokens": "ウィンドウTokens",
+    "mode": "実行モード"
+  },
+  "tokenDetails": {
+    "title": "ウィンドウToken使用量",
+    "downstream": "ダウンストリームキー",
+    "upstream": "アップストリームサイト",
+    "empty": "このウィンドウのToken使用量はありません"
+  },
+  "map": { "label": "リアルタイムリクエストトポロジー" },
+  "core": {
+    "title": "XLYRA GATEWAY",
+    "subtitle": "ゲートウェイコア",
+    "active": "ACTIVE ROUTING",
+    "ready": "ROUTING READY"
+  },
+  "lanes": {
+    "downstream": "ダウンストリーム",
+    "downstreamCaption": "DOWNSTREAM KEYS",
+    "gateway": "ゲートウェイ",
+    "upstream": "アップストリーム",
+    "upstreamCaption": "UPSTREAM SITES"
+  },
+  "legend": {
+    "request": "リクエスト",
+    "response": "レスポンス"
+  },
+  "footer": { "desktopOnly": "デスクトップライブビュー" },
+  "activity": {
+    "label": "ライブリクエストキュー",
+    "empty": "処理中のリクエストはありません"
+  },
+  "phase": {
+    "accepted": "受信済み",
+    "routed": "ルーティング済み",
+    "responding": "応答中",
+    "completed": "完了",
+    "failed": "失敗",
+    "cancelled": "キャンセル"
+  },
+  "inspector": {
+    "request": "リクエスト詳細",
+    "unknownModel": "不明なモデル",
+    "downstream": "ダウンストリームキー",
+    "upstream": "アップストリームサイト",
+    "phase": "現在のフェーズ",
+    "attempt": "ルート試行",
+    "waiting": "ルート待機中"
+  }
+}

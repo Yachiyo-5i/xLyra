@@ -1,0 +1,67 @@
+{
+  "title": "キー利用ポータル",
+  "disabled": "このページは現在利用できません。",
+  "signOut": "ログアウト",
+  "invalidKey": "キーが無効または停止されています。",
+  "loadFailed": "読み込みに失敗しました",
+  "gate": {
+    "title": "キーの利用状況を確認",
+    "description": "下流の API キーを貼り付けると、残高とリクエスト詳細を表示できます。キーはこの照会のみに使用されます。",
+    "placeholder": "xlyra-...",
+    "remember": "このデバイスにキーを記憶する",
+    "submit": "照会",
+    "hint": "上部に下流 API キーを貼り付けて利用状況を表示します。",
+    "switchTitle": "キーを切り替え"
+  },
+  "overview": {
+    "quota": "上限",
+    "status": "ステータス",
+    "active": "有効",
+    "used": "使用済み",
+    "remaining": "残り",
+    "unlimited": "無制限"
+  },
+  "summary": {
+    "title": "直近 {{days}} 日間",
+    "totalRequests": "{{count}} 件のリクエスト",
+    "seriesCost": "コスト",
+    "seriesTokens": "トークン",
+    "seriesRequests": "成功"
+  },
+  "requests": {
+    "title": "リクエスト詳細",
+    "empty": "リクエストがありません。",
+    "time": "時刻",
+    "model": "モデル",
+    "site": "サイト",
+    "status": "ステータス",
+    "tokens": "トークン",
+    "cost": "コスト",
+    "latency": "レイテンシ",
+    "prev": "前へ",
+    "next": "次へ",
+    "input": "入力",
+    "output": "出力",
+    "cache": "キャッシュ {{count}}",
+    "cacheWrite": "キャッシュ書込 {{count}}",
+    "endpoint": "エンドポイント",
+    "upstream": "上流アドレス"
+  },
+  "filters": {
+    "statusAll": "すべて",
+    "statusSuccess": "成功",
+    "statusFailed": "失敗",
+    "modelAll": "すべてのモデル",
+    "rangeAll": "全期間",
+    "range7d": "過去7日",
+    "range30d": "過去30日",
+    "status": "ステータス",
+    "model": "モデル",
+    "range": "期間",
+    "rangeToday": "今日"
+  },
+  "stats": {
+    "tokens": "トークン",
+    "cost": "コスト"
+  }
+}

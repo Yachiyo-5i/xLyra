@@ -1,0 +1,297 @@
+{
+  "sources": {
+    "codexSubtitle": "OAuth で OpenAI Codex アカウントを接続",
+    "antigravitySubtitle": "OAuth で Antigravity アカウントを接続",
+    "claudeCodeSubtitle": "OAuth で Claude Code サブスクリプションを接続",
+    "comingSoon": "近日対応予定",
+    "generating": "生成中"
+  },
+  "status": {
+    "connected": "接続済み",
+    "pendingSync": "確認中",
+    "expired": "期限切れ",
+    "error": "エラー",
+    "reconnectRequired": "再接続が必要"
+  },
+  "workspace": {
+    "loadFailed": "OAuth 接続の読み込みに失敗しました",
+    "pageHeader": {
+      "eyebrow": "リソース",
+      "title": "OAuth",
+      "description": "OAuth 接続、クォータ、モデルアクセスを管理します。"
+    },
+    "search": "アカウントを検索...",
+    "provider": {
+      "label": "プロバイダー",
+      "all": "すべてのプロバイダー"
+    },
+    "statusFilter": {
+      "label": "ステータス",
+      "all": "すべてのステータス",
+      "connected": "接続済み",
+      "pendingSync": "確認中",
+      "reconnectRequired": "再接続が必要",
+      "expired": "期限切れ",
+      "error": "エラー"
+    },
+    "refreshAll": "すべて更新",
+    "import": "インポート",
+    "createNew": "新規接続",
+    "errorAccounts": "エラーアカウント",
+    "empty": {
+      "title": "OAuth 接続はまだありません",
+      "description": "「新規接続」をクリックするか、アカウント JSON を直接インポートしてください。"
+    },
+    "noMatch": {
+      "title": "一致する接続がありません",
+      "description": "現在のフィルターに一致する OAuth 接続はありません。"
+    },
+    "deleteDialog": {
+      "title": "接続を削除",
+      "confirm": "「{{provider}}」接続を削除しますか？紐付いたサイトと関連データは完全に削除されます。",
+      "confirmDefault": "この接続を削除しますか？この操作は元に戻せません。",
+      "cancel": "キャンセル",
+      "delete": "削除を確認"
+    },
+    "toast": {
+      "linkGenerated": "認証リンクを生成しました",
+      "linkFailed": "認証リンクの生成に失敗しました",
+      "authSuccess": "認証に成功しました",
+      "authPartial": "認証は完了しましたが、一部データの更新に失敗しました",
+      "callbackFailed": "コールバック送信に失敗しました",
+      "refreshed": "接続を更新しました",
+      "refreshFailed": "接続の更新に失敗しました",
+      "statusFailed": "ステータスの更新に失敗しました",
+      "refreshAllDone": "すべての接続を更新しました",
+      "refreshAllFailed": "更新に失敗しました",
+      "deleted": "接続を削除しました",
+      "deleteFailed": "削除に失敗しました",
+      "exported": "アカウントをエクスポートしました",
+      "exportFailed": "エクスポートに失敗しました",
+      "importDone": "インポートを受け付けました: 確認中 {{queued}} 件、失敗 {{failed}} 件",
+      "importFailed": "インポートに失敗しました",
+      "oauthSuccess": "OAuth を接続しました",
+      "oauthPartial": "OAuth を接続しました",
+      "oauthPartialDesc": "アカウントを紐付けました。一部データは後で手動更新できます。",
+      "oauthFailed": "OAuth 接続に失敗しました",
+      "oauthFailedDesc": "認証をもう一度開始してください。",
+      "reauthMissingSite": "この接続はサイトに紐付いていないため再接続できません",
+      "linkCopied": "認証リンクをコピーしました"
+    }
+  },
+  "edit": {
+    "title": "サイトを編集",
+    "sections": {
+      "basic": "基本情報",
+      "routing": "ルーティング設定",
+      "groups": "グループ設定"
+    },
+    "fields": {
+      "siteName": "サイト名",
+      "enableRouting": "ルーティングを有効化",
+      "enableRoutingDesc": "無効にすると、このサイトはルーティングに参加しません。",
+      "siteType": "サイトタイプ",
+      "account": "アカウント",
+      "routingPriority": "ルーティング優先度",
+      "routingPriorityHint": "デフォルト 1.0、範囲 1.0 - 5.0。優先度が高いほど先にルーティングされます。",
+      "siteGroups": "所属グループ",
+      "siteGroupsHint": "アカウントサイトをグループに追加すると、そのグループを付与された下流キーがこのアカウントを利用できます。",
+      "siteGroupsPlaceholder": "グループを選択",
+      "siteGroupsSearch": "グループを検索",
+      "noSiteGroups": "グループがありません",
+      "groupSiteCount": "{{count}} 個のサイト",
+      "proxy": "プロキシ",
+      "proxyDesc": "このアカウントサイトのリクエストで使うプロキシを選択します。直結はプロキシを使いません。",
+      "proxyDirect": "直結"
+    },
+    "validation": {
+      "priorityRequired": "ルーティング優先度を入力してください",
+      "priorityFormat": "ルーティング優先度は小数 1 桁まで対応します",
+      "priorityRange": "ルーティング優先度の範囲は 1.0 - 5.0 です"
+    },
+    "toast": {
+      "saved": "サイト情報を更新しました",
+      "saveFailed": "更新に失敗しました"
+    },
+    "actions": {
+      "save": "保存",
+      "cancel": "キャンセル"
+    }
+  },
+  "create": {
+    "title": "新しい OAuth 接続",
+    "reauthTitle": "OAuth 接続を再認証",
+    "authorizeUrl": "公式認証 URL",
+    "copyLink": "リンクをコピー",
+    "openPage": "ページを開く",
+    "instructions": "公式ログインページを開きます。Codex/Antigravity は最終 URL、Claude Code は authorization_code#state を貼り付けてください。",
+    "resultUrl": "ログイン後の結果",
+    "resultPlaceholder": "最終 URL または authorization_code#state を貼り付け",
+    "submit": "送信",
+    "back": "戻る"
+  },
+  "import": {
+    "title": "OAuth アカウントをインポート",
+    "mode": {
+      "files": "ファイルをアップロード",
+      "json": "JSON を貼り付け"
+    },
+    "dropzone": "クリックで選択、ドラッグ、またはファイルを貼り付け",
+    "fileHint": "sub2api と CPA の .json ファイルに対応、複数選択可",
+    "selectedCount": "{{count}} 個のファイルを選択済み",
+    "jsonLabel": "JSON 内容",
+    "jsonPlaceholder": "エクスポートした JSON 内容を貼り付け",
+    "jsonRequired": "JSON 内容を貼り付けてください",
+    "jsonInvalid": "JSON 形式が正しくありません",
+    "result": {
+      "total": "合計 {{total}} アカウント",
+      "succeeded": "{{count}} 件受付済み",
+      "failed": "{{count}} 件失敗",
+      "site": "サイト: {{name}}",
+      "success": "成功",
+      "fail": "失敗",
+      "status": {
+        "queued": "確認待ち",
+        "failed": "インポート失敗",
+        "unknown": "不明な状態"
+      }
+    },
+    "actions": {
+      "import": "インポート",
+      "importWithCount": "インポート（{{count}} ファイル）",
+      "cancel": "キャンセル",
+      "done": "完了"
+    }
+  },
+  "card": {
+    "account": "アカウント",
+    "site": "サイト",
+    "group": "グループ",
+    "usage": "使用量",
+    "weight": "重み",
+    "updatedAt": "更新日時",
+    "lastUpdate": "最終更新 {{time}}",
+    "updatedAtMode": {
+      "showAbsolute": "絶対時刻に切り替え",
+      "showRelative": "相対時刻に切り替え"
+    },
+    "errorInfo": "エラー詳細",
+    "models": "モデル",
+    "modelsFailed": "モデルデータの読み込みに失敗しました",
+    "modelsLoading": "読み込み中",
+    "modelsCount": "{{count}} 個の利用可能なモデル",
+    "viewModels": "モデルを表示",
+    "modelsDrawTitle": "{{provider}} の利用可能モデル",
+    "nonRefreshable": "自動更新できません",
+    "nonRefreshableDescription": "このアカウントには refresh token がありません。access token の期限切れ後は再インポートまたは再ログインが必要です。",
+    "toast": {
+      "modelFailed": "モデルの更新に失敗しました"
+    },
+    "actions": {
+      "reconnect": "再認証",
+      "refresh": "更新",
+      "export": "エクスポート",
+      "test": "テスト",
+      "usageSplit": "使用量の分担を表示",
+      "edit": "編集",
+      "delete": "削除"
+    }
+  },
+  "split": {
+    "title": "使用量の分担",
+    "description": "1 つ以上のサイトを選び、自然日で下流 API Key の使用量を分担表示します。",
+    "descriptionWithTarget": "{{target}} · {{range}}",
+    "targetRequired": "サイトを選択してください",
+    "loading": "分担データを読み込み中",
+    "loadFailed": "分担データの読み込みに失敗しました",
+    "filters": {
+      "target": "サイト",
+      "searchSites": "サイトを検索",
+      "emptySites": "選択できるサイトがありません",
+      "selectedSites": "件のサイト",
+      "deletedSite": "削除済み",
+      "oauthGroup": "OAuth アカウント",
+      "sitesGroup": "Sites",
+      "dateFrom": "開始日",
+      "dateTo": "終了日",
+      "refresh": "更新"
+    },
+    "ranges": {
+      "days": "{{count}} 日",
+      "allShort": "無制限",
+      "all": "期間制限なし",
+      "between": "{{from}} から {{to}}"
+    },
+    "metrics": {
+      "totalCost": "総消費",
+      "totalTokens": "総 Tokens",
+      "apiKeys": "下流 Key",
+      "requests": "リクエスト",
+      "cost": "消費",
+      "tokens": "Tokens"
+    },
+    "chart": {
+      "title": "消費割合",
+      "description": "使用量順に API Key の上位を表示します。"
+    },
+    "table": {
+      "title": "分担明細",
+      "totalPrice": "分担総額",
+      "totalPricePlaceholder": "総額を入力",
+      "apiKey": "API Key",
+      "cost": "消費",
+      "share": "割合",
+      "actualPrice": "実価格",
+      "tokens": "Tokens",
+      "requests": "リクエスト",
+      "successRate": "成功率"
+    },
+    "empty": {
+      "title": "分担データがありません",
+      "description": "この期間には下流 API Key に紐付く使用量がありません。"
+    }
+  },
+  "quota": {
+    "title": "クォータ",
+    "allModels": "すべてのモデルクォータ",
+    "allQuotas": "すべてのクォータ",
+    "modelQuota": "モデルクォータ",
+    "fiveHour": "5 時間",
+    "weekly": "7 日",
+    "remaining": "残り {{percent}}",
+    "resetCredits": {
+      "count": "{{count}} 枚のリセットカード",
+      "title": "クォータリセットカード",
+      "description": "1 回の使用で 1 枚消費し、5 時間枠と週次枠の両方をリセットします。",
+      "empty": "利用可能なクォータリセットカードはありません",
+      "tableHeaders": {
+        "granted": "発行日時",
+        "expires": "有効期限"
+      },
+      "priorityHint": "有効期限が最も近いカードが既定で選択されます。行をクリックして使用するカードを指定できます。",
+      "close": "閉じる",
+      "useOne": "1 枚使用",
+      "confirmTitle": "リセットカードを使用しますか？",
+      "confirmDescription": "リセットカードを 1 枚消費し、5 時間枠と週次枠の両方をリセットします。続行しますか？",
+      "cancel": "キャンセル",
+      "confirmUse": "使用する",
+      "missingConnection": "接続 ID がありません",
+      "toast": {
+        "success": "クォータリセットカードを使用しました",
+        "failed": "クォータリセットカードの使用に失敗しました",
+        "nothingToReset": "リセット可能なクォータ枠がありません",
+        "noCredit": "利用可能なクォータリセットカードがありません"
+      }
+    }
+  },
+  "callback": {
+    "emptyUrl": "先にログイン後の結果を貼り付けてください",
+    "invalidUrl": "URL 形式が無効です",
+    "authFailed": "認証に失敗しました",
+    "noParams": "利用可能な OAuth 結果パラメータが見つかりません",
+    "missingClaudeCodeSession": "先に Claude Code の認証リンクを生成してください"
+  },
+  "utils": {
+    "justNow": "たった今"
+  }
+}

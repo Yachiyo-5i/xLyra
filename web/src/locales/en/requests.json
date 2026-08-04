@@ -1,0 +1,128 @@
+{
+  "table": {
+    "headers": {
+      "time": "Time",
+      "model": "Model",
+      "apiKey": "API Key",
+      "site": "Site",
+      "status": "Status",
+      "latency": "Latency",
+      "input": "Input",
+      "output": "Output",
+      "cost": "Cost"
+    },
+    "test": "Test",
+    "success": "Success",
+    "failure": "Failure",
+    "responseMode": {
+      "stream": "Stream",
+      "nonStream": "Non-stream"
+    },
+    "cache": "Cache {{tokens}}",
+    "empty": {
+      "title": "No request logs",
+      "description": "No forwarded request records to display."
+    }
+  },
+  "filters": {
+    "dateFrom": "Start date",
+    "timeFrom": "Start time",
+    "dateTo": "End date",
+    "timeTo": "End time",
+    "totalCost": "Total cost {{cost}}",
+    "totalTokens": "Total tokens {{tokens}}",
+    "totalCostUnsupported": "Exact total cost is not available for the current filters",
+    "rpmTooltip": "Requests in the last 1 minute",
+    "tpmTooltip": "Actual tokens in the last 1 minute",
+    "searchRequestId": "Search request ID",
+    "searchUnified": "Search request ID, model, or site",
+    "searchModel": "Search model",
+    "allStatuses": "All statuses",
+    "success": "Success",
+    "failure": "Failure",
+    "allSites": "All sites",
+    "allApiKeys": "All API keys",
+    "clearFilters": "Clear filters",
+    "hideWithoutSite": "Hide no-site",
+    "hideWithoutSiteLabel": "Hide requests without an upstream site",
+    "autoRefresh": "Auto refresh",
+    "autoRefreshLabel": "Auto refresh request logs",
+    "refresh": "Refresh"
+  },
+  "tokens": {
+    "total": "Total tokens",
+    "input": "Input tokens",
+    "output": "Output tokens",
+    "cached": "Cached tokens",
+    "hitRate": "Cache hit rate"
+  },
+  "detail": {
+    "loading": "Loading details",
+    "loadFailed": "Failed to load details: {{message}}",
+    "requestId": "Request ID",
+    "request": "Request",
+    "downstreamModel": "Downstream model",
+    "upstreamModel": "Upstream model",
+    "transport": "Transport",
+    "status": "Status",
+    "success": "Success",
+    "failure": "Failure",
+    "statusCode": "Status code",
+    "site": "Site",
+    "group": "Group",
+    "usage": "Usage",
+    "input": "Input",
+    "output": "Output",
+    "cache": "Cache",
+    "cacheWrite": "Cache write",
+    "ratio": "Ratio",
+    "billing": "Billing",
+    "inputPrice": "Input price",
+    "outputPrice": "Output price",
+    "cachePrice": "Cache price",
+    "perRequestPrice": "Per-request price",
+    "mode": "Mode",
+    "totalCost": "Total cost",
+    "path": "Path",
+    "downstream": "Downstream",
+    "upstream": "Upstream",
+    "failureLabel": "Failure",
+    "ratioModel": "Model ratio",
+    "ratioCompletion": "Completion ratio",
+    "ratioCache": "Cache ratio",
+    "ratioGroup": "Group ratio",
+    "formula": {
+      "perRequest": "Per request {{price}}",
+      "input": "Input {{tokens}} tokens / 1M tokens * {{price}}",
+      "cache": "Cache read {{tokens}} tokens / 1M tokens * {{price}}",
+      "cacheWrite": "Cache write {{tokens}} tokens / 1M tokens * {{price}}",
+      "cacheWrite5m": "Cache write(5m) {{tokens}} tokens / 1M tokens * {{price}}",
+      "cacheWrite1h": "Cache write(1h) {{tokens}} tokens / 1M tokens * {{price}}",
+      "output": "Output {{tokens}} tokens / 1M tokens * {{price}}",
+      "perRequestUnit": "{{price}}/req"
+    },
+    "longContext": "Long context billing",
+    "longContextApplied": "Long-context tier applied"
+  },
+  "modelMapping": {
+    "downstreamRequest": "Downstream request",
+    "actualUpstream": "Actual upstream",
+    "mappedModel": ", mapped model: {{model}}",
+    "title": "Downstream request: {{downstream}}, actual upstream: {{actual}}{{mapped}}",
+    "softFallback": "Fallback",
+    "mode": "Mapping mode",
+    "softFallbackDesc": "Soft-mapping fallback engaged (original model had no available upstream)"
+  },
+  "mobile": {
+    "filters": "Filters",
+    "done": "Done",
+    "statusCode": "Status {{code}}",
+    "tokens": "In {{input}} / Out {{output}}"
+  },
+  "page": {
+    "loadFailed": "Failed to load request logs",
+    "eyebrow": "Operations",
+    "title": "Requests",
+    "description": "Inspect gateway request logs, routing results and usage costs."
+  }
+}

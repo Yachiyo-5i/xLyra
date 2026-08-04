@@ -1,0 +1,77 @@
+{
+  "headers": {
+    "time": "时间",
+    "actor": "执行者",
+    "action": "操作",
+    "result": "结果",
+    "ip": "IP",
+    "requestId": "请求 ID"
+  },
+  "page": {
+    "eyebrow": "运维",
+    "title": "审计",
+    "description": "查看管理员活动、安全变更和访问令牌操作。"
+  },
+  "filters": {
+    "searchAction": "搜索操作",
+    "allActors": "全部执行者",
+    "allResults": "全部结果",
+    "success": "成功",
+    "failure": "失败",
+    "dateFrom": "起始日期",
+    "dateTo": "结束日期",
+    "clearFilters": "清空筛选"
+  },
+  "empty": {
+    "loading": "正在读取审计记录",
+    "noData": "暂无审计记录",
+    "description": "管理员操作记录会显示在这里。"
+  },
+  "mobile": {
+    "allRecords": "全部记录",
+    "done": "完成",
+    "filtered": "已筛选",
+    "filters": "筛选",
+    "refresh": "刷新",
+    "total": "共 {{count}} 条"
+  },
+  "actions": {
+    "auth.bootstrap": "创建首位管理员",
+    "auth.login": "登录",
+    "auth.logout": "退出登录",
+    "profile.update": "更新管理员资料",
+    "profile.password.update": "修改密码",
+    "profile.session.delete": "删除会话",
+    "profile.sessions.delete_others": "删除其他会话",
+    "profile.access_token.replace": "创建或更新访问令牌",
+    "profile.access_token.enabled": "切换访问令牌状态",
+    "profile.access_token.delete": "删除访问令牌",
+    "profile.totp.setup": "生成两步验证密钥",
+    "profile.totp.enable": "启用两步验证",
+    "profile.totp.disable": "关闭两步验证"
+  },
+  "mutation": {
+    "default": "修改后台配置",
+    "delete": "删除{{target}}",
+    "refresh": "刷新{{target}}",
+    "sync": "同步{{target}}",
+    "create": "创建{{target}}",
+    "toggleStatus": "切换{{target}}状态",
+    "updatePrice": "更新{{target}}价格",
+    "update": "更新{{target}}",
+    "modify": "修改{{target}}"
+  },
+  "targets": {
+    "default": "后台配置",
+    "sites": "站点",
+    "siteModels": "站点模型",
+    "sitePricings": "站点价格",
+    "modelPrices": "模型价格",
+    "apiKeys": "下游密钥",
+    "oauth": "OAuth 接入",
+    "routes": "路由配置",
+    "settings": "全局设置",
+    "profile": "管理员资料",
+    "newapi": "NewAPI 信息"
+  }
+}

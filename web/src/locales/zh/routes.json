@@ -1,0 +1,126 @@
+{
+  "card": {
+    "routable": "可路由",
+    "routableRank": "可路由 #{{rank}}",
+    "configured": "已配置",
+    "request": "请求",
+    "noRequest": "未请求",
+    "successRate": "成功率",
+    "cooldown": "冷却 {{count}}",
+    "latency": "延迟",
+    "siteCount": "站点",
+    "lastRoute": "最近 {{site}}"
+  },
+  "sort": {
+    "title": "排序",
+    "default": "默认排序",
+    "successDesc": "成功率倒序",
+    "successAsc": "成功率正序",
+    "candidatesDesc": "候选数倒序",
+    "candidatesAsc": "候选数正序"
+  },
+  "filters": {
+    "all": "全部"
+  },
+  "mobile": {
+    "filters": "筛选",
+    "clear": "清除",
+    "done": "完成"
+  },
+  "workspace": {
+    "loadFailed": "路径数据读取失败",
+    "eyebrow": "运维",
+    "title": "路由",
+    "description": "管理模型路由候选、上游可用性和最近路由记录。",
+    "search": "搜索模型",
+    "refresh": "刷新",
+    "brand": "品牌",
+    "site": "站点",
+    "noModels": "没有模型",
+    "noModelsDesc": "当前没有匹配搜索条件的模型。",
+    "toast": {
+      "modelToggleFailed": "模型开关更新失败",
+      "cooldownCleared": "冷却已清理",
+      "cooldownClearFailed": "冷却清理失败"
+    }
+  },
+  "details": {
+    "tabs": {
+      "routing": "路由概览",
+      "traces": "请求记录",
+      "cooldowns": "冷却管理"
+    },
+    "currentRoute": {
+      "title": "当前使用",
+      "noAvailableRoute": "当前无可用路径",
+      "fallbackHint": "下面继续展示已配置的站点模型",
+      "current": "当前使用",
+      "routable": "可路由 #{{rank}}"
+    },
+    "coverage": {
+      "title": "站点模型",
+      "loadFailed": "站点模型读取失败",
+      "noConfig": "暂无站点模型配置",
+      "group": "分组 {{name}}",
+      "switchLabel": "切换 {{site}} {{apiKey}} {{model}}"
+    },
+    "traces": {
+      "title": "最近请求",
+      "loadFailed": "最近请求读取失败",
+      "success": "成功",
+      "failure": "失败",
+      "failover": "切换 {{count}} 次",
+      "noTraces": "暂无请求"
+    },
+    "cooldowns": {
+      "title": "当前冷却",
+      "remaining": "剩余 {{duration}}",
+      "clear": "清理",
+      "noCooldowns": "暂无冷却"
+    }
+  },
+  "channels": {
+    "routable": "可路由",
+    "routableRank": "可路由 #{{rank}}",
+    "cooling": "冷却中",
+    "siteDisabled": "站点停用",
+    "modelDisabled": "模型停用",
+    "keyDisabled": "Key 停用",
+    "keyIncomplete": "Key 未补全",
+    "notCandidate": "未进入候选",
+    "updating": "正在更新",
+    "siteDisabledHint": "站点已停用，不能切换模型",
+    "keyDisabledHint": "Key 已停用，不能切换模型"
+  },
+  "format": {
+    "scopeSite": "站点",
+    "scopeModel": "模型",
+    "scopeCredential": "密钥",
+    "unknownSite": "未知站点",
+    "modelPrefix": "模型 {{name}}",
+    "specifiedModel": "指定模型",
+    "upstreamCredential": "上游凭证",
+    "entireSite": "整个站点",
+    "sourceHealthCheck": "健康检查",
+    "sourceForwardFailed": "转发失败",
+    "sourceManual": "手动冷却",
+    "sourceUnknown": "未知来源",
+    "reasonHealthUnhealthy": "站点健康检查结果异常",
+    "reasonHealthDefault": "站点健康检查触发冷却",
+    "reasonTimeout": "上游请求超时",
+    "reasonTransport": "上游连接失败",
+    "reason5xx": "上游服务异常",
+    "reason404": "上游模型不存在",
+    "reason429": "上游触发限流",
+    "reason401": "上游认证失效",
+    "reason403": "上游拒绝访问",
+    "reasonDefault": "触发冷却",
+    "healthNoRequest": "模型健康 未请求",
+    "healthRequests": "模型请求 {{count}}",
+    "healthSuccessRate": "成功率 {{rate}}",
+    "healthLatency": "延迟 {{latency}}",
+    "pricingPerRequest": "按次 {{price}}",
+    "pricingTokens": "输入 {{input}} / 输出 {{output}}",
+    "perRequestUnit": "{{price}}/次"
+  }
+}

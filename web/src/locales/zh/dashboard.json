@@ -1,0 +1,246 @@
+{
+  "page": {
+    "loadFailed": "Dashboard 加载失败",
+    "eyebrow": "概览",
+    "title": "仪表盘",
+    "description": "查看花费、流量、性能和路由状态。",
+    "retry": "重试",
+    "noData": "暂无数据",
+    "noDataDesc": "Dashboard 数据为空",
+    "refresh": "刷新",
+    "refreshCooldowns": "刷新冷却",
+    "update": "更新",
+    "clearAll": "清理全部",
+    "clear": "清理",
+    "clearSuccess": "已清理冷却",
+    "clearAllSuccess": "已清理全部冷却",
+    "clearFailed": "清理失败",
+    "clearMissingSite": "缺少站点信息，无法清理"
+  },
+  "kpis": {
+    "cost": "额度消耗",
+    "today": "今日",
+    "total": "累计",
+    "yesterdayCost": "昨日消耗",
+    "requestsTokens": "请求与 Tokens",
+    "todayRequests": "今日请求",
+    "todayTotalRequests": "今日请求 / 总请求",
+    "todayTokens": "今日 Tokens",
+    "todayTotalTokens": "今日 Tokens / 总 Tokens",
+    "yesterdayRequests": "昨日请求",
+    "yesterdayTokens": "昨日 Tokens",
+    "successRate": "成功率",
+    "performance": "性能指标",
+    "completedRpm": "近1分钟完成"
+  },
+  "tokens": {
+    "total": "总 Tokens",
+    "input": "输入 Tokens",
+    "output": "输出 Tokens",
+    "cached": "缓存命中 Tokens",
+    "hitRate": "缓存命中率"
+  },
+  "charts": {
+    "modelCost": "模型消耗额度",
+    "modelRequests": "模型调用次数",
+    "siteCost": "站点消耗额度",
+    "siteRequests": "站点调用次数",
+    "model": "模型",
+    "site": "站点",
+    "trend": "{{days}} 天趋势",
+    "summary": "{{days}} 天汇总",
+    "cost": "消耗",
+    "times": "次"
+  },
+  "contributions": {
+    "title": "Tokens 活跃度",
+    "description": "按下游密钥查看每日消耗",
+    "apiKeyFilter": "下游密钥",
+    "currentStreakLabel": "连续开发",
+    "longestStreakLabel": "最长连续",
+    "monthTokensLabel": "本月 Tokens",
+    "daysValue": "{{count}} 天",
+    "tooltipCost": "消耗额度 {{value}}",
+    "tooltipTokens": "消耗 Tokens {{value}}",
+    "dayLabel": "{{date}}，消耗 {{cost}}，Tokens {{tokens}}",
+    "legendLess": "Less",
+    "legendMore": "More",
+    "empty": "暂无下游密钥 Tokens 数据",
+    "weekdays": {
+      "mon": "一",
+      "wed": "三",
+      "fri": "五"
+    }
+  },
+  "ranges": {
+    "7d": "7 天",
+    "30d": "30 天",
+    "90d": "90 天"
+  },
+  "resources": {
+    "title": "系统资源",
+    "connecting": "连接中",
+    "waitingReconnect": "等待重连",
+    "realtime": "实时",
+    "tabs": {
+      "overview": "总览",
+      "cpu": "CPU",
+      "memory": "内存",
+      "disk": "磁盘",
+      "network": "网络"
+    },
+    "metrics": {
+      "usage": "使用率",
+      "used": "已用",
+      "available": "可用",
+      "cores": "核心",
+      "capacity": "容量",
+      "mountPoint": "挂载点",
+      "readWrite": "读写",
+      "read": "读取",
+      "write": "写入",
+      "download": "下载",
+      "upload": "上传",
+      "total": "累计",
+      "current": "当前",
+      "peak": "峰值",
+      "updatedAt": "更新时间"
+    },
+    "status": {
+      "connecting": "{{label}} 数据连接中",
+      "waiting": "等待实时资源数据"
+    },
+    "description": {
+      "available": "可用 {{value}}",
+      "readWrite": "读 {{read}} · 写 {{write}}",
+      "totalReadWrite": "累计 读 {{read}} / 写 {{write}}"
+    }
+  },
+  "risks": {
+    "title": "需要关注",
+    "description": "路由、价格、健康和请求异常",
+    "empty": "当前没有需要关注的事项",
+    "severity": {
+      "neutral": "关注",
+      "warning": "预警",
+      "error": "异常"
+    },
+    "insufficient": "无可用候选",
+    "lowCandidates": "候选不足",
+    "routeCandidateDetail": "{{key}} 可路由候选偏少",
+    "highLatency": "高延迟"
+  },
+  "cooldowns": {
+    "title": "冷却中的路由",
+    "description": "站点与模型路由状态",
+    "empty": "当前没有冷却中的路由",
+    "scope": {
+      "model": "模型",
+      "credential": "Key",
+      "site": "站点"
+    }
+  },
+  "uptime": {
+    "title": "站点可用性",
+    "recent24h": "最近 24 小时",
+    "legend": {
+      "healthy": "可用",
+      "degraded": "波动",
+      "down": "异常",
+      "idle": "无数据"
+    },
+    "empty": "暂无 {{type}} 站点"
+  },
+  "failureReasons": {
+    "no_route_candidates": "没有可用上游候选",
+    "model_not_allowed": "下游密钥未允许请求的模型",
+    "downstream_client_cancelled": "客户端在上游返回前中断了连接",
+    "upstream_http_error": "上游 HTTP 错误",
+    "upstream_timeout": "上游请求超时",
+    "rate_limit_exceeded": "触发速率限制",
+    "unknown": "未知失败原因"
+  },
+  "failureTitles": {
+    "no_route_candidates": "无可用路由",
+    "model_not_allowed": "模型未授权",
+    "downstream_client_cancelled": "客户端中断",
+    "upstream_http_error": "上游错误",
+    "upstream_timeout": "上游超时",
+    "rate_limit_exceeded": "触发限速",
+    "default": "失败请求"
+  },
+  "cooldownReasons": {
+    "site_unhealthy": "站点健康检查异常",
+    "usage_limit_reached": "账号额度达到限制",
+    "upstream_http_error": "上游请求异常",
+    "upstream_timeout": "上游请求超时"
+  },
+  "cooldownSources": {
+    "site_health": "健康检查",
+    "gateway": "网关请求",
+    "manual": "手动设置"
+  },
+  "attentionTypes": {
+    "no_route_candidates": "没有可用上游候选",
+    "low_route_candidates": "可用上游候选偏少",
+    "active_cooldown": "当前存在冷却中的路由",
+    "site_unhealthy": "站点健康检查失败",
+    "missing_model_pricing": "模型价格缺失",
+    "high_failure_rate": "站点请求失败率偏高",
+    "rate_limit_exceeded": "请求触发限流",
+    "high_latency": "请求延迟偏高"
+  },
+  "attention": {
+    "title": {
+      "no_route_candidates": "{{model}} 当前没有可用上游",
+      "low_route_candidates": "{{model}} 可用候选过少",
+      "active_cooldown_site": "{{site}} 当前处于冷却中",
+      "active_cooldown_model": "{{model}} 在 {{site}} 上处于冷却中",
+      "active_cooldown_credential": "{{site}} 上游凭证处于冷却中",
+      "site_unhealthy": "{{site}} 健康检查失败",
+      "missing_model_pricing": "{{count}} 个站点模型缺少价格",
+      "high_failure_rate": "{{site}} 最近 7 天失败率偏高",
+      "rate_limit_exceeded": "最近 7 天有请求被限流",
+      "high_latency_site_model": "{{site}} / {{model}} 请求延迟偏高",
+      "high_latency_model": "{{model}} 请求延迟偏高"
+    },
+    "detail": {
+      "no_route_candidates_active": "最近 24 小时下游请求过该模型，但当前没有可用上游，继续请求会直接失败。",
+      "no_route_candidates_idle": "该模型已经配置到站点但当前没有可用上游，请检查站点模型启用状态、价格配置、站点健康或当前冷却。",
+      "low_route_candidates": "当前 {{eligible}} / {{total}} 个上游可用，模型还能请求但容灾较弱。",
+      "active_cooldown": "该对象暂时不会被路由选中，等待冷却结束或检查近期失败原因。",
+      "active_cooldown_credential": "该上游凭证暂时不会被路由选中，请检查 ApiKey 状态、额度或上游失败响应。",
+      "site_unhealthy": "站点当前不可用，会影响该站点下所有模型路由，请检查站点地址、网络、鉴权或上游拦截。",
+      "missing_model_pricing": "缺少价格会导致成本统计和后续路由策略不准确，请为非 NewAPI 来源补齐模型价格。",
+      "high_failure_rate": "该站点近期请求成功率为 {{rate}}，建议查看失败请求并确认是否需要禁用、降权或调整路由。",
+      "rate_limit_exceeded": "下游调用方收到了 429，请检查全局或下游密钥的 RPM/TPM 配置是否过紧。",
+      "high_latency": "P95 延迟为 {{latency}}，请检查上游响应速度或考虑降低路由优先级。"
+    },
+    "actions": {
+      "no_route_candidates": "查看路由",
+      "low_route_candidates": "查看路由",
+      "active_cooldown": "查看影响范围",
+      "site_unhealthy": "查看站点",
+      "missing_model_pricing": "补齐价格",
+      "high_failure_rate": "查看失败请求",
+      "rate_limit_exceeded": "查看限流请求",
+      "high_latency": "查看慢请求",
+      "open_routes": "查看路由",
+      "open_sites": "查看站点",
+      "open_site_api_keys": "查看 API Keys",
+      "open_model_prices": "补齐价格",
+      "open_requests": "查看请求"
+    }
+  },
+  "severityLabels": {
+    "critical": "严重",
+    "warning": "预警",
+    "info": "提醒",
+    "default": "关注"
+  },
+  "latency": {
+    "detail": "{{site}} / {{model}} P95 延迟偏高"
+  },
+  "unknownSite": "未知站点",
+  "failureCount": "{{count}} 次"
+}

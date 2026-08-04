@@ -1,0 +1,380 @@
+{
+  "page": {
+    "loadFailed": "Failed to load site list",
+    "eyebrow": "Resources",
+    "title": "Sites",
+    "description": "Manage API sites, credentials, and model sync. Configure routing weights and priorities.",
+    "retry": "Retry",
+    "unknownError": "Unknown error",
+    "search": "Search site name or address",
+    "all": "All",
+    "refreshAll": "Refresh All",
+    "addSite": "Add Site",
+    "emptyFiltered": "No sites match the filter",
+    "emptyFilteredDesc": "Try adjusting your search or filter criteria.",
+    "emptyTitle": "No sites yet",
+    "emptyDesc": "Add your first site to get started.",
+    "abnormalSites": "Abnormal Sites",
+    "deleteDialog": {
+      "title": "Delete Site",
+      "confirm": "Delete site \"{{name}}\"? Synced models, API keys, and status data will also be deleted. This action cannot be undone.",
+      "confirmDefault": "Delete this site? This action cannot be undone.",
+      "cancel": "Cancel",
+      "delete": "Confirm Delete"
+    },
+    "toast": {
+      "createFailed": "Creation failed",
+      "saveFailed": "Save failed",
+      "deleteFailed": "Delete failed",
+      "refreshFailed": "Refresh failed",
+      "refreshIncomplete": "Refresh incomplete",
+      "refreshPartialFailed": "Some sites failed to refresh",
+      "refreshPartialDesc": "{{count}} site(s) failed to refresh",
+      "refreshPartialDescFallback": "Some sites failed to refresh",
+      "statusFailed": "Failed to update site status"
+    }
+  },
+  "table": {
+    "headers": {
+      "site": "Site",
+      "health": "Health",
+      "resources": "Resources",
+      "balance": "Balance",
+      "usage": "Usage",
+      "models": "Models",
+      "apiKeys": "API Keys",
+      "accounts": "Accounts",
+      "priority": "Weight",
+      "routing": "Routing",
+      "updatedAt": "Updated"
+    },
+    "health": {
+      "unchecked": "Unchecked",
+      "healthy": "Healthy",
+      "abnormal": "Abnormal"
+    },
+    "quotaDetails": {
+      "keyAvailable": "Key available quota",
+      "totalLimit": "Total limit",
+      "keyUsed": "Key used amount",
+      "tokenBalance": "Token balance",
+      "tokenUsed": "Token used amount",
+      "accountBalance": "Account balance",
+      "used": "Used amount",
+      "remaining": "Remaining",
+      "unlimited": "Unlimited quota",
+      "fiveHourQuota": "5-hour quota",
+      "weeklyQuota": "Weekly quota"
+    },
+    "ariaLabels": {
+      "refresh": "Refresh {{name}}",
+      "test": "Test {{name}}",
+      "edit": "Edit {{name}}",
+      "delete": "Delete {{name}}",
+      "toggle": "Toggle {{name}}"
+    },
+    "resources": {
+      "models": "{{count}} Models",
+      "keys": "{{enabled}}/{{total}} Keys",
+      "accounts": "{{count}} Accounts"
+    },
+    "updatedAtMode": {
+      "showAbsolute": "Switch to absolute time",
+      "showRelative": "Switch to relative time"
+    }
+  },
+  "form": {
+    "createTitle": "Add Site",
+    "editTitle": "Edit Site",
+    "sections": {
+      "basic": "Basic Info",
+      "connection": "Connection",
+      "auth": "Authentication",
+      "grokAccounts": "Account Import",
+      "groups": "Groups",
+      "routing": "Routing",
+      "advanced": "Advanced"
+    },
+    "fields": {
+      "name": "Site Name",
+      "namePlaceholder": "Give this site a recognizable name",
+      "siteType": "Site Type",
+      "baseUrl": "Base URL",
+      "baseUrlPlaceholder": "https://api.example.com",
+      "baseUrlBuiltinHint": "Leave blank to use the built-in official address: {{url}}",
+      "baseUrlBuiltinDomesticHint": "Leave blank to use the built-in China region official address: {{url}}. For an international or other region, enter its Base URL; protocol paths are handled automatically.",
+      "baseUrlOptionalHint": "Leave blank to use the built-in official address.",
+      "apiKey": "Upstream API Key",
+      "apiKeyPlaceholder": "sk-your-api-key",
+      "apiKeyEditHint": "Leave blank to keep the existing API key.",
+      "xlyraAuthMode": "Authentication mode",
+      "xlyraAccessTokenMode": "Access token",
+      "xlyraApiKeyMode": "Single API key",
+      "xlyraAccessToken": "xLyra access token",
+      "xlyraAccessTokenPlaceholder": "xlyra-admin-...",
+      "xlyraAccessTokenHint": "Sync upstream keys and models through the xLyra admin API.",
+      "xlyraApiKey": "xLyra downstream API key",
+      "xlyraApiKeyHint": "Fetch models available to this key through /v1/models.",
+      "routingPriority": "Routing Weight",
+      "routingPriorityHint": "Default 1.0, range 1.0 - 5.0. Higher weight means higher routing priority.",
+      "systemToken": "System Auth Token",
+      "systemTokenPlaceholder": "NewAPI system-level access token",
+      "systemTokenHint": "System-level auth token for managing sites and models.",
+      "userId": "User ID",
+      "userIdPlaceholder": "Enter user ID",
+      "enableRouting": "Enable Routing",
+      "enableRoutingDesc": "When disabled, this site will not participate in routing.",
+      "siteGroups": "Site groups",
+      "siteGroupsHint": "Downstream keys granted to these groups can use this site.",
+      "siteGroupsPlaceholder": "Select groups",
+      "siteGroupsSearch": "Search groups",
+      "noSiteGroups": "No groups",
+      "groupSiteCount": "{{count}} site(s)",
+      "proxy": "Proxy",
+      "proxyDesc": "Choose the proxy for this site's upstream requests. Direct uses no proxy.",
+      "proxyDirect": "Direct",
+      "responsesToolPolicy": "Responses Tool Compatibility",
+      "responsesToolPolicyDesc": "Controls fallbacks when an upstream is incompatible with Responses hosted tools.",
+      "responsesToolPolicyPassthrough": "Pass through all tools",
+      "responsesToolPolicyCompatibility": "Compatibility mode",
+      "disabledResponsesTools": "Disabled Responses hosted tools",
+      "disabledResponsesToolsDesc": "Choose the Responses hosted tools this upstream does not support.",
+      "disableImageGenerationTool": "Disable image_generation",
+      "disableImageGenerationToolDesc": "Normal chats strip this tool declaration; explicit image requests will not use this site.",
+      "clientImpersonation": "Client impersonation",
+      "clientImpersonationDesc": "Make upstreams identify requests as the selected client.",
+      "impersonateCodexClient": "Impersonate Codex client",
+      "impersonateCodexClientDesc": "Make upstreams identify requests as a Codex client.",
+      "impersonateClaudeCodeClient": "Impersonate Claude Code client",
+      "impersonateClaudeCodeClientDesc": "Make upstreams identify requests as a Claude Code client.",
+      "requestHeaders": "Request Headers",
+      "requestHeadersDesc": "Attach custom headers to upstream requests for this site.",
+      "headerKeyPlaceholder": "Header name",
+      "headerValuePlaceholder": "Header value",
+      "quotaProbe": "Upstream software (balance probe)",
+      "quotaProbeDesc": "Select the software actually running behind this site; the gateway periodically probes each credential's available balance via its API. Applies to API-key credential sites only.",
+      "quotaProbeNone": "Disabled"
+    },
+    "categories": {
+      "official": "Official",
+      "relay": "Relay Access",
+      "other": "Other"
+    },
+    "providerSubtitles": {
+      "opencode_go": "Connect an OpenCode Go plan API key",
+      "openai": "Connect with an OpenAI platform API key",
+      "anthropic": "Connect with an Anthropic Messages API key",
+      "google_gemini": "Connect with a Google AI Studio API key",
+      "deepseek": "Connect with a DeepSeek platform API key",
+      "minimax": "Connect with a MiniMax platform API key",
+      "xiaomi_mimo": "Connect with a Xiaomi MiMo API key",
+      "moonshot": "Connect with a Moonshot platform API key",
+      "kimi_code": "Connect with a Kimi coding model API key",
+      "zhipu": "Connect with a Zhipu GLM general API key",
+      "glm_code": "Connect with a GLM Coding Plan API key",
+      "newapi": "Use a system token for a self-hosted or third-party panel",
+      "xlyra": "Connect an xLyra gateway with an access token or one downstream API key",
+      "grok": "Connect Grok via xAI account device authorization (multi-account)"
+    },
+    "validation": {
+      "nameRequired": "Please enter a site name",
+      "typeRequired": "Please select a site type",
+      "urlRequired": "Please enter a base URL",
+      "urlInvalid": "Please enter a valid URL",
+      "apiKeyRequired": "Please enter an upstream API key",
+      "priorityRequired": "Please enter a routing weight",
+      "priorityFormat": "Routing weight supports at most 1 decimal place",
+      "priorityRange": "Routing weight must be between 1.0 and 5.0",
+      "tokenRequired": "Please enter a system auth token",
+      "userIdRequired": "Please enter a user ID",
+      "userIdNumeric": "User ID must be numeric",
+      "headerNameRequired": "Please enter a header name",
+      "responsesToolRequired": "Select at least one disabled tool in compatibility mode",
+      "urlContainsV1": "No need to include /v1 — it will be added automatically"
+    },
+    "actions": {
+      "save": "Save Changes",
+      "create": "Create",
+      "cancel": "Cancel",
+      "advanced": "Advanced Settings",
+      "addHeader": "Add Header",
+      "removeHeader": "Remove Header"
+    },
+    "grokDeviceHint": "Grok accounts are added after the site is created — open the site's account panel and sign in with the xAI device flow."
+  },
+  "apiKeys": {
+    "title": "API Key",
+    "modelsTitle": "Available Models",
+    "defaultKey": "Apikey 1",
+    "add": "Add Apikey",
+    "addTitle": "Add Apikey",
+    "back": "Back to site settings",
+    "backToKeys": "Back to API keys",
+    "name": "Key name",
+    "upstreamName": "Upstream name",
+    "routingPriority": "Routing priority",
+    "costMultiplier": "Group ratio",
+    "editConfig": "Edit key settings",
+    "editConfigLabel": "Edit settings for {{name}}",
+    "noKey": "No Key",
+    "complete": "Complete",
+    "delete": "Delete Apikey",
+    "deleteLabel": "Delete {{name}}",
+    "save": "Save",
+    "cancel": "Cancel",
+    "copyTooltip": "Click to copy plaintext API key",
+    "noCopyTooltip": "No plaintext API key available",
+    "copied": "API key copied",
+    "toggleLabel": "Toggle {{name}}",
+    "loading": "Loading",
+    "noModels": "No models",
+    "toast": {
+      "createFailed": "API key create failed",
+      "created": "API key created",
+      "deleteFailed": "API key delete failed",
+      "deleted": "API key deleted",
+      "updateFailed": "API key update failed",
+      "updated": "Updated",
+      "modelToggleFailed": "Model toggle failed"
+    },
+    "deleteDialog": {
+      "title": "Delete Apikey",
+      "confirm": "Delete \"{{name}}\"? Its available models and status will also be deleted.",
+      "confirmDefault": "Delete this Apikey?",
+      "delete": "Confirm Delete"
+    },
+    "quotaProbeFailed": "Balance probe failed",
+    "openCodeGoPlan": "Go $12 / 5 hours · $30 / week · $60 / month · no official real-time quota API",
+    "openCodeGoLimited": "{{window}} limit reached; resets {{reset}}",
+    "openCodeGoUnavailable": "OpenCode does not provide real-time API key quota queries",
+    "sync": {
+      "synced": "Synced",
+      "failed": "Failed",
+      "partial": "Partial",
+      "stale": "Removed upstream",
+      "unknown": "Not synced"
+    }
+  },
+  "grokAccounts": {
+    "title": "Grok Accounts",
+    "add": "Add account",
+    "loading": "Loading accounts",
+    "empty": "No Grok accounts",
+    "unnamed": "Grok account",
+    "models": "Models",
+    "refresh": "Refresh account",
+    "refreshAll": "Refresh all",
+    "reauthorize": "Reauthorize account",
+    "delete": "Delete account",
+    "toggleLabel": "Toggle {{name}}",
+    "cancel": "Cancel",
+    "toast": {
+      "created": "Account created",
+      "updateFailed": "Failed to update account",
+      "updated": "Account updated",
+      "deleteFailed": "Failed to delete account",
+      "deleted": "Account deleted",
+      "refreshed": "Account refreshed",
+      "refreshFailed": "Failed to refresh account",
+      "refreshedAll": "All accounts refreshed",
+      "refreshAllPartial": "Some accounts failed to refresh",
+      "refreshAllPartialDesc": "{{count}} account(s) failed to refresh",
+      "refreshAllFailed": "Failed to refresh accounts"
+    },
+    "deleteDialog": {
+      "title": "Delete Grok account",
+      "confirm": "Delete {{name}}? Its status, quota, and model associations will also be removed.",
+      "delete": "Delete"
+    },
+    "device": {
+      "title": "Add Grok account",
+      "reauthTitle": "Reauthorize Grok account",
+      "starting": "Requesting device code…",
+      "instructions": "Enter this code on the xAI authorization page, then approve access:",
+      "authorize": "Open authorization page",
+      "waiting": "Waiting for approval…"
+    },
+    "sync": {
+      "synced": "Synced",
+      "failed": "Failed",
+      "reauthRequired": "Reauthorization required",
+      "stale": "Using last synced models",
+      "partial": "Partial",
+      "unknown": "Not synced"
+    }
+  },
+  "test": {
+    "title": "{{name}} Model Test",
+    "headers": {
+      "model": "Model",
+      "status": "Status",
+      "latency": "Latency",
+      "action": "Action"
+    },
+    "status": {
+      "success": "Success",
+      "failed": "Failed",
+      "untested": "Untested"
+    },
+    "protocol": {
+      "auto": "Auto",
+      "chatCompletions": "/chat/completions",
+      "responses": "/responses",
+      "messages": "/messages"
+    },
+    "stream": {
+      "stream": "Streaming",
+      "nonStream": "Non-streaming"
+    },
+    "credential": {
+      "auto": "Auto-select key"
+    },
+    "test": "Test",
+    "toast": {
+      "testFailed": "Test failed"
+    },
+    "empty": "No testable models"
+  },
+  "models": {
+    "title": "Models",
+    "add": {
+      "action": "Add model",
+      "upstreamName": "Upstream model",
+      "upstreamPlaceholder": "Enter upstream model name",
+      "canonicalModel": "Canonical model",
+      "canonicalPlaceholder": "Select canonical model",
+      "endpointTypes": "Endpoint types",
+      "endpointPlaceholder": "Select endpoint types",
+      "apiKeys": "Add to enabled API keys",
+      "apiKeysPlaceholder": "Select API keys",
+      "searchPlaceholder": "Search...",
+      "emptyOptions": "No options",
+      "enabled": "Enable model",
+      "cancel": "Cancel",
+      "submit": "Create"
+    },
+    "manageManual": {
+      "action": "Manage manual",
+      "done": "Done"
+    },
+    "delete": {
+      "action": "Delete model",
+      "ariaLabel": "Delete {{name}}",
+      "title": "Delete manual model",
+      "description": "After deletion, {{name}} will be removed from this site and gateway available models.",
+      "descriptionDefault": "After deletion, this model will be removed from this site and gateway available models.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    },
+    "toast": {
+      "updateFailed": "Model update failed",
+      "createFailed": "Model creation failed",
+      "createSuccess": "Model created",
+      "deleteFailed": "Model deletion failed",
+      "deleteSuccess": "Model deleted"
+    }
+  },
+  "utils": {
+    "justNow": "just now"
+  }
+}
