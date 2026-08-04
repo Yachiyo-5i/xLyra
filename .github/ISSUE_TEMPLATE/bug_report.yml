@@ -1,0 +1,91 @@
+name: Bug 报告
+description: 报告 xLyra 中的错误或异常行为。
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 issue，避免重复提交。
+
+  - type: input
+    id: version
+    attributes:
+      label: xLyra 版本
+      description: 在控制台左下角可查看，或通过 `GET /api/v1/system/version` 获取。
+      placeholder: "例如：1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 部署方式
+      options:
+        - Docker Compose（官方镜像）
+        - Docker Compose（自行构建镜像）
+        - 本地开发（go run）
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: site_type
+    attributes:
+      label: 涉及的站点类型（如适用）
+      description: 如果 Bug 与特定上游站点类型相关，请选择。
+      options:
+        - 不涉及特定站点
+        - OpenAI Compatible / API Key
+        - Anthropic
+        - Grok
+        - OpenCode Go
+        - DeepSeek / Minimax / Moonshot / Kimi Code / MiMo / Gemini
+        - GLM
+        - xLyra（级联中转）
+        - NewAPI
+        - Codex
+        - Antigravity
+        - Claude Code
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？期望的行为是什么？
+      placeholder: |
+        **实际行为：**
+
+        **期望行为：**
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志或报错信息
+      description: 粘贴后端日志、浏览器控制台报错或 API 响应体。请提前脱敏敏感信息。
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充信息
+      description: 其他有助于排查的信息，如配置片段、网络环境、代理设置等。
+    validations:
+      required: false

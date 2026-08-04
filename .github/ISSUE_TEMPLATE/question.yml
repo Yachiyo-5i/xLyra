@@ -1,0 +1,71 @@
+name: 提问 / 使用咨询
+description: 关于配置、使用方式或功能行为的问题。
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        一般性讨论建议前往 [GitHub Discussions](../../discussions)，issue 用于明确的问题或异常。
+
+  - type: input
+    id: version
+    attributes:
+      label: xLyra 版本
+      description: 在控制台左下角可查看，或通过 `GET /api/v1/system/version` 获取。
+      placeholder: "例如：1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 部署方式
+      options:
+        - Docker Compose（官方镜像）
+        - Docker Compose（自行构建镜像）
+        - 本地开发（go run）
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 问题类别
+      options:
+        - 站点配置
+        - OAuth 接入
+        - 路由与失败转移
+        - 协议转换
+        - 下游 API Key 与额度
+        - 计费与成本
+        - 备份与恢复
+        - 部署与环境
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 问题描述
+      description: 描述你想实现的目标，以及遇到的疑问或不符合预期的地方。
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的方法
+      description: 已经试过的配置或操作步骤。
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充信息
+      description: 相关配置片段、截图或环境说明等。
+    validations:
+      required: false
