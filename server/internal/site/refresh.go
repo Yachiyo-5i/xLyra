@@ -2130,7 +2130,7 @@ func (s *Service) syncCanonicalPricingFallback(ctx context.Context, siteID uuid.
 		existing, _ := pricingRepo.ListBySiteModelID(ctx, model.ID)
 		hasUpstream := false
 		for _, p := range existing {
-			if p.Available {
+			if p.Available && p.PricingSource != "canonical_fallback" {
 				hasUpstream = true
 				break
 			}
