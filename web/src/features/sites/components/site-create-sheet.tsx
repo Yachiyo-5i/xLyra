@@ -552,9 +552,9 @@ export function SiteCreateSheet({
   const showXLyraFields = currentCredType === 'xlyra'
   const xlyraAuthMode = useWatch({ control, name: 'xlyraAuthMode' })
   const isGrok = siteType === 'grok'
-  const canConfigureQuotaProbe = siteType === 'openai'
+  const canConfigureQuotaProbe = siteType === 'openai' || siteType === 'anthropic'
   const showAPIKeyField = !isGrok && currentCredType !== 'system_token' && currentCredType !== 'oauth' && currentCredType !== 'xlyra' && !!siteType && mode === 'create'
-  const supportsAPIKeyCostMultiplier = siteType.trim().toLowerCase() === 'openai'
+  const supportsAPIKeyCostMultiplier = siteType === 'openai' || siteType === 'anthropic'
   const groupOptions = useMemo(() => siteGroups.filter((group) => group.enabled).map((group) => ({
     value: group.id,
     label: group.name,
@@ -727,7 +727,7 @@ export function SiteCreateSheet({
                 : [],
             impersonateCodexClient: values.impersonateCodexClient,
             impersonateClaudeCodeClient: values.impersonateClaudeCodeClient,
-            quotaProbe: values.siteType === 'openai' ? values.quotaProbe : 'none',
+            quotaProbe: (values.siteType === 'openai' || values.siteType === 'anthropic') ? values.quotaProbe : 'none',
           },
       siteGroupIds: values.siteGroupIds,
       skipRefresh: mode === 'edit' && shouldSkipRefreshOnUpdate(values, initialSite, siteTypes),

@@ -42,7 +42,7 @@ func (s *Service) AllSiteCredentialModelPricings(ctx context.Context) ([]Credent
 func (s *Service) credentialModelPricings(ctx context.Context, sites []store.Site, siteID uuid.UUID) ([]CredentialModelPricing, error) {
 	apiKeySites := make(map[uuid.UUID]struct{}, len(sites))
 	for _, item := range sites {
-		if normalizeSiteType(item.SiteType) == "openai" {
+		if SupportsAPIKeyCostMultiplier(item.SiteType) {
 			apiKeySites[item.ID] = struct{}{}
 		}
 	}
@@ -88,7 +88,7 @@ func (s *Service) credentialModelPricings(ctx context.Context, sites []store.Sit
 func buildCredentialModelPricings(sites []store.Site, credentials []store.SiteCredential, states []store.SiteAPIKeyState, models []store.SiteAPIKeyModel) []CredentialModelPricing {
 	apiKeySites := make(map[uuid.UUID]struct{}, len(sites))
 	for _, item := range sites {
-		if normalizeSiteType(item.SiteType) == "openai" {
+		if SupportsAPIKeyCostMultiplier(item.SiteType) {
 			apiKeySites[item.ID] = struct{}{}
 		}
 	}

@@ -2205,7 +2205,8 @@ func SupportsMultipleAPIKeys(siteType string) bool {
 }
 
 func SupportsAPIKeyCostMultiplier(siteType string) bool {
-	return strings.EqualFold(normalizeSiteType(siteType), "openai")
+	normalized := normalizeSiteType(siteType)
+	return strings.EqualFold(normalized, "openai") || strings.EqualFold(normalized, "anthropic")
 }
 
 func normalizeCredentialType(credentialType string) string {

@@ -68,7 +68,6 @@ export function SiteAPIKeyFormFields({
           <span className="block text-sm font-medium">ApiKey</span>
           <Input
             value={draft.apiKey}
-            type="password"
             autoComplete="off"
             onChange={(event) =>
               onChange({ ...draft, apiKey: event.target.value })
