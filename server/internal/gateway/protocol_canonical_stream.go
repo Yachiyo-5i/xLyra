@@ -314,7 +314,7 @@ func (d *openAIChatStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEven
 			}
 			continue
 		}
-		if delta := anyString(choice.Delta.Content); delta != "" {
+		if delta, _ := choice.Delta.Content.(string); delta != "" {
 			events = append(events, canonicalStreamEvent{
 				Type:  canonicalStreamEventTextDelta,
 				ID:    chunk.ID,
@@ -331,7 +331,7 @@ func (d *openAIChatStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEven
 				ReasoningKind: "thinking",
 			})
 		}
-		if signature := strings.TrimSpace(choice.Delta.ThinkingSignature); signature != "" {
+		if signature := choice.Delta.ThinkingSignature; signature != "" {
 			events = append(events, canonicalStreamEvent{
 				Type:          canonicalStreamEventReasoningDelta,
 				ID:            chunk.ID,
@@ -788,32 +788,36 @@ func (d *anthropicMessagesStreamDecoder) DecodeLine(line []byte) ([]canonicalStr
 	case "content_block_delta":
 		switch strings.TrimSpace(anyString(event.Delta["type"])) {
 		case "text_delta":
-			return []canonicalStreamEvent{{Type: canonicalStreamEventTextDelta, Delta: anyString(event.Delta["text"])}}, nil
+			delta, _ := event.Delta["text"].(string)
+			return []canonicalStreamEvent{{Type: canonicalStreamEventTextDelta, Delta: delta}}, nil
 		case "thinking_delta":
 			d.thinkingByIndex[event.Index] = true
+			thinking, _ := event.Delta["thinking"].(string)
 			return []canonicalStreamEvent{{
 				Type:               canonicalStreamEventReasoningDelta,
-				Delta:              anyString(event.Delta["thinking"]),
+				Delta:              thinking,
 				ReasoningKind:      "thinking",
 				ReasoningEventName: event.Type,
 				ReasoningIndex:     event.Index,
 			}}, nil
 		case "signature_delta":
 			d.thinkingByIndex[event.Index] = true
+			signature, _ := event.Delta["signature"].(string)
 			return []canonicalStreamEvent{{
 				Type:               canonicalStreamEventReasoningDelta,
-				Delta:              anyString(event.Delta["signature"]),
+				Delta:              signature,
 				ReasoningKind:      "thinking_signature",
 				ReasoningEventName: event.Type,
 				ReasoningIndex:     event.Index,
 			}}, nil
 		case "input_json_delta":
+			partialJSON, _ := event.Delta["partial_json"].(string)
 			return []canonicalStreamEvent{{
 				Type:                   canonicalStreamEventToolCallDelta,
 				ToolCallIndex:          event.Index,
 				ToolCallID:             d.toolIDByIndex[event.Index],
 				ToolCallName:           d.toolNameByIndex[event.Index],
-				ToolCallArgumentsDelta: anyString(event.Delta["partial_json"]),
+				ToolCallArgumentsDelta: partialJSON,
 			}}, nil
 		}
 	case "message_delta":
