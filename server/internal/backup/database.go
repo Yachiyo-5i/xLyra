@@ -237,6 +237,11 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 				if err := importTable(ctx, tx, table, rows); err != nil {
 					return err
 				}
+				if table.Name == "api_keys" {
+					if err := restoreAPIKeyPeriodicQuotaFlags(ctx, tx, rows); err != nil {
+						return err
+					}
+				}
 				total += len(rows)
 			}
 		}
@@ -404,6 +409,48 @@ func importTable(ctx context.Context, db *gorm.DB, table backupTable, rows []map
 		return fmt.Errorf("insert %s: %w", table.Name, err)
 	}
 	return nil
+}
+
+func restoreAPIKeyPeriodicQuotaFlags(ctx context.Context, db *gorm.DB, rows []map[string]any) error {
+	for _, column := range []string{"quota_daily_unlimited", "quota_weekly_unlimited"} {
+		ids, err := apiKeyIDsWithExplicitFalse(rows, column)
+		if err != nil {
+			return err
+		}
+		for start := 0; start < len(ids); start += importBatchSize {
+			end := min(start+importBatchSize, len(ids))
+			values := make([]any, end-start)
+			for i, id := range ids[start:end] {
+				values[i] = id
+			}
+			result := db.WithContext(ctx).Model(&store.APIKey{}).Clauses(clause.Where{Exprs: []clause.Expression{
+				clause.IN{Column: clause.Column{Name: "id"}, Values: values},
+			}}).Updates(map[string]any{column: false})
+			if result.Error != nil {
+				return fmt.Errorf("restore api_keys.%s: %w", column, result.Error)
+			}
+			if result.RowsAffected != int64(len(values)) {
+				return fmt.Errorf("restore api_keys.%s: updated %d rows, want %d", column, result.RowsAffected, len(values))
+			}
+		}
+	}
+	return nil
+}
+
+func apiKeyIDsWithExplicitFalse(rows []map[string]any, column string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0)
+	for _, row := range rows {
+		value, ok := row[column].(bool)
+		if !ok || value {
+			continue
+		}
+		id, err := uuid.Parse(stringValue(row["id"]))
+		if err != nil {
+			return nil, fmt.Errorf("restore api_keys.%s: invalid api key id: %w", column, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func applyRowToModel(ctx context.Context, parsed *schema.Schema, item reflect.Value, row map[string]any) error {
