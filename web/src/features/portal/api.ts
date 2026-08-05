@@ -19,6 +19,14 @@ export type PortalSettings = {
   dimensions: PortalDimensions
 }
 
+export type PortalPeriodicQuota = {
+  limit: number | null
+  used: number
+  remaining: number | null
+  unlimited: boolean
+  reset_at: string | null
+}
+
 export type PortalOverview = {
   key: {
     name: string
@@ -34,6 +42,8 @@ export type PortalOverview = {
     used: number
     remaining: number | null
     unlimited: boolean
+    daily: PortalPeriodicQuota
+    weekly: PortalPeriodicQuota
   }
 }
 

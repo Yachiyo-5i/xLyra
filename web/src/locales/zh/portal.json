@@ -14,12 +14,21 @@
     "switchTitle": "切换密钥"
   },
   "overview": {
-    "quota": "额度上限",
-    "status": "状态",
+    "keyTitle": "密钥",
+    "quota": "额度总览",
     "active": "正常",
     "used": "已使用",
     "remaining": "剩余",
-    "unlimited": "无限制"
+    "unlimited": "无限制",
+    "expires": "到期",
+    "noExpiry": "永不到期",
+    "lastUsed": "最后使用",
+    "dailyLimit": "日限额",
+    "weeklyLimit": "周限额",
+    "resetsIn": "重置倒计时",
+    "resetInDays": "{{count}} 天后",
+    "resetInHours": "{{count}} 小时后",
+    "resetInMinutes": "{{count}} 分钟后"
   },
   "summary": {
     "title": "近 {{days}} 天用量",

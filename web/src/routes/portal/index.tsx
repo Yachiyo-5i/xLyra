@@ -39,6 +39,7 @@ import {
   fetchPortalSummary,
   type PortalDimensions,
   type PortalOverview,
+  type PortalPeriodicQuota,
   type PortalRequestFilters,
   type PortalRequestItem,
   type PortalRequestStats,
@@ -304,14 +305,13 @@ function PortalDashboard({ portalKey, settings, onInvalidKey }: PortalDashboardP
   return (
     <div className="space-y-6">
       {overview ? (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <QuotaCard overview={overview} />
-          <StatCard label={t('overview.status')} value={overview.key.is_active ? t('overview.active') : overview.key.status} />
-          <StatCard label={t('overview.used')} value={formatUSD(overview.quota.used)} />
-          <StatCard
-            label={t('overview.remaining')}
-            value={overview.quota.unlimited ? t('overview.unlimited') : overview.quota.remaining == null ? '—' : formatUSD(overview.quota.remaining)}
-          />
+        <section className={[
+          'grid gap-4',
+          hasPeriodicLimits(overview) ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2',
+        ].join(' ')}>
+          <KeyInfoCard overview={overview} />
+          <QuotaDetailCard overview={overview} />
+          <PeriodicLimitsCard overview={overview} />
         </section>
       ) : overviewQuery.isLoading ? (
         <CenterState>
@@ -436,32 +436,124 @@ const quotaThresholds = [
   { max: 100, variant: 'success' },
 ] as const
 
-function QuotaCard({ overview }: { overview: PortalOverview }) {
+function hasPeriodicLimits(overview: PortalOverview) {
+  const { daily, weekly } = overview.quota
+  return (!daily.unlimited && daily.limit != null) || (!weekly.unlimited && weekly.limit != null)
+}
+
+function remainPercent(used: number, limit: number | null, remaining: number | null, unlimited: boolean): number | null {
+  if (unlimited || limit == null || limit <= 0) return null
+  const rem = remaining ?? Math.max(limit - used, 0)
+  return Math.min(100, Math.max(0, (rem / limit) * 100))
+}
+
+function formatResetIn(resetAt: string | null, t: (k: string, opts?: Record<string, unknown>) => string): string | null {
+  if (!resetAt) return null
+  const diffMs = new Date(resetAt).getTime() - Date.now()
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return null
+  const totalMinutes = Math.floor(diffMs / 60_000)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return t('overview.resetInDays', { count: days })
+  if (hours > 0) return t('overview.resetInHours', { count: hours })
+  return t('overview.resetInMinutes', { count: minutes })
+}
+
+function KeyInfoCard({ overview }: { overview: PortalOverview }) {
   const { t } = useTranslation('portal')
-  const { quota } = overview
-  const remainPercent =
-    quota.unlimited || quota.limit == null || quota.limit <= 0
-      ? null
-      : Math.min(100, Math.max(0, ((quota.remaining ?? Math.max(quota.limit - quota.used, 0)) / quota.limit) * 100))
+  const { key } = overview
   return (
     <Card>
-      <CardContent className="space-y-2 p-4">
-        <p className="text-muted-soft text-xs">{t('overview.quota')}</p>
-        <p className="text-lg font-semibold">
-          {quota.unlimited ? t('overview.unlimited') : quota.limit == null ? '—' : formatUSD(quota.limit)}
-        </p>
-        {remainPercent != null ? <Progress value={remainPercent} thresholds={[...quotaThresholds]} /> : null}
+      <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
+        <div className="space-y-1">
+          <p className="text-muted-soft text-xs">{t('overview.keyTitle')}</p>
+          <p className="truncate text-base font-semibold">{key.name}</p>
+          <p className="text-muted-soft truncate font-mono text-xs">{key.masked_key}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className={['text-xs font-medium', key.is_active ? 'text-emerald-500' : 'text-red-500'].join(' ')}>
+            {key.is_active ? t('overview.active') : key.status}
+          </span>
+          {key.expires_at ? (
+            <span className="text-muted-soft text-xs">
+              {t('overview.expires')} {new Date(key.expires_at).toLocaleDateString()}
+            </span>
+          ) : (
+            <span className="text-muted-soft text-xs">{t('overview.noExpiry')}</span>
+          )}
+          {key.last_used_at ? (
+            <span className="text-muted-soft text-xs">
+              {t('overview.lastUsed')} {new Date(key.last_used_at).toLocaleDateString()}
+            </span>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function QuotaDetailCard({ overview }: { overview: PortalOverview }) {
+  const { t } = useTranslation('portal')
+  const { quota } = overview
+  const pct = remainPercent(quota.used, quota.limit, quota.remaining, quota.unlimited)
   return (
     <Card>
-      <CardContent className="space-y-2 p-4">
-        <p className="text-muted-soft text-xs">{label}</p>
-        <p className="text-lg font-semibold">{value}</p>
+      <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
+        <div className="space-y-1">
+          <p className="text-muted-soft text-xs">{t('overview.quota')}</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {quota.unlimited ? t('overview.unlimited') : quota.limit == null ? '—' : formatUSD(quota.limit)}
+          </p>
+        </div>
+        {pct != null ? <Progress value={pct} thresholds={[...quotaThresholds]} /> : null}
+        <div className="flex items-center justify-between text-xs tabular-nums">
+          <span className="text-muted-soft">
+            {t('overview.used')} <span className="text-foreground font-medium">{formatUSD(quota.used)}</span>
+          </span>
+          <span className="text-muted-soft">
+            {t('overview.remaining')}{' '}
+            <span className="text-foreground font-medium">
+              {quota.unlimited ? t('overview.unlimited') : quota.remaining == null ? '—' : formatUSD(quota.remaining)}
+            </span>
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PeriodicLimitsCard({ overview }: { overview: PortalOverview }) {
+  const { t } = useTranslation('portal')
+  const { daily, weekly } = overview.quota
+  const hasDaily = !daily.unlimited && daily.limit != null
+  const hasWeekly = !weekly.unlimited && weekly.limit != null
+  if (!hasDaily && !hasWeekly) return null
+
+  function periodicRow(label: string, quota: PortalPeriodicQuota) {
+    const pct = remainPercent(quota.used, quota.limit, quota.remaining, quota.unlimited)
+    const resetIn = formatResetIn(quota.reset_at, t)
+    return (
+      <div className="space-y-2">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-muted-soft shrink-0 text-xs">{label}</p>
+          <p className="truncate text-right text-xs tabular-nums">
+            <span className="text-foreground font-medium">{formatUSD(quota.used)}</span>
+            <span className="text-muted-soft"> / {quota.limit == null ? '—' : formatUSD(quota.limit)}</span>
+          </p>
+        </div>
+        {pct != null ? <Progress value={pct} thresholds={[...quotaThresholds]} /> : null}
+        {resetIn ? <p className="text-muted-soft text-[11px]">{t('overview.resetsIn')} {resetIn}</p> : null}
+      </div>
+    )
+  }
+
+  return (
+    <Card>
+      <CardContent className="flex h-full flex-col justify-center gap-4 p-5">
+        {hasDaily ? periodicRow(t('overview.dailyLimit'), daily) : null}
+        {hasDaily && hasWeekly ? <div className="border-t border-[hsl(var(--divider))]" /> : null}
+        {hasWeekly ? periodicRow(t('overview.weeklyLimit'), weekly) : null}
       </CardContent>
     </Card>
   )

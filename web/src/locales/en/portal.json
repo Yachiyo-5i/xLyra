@@ -14,12 +14,21 @@
     "switchTitle": "Switch key"
   },
   "overview": {
-    "quota": "Quota limit",
-    "status": "Status",
+    "keyTitle": "Key",
+    "quota": "Quota",
     "active": "Active",
     "used": "Used",
     "remaining": "Remaining",
-    "unlimited": "Unlimited"
+    "unlimited": "Unlimited",
+    "expires": "Expires",
+    "noExpiry": "Never expires",
+    "lastUsed": "Last used",
+    "dailyLimit": "Daily limit",
+    "weeklyLimit": "Weekly limit",
+    "resetsIn": "Resets in",
+    "resetInDays": "{{count}}d",
+    "resetInHours": "{{count}}h",
+    "resetInMinutes": "{{count}}m"
   },
   "summary": {
     "title": "Last {{days}} days",

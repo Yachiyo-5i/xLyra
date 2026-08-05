@@ -14,12 +14,21 @@
     "switchTitle": "キーを切り替え"
   },
   "overview": {
-    "quota": "上限",
-    "status": "ステータス",
+    "keyTitle": "キー",
+    "quota": "利用枠",
     "active": "有効",
     "used": "使用済み",
     "remaining": "残り",
-    "unlimited": "無制限"
+    "unlimited": "無制限",
+    "expires": "有効期限",
+    "noExpiry": "期限なし",
+    "lastUsed": "最終使用",
+    "dailyLimit": "日次上限",
+    "weeklyLimit": "週次上限",
+    "resetsIn": "リセットまで",
+    "resetInDays": "{{count}}日後",
+    "resetInHours": "{{count}}時間後",
+    "resetInMinutes": "{{count}}分後"
   },
   "summary": {
     "title": "直近 {{days}} 日間",
