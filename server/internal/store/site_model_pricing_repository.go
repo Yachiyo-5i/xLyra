@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -219,4 +220,61 @@ func sortSiteModelPricings(items []SiteModelPricing) {
 		}
 		return items[i].GroupName < items[j].GroupName
 	})
+}
+
+type SyncCanonicalFallbackParams struct {
+	CanonicalModelID     uuid.UUID
+	InputValue           sql.NullFloat64
+	OutputValue          sql.NullFloat64
+	CacheRatio           sql.NullFloat64
+	CreateCacheRatio     sql.NullFloat64
+	CreateCache1hRatio   sql.NullFloat64
+	AudioRatio           sql.NullFloat64
+	AudioCompletionRatio sql.NullFloat64
+}
+
+func (r SiteModelPricingRepository) SyncCanonicalFallbackPricing(ctx context.Context, params SyncCanonicalFallbackParams) (int, error) {
+	var items []SiteModelPricing
+	if err := r.db.WithContext(ctx).Where(&SiteModelPricing{PricingSource: "canonical_fallback"}).Find(&items).Error; err != nil {
+		return 0, fmt.Errorf("sync canonical fallback pricing: %w", err)
+	}
+
+	canonicalIDStr := params.CanonicalModelID.String()
+	now := time.Now()
+	db := r.db.WithContext(ctx)
+	updated := 0
+
+	for _, item := range items {
+		if item.ManualOverride {
+			continue
+		}
+		if canonicalFallbackModelID(item.Raw) != canonicalIDStr {
+			continue
+		}
+		item.InputValue = params.InputValue
+		item.OutputValue = params.OutputValue
+		item.CacheRatio = params.CacheRatio
+		item.CreateCacheRatio = params.CreateCacheRatio
+		item.CreateCache1hRatio = params.CreateCache1hRatio
+		item.AudioRatio = params.AudioRatio
+		item.AudioCompletionRatio = params.AudioCompletionRatio
+		item.LastSyncedAt = sql.NullTime{Time: now, Valid: true}
+		if err := db.Save(&item).Error; err != nil {
+			return updated, fmt.Errorf("sync canonical fallback pricing: %w", err)
+		}
+		updated++
+	}
+	return updated, nil
+}
+
+func canonicalFallbackModelID(raw JSON) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ""
+	}
+	id, _ := m["canonical_model_id"].(string)
+	return id
 }

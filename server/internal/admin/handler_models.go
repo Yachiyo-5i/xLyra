@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -112,6 +113,10 @@ func (h Handler) UpdateModelPricing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.invalidateGatewayModelsCache()
+	if h.sites != nil {
+		sites := h.sites
+		go sites.PropagateCanonicalPricing(context.WithoutCancel(r.Context()), model)
+	}
 	h.writeResource(w, http.StatusOK, "model", canonicalModelPayload(model))
 }
 
@@ -133,6 +138,10 @@ func (h Handler) ResetModelPricing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.invalidateGatewayModelsCache()
+	if h.sites != nil {
+		sites := h.sites
+		go sites.PropagateCanonicalPricing(context.WithoutCancel(r.Context()), model)
+	}
 	h.writeResource(w, http.StatusOK, "model", canonicalModelPayload(model))
 }
 

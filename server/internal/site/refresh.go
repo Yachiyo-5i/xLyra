@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -2197,19 +2198,6 @@ func (s *Service) backfillCanonicalPricingRatios(ctx context.Context, pricingRep
 	if !model.CanonicalID.Valid {
 		return
 	}
-	needsBackfill := false
-	for _, p := range existing {
-		if !p.Available || p.ManualOverride {
-			continue
-		}
-		if !p.CreateCache1hRatio.Valid || p.PricingSource == "canonical_fallback" && (!p.AudioRatio.Valid || !p.AudioCompletionRatio.Valid) {
-			needsBackfill = true
-			break
-		}
-	}
-	if !needsBackfill {
-		return
-	}
 	canonical, err := canonicalRepo.GetByID(ctx, model.CanonicalID.UUID)
 	if err != nil {
 		return
@@ -2229,6 +2217,14 @@ func (s *Service) backfillCanonicalPricingRatios(ctx context.Context, pricingRep
 		}
 		if p.PricingSource == "canonical_fallback" && !p.AudioCompletionRatio.Valid && canonical.AudioCompletionRatio.Valid {
 			p.AudioCompletionRatio = canonical.AudioCompletionRatio
+			changed = true
+		}
+		if canonical.InputPrice.Valid && p.InputValue != canonical.InputPrice {
+			p.InputValue = canonical.InputPrice
+			changed = true
+		}
+		if canonical.OutputPrice.Valid && p.OutputValue != canonical.OutputPrice {
+			p.OutputValue = canonical.OutputPrice
 			changed = true
 		}
 		if changed {
@@ -2316,5 +2312,71 @@ func int64FromAny(value any) (int64, bool) {
 		return parsed, err == nil
 	default:
 		return 0, false
+	}
+}
+
+func (s *Service) PropagateCanonicalPricing(ctx context.Context, canonical store.CanonicalModel) {
+	pricingRepo := store.NewSiteModelPricingRepository(s.db.DB())
+	siteModelRepo := store.NewSiteModelRepository(s.db.DB())
+
+	_, _ = pricingRepo.SyncCanonicalFallbackPricing(ctx, store.SyncCanonicalFallbackParams{
+		CanonicalModelID:     canonical.ID,
+		InputValue:           canonical.InputPrice,
+		OutputValue:          canonical.OutputPrice,
+		CacheRatio:           canonical.CacheReadRatio,
+		CreateCacheRatio:     canonical.CacheWriteRatio,
+		CreateCache1hRatio:   canonical.CacheWrite1hRatio,
+		AudioRatio:           canonical.AudioRatio,
+		AudioCompletionRatio: canonical.AudioCompletionRatio,
+	})
+
+	siteModels, err := siteModelRepo.ListByCanonical(ctx, canonical.ID)
+	if err != nil || len(siteModels) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, siteModel := range siteModels {
+		rows, err := pricingRepo.ListBySiteModelID(ctx, siteModel.ID)
+		if err != nil {
+			continue
+		}
+		for _, row := range rows {
+			if row.ManualOverride {
+				continue
+			}
+			changed := false
+			if canonical.InputPrice.Valid && row.InputValue != canonical.InputPrice {
+				row.InputValue = canonical.InputPrice
+				changed = true
+			}
+			if canonical.OutputPrice.Valid && row.OutputValue != canonical.OutputPrice {
+				row.OutputValue = canonical.OutputPrice
+				changed = true
+			}
+			if canonical.CacheReadRatio.Valid && row.CacheRatio != canonical.CacheReadRatio {
+				row.CacheRatio = canonical.CacheReadRatio
+				changed = true
+			}
+			if canonical.CacheWriteRatio.Valid && row.CreateCacheRatio != canonical.CacheWriteRatio {
+				row.CreateCacheRatio = canonical.CacheWriteRatio
+				changed = true
+			}
+			if canonical.CacheWrite1hRatio.Valid && row.CreateCache1hRatio != canonical.CacheWrite1hRatio {
+				row.CreateCache1hRatio = canonical.CacheWrite1hRatio
+				changed = true
+			}
+			if canonical.AudioRatio.Valid && row.AudioRatio != canonical.AudioRatio {
+				row.AudioRatio = canonical.AudioRatio
+				changed = true
+			}
+			if canonical.AudioCompletionRatio.Valid && row.AudioCompletionRatio != canonical.AudioCompletionRatio {
+				row.AudioCompletionRatio = canonical.AudioCompletionRatio
+				changed = true
+			}
+			if changed {
+				row.LastSyncedAt = sql.NullTime{Time: now, Valid: true}
+				_ = pricingRepo.Save(ctx, row)
+			}
+		}
 	}
 }
