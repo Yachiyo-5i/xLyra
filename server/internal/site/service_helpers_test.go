@@ -143,7 +143,10 @@ func TestSiteTypeAndCredentialTypeHelpersNormalizeDefaults(t *testing.T) {
 	if !SupportsAPIKeyCostMultiplier(" OpenAI ") {
 		t.Fatal("openai should support api key cost multiplier")
 	}
-	for _, siteType := range []string{"anthropic", "google_gemini", "deepseek", "newapi", "grok"} {
+	if !SupportsAPIKeyCostMultiplier("anthropic") {
+		t.Fatal("anthropic should support api key cost multiplier")
+	}
+	for _, siteType := range []string{"google_gemini", "deepseek", "newapi", "grok"} {
 		if SupportsAPIKeyCostMultiplier(siteType) {
 			t.Fatalf("site type %q should not support api key cost multiplier", siteType)
 		}
@@ -467,8 +470,8 @@ func TestPrepareCreateCredentialInputsScopesAndValidatesAPIKeys(t *testing.T) {
 	}
 	if _, err := prepareCreateCredentialInputs("anthropic", []CredentialInput{
 		{Type: "api_key", Secret: "first", UpstreamCostMultiplier: &multiplier},
-	}); err == nil || !strings.Contains(err.Error(), "does not support api key cost multiplier") {
-		t.Fatalf("anthropic multiplier error = %v", err)
+	}); err != nil {
+		t.Fatalf("anthropic multiplier preparation: %v", err)
 	}
 }
 
