@@ -498,15 +498,16 @@ func canonicalMessagesFromAnthropicContent(role string, raw any) []canonicalMess
 	message := canonicalMessage{Type: "message", Role: role, RawContent: raw}
 	for _, item := range blocks {
 		block, _ := item.(map[string]any)
+		cacheControl := block["cache_control"]
 		switch strings.TrimSpace(anyString(block["type"])) {
 		case "text":
-			message.Content = append(message.Content, canonicalContentPart{Type: contentPartTypeForRole(role), Text: anyString(block["text"]), Raw: block})
+			message.Content = append(message.Content, canonicalContentPart{Type: contentPartTypeForRole(role), Text: anyString(block["text"]), CacheControl: cacheControl, Raw: block})
 		case "thinking":
 			if thinking, ok := canonicalThinkingFromAnthropicBlock(block); ok {
 				message.Thinking = append(message.Thinking, thinking)
 			}
 		case "image":
-			message.Content = append(message.Content, canonicalContentPart{Type: "input_image", ImageURL: anthropicImageURL(block["source"]), Raw: block})
+			message.Content = append(message.Content, canonicalContentPart{Type: "input_image", ImageURL: anthropicImageURL(block["source"]), CacheControl: cacheControl, Raw: block})
 		case "document":
 			source, _ := block["source"].(map[string]any)
 			fileData := strings.TrimSpace(anyString(source["data"]))
@@ -519,11 +520,12 @@ func canonicalMessagesFromAnthropicContent(role string, raw any) []canonicalMess
 			}
 			if fileData != "" {
 				message.Content = append(message.Content, canonicalContentPart{
-					Type:     "input_file",
-					FileName: strings.TrimSpace(anyString(block["title"])),
-					FileData: fileData,
-					MimeType: mimeType,
-					Raw:      block,
+					Type:         "input_file",
+					FileName:     strings.TrimSpace(anyString(block["title"])),
+					FileData:     fileData,
+					MimeType:     mimeType,
+					CacheControl: cacheControl,
+					Raw:          block,
 				})
 			}
 		case "tool_use":
@@ -815,7 +817,11 @@ func encodeCanonicalContentAsAnthropic(parts []canonicalContentPart) []any {
 	for _, part := range parts {
 		switch part.Type {
 		case "input_image":
-			out = append(out, map[string]any{"type": "image", "source": anthropicImageSource(part.ImageURL)})
+			block := map[string]any{"type": "image", "source": anthropicImageSource(part.ImageURL)}
+			if part.CacheControl != nil {
+				block["cache_control"] = part.CacheControl
+			}
+			out = append(out, block)
 		case "input_file":
 			block := map[string]any{
 				"type":   "document",
@@ -824,9 +830,16 @@ func encodeCanonicalContentAsAnthropic(parts []canonicalContentPart) []any {
 			if part.FileName != "" {
 				block["title"] = part.FileName
 			}
+			if part.CacheControl != nil {
+				block["cache_control"] = part.CacheControl
+			}
 			out = append(out, block)
 		default:
-			out = append(out, map[string]any{"type": "text", "text": part.Text})
+			block := map[string]any{"type": "text", "text": part.Text}
+			if part.CacheControl != nil {
+				block["cache_control"] = part.CacheControl
+			}
+			out = append(out, block)
 		}
 	}
 	return out

@@ -19,6 +19,8 @@
       "nonStream": "非流"
     },
     "cache": "缓存 {{tokens}}",
+    "cacheWrite": "缓存写入 {{tokens}}",
+    "cacheReadWrite": "缓存 {{read}}/{{write}}",
     "empty": {
       "title": "没有请求日志",
       "description": "当前没有可展示的转发请求记录。"

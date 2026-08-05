@@ -12,7 +12,9 @@ import {
   formatDateTime,
   formatInteger,
   formatLatency,
+  formatTokenCompact,
   requestCacheTokens,
+  requestCacheWriteTokens,
   requestResponseModeLabel,
   requestResponseModeVariant,
 } from '@/features/requests/lib/request-utils'
@@ -46,6 +48,9 @@ export function RequestsMobileList({
       {items.map((item) => {
         const expanded = expandedId === item.id
         const cacheTokens = requestCacheTokens(item)
+        const cacheWriteTokens = requestCacheWriteTokens(item)
+        const hasCacheRead = typeof cacheTokens === 'number' && cacheTokens > 0
+        const hasCacheWrite = typeof cacheWriteTokens === 'number' && cacheWriteTokens > 0
         const statusCode = item.upstream_status_code ?? item.status_code ?? '-'
 
         return (
@@ -99,9 +104,14 @@ export function RequestsMobileList({
                       output: formatInteger(item.usage.completion_tokens),
                     })}
                   </Badge>
-                  {typeof cacheTokens === 'number' && cacheTokens > 0 ? (
+                  {(hasCacheRead || hasCacheWrite) ? (
                     <Badge variant="neutral" className="px-2.5 py-1 text-xs tracking-normal">
-                      {t('table.cache', { tokens: formatInteger(cacheTokens) })}
+                      {hasCacheRead && hasCacheWrite
+                        ? t('table.cacheReadWrite', { read: formatTokenCompact(cacheTokens), write: formatTokenCompact(cacheWriteTokens) })
+                        : hasCacheRead
+                          ? t('table.cache', { tokens: formatTokenCompact(cacheTokens) })
+                          : t('table.cacheWrite', { tokens: formatTokenCompact(cacheWriteTokens) })
+                      }
                     </Badge>
                   ) : null}
                 </div>

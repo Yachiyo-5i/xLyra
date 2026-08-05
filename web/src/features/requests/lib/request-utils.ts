@@ -294,6 +294,13 @@ export function formatTokenMetric(value?: number | null) {
   return `${formatInteger(value)} tokens`
 }
 
+export function formatTokenCompact(value?: number | null): string | null {
+  if (typeof value !== 'number') return null
+  if (value >= 1_000_000) return `${+(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${+(value / 1_000).toFixed(1)}K`
+  return String(value)
+}
+
 export function compactJoin(parts: Array<string | null | undefined>, separator = ' / ') {
   return parts.filter(Boolean).join(separator)
 }

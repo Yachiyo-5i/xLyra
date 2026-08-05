@@ -19,6 +19,8 @@
       "nonStream": "Non-stream"
     },
     "cache": "Cache {{tokens}}",
+    "cacheWrite": "Cache write {{tokens}}",
+    "cacheReadWrite": "Cache {{read}}/{{write}}",
     "empty": {
       "title": "No request logs",
       "description": "No forwarded request records to display."

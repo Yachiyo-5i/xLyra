@@ -67,13 +67,16 @@ func attemptMetadata(
 		scope = "site_model_test"
 	}
 	costCalculation := costCalculationMetadata(gatewayUsage{
-		PromptTokens:       result.promptTokens,
-		CompletionTokens:   result.completionTokens,
-		TotalTokens:        result.promptTokens + result.completionTokens + result.audioOutputTokens,
-		ImageCount:         result.imageCount,
-		CachedPromptTokens: result.cachedPromptTokens,
-		CacheWriteTokens:   result.cacheWriteTokens,
-		AudioOutputTokens:  result.audioOutputTokens,
+		PromptTokens:               result.promptTokens,
+		CompletionTokens:           result.completionTokens,
+		TotalTokens:                result.promptTokens + result.completionTokens + result.audioOutputTokens,
+		ImageCount:                 result.imageCount,
+		CachedPromptTokens:         result.cachedPromptTokens,
+		CacheWriteTokens:           result.cacheWriteTokens,
+		CacheCreationInputTokens:   result.cacheCreationInputTokens,
+		CacheCreation5mInputTokens: result.cacheCreation5mInputTokens,
+		CacheCreation1hInputTokens: result.cacheCreation1hInputTokens,
+		AudioOutputTokens:          result.audioOutputTokens,
 	}, result.pricing, result.estimatedCost, billingAdjustment{
 		ServiceTier: result.serviceTier,
 		Mode:        result.billingMode,

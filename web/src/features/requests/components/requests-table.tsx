@@ -13,7 +13,9 @@ import {
   formatDateTime,
   formatInteger,
   formatLatency,
+  formatTokenCompact,
   requestCacheTokens,
+  requestCacheWriteTokens,
   requestResponseModeLabel,
   requestResponseModeVariant,
 } from '@/features/requests/lib/request-utils'
@@ -67,6 +69,9 @@ export function RequestsTable({
           {items.map((item) => {
             const expanded = expandedId === item.id
             const cacheTokens = requestCacheTokens(item)
+            const cacheWriteTokens = requestCacheWriteTokens(item)
+            const hasCacheRead = typeof cacheTokens === 'number' && cacheTokens > 0
+            const hasCacheWrite = typeof cacheWriteTokens === 'number' && cacheWriteTokens > 0
 
             return (
               <Fragment key={item.id}>
@@ -130,9 +135,14 @@ export function RequestsTable({
                       </td>
                       <td className="px-4 py-4 align-middle text-right text-sm text-foreground">
                         <div>{formatInteger(item.usage.prompt_tokens)}</div>
-                        {typeof cacheTokens === 'number' && cacheTokens > 0 ? (
+                        {(hasCacheRead || hasCacheWrite) ? (
                           <div className="text-muted-soft whitespace-nowrap text-xs">
-                            {t('table.cache', { tokens: formatInteger(cacheTokens) })}
+                            {hasCacheRead && hasCacheWrite
+                              ? t('table.cacheReadWrite', { read: formatTokenCompact(cacheTokens), write: formatTokenCompact(cacheWriteTokens) })
+                              : hasCacheRead
+                                ? t('table.cache', { tokens: formatTokenCompact(cacheTokens) })
+                                : t('table.cacheWrite', { tokens: formatTokenCompact(cacheWriteTokens) })
+                            }
                           </div>
                         ) : null}
                       </td>

@@ -42,6 +42,9 @@ type gatewayAttemptResult struct {
 	completionTokens         int
 	cachedPromptTokens       int
 	cacheWriteTokens         int
+	cacheCreationInputTokens   int
+	cacheCreation5mInputTokens int
+	cacheCreation1hInputTokens int
 	imageCount               int
 	audioOutputTokens        int
 	estimatedCost            *float64
@@ -531,8 +534,11 @@ func (h Handler) handleBufferedResponse(
 	if result.success {
 		result.promptTokens = transformed.Usage.PromptTokens
 		result.completionTokens = transformed.Usage.CompletionTokens
-		result.cachedPromptTokens = transformed.Usage.CachedPromptTokens
-		result.cacheWriteTokens = transformed.Usage.CacheWriteTokens
+		result.cachedPromptTokens         = transformed.Usage.CachedPromptTokens
+		result.cacheWriteTokens           = transformed.Usage.CacheWriteTokens
+		result.cacheCreationInputTokens   = transformed.Usage.CacheCreationInputTokens
+		result.cacheCreation5mInputTokens = transformed.Usage.CacheCreation5mInputTokens
+		result.cacheCreation1hInputTokens = transformed.Usage.CacheCreation1hInputTokens
 		result.imageCount = transformed.Usage.ImageCount
 		result.audioOutputTokens = transformed.Usage.AudioOutputTokens
 		result.pricing = applyLongContextPricing(transformed.Usage, result.pricing)
@@ -675,12 +681,15 @@ func (h Handler) handleStreamResponse(
 }
 
 func applyStreamUsage(result gatewayAttemptResult, usage gatewayUsage) gatewayAttemptResult {
-	result.promptTokens = usage.PromptTokens
-	result.completionTokens = usage.CompletionTokens
-	result.cachedPromptTokens = usage.CachedPromptTokens
-	result.cacheWriteTokens = usage.CacheWriteTokens
-	result.imageCount = usage.ImageCount
-	result.audioOutputTokens = usage.AudioOutputTokens
+	result.promptTokens               = usage.PromptTokens
+	result.completionTokens           = usage.CompletionTokens
+	result.cachedPromptTokens         = usage.CachedPromptTokens
+	result.cacheWriteTokens           = usage.CacheWriteTokens
+	result.cacheCreationInputTokens   = usage.CacheCreationInputTokens
+	result.cacheCreation5mInputTokens = usage.CacheCreation5mInputTokens
+	result.cacheCreation1hInputTokens = usage.CacheCreation1hInputTokens
+	result.imageCount                 = usage.ImageCount
+	result.audioOutputTokens          = usage.AudioOutputTokens
 	result.pricing = applyLongContextPricing(usage, result.pricing)
 	result.estimatedCost = estimateCost(usage, result.pricing)
 	return applyEstimatedCostBillingAdjustment(result)

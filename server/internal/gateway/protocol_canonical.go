@@ -59,14 +59,15 @@ type canonicalMessage struct {
 }
 
 type canonicalContentPart struct {
-	Type     string
-	Text     string
-	ImageURL string
-	FileName string
-	FileData string
-	MimeType string
-	Data     string
-	Raw      map[string]any
+	Type         string
+	Text         string
+	ImageURL     string
+	FileName     string
+	FileData     string
+	MimeType     string
+	Data         string
+	CacheControl any
+	Raw          map[string]any
 }
 
 type canonicalThinkingBlock struct {
