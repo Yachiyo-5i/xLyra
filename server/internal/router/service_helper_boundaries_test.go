@@ -146,6 +146,7 @@ func TestRouteCandidateSupportsEndpointEdgeCases(t *testing.T) {
 		{name: "blank request endpoint matches all candidates", endpointType: " \t\n ", supported: nil, want: true},
 		{name: "unknown supported endpoint is skipped before later text family match", endpointType: "openai", supported: []string{"unknown", " openai-response "}, want: true},
 		{name: "unknown request endpoint cannot match text family", endpointType: "unknown", supported: []string{"openai"}, want: false},
+		{name: "MiMo chat TTS does not match audio speech", endpointType: "openai-audio-speech", supported: []string{"openai"}, want: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -155,6 +156,19 @@ func TestRouteCandidateSupportsEndpointEdgeCases(t *testing.T) {
 				t.Fatalf("routeCandidateSupportsEndpoint(%q, %#v) = %v, want %v", tc.endpointType, tc.supported, got, tc.want)
 			}
 		})
+	}
+
+	for _, endpointType := range []string{"openai-response", "anthropic-messages", "google-gemini", "openai-audio-speech"} {
+		row := store.RouteCandidateRow{
+			UpstreamModelName:      "mimo-v2.5-tts-voiceclone",
+			SupportedEndpointTypes: []string{"openai", "anthropic-messages", "openai-audio-speech"},
+		}
+		if routeCandidateSupportsEndpoint(row, endpointType) {
+			t.Fatalf("MiMo TTS must not match endpoint %q", endpointType)
+		}
+	}
+	if !routeCandidateSupportsEndpoint(store.RouteCandidateRow{UpstreamModelName: "mimo-v2.5-tts", SupportedEndpointTypes: []string{"openai-audio-speech"}}, "openai") {
+		t.Fatal("MiMo TTS must route through chat completions even with stale endpoint metadata")
 	}
 }
 

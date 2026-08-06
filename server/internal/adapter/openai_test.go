@@ -221,6 +221,9 @@ func TestOpenAICompatiblePricingEndpointTypesUseProviderRules(t *testing.T) {
 		{provider: "openai", modelID: "grok-imagine-image-quality", want: []string{"openai-image"}},
 		{provider: "deepseek", modelID: "grok-4.5", want: []string{"openai", "anthropic-messages"}},
 		{provider: "zhipuai", modelID: "glm-5", want: []string{"openai", "anthropic-messages"}},
+		{provider: "xiaomi", modelID: "mimo-v2.5-tts", want: []string{"openai"}},
+		{provider: "xiaomi", modelID: "mimo-v2.5-tts-voicedesign", want: []string{"openai"}},
+		{provider: "xiaomi", modelID: "mimo-v2.5-tts-voiceclone", want: []string{"openai"}},
 	}
 	for _, tc := range cases {
 		pricing := openAICompatibleModelPricingFromModelsDev(

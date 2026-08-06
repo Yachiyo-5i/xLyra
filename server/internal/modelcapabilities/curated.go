@@ -104,6 +104,8 @@ func ModelNameEndpointTypes(modelID string) []string {
 func inferEndpointTypesForModel(modelID string) []string {
 	modelID = normalizeModelID(modelID)
 	switch {
+	case isMiMoV25TTSModel(modelID):
+		return []string{"openai"}
 	case strings.Contains(modelID, "tts"):
 		return []string{"openai-audio-speech"}
 	case IsImageGenerationModel(modelID):
@@ -167,6 +169,8 @@ func curatedOpenAIModel(modelID string) map[string]any {
 func curatedEndpointTypesForModel(modelID string) []string {
 	modelID = normalizeModelID(modelID)
 	switch {
+	case isMiMoV25TTSModel(modelID):
+		return []string{"openai"}
 	case hasAnyPrefix(modelID, "gpt-image"):
 		return []string{"openai-image"}
 	case isCuratedEmbeddingModel(modelID):
@@ -185,6 +189,15 @@ func curatedEndpointTypesForModel(modelID string) []string {
 		return []string{"openai"}
 	default:
 		return nil
+	}
+}
+
+func isMiMoV25TTSModel(modelID string) bool {
+	switch normalizeModelID(modelID) {
+	case "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone":
+		return true
+	default:
+		return false
 	}
 }
 

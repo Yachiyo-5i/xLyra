@@ -69,6 +69,9 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 	if isGrokSite(candidate.Site.SiteType) {
 		return newGrokResponsesProtocolAdapter(request, r.grokModelSupportsReasoningEffort(ctx, candidate.Model.SiteModelID)), nil
 	}
+	if isMiMoV25TTSModel(candidate.Model.UpstreamName) && request.DownstreamPath == gatewayEndpointChatCompletions {
+		return newOpenAIChatProtocolAdapter(request, candidate), nil
+	}
 	if alt, ok := alternateProtocolForCandidate(downstreamCanonicalProtocol(request.DownstreamPath), candidate); ok {
 		switch canonicalProtocol(normalizeSpecKey(alt.Protocol)) {
 		case canonicalProtocolAnthropicMessages:

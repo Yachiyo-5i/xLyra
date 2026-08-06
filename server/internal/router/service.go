@@ -343,12 +343,24 @@ func routeCandidateSupportsEndpoint(row store.RouteCandidateRow, endpointType st
 	if endpointType == "" {
 		return true
 	}
+	if isMiMoV25TTSRouteModel(row.UpstreamModelName) {
+		return endpointType == "openai"
+	}
 	for _, item := range row.SupportedEndpointTypes {
 		if endpointTypeSameFamily(endpointType, strings.TrimSpace(strings.ToLower(item))) {
 			return true
 		}
 	}
 	return false
+}
+
+func isMiMoV25TTSRouteModel(model string) bool {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone":
+		return true
+	default:
+		return false
+	}
 }
 
 func endpointTypeSameFamily(a, b string) bool {
