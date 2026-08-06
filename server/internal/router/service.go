@@ -344,7 +344,7 @@ func routeCandidateSupportsEndpoint(row store.RouteCandidateRow, endpointType st
 		return true
 	}
 	if isMiMoV25TTSRouteModel(row.UpstreamModelName) {
-		return endpointType == "openai"
+		return endpointType == "openai" || endpointType == "openai-audio-speech"
 	}
 	for _, item := range row.SupportedEndpointTypes {
 		if endpointTypeSameFamily(endpointType, strings.TrimSpace(strings.ToLower(item))) {

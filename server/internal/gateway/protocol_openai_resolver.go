@@ -34,6 +34,9 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		return newOpenAIEmbeddingsProtocolAdapter(request, candidate), nil
 	}
 
+	if request.DownstreamPath == gatewayEndpointAudioSpeech && isMiMoV25TTSModel(candidate.Model.UpstreamName) {
+		return newMiMoAudioSpeechProtocolAdapter(request, candidate), nil
+	}
 	if request.DownstreamPath == gatewayEndpointAudioSpeech {
 		return newOpenAIAudioSpeechProtocolAdapter(request, candidate), nil
 	}

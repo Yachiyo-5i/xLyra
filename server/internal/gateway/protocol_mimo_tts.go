@@ -30,6 +30,28 @@ type mimoTTSChatStreamEvent struct {
 	Usage *completionUsage `json:"usage"`
 }
 
+type mimoTTSChatStreamChunk struct {
+	Audio []byte
+	Usage *completionUsage
+	Done  bool
+}
+
+type mimoTTSChatStreamDecoder struct {
+	id             string
+	model          string
+	created        int64
+	role           string
+	content        strings.Builder
+	finishReason   *string
+	usage          completionUsage
+	hasUsage       bool
+	receivedChoice bool
+	receivedDone   bool
+	audioBytes     int
+	collectAudio   bool
+	audio          bytes.Buffer
+}
+
 func isMiMoV25TTSModel(model string) bool {
 	switch strings.ToLower(strings.TrimSpace(model)) {
 	case "mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone":
@@ -39,101 +61,106 @@ func isMiMoV25TTSModel(model string) bool {
 	}
 }
 
-func bufferMiMoTTSChatStream(body []byte, responseFormat string) ([]byte, completionUsage, error) {
-	reader := bufio.NewReader(bytes.NewReader(body))
-	var id string
-	var model string
-	var created int64
-	var role string
-	var content strings.Builder
-	var audio bytes.Buffer
-	var finishReason *string
-	var usage completionUsage
-	hasUsage := false
-	receivedChoice := false
-	receivedDone := false
+func newMiMoTTSChatStreamDecoder(collectAudio bool) *mimoTTSChatStreamDecoder {
+	return &mimoTTSChatStreamDecoder{collectAudio: collectAudio}
+}
 
-	for {
-		line, err := reader.ReadBytes('\n')
-		if len(line) > 0 {
-			data, ok := chatSSEData(line)
-			if ok && data == "[DONE]" {
-				receivedDone = true
-			}
-			if ok && data != "[DONE]" {
-				var event mimoTTSChatStreamEvent
-				if unmarshalErr := json.Unmarshal([]byte(data), &event); unmarshalErr != nil {
-					return nil, completionUsage{}, unmarshalErr
-				}
-				if len(event.Error) > 0 && string(event.Error) != "null" {
-					return nil, completionUsage{}, fmt.Errorf("upstream stream error: %s", string(event.Error))
-				}
-				id = nonEmptyString(event.ID, id)
-				model = nonEmptyString(event.Model, model)
-				if event.Created != 0 {
-					created = event.Created
-				}
-				if event.Usage != nil {
-					usage = event.Usage.normalized()
-					hasUsage = true
-				}
-				for _, choice := range event.Choices {
-					if choice.Index != 0 {
-						continue
-					}
-					receivedChoice = true
-					role = nonEmptyString(choice.Delta.Role, role)
-					content.WriteString(choice.Delta.Content)
-					if choice.FinishReason != nil {
-						finishReason = choice.FinishReason
-					}
-					decoded, decodeErr := decodeMiMoTTSAudioChunk(choice.Delta.Audio.Data)
-					if decodeErr != nil {
-						return nil, completionUsage{}, decodeErr
-					}
-					audio.Write(decoded)
-				}
-			}
-		}
-		if err == nil {
+func (d *mimoTTSChatStreamDecoder) ConsumeLine(line []byte) (mimoTTSChatStreamChunk, error) {
+	data, ok := chatSSEData(line)
+	if !ok {
+		return mimoTTSChatStreamChunk{}, nil
+	}
+	if data == "[DONE]" {
+		d.receivedDone = true
+		return mimoTTSChatStreamChunk{Done: true}, nil
+	}
+	var event mimoTTSChatStreamEvent
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
+		return mimoTTSChatStreamChunk{}, err
+	}
+	if len(event.Error) > 0 && string(event.Error) != "null" {
+		return mimoTTSChatStreamChunk{}, fmt.Errorf("upstream stream error: %s", string(event.Error))
+	}
+	d.id = nonEmptyString(event.ID, d.id)
+	d.model = nonEmptyString(event.Model, d.model)
+	if event.Created != 0 {
+		d.created = event.Created
+	}
+	var audio bytes.Buffer
+	for _, choice := range event.Choices {
+		if choice.Index != 0 {
 			continue
 		}
-		if err != io.EOF {
-			return nil, completionUsage{}, err
+		d.receivedChoice = true
+		d.role = nonEmptyString(choice.Delta.Role, d.role)
+		d.content.WriteString(choice.Delta.Content)
+		if choice.FinishReason != nil {
+			d.finishReason = choice.FinishReason
 		}
-		break
+		decoded, err := decodeMiMoTTSAudioChunk(choice.Delta.Audio.Data)
+		if err != nil {
+			return mimoTTSChatStreamChunk{}, err
+		}
+		audio.Write(decoded)
 	}
+	chunk := audio.Bytes()
+	if len(chunk) > 0 {
+		d.audioBytes += len(chunk)
+		if d.collectAudio {
+			d.audio.Write(chunk)
+		}
+	}
+	var usage *completionUsage
+	if event.Usage != nil {
+		normalized := event.Usage.normalized()
+		d.usage = normalized
+		d.hasUsage = true
+		usage = &normalized
+	}
+	return mimoTTSChatStreamChunk{Audio: chunk, Usage: usage}, nil
+}
 
-	if !receivedChoice {
+func (d *mimoTTSChatStreamDecoder) Finalize() ([]byte, completionUsage, error) {
+	if !d.receivedChoice {
 		return nil, completionUsage{}, fmt.Errorf("upstream stream ended before any completion choice was received")
 	}
-	if !receivedDone && finishReason == nil {
+	if !d.receivedDone && d.finishReason == nil {
 		return nil, completionUsage{}, fmt.Errorf("upstream stream ended before completion")
 	}
-	if audio.Len() == 0 {
+	if d.audioBytes == 0 {
 		return nil, completionUsage{}, fmt.Errorf("upstream stream ended without audio data")
 	}
-	message := map[string]any{"role": nonEmptyString(role, "assistant"), "content": nil}
-	if content.Len() > 0 {
-		message["content"] = content.String()
+	if !d.collectAudio {
+		return nil, d.usage, nil
 	}
-	audioData := audio.Bytes()
+	return d.audio.Bytes(), d.usage, nil
+}
+
+func (d *mimoTTSChatStreamDecoder) responseBody(responseFormat string) ([]byte, completionUsage, error) {
+	audioData, usage, err := d.Finalize()
+	if err != nil {
+		return nil, completionUsage{}, err
+	}
+	message := map[string]any{"role": nonEmptyString(d.role, "assistant"), "content": nil}
+	if d.content.Len() > 0 {
+		message["content"] = d.content.String()
+	}
 	if strings.EqualFold(strings.TrimSpace(responseFormat), "wav") {
 		audioData = mimoTTSWAV(audioData)
 	}
 	message["audio"] = map[string]any{"data": base64.StdEncoding.EncodeToString(audioData)}
 	response := map[string]any{
-		"id":      id,
+		"id":      d.id,
 		"object":  "chat.completion",
-		"created": created,
-		"model":   model,
+		"created": d.created,
+		"model":   d.model,
 		"choices": []any{map[string]any{
 			"index":         0,
 			"message":       message,
-			"finish_reason": finishReason,
+			"finish_reason": d.finishReason,
 		}},
 	}
-	if hasUsage {
+	if d.hasUsage {
 		response["usage"] = usage
 	}
 	encoded, err := json.Marshal(response)
@@ -141,6 +168,48 @@ func bufferMiMoTTSChatStream(body []byte, responseFormat string) ([]byte, comple
 		return nil, completionUsage{}, err
 	}
 	return encoded, usage, nil
+}
+
+func bufferMiMoTTSChatStream(body []byte, responseFormat string) ([]byte, completionUsage, error) {
+	decoder := newMiMoTTSChatStreamDecoder(true)
+	if err := consumeMiMoTTSChatStreamBody(body, decoder); err != nil {
+		return nil, completionUsage{}, err
+	}
+	return decoder.responseBody(responseFormat)
+}
+
+func consumeMiMoTTSChatStreamBody(body []byte, decoder *mimoTTSChatStreamDecoder) error {
+	reader := bufio.NewReader(bytes.NewReader(body))
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			if _, consumeErr := decoder.ConsumeLine(line); consumeErr != nil {
+				return consumeErr
+			}
+		}
+		if err == nil {
+			continue
+		}
+		if err != io.EOF {
+			return err
+		}
+		return nil
+	}
+}
+
+func bufferMiMoTTSChatAudio(body []byte, responseFormat string) ([]byte, completionUsage, error) {
+	decoder := newMiMoTTSChatStreamDecoder(true)
+	if err := consumeMiMoTTSChatStreamBody(body, decoder); err != nil {
+		return nil, completionUsage{}, err
+	}
+	audio, usage, err := decoder.Finalize()
+	if err != nil {
+		return nil, completionUsage{}, err
+	}
+	if strings.EqualFold(strings.TrimSpace(responseFormat), "wav") {
+		audio = mimoTTSWAV(audio)
+	}
+	return audio, usage, nil
 }
 
 func mimoTTSWAV(pcm []byte) []byte {

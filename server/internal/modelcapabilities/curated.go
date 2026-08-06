@@ -105,7 +105,7 @@ func inferEndpointTypesForModel(modelID string) []string {
 	modelID = normalizeModelID(modelID)
 	switch {
 	case isMiMoV25TTSModel(modelID):
-		return []string{"openai"}
+		return []string{"openai", "openai-audio-speech"}
 	case strings.Contains(modelID, "tts"):
 		return []string{"openai-audio-speech"}
 	case IsImageGenerationModel(modelID):
@@ -170,7 +170,7 @@ func curatedEndpointTypesForModel(modelID string) []string {
 	modelID = normalizeModelID(modelID)
 	switch {
 	case isMiMoV25TTSModel(modelID):
-		return []string{"openai"}
+		return []string{"openai", "openai-audio-speech"}
 	case hasAnyPrefix(modelID, "gpt-image"):
 		return []string{"openai-image"}
 	case isCuratedEmbeddingModel(modelID):
