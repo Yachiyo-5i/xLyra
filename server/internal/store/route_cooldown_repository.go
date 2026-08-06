@@ -34,12 +34,13 @@ type RouteCooldown struct {
 const CooldownReasonCodexUsageLimitReached = "codex_usage_limit_reached"
 
 const (
-	CooldownReasonUpstreamModelNotFound          = "upstream_model_not_found"
-	CooldownReasonUpstreamCredentialsExhausted   = "upstream_credentials_exhausted"
-	CooldownReasonUpstreamStreamUnstable         = "upstream_stream_unstable"
-	CooldownReasonUpstreamCredentialUnauthorized = "upstream_credential_unauthorized"
-	CooldownReasonUpstreamCredentialLimited      = "upstream_credential_limited"
-	CooldownReasonOpenCodeGoUsageLimitReached    = "opencode_go_usage_limit_reached"
+	CooldownReasonUpstreamModelNotFound             = "upstream_model_not_found"
+	CooldownReasonUpstreamCredentialsExhausted      = "upstream_credentials_exhausted"
+	CooldownReasonUpstreamStreamUnstable            = "upstream_stream_unstable"
+	CooldownReasonUpstreamCredentialUnauthorized    = "upstream_credential_unauthorized"
+	CooldownReasonUpstreamCredentialLimited         = "upstream_credential_limited"
+	CooldownReasonUpstreamSubscriptionLimitExceeded = "upstream_subscription_limit_exceeded"
+	CooldownReasonOpenCodeGoUsageLimitReached       = "opencode_go_usage_limit_reached"
 )
 
 func TransientRouteCooldown(item RouteCooldown) bool {
@@ -119,7 +120,11 @@ func (r RouteCooldownRepository) Activate(ctx context.Context, params ActivateRo
 	}
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		scoped := RouteCooldownRepository{db: tx}
-		if err := scoped.clearMatching(ctx, params.SiteID, siteModelID, siteCredentialID, params.Source); err != nil {
+		protectedReasons := []string(nil)
+		if params.Reason != CooldownReasonUpstreamSubscriptionLimitExceeded {
+			protectedReasons = []string{CooldownReasonUpstreamSubscriptionLimitExceeded}
+		}
+		if err := scoped.clearMatching(ctx, params.SiteID, siteModelID, siteCredentialID, params.Source, protectedReasons); err != nil {
 			return fmt.Errorf("clear existing route cooldowns: %w", err)
 		}
 		if err := tx.Create(&item).Error; err != nil {
@@ -172,7 +177,7 @@ func (r RouteCooldownRepository) CountRecentActivations(ctx context.Context, par
 }
 
 func (r RouteCooldownRepository) ClearActive(ctx context.Context, siteID uuid.UUID, siteModelID any, siteCredentialID any, source string) error {
-	if err := r.clearMatching(ctx, siteID, nullUUIDFromAny(siteModelID), nullUUIDFromAny(siteCredentialID), source); err != nil {
+	if err := r.clearMatching(ctx, siteID, nullUUIDFromAny(siteModelID), nullUUIDFromAny(siteCredentialID), source, nil); err != nil {
 		return fmt.Errorf("clear route cooldowns: %w", err)
 	}
 	return nil
@@ -258,7 +263,36 @@ func (r RouteCooldownRepository) ListActive(ctx context.Context, now time.Time) 
 	return items, nil
 }
 
-func (r RouteCooldownRepository) clearMatching(ctx context.Context, siteID uuid.UUID, siteModelID uuid.NullUUID, siteCredentialID uuid.NullUUID, source string) error {
+func (r RouteCooldownRepository) ListActiveByCredential(ctx context.Context, siteID uuid.UUID, siteCredentialID uuid.UUID, reasons []string, now time.Time) ([]RouteCooldown, error) {
+	if siteID == uuid.Nil || siteCredentialID == uuid.Nil {
+		return nil, nil
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	exprs := []clause.Expression{
+		clause.Eq{Column: clause.Column{Name: "site_id"}, Value: siteID},
+		clause.Eq{Column: clause.Column{Name: "site_credential_id"}, Value: siteCredentialID},
+		clause.Eq{Column: clause.Column{Name: "cleared_at"}, Value: nil},
+		clause.Gt{Column: clause.Column{Name: "active_until"}, Value: now},
+	}
+	if len(reasons) > 0 {
+		values := make([]any, 0, len(reasons))
+		for _, reason := range reasons {
+			values = append(values, reason)
+		}
+		exprs = append(exprs, clause.IN{Column: clause.Column{Name: "reason"}, Values: values})
+	}
+	var items []RouteCooldown
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.Where{Exprs: exprs}).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list active credential route cooldowns: %w", err)
+	}
+	return items, nil
+}
+
+func (r RouteCooldownRepository) clearMatching(ctx context.Context, siteID uuid.UUID, siteModelID uuid.NullUUID, siteCredentialID uuid.NullUUID, source string, protectedReasons []string) error {
 	exprs := []clause.Expression{
 		clause.Eq{Column: clause.Column{Name: "site_id"}, Value: siteID},
 		clause.Eq{Column: clause.Column{Name: "cleared_at"}, Value: nil},
@@ -267,6 +301,13 @@ func (r RouteCooldownRepository) clearMatching(ctx context.Context, siteID uuid.
 	}
 	if source != "" {
 		exprs = append(exprs, clause.Eq{Column: clause.Column{Name: "source"}, Value: source})
+	}
+	if len(protectedReasons) > 0 {
+		values := make([]any, 0, len(protectedReasons))
+		for _, reason := range protectedReasons {
+			values = append(values, reason)
+		}
+		exprs = append(exprs, clause.Not(clause.IN{Column: clause.Column{Name: "reason"}, Values: values}))
 	}
 	return r.db.WithContext(ctx).
 		Model(&RouteCooldown{}).

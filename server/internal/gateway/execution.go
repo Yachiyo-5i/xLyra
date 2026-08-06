@@ -548,7 +548,7 @@ func (h Handler) handleBufferedResponse(
 		result.errorType = "upstream_http_error"
 		result.errorMessage = fmt.Sprintf("upstream returned HTTP %d", transformed.StatusCode)
 		result = applyRetryAfterHeader(result, resp.Header)
-		result = classifyGatewayUpstreamError(candidate, result, responseBody, time.Now())
+		result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, responseBody, time.Now(), h.timeZone)
 		result.failureResponse = diagnosticFailureResponse(responseBody)
 		h.markOAuthConnectionUnavailableOnAuthFailure(ctx, candidate, result)
 		if transformed.UpstreamBilled {
@@ -598,7 +598,7 @@ func (h Handler) handleStreamResponse(
 		result.errorType = "upstream_http_error"
 		result.errorMessage = fmt.Sprintf("upstream returned HTTP %d", resp.StatusCode)
 		result = applyRetryAfterHeader(result, resp.Header)
-		result = classifyGatewayUpstreamError(candidate, result, responseBody, time.Now())
+		result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, responseBody, time.Now(), h.timeZone)
 		result.failureResponse = diagnosticFailureResponse(responseBody)
 		h.markOAuthConnectionUnavailableOnAuthFailure(ctx, candidate, result)
 		if isGrokSite(candidate.Site.SiteType) && result.downstreamPath == gatewayEndpointImagesGenerations && grokUpstreamCharged(responseBody) {

@@ -19,6 +19,7 @@ type FailureClass string
 const (
 	FailureUnknown           FailureClass = "unknown"
 	FailureLimited           FailureClass = "limited"
+	FailureSubscriptionLimit FailureClass = "subscription_limit"
 	FailureTransient         FailureClass = "transient"
 	FailureCredentialInvalid FailureClass = "credential_invalid"
 )
@@ -30,12 +31,20 @@ type Failure struct {
 	Type              string
 	Message           string
 	Scope             string
+	Reason            string
+	LimitWindow       string
+	LimitReason       string
 	RetryAfterSeconds int64
+	HasRetryAfter     bool
 	ResetAt           time.Time
 }
 
 func (f Failure) Limited() bool {
-	return f.Class == FailureLimited
+	return f.Class == FailureLimited || f.Class == FailureSubscriptionLimit
+}
+
+func (f Failure) SubscriptionLimited() bool {
+	return f.Class == FailureSubscriptionLimit
 }
 
 func (f Failure) Transient() bool {
@@ -121,12 +130,18 @@ func classifyResponseAt(statusCode int, headers http.Header, body []byte, now ti
 	failure.Type = firstString(errorPayload["type"], root["type"])
 	failure.Message = firstString(errorPayload["message"], root["message"], root["detail"])
 	failure.Scope = firstString(errorPayload["scope"], root["scope"])
-	failure.RetryAfterSeconds = retryAfterSeconds(headers, errorPayload, root, now)
+	failure.Reason = firstString(errorPayload["reason"], root["reason"])
+	failure.RetryAfterSeconds, failure.HasRetryAfter = retryAfterSeconds(headers, errorPayload, root, now)
 	failure.ResetAt = resetAt(errorPayload, root)
 	if failure.RetryAfterSeconds <= 0 && !failure.ResetAt.IsZero() && failure.ResetAt.After(now) {
 		failure.RetryAfterSeconds = int64(failure.ResetAt.Sub(now).Seconds())
 	}
-	failure.Class = classifyFailure(failure, string(body))
+	failure.LimitWindow, failure.LimitReason = subscriptionLimitDetails(failure, string(body))
+	if failure.LimitWindow != "" {
+		failure.Class = FailureSubscriptionLimit
+	} else {
+		failure.Class = classifyFailure(failure, string(body))
+	}
 	return failure
 }
 
@@ -136,7 +151,7 @@ func classifyFailure(failure Failure, rawBody string) FailureClass {
 	message := strings.ToLower(strings.TrimSpace(failure.Message))
 	raw := strings.ToLower(strings.TrimSpace(rawBody))
 
-	if limitedCode(code) || limitedCode(typeName) || limitedMessage(message) || limitedMessage(raw) {
+	if limitedCode(code) || limitedCode(typeName) || limitExceededToken(failure.Reason) || containsLimitExceededToken(raw) || limitedMessage(message) || limitedMessage(raw) {
 		return FailureLimited
 	}
 	if credentialInvalidCode(code) || credentialInvalidCode(typeName) || credentialInvalidMessage(message) || credentialInvalidMessage(raw) {
@@ -149,6 +164,68 @@ func classifyFailure(failure Failure, rawBody string) FailureClass {
 		return FailureTransient
 	}
 	return FailureUnknown
+}
+
+var upperSnakeTokenPattern = regexp.MustCompile(`(?i)[A-Z0-9]+(?:_[A-Z0-9]+)+`)
+
+func subscriptionLimitDetails(failure Failure, rawBody string) (string, string) {
+	structured := []string{failure.Reason, failure.Code, failure.Type}
+	usageReason := ""
+	for _, value := range structured {
+		token := strings.ToUpper(strings.TrimSpace(value))
+		if window := subscriptionLimitWindow(token); window != "" {
+			return window, token
+		}
+		if token == "USAGE_LIMIT_EXCEEDED" {
+			usageReason = token
+			continue
+		}
+		if limitExceededToken(token) {
+			return "", ""
+		}
+	}
+	for _, token := range upperSnakeTokenPattern.FindAllString(rawBody, -1) {
+		normalized := strings.ToUpper(strings.TrimSpace(token))
+		if window := subscriptionLimitWindow(normalized); window != "" {
+			return window, normalized
+		}
+	}
+	if usageReason != "" {
+		return "usage", usageReason
+	}
+	for _, token := range upperSnakeTokenPattern.FindAllString(rawBody, -1) {
+		if normalized := strings.ToUpper(strings.TrimSpace(token)); normalized == "USAGE_LIMIT_EXCEEDED" {
+			return "usage", normalized
+		}
+	}
+	return "", ""
+}
+
+func subscriptionLimitWindow(token string) string {
+	switch token {
+	case "DAILY_LIMIT_EXCEEDED":
+		return "daily"
+	case "WEEKLY_LIMIT_EXCEEDED":
+		return "weekly"
+	case "MONTHLY_LIMIT_EXCEEDED":
+		return "monthly"
+	default:
+		return ""
+	}
+}
+
+func limitExceededToken(value string) bool {
+	token := strings.ToUpper(strings.TrimSpace(value))
+	return token == "LIMIT_EXCEEDED" || strings.HasSuffix(token, "_LIMIT_EXCEEDED")
+}
+
+func containsLimitExceededToken(value string) bool {
+	for _, token := range upperSnakeTokenPattern.FindAllString(value, -1) {
+		if limitExceededToken(token) {
+			return true
+		}
+	}
+	return false
 }
 
 func limitedCode(value string) bool {
@@ -181,8 +258,6 @@ func limitedMessage(value string) bool {
 		"api_key_weekly_quota_exhausted",
 		"api_key_quota_exhausted",
 		"usage_limit_reached",
-		"usage_limit_exceeded",
-		"rate_limit_exceeded",
 		"insufficient_quota",
 		"insufficient_balance",
 		"user_platform_daily_quota_exhausted",
@@ -324,22 +399,22 @@ func jsonBodyFromMessage(message string) []byte {
 	return []byte(message[start : end+1])
 }
 
-func retryAfterSeconds(headers http.Header, errorPayload map[string]any, root map[string]any, now time.Time) int64 {
+func retryAfterSeconds(headers http.Header, errorPayload map[string]any, root map[string]any, now time.Time) (int64, bool) {
 	if headers != nil {
 		value := strings.TrimSpace(headers.Get("Retry-After"))
 		if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds > 0 {
-			return seconds
+			return seconds, true
 		}
 		if retryAt, err := http.ParseTime(value); err == nil && retryAt.After(now) {
-			return int64(retryAt.Sub(now).Seconds())
+			return int64(retryAt.Sub(now).Seconds()), true
 		}
 	}
 	for _, value := range []any{errorPayload["retry_after_seconds"], errorPayload["resets_in_seconds"], root["retry_after_seconds"], root["resets_in_seconds"]} {
 		if seconds, ok := int64Value(value); ok && seconds > 0 {
-			return seconds
+			return seconds, true
 		}
 	}
-	return 0
+	return 0, false
 }
 
 func resetAt(errorPayload map[string]any, root map[string]any) time.Time {

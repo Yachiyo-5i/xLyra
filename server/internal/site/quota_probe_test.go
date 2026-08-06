@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"xlyra/server/internal/store"
 )
 
@@ -307,6 +310,99 @@ func TestPreserveQuotaProbeResultWithoutHistoryReturnsFailure(t *testing.T) {
 		if len(preserved.Entries) != 0 || preserved.Status != "error" {
 			t.Fatalf("preserved for %s = %#v, want plain failure", meta, preserved)
 		}
+	}
+}
+
+func TestSub2APISubscriptionQuotaRecovered(t *testing.T) {
+	t.Parallel()
+
+	zero := 0.0
+	positive := 2.5
+	for _, test := range []struct {
+		name   string
+		result QuotaProbeResult
+		window string
+		want   bool
+	}{
+		{name: "daily zero", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "daily", Remaining: &zero}}}, window: "daily"},
+		{name: "daily positive", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "daily", Remaining: &positive}}}, window: "daily", want: true},
+		{name: "missing corresponding window", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "weekly", Remaining: &positive}}}, window: "daily"},
+		{name: "failed preserved positive", result: QuotaProbeResult{Status: "error", Entries: []QuotaProbeEntry{{Label: "daily", Remaining: &positive}}}, window: "daily"},
+		{name: "usage all positive", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "daily", Remaining: &positive}, {Label: "weekly", Remaining: &positive}}}, window: "usage", want: true},
+		{name: "usage balance and window positive", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "balance", Remaining: &positive}, {Label: "daily", Remaining: &positive}}}, window: "usage", want: true},
+		{name: "usage balance exhausted", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "balance", Remaining: &zero}, {Label: "daily", Remaining: &positive}}}, window: "usage"},
+		{name: "usage one exhausted", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "daily", Remaining: &positive}, {Label: "weekly", Remaining: &zero}}}, window: "usage"},
+		{name: "usage balance alone is ambiguous", result: QuotaProbeResult{Status: "ok", Entries: []QuotaProbeEntry{{Label: "balance", Remaining: &positive}}}, window: "usage"},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sub2APISubscriptionQuotaRecovered(test.result, test.window); got != test.want {
+				t.Fatalf("sub2APISubscriptionQuotaRecovered() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRecoverSub2APISubscriptionCooldownClearsOnlyPositiveCurrentProbe(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Now().UTC()
+	positive := 1.0
+	for _, test := range []struct {
+		name        string
+		fetchedAt   time.Time
+		createdAt   []time.Time
+		wantUpdates int
+	}{
+		{name: "current positive probe", fetchedAt: observedAt, createdAt: []time.Time{observedAt.Add(-time.Minute)}, wantUpdates: 1},
+		{name: "stale positive probe", fetchedAt: observedAt, createdAt: []time.Time{observedAt.Add(time.Minute)}},
+		{name: "newer cooldown protects all rows", fetchedAt: observedAt, createdAt: []time.Time{observedAt.Add(-time.Minute), observedAt.Add(time.Minute)}},
+		{name: "missing observation time", createdAt: []time.Time{observedAt.Add(-time.Minute)}},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteID := uuid.New()
+			credentialID := uuid.New()
+			updates := 0
+			service := siteServiceWithCallbacks(t, siteGormCallbacks{
+				query: func(tx *gorm.DB) {
+					items, ok := tx.Statement.Dest.(*[]store.RouteCooldown)
+					if !ok {
+						tx.AddError(gorm.ErrInvalidData)
+						return
+					}
+					for _, createdAt := range test.createdAt {
+						*items = append(*items, store.RouteCooldown{
+							SiteID:           siteID,
+							SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
+							Reason:           store.CooldownReasonUpstreamSubscriptionLimitExceeded,
+							ActiveUntil:      observedAt.Add(time.Hour),
+							CreatedAt:        createdAt,
+							Metadata:         store.JSON(`{"limit_window":"daily"}`),
+						})
+					}
+					tx.RowsAffected = 1
+					tx.Statement.RowsAffected = 1
+				},
+				update: func(tx *gorm.DB) {
+					updates++
+					tx.RowsAffected = 1
+					tx.Statement.RowsAffected = 1
+				},
+			})
+
+			service.recoverSub2APISubscriptionCooldown(t.Context(), siteID, credentialID, QuotaProbeResult{
+				Status:    "ok",
+				FetchedAt: test.fetchedAt,
+				Entries:   []QuotaProbeEntry{{Label: "daily", Remaining: &positive}},
+			})
+			if updates != test.wantUpdates {
+				t.Fatalf("cooldown clear updates = %d, want %d", updates, test.wantUpdates)
+			}
+		})
 	}
 }
 

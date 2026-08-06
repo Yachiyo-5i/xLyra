@@ -226,6 +226,7 @@ func (h Handler) serveEndpoint(
 	}
 
 	var lastFailure *gatewayAttemptResult
+	var retainedRateLimitFailure *gatewayAttemptResult
 	skippedImageUnsupported := false
 	for {
 		lastFailure = nil
@@ -248,6 +249,7 @@ func (h Handler) serveEndpoint(
 						return
 					}
 					lastFailure = &result
+					retainedRateLimitFailure = retainUpstreamRateLimitFailure(retainedRateLimitFailure, result)
 					h.cooldownAfterFailure(ctx, candidate, result)
 					if result.responseStarted {
 						return
@@ -313,6 +315,7 @@ func (h Handler) serveEndpoint(
 			}
 
 			lastFailure = &result
+			retainedRateLimitFailure = retainUpstreamRateLimitFailure(retainedRateLimitFailure, result)
 			h.cooldownAfterFailure(ctx, candidate, result)
 			if result.responseStarted {
 				return
@@ -342,6 +345,7 @@ func (h Handler) serveEndpoint(
 		}
 	}
 
+	lastFailure = preferredFinalGatewayFailure(lastFailure, retainedRateLimitFailure)
 	if bridge != nil && bridge.FailAll("upstream_failed", "all upstream route candidates failed") {
 		return
 	}
@@ -365,6 +369,21 @@ func (h Handler) serveEndpoint(
 
 	h.logger.WarnContext(r.Context(), "gateway request failed without upstream response", "scope", "gateway", "endpoint", endpoint.DownstreamPath(), "request_id", requestID, "status_code", http.StatusBadGateway, "error_code", "upstream_failed", "latency_ms", time.Since(startedAt).Milliseconds())
 	h.writeGatewayError(w, r, http.StatusBadGateway, "upstream_failed", "all upstream route candidates failed")
+}
+
+func retainUpstreamRateLimitFailure(retained *gatewayAttemptResult, result gatewayAttemptResult) *gatewayAttemptResult {
+	if result.upstreamStatusCode != http.StatusTooManyRequests && result.statusCode != http.StatusTooManyRequests {
+		return retained
+	}
+	copied := result
+	return &copied
+}
+
+func preferredFinalGatewayFailure(lastFailure *gatewayAttemptResult, retainedRateLimitFailure *gatewayAttemptResult) *gatewayAttemptResult {
+	if retainedRateLimitFailure != nil && (lastFailure == nil || lastFailure.errorType == "upstream_credential_unavailable") {
+		return retainedRateLimitFailure
+	}
+	return lastFailure
 }
 
 func (h Handler) resolveModelMapping(apiKey store.APIKey, requestedModel string) (store.APIKeyModelRule, bool) {

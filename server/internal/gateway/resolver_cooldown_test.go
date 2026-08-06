@@ -7,8 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/config"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/store"
+	"xlyra/server/internal/upstream"
 )
 
 func TestOpenAIProtocolResolverEndpointBranches(t *testing.T) {
@@ -541,7 +543,7 @@ func TestClassifyGatewayUpstreamErrorCodexAndAntigravityBranches(t *testing.T) {
 	}
 }
 
-func TestClassifyGatewayUpstreamErrorRecognizesGenericUsageLimit(t *testing.T) {
+func TestClassifyGatewayUpstreamErrorRecognizesSubscriptionUsageLimit(t *testing.T) {
 	t.Parallel()
 
 	input := gatewayAttemptResult{
@@ -551,17 +553,88 @@ func TestClassifyGatewayUpstreamErrorRecognizesGenericUsageLimit(t *testing.T) {
 		errorMessage:       "unchanged",
 	}
 
-	got := classifyGatewayUpstreamError(
+	got := classifyGatewayUpstreamErrorWithTimeZone(
 		resolverCooldownCandidate("openai"),
 		input,
 		[]byte(`{"error":{"type":"usage_limit_reached","resets_in_seconds":30}}`),
 		time.Unix(1_700_000_000, 0),
+		config.LoadTimeZone("Asia/Shanghai"),
 	)
 	if got.statusCode != input.statusCode || got.errorType != "upstream_credential_limited" || got.errorMessage != input.errorMessage {
-		t.Fatalf("classifyGatewayUpstreamError result = %#v, want recoverable credential limit", got)
+		t.Fatalf("classifyGatewayUpstreamError result = %#v, want generic credential limit", got)
 	}
 	if got.cooldownScope != "credential" || got.cooldownReason != store.CooldownReasonUpstreamCredentialLimited || got.cooldownDuration != 30*time.Second || got.retryAfterSeconds != 30 {
 		t.Fatalf("classifyGatewayUpstreamError cooldown = %#v, want credential limit for 30s", got)
+	}
+}
+
+func TestClassifyGatewayUpstreamErrorBuildsSubscriptionCooldown(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 14, 30, 0, 0, time.FixedZone("CST", 8*60*60))
+	result := gatewayAttemptResult{
+		statusCode:         http.StatusTooManyRequests,
+		upstreamStatusCode: http.StatusTooManyRequests,
+		errorType:          "upstream_http_error",
+		errorMessage:       "upstream returned HTTP 429",
+	}
+	body := []byte(`{"code":"USAGE_LIMIT_EXCEEDED","message":"error: code=429 reason=\"DAILY_LIMIT_EXCEEDED\" message=\"daily usage limit exceeded\" metadata=map[]"}`)
+	got := classifyGatewayUpstreamErrorWithTimeZone(resolverCooldownCandidate("openai"), result, body, now, config.LoadTimeZone("Asia/Shanghai"))
+	wantReset := time.Date(2026, 8, 7, 0, 0, 0, 0, now.Location())
+	if got.errorType != "upstream_subscription_limit_exceeded" || got.cooldownReason != store.CooldownReasonUpstreamSubscriptionLimitExceeded || got.cooldownScope != "credential" {
+		t.Fatalf("classification = %#v, want dedicated credential subscription cooldown", got)
+	}
+	if got.cooldownDuration != wantReset.Sub(now) || got.retryAfterSeconds != int64(wantReset.Sub(now).Seconds()) {
+		t.Fatalf("cooldown = %s retry=%d, want %s", got.cooldownDuration, got.retryAfterSeconds, wantReset.Sub(now))
+	}
+	if got.cooldownMetadata["limit_window"] != "daily" || got.cooldownMetadata["upstream_code"] != "USAGE_LIMIT_EXCEEDED" || got.cooldownMetadata["upstream_reason"] != "DAILY_LIMIT_EXCEEDED" || got.cooldownMetadata["reset_at"] != wantReset.UTC().Format(time.RFC3339) {
+		t.Fatalf("metadata = %#v, want daily upstream details and reset", got.cooldownMetadata)
+	}
+}
+
+func TestSubscriptionLimitCalendarResetAt(t *testing.T) {
+	t.Parallel()
+
+	shanghai := config.LoadTimeZone("Asia/Shanghai")
+	newYork := config.LoadTimeZone("America/New_York")
+	for _, test := range []struct {
+		name     string
+		now      time.Time
+		window   string
+		timeZone config.TimeZone
+		want     string
+	}{
+		{name: "daily configured zone", now: time.Date(2026, 8, 6, 23, 30, 0, 0, time.UTC), window: "daily", timeZone: shanghai, want: "2026-08-08T00:00:00+08:00"},
+		{name: "weekly monday boundary", now: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC), window: "weekly", timeZone: shanghai, want: "2026-08-10T00:00:00+08:00"},
+		{name: "monthly boundary", now: time.Date(2026, 12, 31, 12, 0, 0, 0, time.UTC), window: "monthly", timeZone: shanghai, want: "2027-01-01T00:00:00+08:00"},
+		{name: "usage fallback", now: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC), window: "usage", timeZone: shanghai, want: "2026-08-07T00:00:00+08:00"},
+		{name: "daily dst safe", now: time.Date(2026, 3, 8, 1, 30, 0, 0, newYork.Location), window: "daily", timeZone: newYork, want: "2026-03-09T00:00:00-04:00"},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := subscriptionLimitCalendarResetAt(test.now, test.window, test.timeZone)
+			if got.Format(time.RFC3339) != test.want {
+				t.Fatalf("reset = %s, want %s", got.Format(time.RFC3339), test.want)
+			}
+		})
+	}
+}
+
+func TestSubscriptionLimitResetPriority(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
+	failure := upstream.ClassifyResponseAt(http.StatusTooManyRequests, nil, []byte(`{"code":"USAGE_LIMIT_EXCEEDED","reset_at":"2026-08-07T00:00:00Z"}`), now)
+	resetAt, seconds := subscriptionLimitResetAt(gatewayAttemptResult{retryAfterSeconds: 90}, failure, now, config.LoadTimeZone("Asia/Shanghai"))
+	if !resetAt.Equal(now.Add(90*time.Second)) || seconds != 90 {
+		t.Fatalf("Retry-After reset = %s/%d, want 90 seconds", resetAt, seconds)
+	}
+
+	resetAt, seconds = subscriptionLimitResetAt(gatewayAttemptResult{}, failure, now, config.LoadTimeZone("Asia/Shanghai"))
+	want := time.Date(2026, 8, 7, 0, 0, 0, 0, time.UTC)
+	if !resetAt.Equal(want) || seconds != int64(want.Sub(now).Seconds()) {
+		t.Fatalf("upstream reset_at = %s/%d, want %s", resetAt, seconds, want)
 	}
 }
 

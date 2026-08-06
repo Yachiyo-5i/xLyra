@@ -122,6 +122,12 @@ func cooldownInputForFailure(candidate routeengine.Candidate, result gatewayAtte
 		base.Reason = store.CooldownReasonOpenCodeGoUsageLimitReached
 		base.Duration = openCodeGoUsageLimitCooldownDuration(result)
 		return base, true
+	case result.errorType == "upstream_subscription_limit_exceeded" && credentialID != uuid.Nil:
+		base.SiteCredentialID = &credentialID
+		base.Scope = "credential"
+		base.Reason = store.CooldownReasonUpstreamSubscriptionLimitExceeded
+		base.Duration = result.cooldownDuration
+		return base, true
 	case result.errorType == "upstream_credential_limited" && credentialID != uuid.Nil:
 		base.SiteCredentialID = &credentialID
 		base.Scope = "credential"

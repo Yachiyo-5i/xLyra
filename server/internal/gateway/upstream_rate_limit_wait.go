@@ -22,6 +22,9 @@ func upstreamRateLimitWaitable(candidate routeengine.Candidate, result gatewayAt
 	if result.upstreamStatusCode != http.StatusTooManyRequests {
 		return false
 	}
+	if result.errorType == "upstream_subscription_limit_exceeded" {
+		return false
+	}
 	if isCodexSite(candidate.Site.SiteType) || isAntigravitySite(candidate.Site.SiteType) {
 		return false
 	}

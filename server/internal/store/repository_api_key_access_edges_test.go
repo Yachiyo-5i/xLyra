@@ -648,6 +648,7 @@ func TestRouteCooldownRepositoryActivateAndClearActiveOffline(t *testing.T) {
 	activeUntil := time.Date(2026, 6, 23, 15, 0, 0, 0, time.UTC)
 	db := storeTransactionGorm(t, "route cooldown")
 	var clearWheres []string
+	var clearVars [][]any
 	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
 		values, ok := tx.Statement.Dest.(map[string]any)
 		if !ok {
@@ -661,6 +662,7 @@ func TestRouteCooldownRepositoryActivateAndClearActiveOffline(t *testing.T) {
 		}
 		tx.Statement.Build("WHERE")
 		clearWheres = append(clearWheres, tx.Statement.SQL.String())
+		clearVars = append(clearVars, append([]any(nil), tx.Statement.Vars...))
 		tx.Statement.RowsAffected = 1
 	})
 	var created RouteCooldown
@@ -694,6 +696,18 @@ func TestRouteCooldownRepositoryActivateAndClearActiveOffline(t *testing.T) {
 	}
 	if len(clearWheres) != 2 {
 		t.Fatalf("cooldown clear updates = %d, want activate clear and explicit clear", len(clearWheres))
+	}
+	if !strings.Contains(strings.ToLower(clearWheres[0]), `"reason"`) {
+		t.Fatalf("activation clear where %q must preserve dedicated subscription cooldowns", clearWheres[0])
+	}
+	protected := false
+	for _, value := range clearVars[0] {
+		if value == CooldownReasonUpstreamSubscriptionLimitExceeded {
+			protected = true
+		}
+	}
+	if !protected {
+		t.Fatalf("activation clear vars %#v missing dedicated subscription cooldown reason", clearVars[0])
 	}
 	for _, where := range clearWheres {
 		lower := strings.ToLower(where)

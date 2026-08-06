@@ -19,6 +19,11 @@ func TestUpstreamRateLimitWaitable(t *testing.T) {
 	if !upstreamRateLimitWaitable(waitTestCandidate("openai"), limited) {
 		t.Fatal("openai-compatible 429 must be waitable")
 	}
+	subscriptionLimited := limited
+	subscriptionLimited.errorType = "upstream_subscription_limit_exceeded"
+	if upstreamRateLimitWaitable(waitTestCandidate("openai"), subscriptionLimited) {
+		t.Fatal("subscription limit 429 must not be waitable")
+	}
 	if upstreamRateLimitWaitable(waitTestCandidate("codex"), limited) {
 		t.Fatal("codex 429 signals quota exhaustion and must not be waitable")
 	}
@@ -93,5 +98,26 @@ func TestRateLimitedCooldownDuration(t *testing.T) {
 	}
 	if got := rateLimitedCooldownDuration(600); got != 2*time.Minute {
 		t.Fatalf("huge retry-after cooldown = %v, want 2m cap", got)
+	}
+}
+
+func TestPreferredFinalGatewayFailurePreservesUpstream429(t *testing.T) {
+	t.Parallel()
+
+	original := gatewayAttemptResult{
+		statusCode:         http.StatusTooManyRequests,
+		upstreamStatusCode: http.StatusTooManyRequests,
+		body:               []byte(`{"code":"USAGE_LIMIT_EXCEEDED"}`),
+	}
+	retained := retainUpstreamRateLimitFailure(nil, original)
+	unavailable := &gatewayAttemptResult{statusCode: http.StatusBadGateway, errorType: "upstream_credential_unavailable"}
+	got := preferredFinalGatewayFailure(unavailable, retained)
+	if got == nil || got.statusCode != http.StatusTooManyRequests || string(got.body) != string(original.body) {
+		t.Fatalf("preferred failure = %#v, want original 429", got)
+	}
+
+	serverError := &gatewayAttemptResult{statusCode: http.StatusBadGateway, errorType: "upstream_transport_error"}
+	if got := preferredFinalGatewayFailure(serverError, retained); got != serverError {
+		t.Fatalf("preferred failure = %#v, want later concrete upstream failure", got)
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"xlyra/server/internal/store"
 )
 
@@ -78,6 +80,9 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 			result.Error = "credential decrypt failed"
 		} else {
 			result = probeQuota(ctx, client, probeType, item.BaseURL, secret)
+		}
+		if probeType == QuotaProbeTypeSub2API && result.Status == "ok" {
+			s.recoverSub2APISubscriptionCooldown(ctx, item.ID, credential.ID, result)
 		}
 		if result.Status != "ok" {
 			result = preserveQuotaProbeResult(credential.Meta, result)
@@ -158,6 +163,67 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 		return item
 	}
 	return updated
+}
+
+func (s *Service) recoverSub2APISubscriptionCooldown(ctx context.Context, siteID uuid.UUID, credentialID uuid.UUID, result QuotaProbeResult) {
+	if result.Status != "ok" || result.FetchedAt.IsZero() || siteID == uuid.Nil || credentialID == uuid.Nil {
+		return
+	}
+	repo := store.NewRouteCooldownRepository(s.db.DB())
+	items, err := repo.ListActiveByCredential(ctx, siteID, credentialID, []string{store.CooldownReasonUpstreamSubscriptionLimitExceeded}, time.Now())
+	if err != nil {
+		return
+	}
+	for _, item := range items {
+		if item.CreatedAt.After(result.FetchedAt) {
+			return
+		}
+	}
+	for _, item := range items {
+		metadata := map[string]any{}
+		if json.Unmarshal(item.Metadata, &metadata) != nil {
+			continue
+		}
+		if !sub2APISubscriptionQuotaRecovered(result, anyString(metadata["limit_window"])) {
+			continue
+		}
+		_, _ = repo.ClearActiveMatching(ctx, store.ClearActiveCooldownFilter{
+			SiteID:           siteID,
+			SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
+			Reasons:          []string{store.CooldownReasonUpstreamSubscriptionLimitExceeded},
+		})
+		return
+	}
+}
+
+func sub2APISubscriptionQuotaRecovered(result QuotaProbeResult, limitWindow string) bool {
+	if result.Status != "ok" {
+		return false
+	}
+	limitWindow = strings.ToLower(strings.TrimSpace(limitWindow))
+	if limitWindow == "daily" || limitWindow == "weekly" || limitWindow == "monthly" {
+		for _, entry := range result.Entries {
+			if strings.EqualFold(strings.TrimSpace(entry.Label), limitWindow) {
+				return entry.Remaining != nil && *entry.Remaining > 0
+			}
+		}
+		return false
+	}
+	foundWindow := false
+	for _, entry := range result.Entries {
+		switch strings.ToLower(strings.TrimSpace(entry.Label)) {
+		case "balance":
+			if entry.Remaining == nil || *entry.Remaining <= 0 {
+				return false
+			}
+		case "daily", "weekly", "monthly":
+			if entry.Remaining == nil || *entry.Remaining <= 0 {
+				return false
+			}
+			foundWindow = true
+		}
+	}
+	return foundWindow
 }
 
 func quotaProbeCredentialEligible(credentialType string) bool {

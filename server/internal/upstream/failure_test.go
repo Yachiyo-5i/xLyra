@@ -81,3 +81,48 @@ func TestClassifyResponseReadsResetAt(t *testing.T) {
 		t.Fatalf("ResetAt = %s, want %s", got.ResetAt, want)
 	}
 }
+
+func TestClassifyResponseRecognizesSub2APISubscriptionLimit(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"code":"USAGE_LIMIT_EXCEEDED","message":"error: code=429 reason=\"DAILY_LIMIT_EXCEEDED\" message=\"daily usage limit exceeded\" metadata=map[]"}`)
+	got := ClassifyResponse(http.StatusTooManyRequests, nil, body)
+	if !got.SubscriptionLimited() || got.LimitWindow != "daily" || got.LimitReason != "DAILY_LIMIT_EXCEEDED" {
+		t.Fatalf("ClassifyResponse() = %#v, want daily subscription limit", got)
+	}
+	if got.Code != "USAGE_LIMIT_EXCEEDED" {
+		t.Fatalf("Code = %q, want USAGE_LIMIT_EXCEEDED", got.Code)
+	}
+}
+
+func TestClassifyResponseSubscriptionLimitPriorityAndFallback(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name         string
+		body         string
+		window       string
+		reason       string
+		subscription bool
+		limited      bool
+	}{
+		{name: "structured daily", body: `{"reason":"DAILY_LIMIT_EXCEEDED","code":"USAGE_LIMIT_EXCEEDED"}`, window: "daily", reason: "DAILY_LIMIT_EXCEEDED", subscription: true, limited: true},
+		{name: "message weekly beats usage", body: `{"code":"USAGE_LIMIT_EXCEEDED","message":"reason=\"WEEKLY_LIMIT_EXCEEDED\""}`, window: "weekly", reason: "WEEKLY_LIMIT_EXCEEDED", subscription: true, limited: true},
+		{name: "message monthly beats usage", body: `{"code":"USAGE_LIMIT_EXCEEDED","message":"MONTHLY_LIMIT_EXCEEDED"}`, window: "monthly", reason: "MONTHLY_LIMIT_EXCEEDED", subscription: true, limited: true},
+		{name: "usage fallback", body: `{"code":"USAGE_LIMIT_EXCEEDED"}`, window: "usage", reason: "USAGE_LIMIT_EXCEEDED", subscription: true, limited: true},
+		{name: "generic exact fallback", body: `{"code":"LIMIT_EXCEEDED"}`, limited: true},
+		{name: "generic suffix fallback", body: `{"code":"PROJECT_LIMIT_EXCEEDED"}`, limited: true},
+		{name: "structured rate exclusion", body: `{"code":"RATE_LIMIT_EXCEEDED","message":"DAILY_LIMIT_EXCEEDED"}`, limited: true},
+		{name: "concurrency exclusion", body: `{"reason":"CONCURRENCY_LIMIT_EXCEEDED"}`, limited: true},
+		{name: "partial token exclusion", body: `{"code":"USAGE_LIMIT_EXCEEDED_EXTRA"}`},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := ClassifyResponse(http.StatusBadRequest, nil, []byte(test.body))
+			if got.SubscriptionLimited() != test.subscription || got.Limited() != test.limited || got.LimitWindow != test.window || got.LimitReason != test.reason {
+				t.Fatalf("ClassifyResponse() = %#v, want subscription=%v limited=%v window=%q reason=%q", got, test.subscription, test.limited, test.window, test.reason)
+			}
+		})
+	}
+}

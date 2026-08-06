@@ -139,6 +139,26 @@ func TestCooldownInputForFailureClassifiesStreamAndCredentialExhaustion(t *testi
 	}
 }
 
+func TestCooldownInputForSubscriptionLimit(t *testing.T) {
+	t.Parallel()
+
+	credentialID := uuid.New()
+	duration := 9*time.Hour + 30*time.Minute
+	input, ok := cooldownInputForFailure(resolverCooldownCandidate("openai"), gatewayAttemptResult{
+		statusCode:       http.StatusTooManyRequests,
+		errorType:        "upstream_subscription_limit_exceeded",
+		credentialID:     credentialID,
+		cooldownDuration: duration,
+		cooldownMetadata: map[string]any{"limit_window": "daily"},
+	})
+	if !ok || input.Scope != "credential" || input.Reason != store.CooldownReasonUpstreamSubscriptionLimitExceeded || input.Duration != duration {
+		t.Fatalf("cooldown input = %#v, %v, want dedicated credential cooldown", input, ok)
+	}
+	if input.SiteCredentialID == nil || *input.SiteCredentialID != credentialID || input.Metadata["limit_window"] != "daily" {
+		t.Fatalf("cooldown identity/metadata = %#v, want credential and daily window", input)
+	}
+}
+
 func TestEscalateCooldownDurationDoublesPerRecentActivationWithCap(t *testing.T) {
 	t.Parallel()
 

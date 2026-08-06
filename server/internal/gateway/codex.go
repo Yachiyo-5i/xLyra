@@ -2,12 +2,14 @@ package gateway
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/config"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/store"
 	"xlyra/server/internal/upstream"
@@ -222,6 +224,10 @@ func payloadContainsTypedItem(value any, itemType string) bool {
 }
 
 func classifyGatewayUpstreamError(candidate routeengine.Candidate, result gatewayAttemptResult, body []byte, now time.Time) gatewayAttemptResult {
+	return classifyGatewayUpstreamErrorWithTimeZone(candidate, result, body, now, config.ResolveTimeZone())
+}
+
+func classifyGatewayUpstreamErrorWithTimeZone(candidate routeengine.Candidate, result gatewayAttemptResult, body []byte, now time.Time, timeZone config.TimeZone) gatewayAttemptResult {
 	if classified, ok := classifyOpenCodeGoUsageLimit(candidate, result, body, now); ok {
 		return classified
 	}
@@ -234,7 +240,25 @@ func classifyGatewayUpstreamError(candidate routeengine.Candidate, result gatewa
 	}
 	if !ok {
 		failure := upstream.ClassifyResponseAt(result.upstreamStatusCode, nil, body, now)
-		if failure.Limited() {
+		if failure.SubscriptionLimited() {
+			resetAt, retryAfterSeconds := subscriptionLimitResetAt(result, failure, now, timeZone)
+			classified = codexUpstreamError{
+				StatusCode:        result.statusCode,
+				ErrorType:         "upstream_subscription_limit_exceeded",
+				ErrorMessage:      nonEmptyString(failure.Message, result.errorMessage),
+				CooldownReason:    store.CooldownReasonUpstreamSubscriptionLimitExceeded,
+				CooldownScope:     "credential",
+				CooldownDuration:  resetAt.Sub(now),
+				RetryAfterSeconds: retryAfterSeconds,
+				CooldownMetadata: map[string]any{
+					"limit_window":    failure.LimitWindow,
+					"upstream_code":   failure.Code,
+					"upstream_reason": failure.LimitReason,
+					"reset_at":        resetAt.UTC().Format(time.RFC3339),
+				},
+			}
+			ok = true
+		} else if failure.Limited() {
 			retryAfterSeconds := failure.RetryAfterSeconds
 			if retryAfterSeconds <= 0 {
 				retryAfterSeconds = result.retryAfterSeconds
@@ -261,8 +285,41 @@ func classifyGatewayUpstreamError(candidate routeengine.Candidate, result gatewa
 	result.cooldownReason = classified.CooldownReason
 	result.cooldownScope = classified.CooldownScope
 	result.cooldownDuration = classified.CooldownDuration
+	result.cooldownMetadata = classified.CooldownMetadata
 	result.retryAfterSeconds = classified.RetryAfterSeconds
 	return result
+}
+
+func subscriptionLimitResetAt(result gatewayAttemptResult, failure upstream.Failure, now time.Time, timeZone config.TimeZone) (time.Time, int64) {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if result.retryAfterSeconds > 0 {
+		resetAt := now.Add(time.Duration(result.retryAfterSeconds) * time.Second)
+		return resetAt, result.retryAfterSeconds
+	}
+	if failure.HasRetryAfter && failure.RetryAfterSeconds > 0 {
+		resetAt := now.Add(time.Duration(failure.RetryAfterSeconds) * time.Second)
+		return resetAt, failure.RetryAfterSeconds
+	}
+	if failure.ResetAt.After(now) {
+		return failure.ResetAt, int64(math.Ceil(failure.ResetAt.Sub(now).Seconds()))
+	}
+	resetAt := subscriptionLimitCalendarResetAt(now, failure.LimitWindow, timeZone)
+	return resetAt, int64(math.Ceil(resetAt.Sub(now).Seconds()))
+}
+
+func subscriptionLimitCalendarResetAt(now time.Time, window string, timeZone config.TimeZone) time.Time {
+	switch strings.ToLower(strings.TrimSpace(window)) {
+	case "weekly":
+		return timeZone.StartOfWeek(now).AddDate(0, 0, 7)
+	case "monthly":
+		start := timeZone.StartOfDay(now)
+		year, month, _ := start.Date()
+		return time.Date(year, month+1, 1, 0, 0, 0, 0, start.Location())
+	default:
+		return timeZone.StartOfDay(now).AddDate(0, 0, 1)
+	}
 }
 
 func applyCodexRequestPolicy(payload map[string]any, candidate routeengine.Candidate) map[string]any {
@@ -447,6 +504,7 @@ type codexUpstreamError struct {
 	CooldownReason    string
 	CooldownScope     string
 	CooldownDuration  time.Duration
+	CooldownMetadata  map[string]any
 	RetryAfterSeconds int64
 }
 

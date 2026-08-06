@@ -575,7 +575,7 @@ func (h Handler) handleSiteModelTestStreamResponse(
 		result.body = responseBody
 		result.errorType = "upstream_http_error"
 		result.errorMessage = fmt.Sprintf("upstream returned HTTP %d", resp.StatusCode)
-		result = classifyGatewayUpstreamError(candidate, result, responseBody, time.Now())
+		result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, responseBody, time.Now(), h.timeZone)
 		result.failureResponse = diagnosticFailureResponse(responseBody)
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, upstreamResponseForMetadata(false, responseBody))
 		return result
