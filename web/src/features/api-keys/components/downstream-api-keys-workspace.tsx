@@ -219,12 +219,14 @@ export function DownstreamAPIKeysWorkspace() {
   }
 
   function openResetQuota(apiKey: DownstreamAPIKey) {
+    const totalEnabled = !apiKey.quota_unlimited && apiKey.quota_limit != null
     const dailyEnabled = !apiKey.quota_daily_unlimited && apiKey.quota_daily_limit != null
     const weeklyEnabled = !apiKey.quota_weekly_unlimited && apiKey.quota_weekly_limit != null
     setResetTarget(apiKey)
     setResetScopes([
-      ...(dailyEnabled ? ['daily' as const] : []),
+      ...(totalEnabled ? ['total' as const] : []),
       ...(weeklyEnabled ? ['weekly' as const] : []),
+      ...(dailyEnabled ? ['daily' as const] : []),
     ])
   }
 
@@ -295,15 +297,15 @@ export function DownstreamAPIKeysWorkspace() {
               {resetTarget ? t('workspace.resetQuotaDialog.description', { name: resetTarget.name }) : null}
             </DialogDescription>
             <div className="grid gap-3 rounded-lg border border-[hsl(var(--glass-border))] p-3">
-              {resetTarget && !resetTarget.quota_daily_unlimited && resetTarget.quota_daily_limit != null ? (
+              {resetTarget && !resetTarget.quota_unlimited && resetTarget.quota_limit != null ? (
                 <Checkbox
-                  checked={resetScopes.includes('daily')}
+                  checked={resetScopes.includes('total')}
                   disabled={resetQuotaMutation.isPending}
                   onCheckedChange={(checked) => setResetScopes((current) => (
-                    checked ? [...current.filter((scope) => scope !== 'daily'), 'daily'] : current.filter((scope) => scope !== 'daily')
+                    checked ? [...current.filter((scope) => scope !== 'total'), 'total'] : current.filter((scope) => scope !== 'total')
                   ))}
-                  label={t('workspace.resetQuotaDialog.daily')}
-                  description={t('workspace.resetQuotaDialog.dailyDescription', { used: resetTarget.quota_daily_used ?? 0 })}
+                  label={t('workspace.resetQuotaDialog.total')}
+                  description={t('workspace.resetQuotaDialog.totalDescription', { used: resetTarget.quota_total_used ?? resetTarget.quota_used })}
                 />
               ) : null}
               {resetTarget && !resetTarget.quota_weekly_unlimited && resetTarget.quota_weekly_limit != null ? (
@@ -315,6 +317,17 @@ export function DownstreamAPIKeysWorkspace() {
                   ))}
                   label={t('workspace.resetQuotaDialog.weekly')}
                   description={t('workspace.resetQuotaDialog.weeklyDescription', { used: resetTarget.quota_weekly_used ?? 0 })}
+                />
+              ) : null}
+              {resetTarget && !resetTarget.quota_daily_unlimited && resetTarget.quota_daily_limit != null ? (
+                <Checkbox
+                  checked={resetScopes.includes('daily')}
+                  disabled={resetQuotaMutation.isPending}
+                  onCheckedChange={(checked) => setResetScopes((current) => (
+                    checked ? [...current.filter((scope) => scope !== 'daily'), 'daily'] : current.filter((scope) => scope !== 'daily')
+                  ))}
+                  label={t('workspace.resetQuotaDialog.daily')}
+                  description={t('workspace.resetQuotaDialog.dailyDescription', { used: resetTarget.quota_daily_used ?? 0 })}
                 />
               ) : null}
             </div>

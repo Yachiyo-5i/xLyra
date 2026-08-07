@@ -223,6 +223,7 @@ func (h Handler) ResetAPIKeyQuota(w http.ResponseWriter, r *http.Request) {
 	actor, _ := auth.AdminActorFromContext(r.Context())
 	h.recordAudit(r, actor, "api_key.quota.reset", "api_key", apiKey.ID.String(), true, "", map[string]any{
 		"scopes":             result.Scopes,
+		"total_used_before":  result.TotalUsedBefore,
 		"daily_used_before":  result.DailyUsedBefore,
 		"weekly_used_before": result.WeeklyUsedBefore,
 	})
@@ -737,7 +738,10 @@ func (h Handler) apiKeyPayloadWithRateLimit(item store.APIKey, models []store.AP
 		"image_tool_bridge":      imageToolBridgePayload(item),
 		"quota_limit":            nullFloat64Value(item.QuotaLimit),
 		"quota_used":             item.QuotaUsed,
+		"quota_total_used":       item.EffectiveTotalQuotaUsed(),
 		"quota_available":        apiKeyQuotaAvailable(item),
+		"quota_total_available":  apiKeyQuotaAvailable(item),
+		"quota_total_reset_at":   timePtrValue(item.QuotaTotalResetAt),
 		"quota_unlimited":        item.QuotaUnlimited,
 		"quota_daily_limit":      nullFloat64Value(item.QuotaDailyLimit),
 		"quota_daily_used":       dailyUsed,
@@ -775,7 +779,10 @@ func (h Handler) apiKeySyncPayload(item store.APIKey) map[string]any {
 		"status":                 item.Status,
 		"quota_limit":            nullFloat64Value(item.QuotaLimit),
 		"quota_used":             item.QuotaUsed,
+		"quota_total_used":       item.EffectiveTotalQuotaUsed(),
 		"quota_available":        apiKeyQuotaAvailable(item),
+		"quota_total_available":  apiKeyQuotaAvailable(item),
+		"quota_total_reset_at":   timePtrValue(item.QuotaTotalResetAt),
 		"quota_unlimited":        item.QuotaUnlimited,
 		"quota_daily_limit":      nullFloat64Value(item.QuotaDailyLimit),
 		"quota_daily_used":       dailyUsed,
@@ -936,7 +943,7 @@ func apiKeyQuotaAvailable(item store.APIKey) any {
 	if item.QuotaUnlimited || !item.QuotaLimit.Valid {
 		return nil
 	}
-	available := item.QuotaLimit.Float64 - item.QuotaUsed
+	available := item.QuotaLimit.Float64 - item.EffectiveTotalQuotaUsed()
 	if available < 0 {
 		return 0
 	}

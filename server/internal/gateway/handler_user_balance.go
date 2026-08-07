@@ -93,6 +93,9 @@ func userBalancePayloadAt(apiKey store.APIKey, now time.Time, timeZone config.Ti
 		"unit":                   "USD",
 		"quota_limit":            userBalanceNullFloat64(apiKey.QuotaLimit),
 		"quota_used":             apiKey.QuotaUsed,
+		"quota_total_used":       apiKey.EffectiveTotalQuotaUsed(),
+		"quota_total_available":  userBalanceAvailable(apiKey),
+		"quota_total_reset_at":   userBalanceTimePtr(apiKey.QuotaTotalResetAt),
 		"quota_unlimited":        apiKey.QuotaUnlimited,
 		"quota_daily_limit":      userBalanceNullFloat64(apiKey.QuotaDailyLimit),
 		"quota_daily_used":       dailyUsed,
@@ -129,11 +132,18 @@ func userBalanceAvailable(apiKey store.APIKey) any {
 	if apiKey.QuotaUnlimited || !apiKey.QuotaLimit.Valid {
 		return nil
 	}
-	remaining := apiKey.QuotaLimit.Float64 - apiKey.QuotaUsed
+	remaining := apiKey.QuotaLimit.Float64 - apiKey.EffectiveTotalQuotaUsed()
 	if remaining < 0 {
 		return float64(0)
 	}
 	return remaining
+}
+
+func userBalanceTimePtr(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.Format(time.RFC3339)
 }
 
 func userBalanceNullFloat64(value sql.NullFloat64) any {

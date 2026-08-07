@@ -16,7 +16,8 @@ func TestConsumeQuotaPropagatesUsageUpdateErrorForPositiveAmount(t *testing.T) {
 	t.Parallel()
 
 	queryErr := errors.New("usage update stopped")
-	service := authServiceWithQueryCallback(t, func(tx *gorm.DB) {
+	service := NewService(authTransactionOnlyGorm(t), "test-master-key")
+	authReplaceQueryCallback(t, service.db, func(tx *gorm.DB) {
 		tx.AddError(queryErr)
 	})
 

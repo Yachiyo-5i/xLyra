@@ -31,9 +31,13 @@ func TestApplyRowToModelRestoresAPIKeyPeriodicQuotaFields(t *testing.T) {
 	}
 	dailyStart := "2026-08-05T00:00:00Z"
 	weeklyStart := "2026-08-03T00:00:00Z"
+	totalResetAt := "2026-08-04T12:00:00Z"
 	var apiKey store.APIKey
 	err = applyRowToModel(context.Background(), parsed, reflect.ValueOf(&apiKey).Elem(), map[string]any{
 		"id":                        "00000000-0000-0000-0000-000000000200",
+		"quota_used":                json.Number("103.25"),
+		"quota_total_used":          json.Number("13.25"),
+		"quota_total_reset_at":      totalResetAt,
 		"quota_daily_limit":         json.Number("12.5"),
 		"quota_daily_used":          json.Number("3.25"),
 		"quota_daily_unlimited":     false,
@@ -45,6 +49,9 @@ func TestApplyRowToModelRestoresAPIKeyPeriodicQuotaFields(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("restore api key quota fields: %v", err)
+	}
+	if apiKey.QuotaUsed != 103.25 || apiKey.QuotaTotalUsed != 13.25 || apiKey.QuotaTotalResetAt == nil || apiKey.QuotaTotalResetAt.Format(time.RFC3339) != totalResetAt {
+		t.Fatalf("total quota fields = %#v", apiKey)
 	}
 	if !apiKey.QuotaDailyLimit.Valid || apiKey.QuotaDailyLimit.Float64 != 12.5 || apiKey.QuotaDailyUsed != 3.25 || apiKey.QuotaDailyUnlimited {
 		t.Fatalf("daily quota fields = %#v", apiKey)

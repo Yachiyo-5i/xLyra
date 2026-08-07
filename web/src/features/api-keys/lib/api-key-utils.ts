@@ -359,6 +359,12 @@ export function formatCompactDollarQuota(value: number) {
   return `$${(value / 1_000).toLocaleString('en-US', { maximumFractionDigits: 2 })}K`
 }
 
+export function hasResettableQuota(apiKey: DownstreamAPIKey) {
+  return (!apiKey.quota_unlimited && apiKey.quota_limit != null)
+    || (!apiKey.quota_daily_unlimited && apiKey.quota_daily_limit != null)
+    || (!apiKey.quota_weekly_unlimited && apiKey.quota_weekly_limit != null)
+}
+
 export function formatRateLimitSummary(apiKey: DownstreamAPIKey, t: TFunction) {
   const config = apiKey.rate_limit
   if (!config || config.status !== 'enabled') return t('table.rateLimit.disabled')

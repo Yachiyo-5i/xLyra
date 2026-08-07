@@ -64,22 +64,26 @@ func TestXLyraListAPIKeysParsesKeysAndNormalizesRaw(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"items": []any{
 				map[string]any{
-					"id":              "real-key-id",
-					"name":            "real key",
-					"key":             " sk-real ",
-					"masked_key":      " sk-real-*** ",
-					"status":          "active",
-					"quota_available": float64(42),
-					"quota_remaining": float64(99),
-					"quota_used":      float64(7),
-					"quota_unlimited": true,
-					"expires_at":      "2030-01-02T03:04:05Z",
+					"id":               "real-key-id",
+					"name":             "real key",
+					"key":              " sk-real ",
+					"masked_key":       " sk-real-*** ",
+					"status":           "active",
+					"quota_available":  float64(42),
+					"quota_remaining":  float64(99),
+					"quota_used":       float64(7),
+					"quota_total_used": float64(5),
+					"quota_unlimited":  true,
+					"expires_at":       "2030-01-02T03:04:05Z",
 				},
 				map[string]any{
-					"id":         "masked-key-id",
-					"name":       "masked key",
-					"masked_key": " sk-masked-*** ",
-					"status":     "disabled",
+					"id":               "masked-key-id",
+					"name":             "masked key",
+					"masked_key":       " sk-masked-*** ",
+					"status":           "disabled",
+					"quota_used":       float64(9),
+					"quota_total_used": float64(2),
+					"quota_unlimited":  false,
 				},
 				map[string]any{
 					"id":         "prefix-key-id",
@@ -123,6 +127,9 @@ func TestXLyraListAPIKeysParsesKeysAndNormalizesRaw(t *testing.T) {
 
 	if keys[1].ExternalID != "masked-key-id" || keys[1].Key != "" || keys[1].MaskedKey != "sk-masked-***" {
 		t.Fatalf("unexpected masked-only key: %#v", keys[1])
+	}
+	if keys[1].Raw["used_quota"] != float64(2) || keys[1].Raw["unlimited_quota"] != false {
+		t.Fatalf("unexpected limited normalized raw: %#v", keys[1].Raw)
 	}
 	if keys[2].ExternalID != "prefix-key-id" || keys[2].Key != "" || keys[2].MaskedKey != "sk-prefix" {
 		t.Fatalf("unexpected prefix-only key: %#v", keys[2])

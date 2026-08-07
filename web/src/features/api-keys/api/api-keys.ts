@@ -73,6 +73,9 @@ export type DownstreamAPIKey = {
   model_mappings?: ModelRule[] | null
   image_tool_bridge?: ImageToolBridgeConfig | null
   quota_limit?: number | null
+  quota_total_used?: number
+  quota_total_available?: number | null
+  quota_total_reset_at?: string | null
   quota_used: number
   quota_available?: number | null
   quota_unlimited: boolean
@@ -158,7 +161,7 @@ export async function deleteDownstreamAPIKey(apiKeyId: string) {
   })
 }
 
-export type QuotaResetScope = 'daily' | 'weekly'
+export type QuotaResetScope = 'total' | 'daily' | 'weekly'
 
 export async function resetDownstreamAPIKeyQuota(apiKeyId: string, scopes: QuotaResetScope[]) {
   return apiFetch<{ api_key: DownstreamAPIKey }>(`/api/v1/api-keys/${apiKeyId}/quota/reset`, {

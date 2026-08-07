@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -18,8 +18,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Progress } from '@/components/ui/progress'
 import { PaginationControls } from '@/components/ui/pagination'
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import {
   Select,
   SelectContent,
@@ -28,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { LanguageSwitcher } from '@/components/common/language-switcher'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { APP_LOGO_SRC, APP_NAME } from '@/lib/brand'
 import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
@@ -307,11 +316,11 @@ function PortalDashboard({ portalKey, settings, onInvalidKey }: PortalDashboardP
       {overview ? (
         <section className={[
           'grid gap-4',
-          hasPeriodicLimits(overview) ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2',
+          hasConfiguredLimits(overview) ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2',
         ].join(' ')}>
           <KeyInfoCard overview={overview} />
-          <QuotaDetailCard overview={overview} />
-          <PeriodicLimitsCard overview={overview} />
+          <AccumulatedUsageCard overview={overview} />
+          <QuotaLimitsCard overview={overview} />
         </section>
       ) : overviewQuery.isLoading ? (
         <CenterState>
@@ -430,21 +439,11 @@ function RequestStats({ stats, dims }: { stats: PortalRequestStats | undefined; 
   )
 }
 
-const quotaThresholds = [
-  { max: 10, variant: 'danger' },
-  { max: 30, variant: 'warning' },
-  { max: 100, variant: 'success' },
-] as const
-
-function hasPeriodicLimits(overview: PortalOverview) {
+function hasConfiguredLimits(overview: PortalOverview) {
   const { daily, weekly } = overview.quota
-  return (!daily.unlimited && daily.limit != null) || (!weekly.unlimited && weekly.limit != null)
-}
-
-function remainPercent(used: number, limit: number | null, remaining: number | null, unlimited: boolean): number | null {
-  if (unlimited || limit == null || limit <= 0) return null
-  const rem = remaining ?? Math.max(limit - used, 0)
-  return Math.min(100, Math.max(0, (rem / limit) * 100))
+  return (!overview.quota.unlimited && overview.quota.limit != null)
+    || (!weekly.unlimited && weekly.limit != null)
+    || (!daily.unlimited && daily.limit != null)
 }
 
 function formatResetIn(resetAt: string | null, t: (k: string, opts?: Record<string, unknown>) => string): string | null {
@@ -464,7 +463,7 @@ function KeyInfoCard({ overview }: { overview: PortalOverview }) {
   const { t } = useTranslation('portal')
   const { key } = overview
   return (
-    <Card>
+    <Card className="h-full">
       <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
         <div className="space-y-1">
           <p className="text-muted-soft text-xs">{t('overview.keyTitle')}</p>
@@ -493,70 +492,170 @@ function KeyInfoCard({ overview }: { overview: PortalOverview }) {
   )
 }
 
-function QuotaDetailCard({ overview }: { overview: PortalOverview }) {
+function AccumulatedUsageCard({ overview }: { overview: PortalOverview }) {
   const { t } = useTranslation('portal')
   const { quota } = overview
-  const pct = remainPercent(quota.used, quota.limit, quota.remaining, quota.unlimited)
   return (
-    <Card>
-      <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
+    <Card className="h-full">
+      <CardContent className="flex h-full flex-col gap-1.5 p-5">
         <div className="space-y-1">
-          <p className="text-muted-soft text-xs">{t('overview.quota')}</p>
-          <p className="text-2xl font-semibold tabular-nums">
-            {quota.unlimited ? t('overview.unlimited') : quota.limit == null ? '—' : formatUSD(quota.limit)}
-          </p>
-        </div>
-        {pct != null ? <Progress value={pct} thresholds={[...quotaThresholds]} /> : null}
-        <div className="flex items-center justify-between text-xs tabular-nums">
-          <span className="text-muted-soft">
-            {t('overview.used')} <span className="text-foreground font-medium">{formatUSD(quota.used)}</span>
-          </span>
-          <span className="text-muted-soft">
-            {t('overview.remaining')}{' '}
-            <span className="text-foreground font-medium">
-              {quota.unlimited ? t('overview.unlimited') : quota.remaining == null ? '—' : formatUSD(quota.remaining)}
-            </span>
-          </span>
+          <p className="text-muted-soft text-xs">{t('overview.accumulatedUsage')}</p>
+          <p className="text-2xl font-semibold tabular-nums">{formatUSD(quota.accumulated_used)}</p>
         </div>
       </CardContent>
     </Card>
   )
 }
 
-function PeriodicLimitsCard({ overview }: { overview: PortalOverview }) {
+function QuotaLimitsCard({ overview }: { overview: PortalOverview }) {
   const { t } = useTranslation('portal')
+  const isMobile = useMobileLayout()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
+  const [tooltipHeight, setTooltipHeight] = useState<number | null>(null)
+  const tooltipId = useId()
   const { daily, weekly } = overview.quota
+  const total: PortalPeriodicQuota = {
+    limit: overview.quota.limit,
+    used: overview.quota.used,
+    remaining: overview.quota.remaining,
+    unlimited: overview.quota.unlimited,
+    reset_at: null,
+  }
+  const hasTotal = !total.unlimited && total.limit != null
   const hasDaily = !daily.unlimited && daily.limit != null
   const hasWeekly = !weekly.unlimited && weekly.limit != null
-  if (!hasDaily && !hasWeekly) return null
+  const rows = [
+    hasTotal ? { id: 'total', label: t('overview.totalLimit'), shortLabel: t('overview.totalShort'), quota: total } : null,
+    hasWeekly ? { id: 'weekly', label: t('overview.weeklyLimit'), shortLabel: t('overview.weeklyShort'), quota: weekly } : null,
+    hasDaily ? { id: 'daily', label: t('overview.dailyLimit'), shortLabel: t('overview.dailyShort'), quota: daily } : null,
+  ].filter((row): row is { id: string; label: string; shortLabel: string; quota: PortalPeriodicQuota } => row != null)
+  const detailRows = [
+    { id: 'accumulated', label: t('overview.accumulatedUsage'), shortLabel: '', used: overview.quota.accumulated_used, limit: null, remaining: null, resetAt: null, unlimited: true },
+    ...rows.map(({ id, label, shortLabel, quota }) => ({
+      id,
+      label,
+      shortLabel,
+      used: quota.used,
+      limit: quota.limit,
+      remaining: quota.remaining,
+      resetAt: quota.reset_at,
+      unlimited: quota.unlimited,
+    })),
+  ]
+  const measureTooltip = useCallback((node: HTMLDivElement | null) => {
+    const nextHeight = node?.offsetHeight ?? null
+    setTooltipHeight((current) => current === nextHeight ? current : nextHeight)
+  }, [])
+  if (rows.length === 0) return null
 
-  function periodicRow(label: string, quota: PortalPeriodicQuota) {
-    const pct = remainPercent(quota.used, quota.limit, quota.remaining, quota.unlimited)
-    const resetIn = formatResetIn(quota.reset_at, t)
-    return (
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="text-muted-soft shrink-0 text-xs">{label}</p>
-          <p className="truncate text-right text-xs tabular-nums">
-            <span className="text-foreground font-medium">{formatUSD(quota.used)}</span>
-            <span className="text-muted-soft"> / {quota.limit == null ? '—' : formatUSD(quota.limit)}</span>
-          </p>
-        </div>
-        {pct != null ? <Progress value={pct} thresholds={[...quotaThresholds]} /> : null}
-        {resetIn ? <p className="text-muted-soft text-[11px]">{t('overview.resetsIn')} {resetIn}</p> : null}
-      </div>
-    )
-  }
-
-  return (
-    <Card>
-      <CardContent className="flex h-full flex-col justify-center gap-4 p-5">
-        {hasDaily ? periodicRow(t('overview.dailyLimit'), daily) : null}
-        {hasDaily && hasWeekly ? <div className="border-t border-[hsl(var(--divider))]" /> : null}
-        {hasWeekly ? periodicRow(t('overview.weeklyLimit'), weekly) : null}
-      </CardContent>
-    </Card>
+  const trigger = (
+    <button
+      type="button"
+      className="inline-block max-w-full min-w-0 rounded-sm text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
+      onMouseEnter={!isMobile ? (event) => setMousePos({ x: event.clientX, y: event.clientY }) : undefined}
+      onMouseMove={!isMobile ? (event) => setMousePos({ x: event.clientX, y: event.clientY }) : undefined}
+      onMouseLeave={!isMobile ? () => {
+        setMousePos(null)
+        setTooltipHeight(null)
+      } : undefined}
+      onFocus={!isMobile ? (event) => {
+        const rect = event.currentTarget.getBoundingClientRect()
+        setMousePos({ x: rect.left + rect.width / 2, y: rect.bottom })
+      } : undefined}
+      onBlur={!isMobile ? () => setMousePos(null) : undefined}
+      aria-describedby={!isMobile && mousePos ? tooltipId : undefined}
+    >
+      <span className="sr-only">{t('overview.quotaDetails')}, </span>
+      <span className="block space-y-1.5 text-xs tabular-nums">
+        {rows.map((row) => <PortalQuotaScopeRow key={row.id} row={row} />)}
+      </span>
+    </button>
   )
+
+  const tooltip = mousePos && !isMobile ? (
+    <div
+      id={tooltipId}
+      ref={measureTooltip}
+      role="tooltip"
+      className="glass-panel-strong pointer-events-none fixed z-[160] w-[min(420px,calc(100vw-24px))] rounded-lg px-4 py-2 text-xs text-foreground shadow-lg"
+      style={getPortalQuotaTooltipLayout(mousePos, detailRows.length, tooltipHeight)}
+    >
+      <PortalQuotaDetails rows={detailRows} t={t} />
+    </div>
+  ) : null
+
+  return <Card className="h-full"><CardContent className="flex h-full flex-col gap-2 p-5">
+    <p className="text-muted-soft text-xs">{t('overview.limitsTitle')}</p>
+    {isMobile ? (
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetTrigger asChild>{trigger}</SheetTrigger>
+        <SheetContent side="bottom" className="rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>{t('overview.quotaDetails')}</SheetTitle>
+            <SheetDescription>{overview.key.name}</SheetDescription>
+          </SheetHeader>
+          <SheetBody><PortalQuotaDetails rows={detailRows} t={t} /></SheetBody>
+        </SheetContent>
+      </Sheet>
+    ) : <>{trigger}{tooltip}</>}
+  </CardContent></Card>
+}
+
+type PortalQuotaDetailRow = {
+  id: string
+  label: string
+  shortLabel: string
+  used: number
+  limit: number | null
+  remaining: number | null
+  resetAt: string | null
+  unlimited: boolean
+}
+
+function PortalQuotaScopeRow({ row }: { row: { shortLabel: string; quota: PortalPeriodicQuota } }) {
+  const available = row.quota.remaining ?? Math.max((row.quota.limit ?? 0) - row.quota.used, 0)
+  return <span className="flex min-w-0 items-center gap-1.5">
+    <span className="w-6 shrink-0 text-muted-soft">{row.shortLabel}</span>
+    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${portalQuotaDot(row.quota)}`} />
+    <span className="truncate font-medium text-foreground">{formatUSD(available)} / {formatUSD(row.quota.limit!)}</span>
+  </span>
+}
+
+function PortalQuotaDetails({ rows, t }: { rows: PortalQuotaDetailRow[]; t: (key: string, options?: Record<string, unknown>) => string }) {
+  return <div className="divide-y divide-[hsl(var(--glass-divider))] text-xs tabular-nums">
+    {rows.map((row) => {
+      const value = row.id === 'accumulated'
+        ? formatUSD(row.used)
+        : `${formatUSD(row.remaining ?? Math.max((row.limit ?? 0) - row.used, 0))} / ${formatUSD(row.limit!)} · ${t('overview.used')} ${formatUSD(row.used)}`
+      const resetIn = formatResetIn(row.resetAt, t)
+      return <div key={row.id} className="flex min-w-0 items-start justify-between gap-4 py-2.5 first:pt-1 last:pb-1">
+        <div className="flex shrink-0 items-center gap-1.5 text-muted-soft">
+          {row.id !== 'accumulated' ? <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${portalQuotaDot(row)}`} /> : null}
+          <span>{row.label}</span>
+          {resetIn ? <span className="text-[10px]">{resetIn}</span> : null}
+        </div>
+        <span className="min-w-0 text-right font-medium text-foreground">{value}</span>
+      </div>
+    })}
+  </div>
+}
+
+function portalQuotaDot(quota: Pick<PortalPeriodicQuota, 'limit' | 'used' | 'remaining' | 'unlimited'>) {
+  if (quota.unlimited || quota.limit == null || quota.limit <= 0) return 'bg-emerald-500'
+  const remain = Math.min(Math.max((quota.remaining ?? Math.max(quota.limit - quota.used, 0)) / quota.limit * 100, 0), 100)
+  return remain <= 10 ? 'bg-red-500' : remain <= 30 ? 'bg-amber-500' : 'bg-emerald-500'
+}
+
+function getPortalQuotaTooltipLayout(mousePos: { x: number; y: number }, rowCount: number, measuredHeight: number | null): CSSProperties {
+  if (typeof window === 'undefined') return { left: mousePos.x + 14, top: mousePos.y + 14, width: 420 }
+  const width = Math.min(420, Math.max(240, window.innerWidth - 24))
+  const height = measuredHeight ?? 44 + 36 * Math.max(1, rowCount)
+  const left = Math.max(12, Math.min(mousePos.x + 14, window.innerWidth - width - 12))
+  const top = mousePos.y + 14 + height > window.innerHeight - 12
+    ? Math.max(12, mousePos.y - height - 14)
+    : mousePos.y + 14
+  return { left, top, width }
 }
 
 const trendColors = { tokens: 'hsl(var(--primary))', cost: '#f59e0b', requests: '#10b981' }

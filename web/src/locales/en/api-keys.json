@@ -2,9 +2,16 @@
   "quota": {
     "unlimited": "Unlimited",
     "used": "Used {{amount}}",
-    "total": "Total",
-    "daily": "Day",
-    "weekly": "Week"
+    "accumulated": "Accumulated usage",
+    "accumulatedShort": "Used",
+    "total": "Total quota",
+    "totalShort": "Total",
+    "daily": "Daily quota",
+    "dailyShort": "Day",
+    "weekly": "Weekly quota",
+    "weeklyShort": "Week",
+    "detailsLabel": "View quota details",
+    "detailsTitle": "Quota details"
   },
   "modelsDraw": {
     "search": "Search models...",
@@ -76,7 +83,9 @@
     "createKey": "Create key",
     "resetQuotaDialog": {
       "title": "Reset quota",
-      "description": "Select one or more periodic quotas to reset for \"{{name}}\". Total usage and quota settings will not change.",
+      "description": "Select one or more quotas to reset for \"{{name}}\". Accumulated usage and quota settings will not change.",
+      "total": "Total quota",
+      "totalDescription": "Used ${{used}} since the last manual reset; resets to zero",
       "daily": "Daily quota",
       "dailyDescription": "Used ${{used}} in the current period; resets to zero",
       "weekly": "Weekly quota",
@@ -155,7 +164,7 @@
       "expiresDate": "Expires date",
       "pickDate": "Pick a date",
       "quotaLimit": "Total quota",
-      "quotaDesc": "Unit: USD ($) · Empty or 0 means unlimited · Total used ${{used}}",
+      "quotaDesc": "Unit: USD ($) · Empty or 0 means unlimited · Used ${{used}} since the last manual reset",
       "quotaDailyLimit": "Daily quota limit",
       "quotaDailyDesc": "Empty or 0 means unlimited · Resets daily · Used ${{used}} in the current period",
       "quotaWeeklyLimit": "Weekly quota limit",

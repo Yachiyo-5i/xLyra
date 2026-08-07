@@ -159,6 +159,7 @@ type IncreaseAPIKeyQuotaResult struct {
 type ResetAPIKeyQuotaResult struct {
 	APIKey           store.APIKey
 	Scopes           []string
+	TotalUsedBefore  float64
 	DailyUsedBefore  float64
 	WeeklyUsedBefore float64
 }
@@ -878,7 +879,7 @@ func (s *Service) UpdateAPIKey(ctx context.Context, id uuid.UUID, input UpdateAP
 		return store.APIKey{}, err
 	}
 	quotaUnlimited := input.QuotaUnlimited || zeroQuotaLimit(input.QuotaLimit)
-	if err := validateAPIKeyQuota("quota_limit", input.QuotaLimit, quotaUnlimited, current.QuotaUsed); err != nil {
+	if err := validateAPIKeyQuota("quota_limit", input.QuotaLimit, quotaUnlimited, current.EffectiveTotalQuotaUsed()); err != nil {
 		return store.APIKey{}, err
 	}
 	dailyLimit := input.QuotaDailyLimit
@@ -1024,11 +1025,17 @@ func (s *Service) IncreaseAPIKeyQuota(ctx context.Context, id uuid.UUID, amount 
 }
 
 func (s *Service) ResetAPIKeyQuota(ctx context.Context, id uuid.UUID, scopes []string) (ResetAPIKeyQuotaResult, error) {
+	resetTotal := false
 	resetDaily := false
 	resetWeekly := false
-	normalized := make([]string, 0, 2)
+	normalized := make([]string, 0, 3)
 	for _, scope := range scopes {
 		switch strings.TrimSpace(scope) {
+		case "total":
+			if !resetTotal {
+				resetTotal = true
+				normalized = append(normalized, "total")
+			}
 		case "daily":
 			if !resetDaily {
 				resetDaily = true
@@ -1040,19 +1047,20 @@ func (s *Service) ResetAPIKeyQuota(ctx context.Context, id uuid.UUID, scopes []s
 				normalized = append(normalized, "weekly")
 			}
 		default:
-			return ResetAPIKeyQuotaResult{}, fmt.Errorf("scopes may only contain daily or weekly")
+			return ResetAPIKeyQuotaResult{}, fmt.Errorf("scopes may only contain total, daily, or weekly")
 		}
 	}
-	if !resetDaily && !resetWeekly {
+	if !resetTotal && !resetDaily && !resetWeekly {
 		return ResetAPIKeyQuotaResult{}, fmt.Errorf("at least one quota reset scope is required")
 	}
-	reset, err := s.apiKeys.ResetPeriodicQuota(ctx, id, resetDaily, resetWeekly, time.Now(), s.timeZone)
+	reset, err := s.apiKeys.ResetQuota(ctx, id, resetTotal, resetDaily, resetWeekly, time.Now(), s.timeZone)
 	if err != nil {
 		return ResetAPIKeyQuotaResult{}, err
 	}
 	return ResetAPIKeyQuotaResult{
 		APIKey:           reset.APIKey,
 		Scopes:           normalized,
+		TotalUsedBefore:  reset.TotalUsedBefore,
 		DailyUsedBefore:  reset.DailyUsedBefore,
 		WeeklyUsedBefore: reset.WeeklyUsedBefore,
 	}, nil
@@ -1803,7 +1811,7 @@ func validateAPIKeyQuota(field string, limit *float64, unlimited bool, used floa
 	}
 	if *limit < used {
 		if field == "quota_limit" {
-			return fmt.Errorf("quota_limit must be greater than or equal to quota_used")
+			return fmt.Errorf("quota_limit must be greater than or equal to quota_total_used")
 		}
 		return fmt.Errorf("%s must be greater than or equal to current used quota", field)
 	}

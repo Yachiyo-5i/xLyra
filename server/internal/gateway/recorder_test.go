@@ -68,7 +68,7 @@ func TestRecorderLocksAndUpdatesAPIKeyBeforeCreatingRequestDetail(t *testing.T) 
 			tx.AddError(errors.New("api key usage update must be field-limited"))
 			return
 		}
-		expected := []string{"quota_used", "quota_daily_used", "quota_daily_window_start", "quota_weekly_used", "quota_weekly_window_start"}
+		expected := []string{"quota_used", "quota_total_used", "quota_daily_used", "quota_daily_window_start", "quota_weekly_used", "quota_weekly_window_start"}
 		if len(updates) != len(expected) {
 			tx.AddError(errors.New("api key usage update contains unexpected fields"))
 			return

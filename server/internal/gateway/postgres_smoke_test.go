@@ -202,7 +202,7 @@ func gatewaySmokeUsableAPIKey(ctx context.Context, db *store.Store) (store.APIKe
 		if apiKey.ExpiresAt != nil && !apiKey.ExpiresAt.After(now) {
 			continue
 		}
-		if !apiKey.QuotaUnlimited && (!apiKey.QuotaLimit.Valid || apiKey.QuotaUsed >= apiKey.QuotaLimit.Float64) {
+		if !apiKey.QuotaUnlimited && (!apiKey.QuotaLimit.Valid || apiKey.EffectiveTotalQuotaUsed() >= apiKey.QuotaLimit.Float64) {
 			continue
 		}
 		return apiKey, true, nil

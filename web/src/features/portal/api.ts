@@ -40,6 +40,7 @@ export type PortalOverview = {
     unit: string
     limit: number | null
     used: number
+    accumulated_used: number
     remaining: number | null
     unlimited: boolean
     daily: PortalPeriodicQuota

@@ -287,11 +287,13 @@ func TestUpdateAPIKeyPersistsAccessSetsInOneMutationOffline(t *testing.T) {
 	deleteCount := 0
 	createCount := 0
 	updateCount := 0
+	apiKeyQueryCount := 0
 	unlimited := true
 
 	if err := service.db.Callback().Query().Replace("gorm:query", func(tx *gorm.DB) {
 		switch dest := tx.Statement.Dest.(type) {
 		case *store.APIKey:
+			apiKeyQueryCount++
 			*dest = store.APIKey{
 				ID:                   apiKeyID,
 				Name:                 "before",
@@ -301,6 +303,11 @@ func TestUpdateAPIKeyPersistsAccessSetsInOneMutationOffline(t *testing.T) {
 				QuotaUnlimited:       true,
 				QuotaDailyUnlimited:  true,
 				QuotaWeeklyUnlimited: true,
+			}
+			if apiKeyQueryCount >= 3 {
+				dest.Name = "after"
+				dest.ModelPolicy = "allow_list"
+				dest.SitePolicy = "allow_list"
 			}
 		case *store.SiteModel:
 			*dest = store.SiteModel{ID: siteModelID, SiteID: siteID}

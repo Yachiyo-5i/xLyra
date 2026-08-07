@@ -159,7 +159,8 @@ func TestAPIKeyPayloadIncludesQuotaRateLimitAndAccessDetails(t *testing.T) {
 		SitePolicy:     "allow_list",
 		ModelMappings:  store.JSON(`{"gpt-5":"upstream-gpt-5"}`),
 		QuotaLimit:     sql.NullFloat64{Float64: 100, Valid: true},
-		QuotaUsed:      25.5,
+		QuotaUsed:      125.5,
+		QuotaTotalUsed: 25.5,
 		QuotaUnlimited: false,
 		ExpiresAt:      &expiresAt,
 		LastUsedAt:     &lastUsedAt,
@@ -194,6 +195,9 @@ func TestAPIKeyPayloadIncludesQuotaRateLimitAndAccessDetails(t *testing.T) {
 	if payload["quota_limit"] != 100.0 || payload["quota_available"] != 74.5 || payload["quota_unlimited"] != false {
 		t.Fatalf("unexpected quota payload: %#v", payload)
 	}
+	if payload["quota_used"] != 125.5 || payload["quota_total_used"] != 25.5 || payload["quota_total_available"] != 74.5 {
+		t.Fatalf("unexpected total quota counters: %#v", payload)
+	}
 	mappingRules := payload["model_mappings"].([]store.APIKeyModelRule)
 	if len(mappingRules) != 1 || mappingRules[0].Pattern != "gpt-5" || mappingRules[0].Target != "upstream-gpt-5" {
 		t.Fatalf("unexpected model mappings payload: %#v", payload["model_mappings"])
@@ -224,13 +228,14 @@ func TestAPIKeySyncPayloadOmitsUnavailablePlaintextAndKeepsQuota(t *testing.T) {
 		Status:         "active",
 		QuotaLimit:     sql.NullFloat64{Float64: 10, Valid: true},
 		QuotaUsed:      12,
+		QuotaTotalUsed: 8,
 		QuotaUnlimited: false,
 	})
 
 	if payload["id"] != apiKeyID.String() || payload["name"] != "sync key" || payload["key"] != nil {
 		t.Fatalf("unexpected sync identity payload: %#v", payload)
 	}
-	if payload["quota_available"] != 0 || payload["quota_limit"] != 10.0 || payload["quota_unlimited"] != false {
+	if payload["quota_available"] != 2.0 || payload["quota_total_used"] != 8.0 || payload["quota_limit"] != 10.0 || payload["quota_unlimited"] != false {
 		t.Fatalf("unexpected sync quota payload: %#v", payload)
 	}
 }

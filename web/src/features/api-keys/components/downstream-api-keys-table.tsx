@@ -14,6 +14,7 @@ import {
   formatRateLimitSummary,
   formatRelativeDateTime,
   formatSitePolicy,
+  hasResettableQuota,
   isAPIKeyActive,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
@@ -196,9 +197,4 @@ export function DownstreamAPIKeysTable({
       hideHeaderWhenEmpty
     />
   )
-}
-
-function hasResettableQuota(apiKey: DownstreamAPIKey) {
-  return (!apiKey.quota_daily_unlimited && apiKey.quota_daily_limit != null)
-    || (!apiKey.quota_weekly_unlimited && apiKey.quota_weekly_limit != null)
 }

@@ -33,6 +33,8 @@ type APIKey struct {
 	ImageToolBridge        JSON `gorm:"type:jsonb;default:'{}'::jsonb"`
 	QuotaLimit             sql.NullFloat64
 	QuotaUsed              float64
+	QuotaTotalUsed         float64 `gorm:"type:numeric(18,8);default:0;not null"`
+	QuotaTotalResetAt      *time.Time
 	QuotaUnlimited         bool
 	QuotaDailyLimit        sql.NullFloat64 `gorm:"type:numeric(18,8)"`
 	QuotaDailyUsed         float64         `gorm:"type:numeric(18,8);default:0;not null"`
@@ -131,6 +133,7 @@ type APIKeyRepository struct {
 
 type APIKeyQuotaResetResult struct {
 	APIKey           APIKey
+	TotalUsedBefore  float64
 	DailyUsedBefore  float64
 	WeeklyUsedBefore float64
 }
@@ -179,6 +182,7 @@ func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams)
 		ImageToolBridge:      jsonDefault(jsonFromAny(params.ImageToolBridge, "{}"), "{}"),
 		QuotaLimit:           nullFloatFromAny(params.QuotaLimit),
 		QuotaUsed:            0,
+		QuotaTotalUsed:       0,
 		QuotaUnlimited:       params.QuotaUnlimited,
 		QuotaDailyLimit:      nullFloatFromAny(params.QuotaDailyLimit),
 		QuotaDailyUsed:       0,
@@ -303,23 +307,29 @@ func (r APIKeyRepository) Update(ctx context.Context, params UpdateAPIKeyParams)
 	if err != nil {
 		return APIKey{}, err
 	}
-	apiKey.Name = params.Name
-	apiKey.Status = params.Status
-	apiKey.ModelPolicy = params.ModelPolicy
-	apiKey.SitePolicy = params.SitePolicy
-	apiKey.ModelMappings = jsonDefault(jsonFromAny(params.ModelMappings, string(apiKey.ModelMappings)), "[]")
-	apiKey.ImageToolBridge = jsonDefault(jsonFromAny(params.ImageToolBridge, string(apiKey.ImageToolBridge)), "{}")
-	apiKey.QuotaLimit = nullFloatFromAny(params.QuotaLimit)
-	apiKey.QuotaUnlimited = params.QuotaUnlimited
-	apiKey.QuotaDailyLimit = nullFloatFromAny(params.QuotaDailyLimit)
-	apiKey.QuotaDailyUnlimited = params.QuotaDailyUnlimited
-	apiKey.QuotaWeeklyLimit = nullFloatFromAny(params.QuotaWeeklyLimit)
-	apiKey.QuotaWeeklyUnlimited = params.QuotaWeeklyUnlimited
-	apiKey.ExpiresAt = timePtrFromAny(params.ExpiresAt)
-	if err := r.db.WithContext(ctx).Save(&apiKey).Error; err != nil {
+	updates := map[string]any{
+		"name":                   params.Name,
+		"status":                 params.Status,
+		"model_policy":           params.ModelPolicy,
+		"site_policy":            params.SitePolicy,
+		"model_mappings":         jsonDefault(jsonFromAny(params.ModelMappings, string(apiKey.ModelMappings)), "[]"),
+		"image_tool_bridge":      jsonDefault(jsonFromAny(params.ImageToolBridge, string(apiKey.ImageToolBridge)), "{}"),
+		"quota_limit":            nullFloatFromAny(params.QuotaLimit),
+		"quota_unlimited":        params.QuotaUnlimited,
+		"quota_daily_limit":      nullFloatFromAny(params.QuotaDailyLimit),
+		"quota_daily_unlimited":  params.QuotaDailyUnlimited,
+		"quota_weekly_limit":     nullFloatFromAny(params.QuotaWeeklyLimit),
+		"quota_weekly_unlimited": params.QuotaWeeklyUnlimited,
+		"expires_at":             timePtrFromAny(params.ExpiresAt),
+	}
+	if err := r.db.WithContext(ctx).Model(&APIKey{ID: params.ID}).Updates(updates).Error; err != nil {
 		return APIKey{}, fmt.Errorf("update api key: %w", err)
 	}
-	return apiKey, nil
+	updated, err := r.GetByID(ctx, params.ID)
+	if err != nil {
+		return APIKey{}, fmt.Errorf("load updated api key: %w", err)
+	}
+	return updated, nil
 }
 
 func (r APIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -334,17 +344,24 @@ func (r APIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r APIKeyRepository) AddUsage(ctx context.Context, id uuid.UUID, amount float64) (APIKey, error) {
-	apiKey, err := r.GetByID(ctx, id)
+	var apiKey APIKey
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Where(&APIKey{ID: id}).First(&apiKey).Error; err != nil {
+			return err
+		}
+		totalUsed := apiKey.EffectiveTotalQuotaUsed()
+		apiKey.QuotaUsed += amount
+		apiKey.QuotaTotalUsed = totalUsed + amount
+		if err := tx.Model(&apiKey).Updates(map[string]any{
+			"quota_used":       apiKey.QuotaUsed,
+			"quota_total_used": apiKey.QuotaTotalUsed,
+		}).Error; err != nil {
+			return fmt.Errorf("add api key usage: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		return APIKey{}, err
-	}
-	apiKey.QuotaUsed += amount
-	if err := r.db.WithContext(ctx).Model(&apiKey).
-		Clauses(clause.Returning{Columns: []clause.Column{{Name: "quota_used"}}}).
-		Updates(map[string]any{
-			"quota_used": gorm.Expr("quota_used + ?", amount),
-		}).Error; err != nil {
-		return APIKey{}, fmt.Errorf("add api key usage: %w", err)
 	}
 	return apiKey, nil
 }
@@ -365,11 +382,14 @@ func (r APIKeyRepository) AddUsageAt(ctx context.Context, id uuid.UUID, amount f
 		apiKey.QuotaWeeklyWindowStart = &weeklyStart
 		apiKey.QuotaWeeklyUsed = 0
 	}
+	totalUsed := apiKey.EffectiveTotalQuotaUsed()
 	apiKey.QuotaUsed += amount
+	apiKey.QuotaTotalUsed = totalUsed + amount
 	apiKey.QuotaDailyUsed += amount
 	apiKey.QuotaWeeklyUsed += amount
 	if err := db.Model(&apiKey).Updates(map[string]any{
 		"quota_used":                apiKey.QuotaUsed,
+		"quota_total_used":          apiKey.QuotaTotalUsed,
 		"quota_daily_used":          apiKey.QuotaDailyUsed,
 		"quota_daily_window_start":  apiKey.QuotaDailyWindowStart,
 		"quota_weekly_used":         apiKey.QuotaWeeklyUsed,
@@ -408,14 +428,33 @@ func (r APIKeyRepository) IncreaseQuotaLimit(ctx context.Context, id uuid.UUID, 
 }
 
 func (r APIKeyRepository) ResetPeriodicQuota(ctx context.Context, id uuid.UUID, resetDaily bool, resetWeekly bool, now time.Time, timeZone config.TimeZone) (APIKeyQuotaResetResult, error) {
+	return r.ResetQuota(ctx, id, false, resetDaily, resetWeekly, now, timeZone)
+}
+
+func (r APIKeyRepository) ResetQuota(ctx context.Context, id uuid.UUID, resetTotal bool, resetDaily bool, resetWeekly bool, now time.Time, timeZone config.TimeZone) (APIKeyQuotaResetResult, error) {
 	var result APIKeyQuotaResetResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var apiKey APIKey
 		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Where(&APIKey{ID: id}).First(&apiKey).Error; err != nil {
 			return err
 		}
+		if resetTotal && (apiKey.QuotaUnlimited || !apiKey.QuotaLimit.Valid || apiKey.QuotaLimit.Float64 <= 0) {
+			return fmt.Errorf("total quota limit is not enabled")
+		}
+		if resetDaily && (apiKey.QuotaDailyUnlimited || !apiKey.QuotaDailyLimit.Valid || apiKey.QuotaDailyLimit.Float64 <= 0) {
+			return fmt.Errorf("daily quota limit is not enabled")
+		}
+		if resetWeekly && (apiKey.QuotaWeeklyUnlimited || !apiKey.QuotaWeeklyLimit.Valid || apiKey.QuotaWeeklyLimit.Float64 <= 0) {
+			return fmt.Errorf("weekly quota limit is not enabled")
+		}
 		result.DailyUsedBefore = apiKey.EffectiveDailyQuotaUsed(now, timeZone)
 		result.WeeklyUsedBefore = apiKey.EffectiveWeeklyQuotaUsed(now, timeZone)
+		result.TotalUsedBefore = apiKey.EffectiveTotalQuotaUsed()
+		if resetTotal {
+			apiKey.QuotaTotalUsed = 0
+			resetAt := now
+			apiKey.QuotaTotalResetAt = &resetAt
+		}
 		if resetDaily {
 			dailyStart := timeZone.StartOfDay(now)
 			apiKey.QuotaDailyWindowStart = &dailyStart
@@ -427,7 +466,7 @@ func (r APIKeyRepository) ResetPeriodicQuota(ctx context.Context, id uuid.UUID, 
 			apiKey.QuotaWeeklyUsed = 0
 		}
 		if err := tx.Save(&apiKey).Error; err != nil {
-			return fmt.Errorf("reset api key periodic quota: %w", err)
+			return fmt.Errorf("reset api key quota: %w", err)
 		}
 		result.APIKey = apiKey
 		return nil
@@ -436,7 +475,14 @@ func (r APIKeyRepository) ResetPeriodicQuota(ctx context.Context, id uuid.UUID, 
 }
 
 func (k APIKey) QuotaExceeded() bool {
-	return !k.QuotaUnlimited && k.QuotaLimit.Valid && k.QuotaUsed >= k.QuotaLimit.Float64
+	return !k.QuotaUnlimited && k.QuotaLimit.Valid && k.EffectiveTotalQuotaUsed() >= k.QuotaLimit.Float64
+}
+
+func (k APIKey) EffectiveTotalQuotaUsed() float64 {
+	if k.QuotaTotalUsed == 0 && k.QuotaTotalResetAt == nil && k.QuotaUsed != 0 {
+		return k.QuotaUsed
+	}
+	return k.QuotaTotalUsed
 }
 
 func (k APIKey) EffectiveDailyQuotaUsed(now time.Time, timeZone config.TimeZone) float64 {
@@ -458,7 +504,7 @@ func (k APIKey) QuotaExceededAt(now time.Time, timeZone config.TimeZone) bool {
 }
 
 func (k APIKey) QuotaExceededErrorAt(now time.Time, timeZone config.TimeZone) *APIKeyQuotaExceededError {
-	if !k.QuotaUnlimited && (!k.QuotaLimit.Valid || k.QuotaUsed >= k.QuotaLimit.Float64) {
+	if !k.QuotaUnlimited && (!k.QuotaLimit.Valid || k.EffectiveTotalQuotaUsed() >= k.QuotaLimit.Float64) {
 		return &APIKeyQuotaExceededError{Scope: "total"}
 	}
 	if !k.QuotaDailyUnlimited && k.QuotaDailyLimit.Valid && k.EffectiveDailyQuotaUsed(now, timeZone) >= k.QuotaDailyLimit.Float64 {

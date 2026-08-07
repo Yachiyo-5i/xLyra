@@ -53,7 +53,8 @@ func TestAPIKeyQuotaExceededAtUsesCurrentDailyAndWeeklyWindows(t *testing.T) {
 	}
 	key.QuotaUnlimited = false
 	key.QuotaLimit = sql.NullFloat64{Float64: 100, Valid: true}
-	key.QuotaUsed = 100
+	key.QuotaUsed = 500
+	key.QuotaTotalUsed = 100
 	totalErr := key.QuotaExceededErrorAt(now, timeZone)
 	if totalErr == nil || totalErr.Scope != "total" || totalErr.ResetAt != nil {
 		t.Fatalf("total quota error = %#v", totalErr)
@@ -76,7 +77,7 @@ func TestAPIKeyRepositoryAddUsageAtResetsExpiredWindows(t *testing.T) {
 			return
 		}
 		*item = APIKey{
-			ID: apiKeyID, QuotaUsed: 20,
+			ID: apiKeyID, QuotaUsed: 20, QuotaTotalUsed: 10,
 			QuotaDailyUsed: 8, QuotaDailyWindowStart: &previousDay,
 			QuotaWeeklyUsed: 12, QuotaWeeklyWindowStart: &weeklyStart,
 		}
@@ -97,14 +98,14 @@ func TestAPIKeyRepositoryAddUsageAtResetsExpiredWindows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddUsageAt returned error: %v", err)
 	}
-	if updated.QuotaUsed != 22.5 || updated.QuotaDailyUsed != 2.5 || updated.QuotaWeeklyUsed != 14.5 {
+	if updated.QuotaUsed != 22.5 || updated.QuotaTotalUsed != 12.5 || updated.QuotaDailyUsed != 2.5 || updated.QuotaWeeklyUsed != 14.5 {
 		t.Fatalf("unexpected updated quota counters: %#v", updated)
 	}
 	dailyWindowStart, ok := saved["quota_daily_window_start"].(*time.Time)
 	if !ok || dailyWindowStart == nil || !dailyWindowStart.Equal(timeZone.StartOfDay(now)) {
 		t.Fatalf("daily window start = %v", saved["quota_daily_window_start"])
 	}
-	if len(saved) != 5 || saved["quota_used"] != 22.5 || saved["quota_daily_used"] != 2.5 || saved["quota_weekly_used"] != 14.5 {
+	if len(saved) != 6 || saved["quota_used"] != 22.5 || saved["quota_total_used"] != 12.5 || saved["quota_daily_used"] != 2.5 || saved["quota_weekly_used"] != 14.5 {
 		t.Fatalf("unexpected periodic quota update fields: %#v", saved)
 	}
 }
@@ -127,9 +128,12 @@ func TestAPIKeyRepositoryIncreaseAndResetQuota(t *testing.T) {
 			return
 		}
 		*item = APIKey{
-			ID:             apiKeyID,
-			QuotaLimit:     sql.NullFloat64{Float64: 100, Valid: true},
-			QuotaDailyUsed: 8, QuotaDailyWindowStart: &dailyStart,
+			ID:              apiKeyID,
+			QuotaLimit:      sql.NullFloat64{Float64: 100, Valid: true},
+			QuotaUsed:       90,
+			QuotaTotalUsed:  40,
+			QuotaDailyLimit: sql.NullFloat64{Float64: 20, Valid: true},
+			QuotaDailyUsed:  8, QuotaDailyWindowStart: &dailyStart,
 			QuotaWeeklyUsed: 30, QuotaWeeklyWindowStart: &weeklyStart,
 		}
 		tx.Statement.RowsAffected = 1
@@ -147,11 +151,11 @@ func TestAPIKeyRepositoryIncreaseAndResetQuota(t *testing.T) {
 	if err != nil || !increased.QuotaLimit.Valid || increased.QuotaLimit.Float64 != 125 {
 		t.Fatalf("IncreaseQuotaLimit = %#v, %v", increased, err)
 	}
-	reset, err := repo.ResetPeriodicQuota(context.Background(), apiKeyID, true, false, now, timeZone)
+	reset, err := repo.ResetQuota(context.Background(), apiKeyID, true, true, false, now, timeZone)
 	if err != nil {
 		t.Fatalf("ResetPeriodicQuota returned error: %v", err)
 	}
-	if reset.DailyUsedBefore != 8 || reset.WeeklyUsedBefore != 30 || reset.APIKey.QuotaDailyUsed != 0 || reset.APIKey.QuotaWeeklyUsed != 30 {
+	if reset.TotalUsedBefore != 40 || reset.DailyUsedBefore != 8 || reset.WeeklyUsedBefore != 30 || reset.APIKey.QuotaUsed != 90 || reset.APIKey.QuotaTotalUsed != 0 || reset.APIKey.QuotaTotalResetAt == nil || reset.APIKey.QuotaDailyUsed != 0 || reset.APIKey.QuotaWeeklyUsed != 30 {
 		t.Fatalf("unexpected reset result: %#v", reset)
 	}
 	if queryCalls != 2 {
@@ -255,5 +259,48 @@ func TestAPIKeyPeriodicQuotaBackfillRetriesWhenMarkerWriteFails(t *testing.T) {
 	}
 	if markerWrites != 2 {
 		t.Fatalf("periodic quota marker writes = %d, want 2", markerWrites)
+	}
+}
+
+func TestAPIKeyTotalQuotaBackfillPreservesAccumulatedUsage(t *testing.T) {
+	t.Parallel()
+
+	db := storeTransactionGorm(t, "total quota backfill")
+	apiKeyID := uuid.New()
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		switch dest := tx.Statement.Dest.(type) {
+		case *schemaUpgradeMarker:
+			tx.AddError(gorm.ErrRecordNotFound)
+		case *[]APIKey:
+			*dest = []APIKey{{ID: apiKeyID, QuotaUsed: 42.5}}
+			tx.Statement.RowsAffected = 1
+		default:
+			tx.AddError(errors.New("unexpected total quota backfill query destination"))
+		}
+	})
+	var saved APIKey
+	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*APIKey)
+		if !ok {
+			tx.AddError(errors.New("unexpected total quota backfill update destination"))
+			return
+		}
+		saved = *item
+		tx.Statement.RowsAffected = 1
+	})
+	storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*schemaUpgradeMarker); !ok {
+			tx.AddError(errors.New("unexpected total quota backfill create destination"))
+			return
+		}
+		tx.Statement.RowsAffected = 1
+	})
+
+	now := time.Date(2026, 8, 7, 8, 0, 0, 0, time.UTC)
+	if err := ensureAPIKeyTotalQuotaBackfill(context.Background(), db, now); err != nil {
+		t.Fatalf("ensureAPIKeyTotalQuotaBackfill returned error: %v", err)
+	}
+	if saved.QuotaUsed != 42.5 || saved.QuotaTotalUsed != 42.5 {
+		t.Fatalf("backfilled quota = accumulated:%f total:%f, want 42.5 each", saved.QuotaUsed, saved.QuotaTotalUsed)
 	}
 }

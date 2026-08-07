@@ -510,8 +510,19 @@ func probeXLyraQuota(ctx context.Context, client *http.Client, baseURL string, s
 	}
 
 	entry := QuotaProbeEntry{Label: "balance", Unit: quotaProbeUnit(anyString(payload["unit"]), "usd")}
-	entry.Used = quotaProbeFloat(payload["quota_used"])
-	if unlimited, _ := payload["quota_unlimited"].(bool); unlimited {
+	unlimited, _ := payload["quota_unlimited"].(bool)
+	if unlimited {
+		entry.Used = quotaProbeFloat(payload["quota_used"])
+		if entry.Used == nil {
+			entry.Used = quotaProbeFloat(payload["quota_total_used"])
+		}
+	} else {
+		entry.Used = quotaProbeFloat(payload["quota_total_used"])
+		if entry.Used == nil {
+			entry.Used = quotaProbeFloat(payload["quota_used"])
+		}
+	}
+	if unlimited {
 		entry.Unlimited = true
 		return "unlimited", []QuotaProbeEntry{entry}, nil
 	}

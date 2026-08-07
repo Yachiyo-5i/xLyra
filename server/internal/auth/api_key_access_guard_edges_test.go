@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -73,7 +75,7 @@ func TestUpdateAPIKeyRejectsQuotaBelowUsageBeforeWrite(t *testing.T) {
 	if updated.ID != uuid.Nil {
 		t.Fatalf("UpdateAPIKey result = %#v, want zero on quota below usage", updated)
 	}
-	if err == nil || err.Error() != "quota_limit must be greater than or equal to quota_used" {
+	if err == nil || err.Error() != "quota_limit must be greater than or equal to quota_total_used" {
 		t.Fatalf("quota below usage error = %v", err)
 	}
 }
@@ -88,8 +90,8 @@ func TestAPIKeyQuotaMutationInputsRejectInvalidOperationsBeforeRepositoryAccess(
 	if _, err := service.ResetAPIKeyQuota(context.Background(), uuid.New(), nil); err == nil || !strings.Contains(err.Error(), "at least one") {
 		t.Fatalf("empty quota reset error = %v", err)
 	}
-	if _, err := service.ResetAPIKeyQuota(context.Background(), uuid.New(), []string{"total"}); err == nil || !strings.Contains(err.Error(), "daily or weekly") {
-		t.Fatalf("total quota reset error = %v", err)
+	if _, err := service.ResetAPIKeyQuota(context.Background(), uuid.New(), []string{"monthly"}); err == nil || !strings.Contains(err.Error(), "total, daily, or weekly") {
+		t.Fatalf("unknown quota reset error = %v", err)
 	}
 	dailyLimited := false
 	if _, err := service.CreateAPIKey(context.Background(), CreateAPIKeyInput{
@@ -98,6 +100,89 @@ func TestAPIKeyQuotaMutationInputsRejectInvalidOperationsBeforeRepositoryAccess(
 		QuotaDailyUnlimited: &dailyLimited,
 	}, uuid.New()); err == nil || !strings.Contains(err.Error(), "quota_daily_limit is required") {
 		t.Fatalf("missing daily quota limit error = %v", err)
+	}
+}
+
+func TestResetAPIKeyQuotaAcceptsTotalAndPreservesAccumulatedUsage(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(authTransactionOnlyGorm(t), "test-master-key")
+	apiKeyID := uuid.New()
+	now := time.Now()
+	dailyStart := service.timeZone.StartOfDay(now)
+	weeklyStart := service.timeZone.StartOfWeek(now)
+	authReplaceQueryCallback(t, service.db, func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*store.APIKey)
+		if !ok {
+			tx.AddError(errors.New("unexpected quota reset query destination"))
+			return
+		}
+		*item = store.APIKey{
+			ID: apiKeyID, QuotaUsed: 100, QuotaTotalUsed: 30,
+			QuotaLimit:      sql.NullFloat64{Float64: 50, Valid: true},
+			QuotaDailyLimit: sql.NullFloat64{Float64: 25, Valid: true}, QuotaDailyUsed: 10, QuotaDailyWindowStart: &dailyStart,
+			QuotaWeeklyLimit: sql.NullFloat64{Float64: 40, Valid: true}, QuotaWeeklyUsed: 20, QuotaWeeklyWindowStart: &weeklyStart,
+		}
+		tx.Statement.RowsAffected = 1
+	})
+	authReplaceUpdateCallback(t, service.db, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*store.APIKey); !ok {
+			tx.AddError(errors.New("unexpected quota reset update destination"))
+			return
+		}
+		tx.Statement.RowsAffected = 1
+	})
+
+	result, err := service.ResetAPIKeyQuota(context.Background(), apiKeyID, []string{"total", "weekly", "daily", "total"})
+	if err != nil {
+		t.Fatalf("ResetAPIKeyQuota returned error: %v", err)
+	}
+	if len(result.Scopes) != 3 || result.Scopes[0] != "total" || result.Scopes[1] != "weekly" || result.Scopes[2] != "daily" {
+		t.Fatalf("reset scopes = %v", result.Scopes)
+	}
+	if result.TotalUsedBefore != 30 || result.DailyUsedBefore != 10 || result.WeeklyUsedBefore != 20 {
+		t.Fatalf("reset usage before = total:%f daily:%f weekly:%f", result.TotalUsedBefore, result.DailyUsedBefore, result.WeeklyUsedBefore)
+	}
+	if result.APIKey.QuotaUsed != 100 || result.APIKey.QuotaTotalUsed != 0 || result.APIKey.QuotaDailyUsed != 0 || result.APIKey.QuotaWeeklyUsed != 0 || result.APIKey.QuotaTotalResetAt == nil {
+		t.Fatalf("reset api key = %#v", result.APIKey)
+	}
+}
+
+func TestResetAPIKeyQuotaRejectsScopesWithoutEnabledLimits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		scope   string
+		apiKey  store.APIKey
+		message string
+	}{
+		{name: "unlimited total", scope: "total", apiKey: store.APIKey{QuotaUnlimited: true, QuotaLimit: sql.NullFloat64{Float64: 100, Valid: true}}, message: "total quota limit is not enabled"},
+		{name: "unconfigured weekly", scope: "weekly", apiKey: store.APIKey{}, message: "weekly quota limit is not enabled"},
+		{name: "unlimited daily", scope: "daily", apiKey: store.APIKey{QuotaDailyUnlimited: true, QuotaDailyLimit: sql.NullFloat64{Float64: 20, Valid: true}}, message: "daily quota limit is not enabled"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			apiKeyID := uuid.New()
+			service := NewService(authTransactionOnlyGorm(t), "test-master-key")
+			authReplaceQueryCallback(t, service.db, func(tx *gorm.DB) {
+				item, ok := tx.Statement.Dest.(*store.APIKey)
+				if !ok {
+					tx.AddError(errors.New("unexpected quota reset query destination"))
+					return
+				}
+				*item = test.apiKey
+				item.ID = apiKeyID
+				tx.Statement.RowsAffected = 1
+			})
+
+			if _, err := service.ResetAPIKeyQuota(context.Background(), apiKeyID, []string{test.scope}); err == nil || err.Error() != test.message {
+				t.Fatalf("ResetAPIKeyQuota error = %v, want %q", err, test.message)
+			}
+		})
 	}
 }
 

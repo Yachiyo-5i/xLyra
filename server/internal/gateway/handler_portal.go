@@ -60,11 +60,12 @@ func (h Handler) PortalOverview(w http.ResponseWriter, r *http.Request) {
 			"last_used_at": portalTimePtr(apiKey.LastUsedAt),
 		},
 		"quota": map[string]any{
-			"unit":      "USD",
-			"limit":     userBalanceNullFloat64(apiKey.QuotaLimit),
-			"used":      apiKey.QuotaUsed,
-			"remaining": userBalanceAvailable(apiKey),
-			"unlimited": apiKey.QuotaUnlimited,
+			"unit":             "USD",
+			"limit":            userBalanceNullFloat64(apiKey.QuotaLimit),
+			"used":             apiKey.EffectiveTotalQuotaUsed(),
+			"accumulated_used": apiKey.QuotaUsed,
+			"remaining":        userBalanceAvailable(apiKey),
+			"unlimited":        apiKey.QuotaUnlimited,
 			"daily": map[string]any{
 				"limit":     userBalanceNullFloat64(apiKey.QuotaDailyLimit),
 				"used":      dailyUsed,

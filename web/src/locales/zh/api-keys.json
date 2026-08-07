@@ -2,9 +2,16 @@
   "quota": {
     "unlimited": "不限",
     "used": "已用 {{amount}}",
-    "total": "总",
-    "daily": "日",
-    "weekly": "周"
+    "accumulated": "累计总消耗",
+    "accumulatedShort": "累计",
+    "total": "总限额",
+    "totalShort": "总",
+    "daily": "日限额",
+    "dailyShort": "日",
+    "weekly": "周限额",
+    "weeklyShort": "周",
+    "detailsLabel": "查看额度详情",
+    "detailsTitle": "额度详情"
   },
   "modelsDraw": {
     "search": "搜索模型...",
@@ -76,7 +83,9 @@
     "createKey": "创建密钥",
     "resetQuotaDialog": {
       "title": "重置限额",
-      "description": "选择一个或多个要重置的「{{name}}」周期额度。总额度和额度配置不会改变。",
+      "description": "选择一个或多个要重置的「{{name}}」限额。累计总消耗和额度配置不会改变。",
+      "total": "总限额",
+      "totalDescription": "自上次手动重置以来已用 ${{used}}，执行后清零",
       "daily": "日限额",
       "dailyDescription": "当前周期已用 ${{used}}，执行后清零",
       "weekly": "周限额",
@@ -155,7 +164,7 @@
       "expiresDate": "到期日期",
       "pickDate": "选择日期",
       "quotaLimit": "总额度",
-      "quotaDesc": "单位：美元 ($) · 空或 0 表示不限 · 当前累计已用 ${{used}}",
+      "quotaDesc": "单位：美元 ($) · 空或 0 表示不限 · 自上次手动重置以来已用 ${{used}}",
       "quotaDailyLimit": "日额度上限",
       "quotaDailyDesc": "空或 0 表示不限 · 每天自动重置 · 当前周期已用 ${{used}}",
       "quotaWeeklyLimit": "周额度上限",

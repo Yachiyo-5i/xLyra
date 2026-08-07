@@ -401,8 +401,9 @@ export function APIKeyFormDraw({
       toast.error(t('form.validation.quotaInvalid'))
       return
     }
-    if (parsedQuotaLimit != null && initialKey && initialKey.quota_used > 0 && parsedQuotaLimit < initialKey.quota_used) {
-      toast.error(t('form.validation.quotaTooLow', { used: initialKey.quota_used }))
+    const quotaTotalUsed = initialKey?.quota_total_used ?? initialKey?.quota_used ?? 0
+    if (parsedQuotaLimit != null && quotaTotalUsed > 0 && parsedQuotaLimit < quotaTotalUsed) {
+      toast.error(t('form.validation.quotaTooLow', { used: quotaTotalUsed }))
       return
     }
 
@@ -832,7 +833,7 @@ export function APIKeyFormDraw({
           <FormSection title={t('form.sections.quota')} divided>
             <FormField
               label={t('form.fields.quotaLimit')}
-              description={t('form.fields.quotaDesc', { used: initialKey?.quota_used ?? 0 })}
+              description={t('form.fields.quotaDesc', { used: initialKey?.quota_total_used ?? initialKey?.quota_used ?? 0 })}
             >
               <QuotaAmountInput
                 value={values.quotaLimit}

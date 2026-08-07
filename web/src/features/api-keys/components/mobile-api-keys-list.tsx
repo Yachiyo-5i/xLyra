@@ -13,6 +13,7 @@ import {
   formatRateLimitSummary,
   formatRelativeDateTime,
   formatSitePolicy,
+  hasResettableQuota,
   isAPIKeyActive,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
@@ -213,12 +214,7 @@ function MobileQuotaMetric({ apiKey }: { apiKey: DownstreamAPIKey }) {
   return (
     <div className="min-w-0 px-2 py-2">
       <span className="block text-[11px] text-muted-soft">{t('table.headers.quota')}</span>
-      <div className="mt-1"><APIKeyQuotaCell apiKey={apiKey} truncateValues={false} compactValues /></div>
+      <div className="mt-1"><APIKeyQuotaCell apiKey={apiKey} truncateValues={false} compactValues detailsMode="sheet" /></div>
     </div>
   )
-}
-
-function hasResettableQuota(apiKey: DownstreamAPIKey) {
-  return (!apiKey.quota_daily_unlimited && apiKey.quota_daily_limit != null)
-    || (!apiKey.quota_weekly_unlimited && apiKey.quota_weekly_limit != null)
 }

@@ -228,7 +228,11 @@ func normalizeXLyraAPIKeyRaw(item map[string]any) map[string]any {
 		}
 	}
 	if _, ok := raw["used_quota"]; !ok {
-		if value, ok := firstPresent(raw, "quota_used"); ok {
+		keys := []string{"quota_total_used", "quota_used"}
+		if unlimited, _ := raw["quota_unlimited"].(bool); unlimited {
+			keys = []string{"quota_used", "quota_total_used"}
+		}
+		if value, ok := firstPresent(raw, keys...); ok {
 			raw["used_quota"] = value
 		}
 	}

@@ -97,6 +97,8 @@ CREATE TABLE api_keys (
   model_mappings JSONB NOT NULL DEFAULT '{}'::jsonb,
   quota_limit NUMERIC(18,8),
   quota_used NUMERIC(18,8) NOT NULL DEFAULT 0,
+  quota_total_used NUMERIC(18,8) NOT NULL DEFAULT 0,
+  quota_total_reset_at TIMESTAMPTZ,
   quota_unlimited BOOLEAN NOT NULL DEFAULT TRUE,
   quota_daily_limit NUMERIC(18,8),
   quota_daily_used NUMERIC(18,8) NOT NULL DEFAULT 0,

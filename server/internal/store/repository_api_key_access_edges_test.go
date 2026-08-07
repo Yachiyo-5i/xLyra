@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestAdminRepositoryCreateBuildsAdminOffline(t *testing.T) {
@@ -257,7 +258,7 @@ func TestAPIKeyRepositoryCreateUpdateDeleteAndUsageOffline(t *testing.T) {
 	apiKeyID := uuid.New()
 	adminID := uuid.New()
 	expiresAt := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
-	db := storeRepositoryOfflineGorm(t)
+	db := storeTransactionGorm(t, "api key repository mutations")
 	var created APIKey
 	storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
 		item, ok := tx.Statement.Dest.(*APIKey)
@@ -269,25 +270,40 @@ func TestAPIKeyRepositoryCreateUpdateDeleteAndUsageOffline(t *testing.T) {
 		item.ID = apiKeyID
 		tx.Statement.RowsAffected = 1
 	})
+	queryCalls := 0
 	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		queryCalls++
 		item, ok := tx.Statement.Dest.(*APIKey)
 		if !ok {
 			tx.AddError(errors.New("unexpected api key query destination"))
 			return
 		}
+		if queryCalls == 3 {
+			locking, ok := tx.Statement.Clauses["FOR"].Expression.(clause.Locking)
+			if !ok || locking.Strength != clause.LockingStrengthUpdate {
+				tx.AddError(errors.New("api key usage query must lock the row"))
+				return
+			}
+		}
 		*item = APIKey{ID: apiKeyID, Name: "old", Status: "active", ModelMappings: JSON(`{"old":true}`), QuotaUsed: 2}
+		if queryCalls >= 2 {
+			item.Name = "updated"
+			item.Status = "paused"
+			item.ModelPolicy = "deny_all"
+			item.SitePolicy = "selected"
+			item.QuotaLimit = sql.NullFloat64{Float64: 20, Valid: true}
+		}
 		tx.Statement.RowsAffected = 1
 	})
-	var saved []APIKey
+	var configurationUpdates map[string]any
 	usageUpdateCalled := false
 	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
-		if item, ok := tx.Statement.Dest.(*APIKey); ok {
-			saved = append(saved, *item)
-			tx.Statement.RowsAffected = 1
-			return
-		}
-		if _, ok := tx.Statement.Dest.(map[string]any); ok {
-			usageUpdateCalled = true
+		if updates, ok := tx.Statement.Dest.(map[string]any); ok {
+			if _, ok := updates["name"]; ok {
+				configurationUpdates = updates
+			} else {
+				usageUpdateCalled = true
+			}
 			tx.Statement.RowsAffected = 1
 			return
 		}
@@ -345,18 +361,26 @@ func TestAPIKeyRepositoryCreateUpdateDeleteAndUsageOffline(t *testing.T) {
 		!created.QuotaLimit.Valid || created.QuotaLimit.Float64 != 10 {
 		t.Fatalf("created api key nullable fields = %#v", created)
 	}
-	if len(saved) != 1 || !usageUpdateCalled {
-		t.Fatalf("saved api keys = %d, usageUpdateCalled = %v, want 1 save and usage update", len(saved), usageUpdateCalled)
+	if configurationUpdates == nil || !usageUpdateCalled {
+		t.Fatalf("configurationUpdates = %#v, usageUpdateCalled = %v, want both updates", configurationUpdates, usageUpdateCalled)
 	}
-	if updated.Name != "updated" || saved[0].Status != "paused" || saved[0].ModelPolicy != "deny_all" ||
-		saved[0].SitePolicy != "selected" || string(saved[0].ModelMappings) != `{"old":true}` {
-		t.Fatalf("updated api key = item:%#v saved:%#v", updated, saved[0])
+	for _, field := range []string{"quota_used", "quota_total_used", "quota_total_reset_at", "quota_daily_used", "quota_daily_window_start", "quota_weekly_used", "quota_weekly_window_start"} {
+		if _, ok := configurationUpdates[field]; ok {
+			t.Fatalf("configuration update contains runtime field %q: %#v", field, configurationUpdates)
+		}
 	}
-	if used.QuotaUsed != 5.5 {
-		t.Fatalf("used quota = %f, want 5.5", used.QuotaUsed)
+	if updated.Name != "updated" || updated.Status != "paused" || updated.ModelPolicy != "deny_all" ||
+		updated.SitePolicy != "selected" || string(updated.ModelMappings) != `{"old":true}` || updated.QuotaUsed != 2 {
+		t.Fatalf("updated api key = %#v", updated)
+	}
+	if used.QuotaUsed != 5.5 || used.QuotaTotalUsed != 5.5 {
+		t.Fatalf("used quota = cumulative:%f total:%f, want 5.5 each", used.QuotaUsed, used.QuotaTotalUsed)
 	}
 	if deleteCalls != 1 {
 		t.Fatalf("delete calls = %d, want 1", deleteCalls)
+	}
+	if queryCalls != 3 {
+		t.Fatalf("query calls = %d, want update lookup, updated reload, and locked usage lookup", queryCalls)
 	}
 }
 

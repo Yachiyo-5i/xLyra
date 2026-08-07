@@ -24,7 +24,8 @@ func TestUserBalanceReportsRemainingQuotaForCurrentAPIKey(t *testing.T) {
 			Float64: 10,
 			Valid:   true,
 		},
-		QuotaUsed:            3.5,
+		QuotaUsed:            103.5,
+		QuotaTotalUsed:       3.5,
 		QuotaUnlimited:       false,
 		QuotaDailyUnlimited:  true,
 		QuotaWeeklyUnlimited: true,
@@ -46,7 +47,7 @@ func TestUserBalanceReportsRemainingQuotaForCurrentAPIKey(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 	wantKeys := []string{
-		"is_active", "balance", "unit", "quota_limit", "quota_used", "quota_unlimited",
+		"is_active", "balance", "unit", "quota_limit", "quota_used", "quota_total_used", "quota_total_available", "quota_total_reset_at", "quota_unlimited",
 		"quota_daily_limit", "quota_daily_used", "quota_daily_available", "quota_daily_unlimited", "quota_daily_reset_at",
 		"quota_weekly_limit", "quota_weekly_used", "quota_weekly_available", "quota_weekly_unlimited", "quota_weekly_reset_at",
 	}
@@ -75,8 +76,11 @@ func TestUserBalanceReportsRemainingQuotaForCurrentAPIKey(t *testing.T) {
 	if limit, ok := body["quota_limit"].(float64); !ok || limit != 10 {
 		t.Fatalf("quota_limit = %#v, want 10", body["quota_limit"])
 	}
-	if used, ok := body["quota_used"].(float64); !ok || used != 3.5 {
-		t.Fatalf("quota_used = %#v, want 3.5", body["quota_used"])
+	if used, ok := body["quota_used"].(float64); !ok || used != 103.5 {
+		t.Fatalf("quota_used = %#v, want 103.5", body["quota_used"])
+	}
+	if used, ok := body["quota_total_used"].(float64); !ok || used != 3.5 {
+		t.Fatalf("quota_total_used = %#v, want 3.5", body["quota_total_used"])
 	}
 	if body["quota_unlimited"] != false {
 		t.Fatal("quota_unlimited = true, want false")

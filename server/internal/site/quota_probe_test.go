@@ -190,7 +190,7 @@ func TestProbeXLyraQuota(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"is_active": true, "balance": 8.5, "unit": "USD", "quota_limit": 10, "quota_used": 1.5, "quota_unlimited": false}`))
+		_, _ = w.Write([]byte(`{"is_active": true, "balance": 8.5, "unit": "USD", "quota_limit": 10, "quota_used": 21.5, "quota_total_used": 1.5, "quota_unlimited": false}`))
 	}))
 	defer server.Close()
 
@@ -207,7 +207,7 @@ func TestProbeXLyraQuota(t *testing.T) {
 func TestProbeXLyraQuotaUnlimited(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"is_active": true, "balance": null, "unit": "USD", "quota_limit": null, "quota_used": 3.2, "quota_unlimited": true}`))
+		_, _ = w.Write([]byte(`{"is_active": true, "balance": null, "unit": "USD", "quota_limit": null, "quota_used": 3.2, "quota_total_used": 0, "quota_unlimited": true}`))
 	}))
 	defer server.Close()
 
@@ -217,6 +217,9 @@ func TestProbeXLyraQuotaUnlimited(t *testing.T) {
 	}
 	if !result.Entries[0].Unlimited {
 		t.Fatalf("expected unlimited entry, got %+v", result.Entries[0])
+	}
+	if result.Entries[0].Used == nil || *result.Entries[0].Used != 3.2 {
+		t.Fatalf("expected cumulative usage for unlimited entry, got %+v", result.Entries[0])
 	}
 }
 

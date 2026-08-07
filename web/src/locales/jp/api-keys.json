@@ -2,9 +2,16 @@
   "quota": {
     "unlimited": "無制限",
     "used": "{{amount}} 使用済み",
-    "total": "合計",
-    "daily": "日",
-    "weekly": "週"
+    "accumulated": "累計使用量",
+    "accumulatedShort": "累計",
+    "total": "合計クォータ",
+    "totalShort": "合計",
+    "daily": "日次クォータ",
+    "dailyShort": "日",
+    "weekly": "週次クォータ",
+    "weeklyShort": "週",
+    "detailsLabel": "クォータ詳細を表示",
+    "detailsTitle": "クォータ詳細"
   },
   "modelsDraw": {
     "search": "モデルを検索...",
@@ -76,7 +83,9 @@
     "createKey": "キーを作成",
     "resetQuotaDialog": {
       "title": "クォータをリセット",
-      "description": "「{{name}}」でリセットする周期クォータを1つ以上選択します。合計使用量とクォータ設定は変更されません。",
+      "description": "「{{name}}」でリセットするクォータを1つ以上選択します。累計使用量とクォータ設定は変更されません。",
+      "total": "合計クォータ",
+      "totalDescription": "前回の手動リセット以降に ${{used}} 使用済み。実行後はゼロになります",
       "daily": "日次クォータ",
       "dailyDescription": "現在の期間で ${{used}} 使用済み。実行後はゼロになります",
       "weekly": "週次クォータ",
@@ -155,7 +164,7 @@
       "expiresDate": "有効期限日",
       "pickDate": "日付を選択",
       "quotaLimit": "合計クォータ上限",
-      "quotaDesc": "単位: USD ($) · 空欄または 0 は無制限 · 累計 ${{used}} 使用済み",
+      "quotaDesc": "単位: USD ($) · 空欄または 0 は無制限 · 前回の手動リセット以降に ${{used}} 使用済み",
       "quotaDailyLimit": "日次クォータ上限",
       "quotaDailyDesc": "空欄または 0 は無制限 · 毎日リセット · 現在の期間で ${{used}} 使用済み",
       "quotaWeeklyLimit": "週次クォータ上限",

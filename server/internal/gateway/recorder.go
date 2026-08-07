@@ -73,10 +73,10 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 				return err
 			}
 			// Quota is a soft limit: concurrent in-flight requests can each pass
-			// the auth-time gate before any deduction lands, so QuotaUsed may
-			// overshoot QuotaLimit. Once it does, the next auth is rejected. Flag
+			// the auth-time gate before any deduction lands, so current total usage
+			// may overshoot the limit. Once it does, the next auth is rejected. Flag
 			// the request that crossed the limit so operators can see the overshoot.
-			if updatedKey.QuotaExceeded() && updatedKey.QuotaUsed-*record.EstimatedCost < updatedKey.QuotaLimit.Float64 {
+			if updatedKey.QuotaExceeded() && updatedKey.EffectiveTotalQuotaUsed()-*record.EstimatedCost < updatedKey.QuotaLimit.Float64 {
 				overshoot := updatedKey
 				quotaOvershoot = &overshoot
 			}
@@ -166,7 +166,7 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 		r.logger.WarnContext(ctx, "api key quota overshot soft limit",
 			"scope", "gateway",
 			"api_key_id", quotaOvershoot.ID,
-			"quota_used", quotaOvershoot.QuotaUsed,
+			"quota_total_used", quotaOvershoot.EffectiveTotalQuotaUsed(),
 			"quota_limit", quotaOvershoot.QuotaLimit.Float64,
 			"request_id", record.RequestID,
 		)

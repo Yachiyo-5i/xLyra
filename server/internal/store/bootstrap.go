@@ -21,6 +21,7 @@ import (
 const databaseInitRetryInterval = 500 * time.Millisecond
 
 const apiKeyPeriodicQuotaBackfillMarker = "api_keys_periodic_quota_v1"
+const apiKeyTotalQuotaBackfillMarker = "api_keys_total_quota_v1"
 const openAIKeyPricingUpgradeMarker = "openai_key_pricing_v1"
 
 type schemaUpgradeMarker struct {
@@ -203,6 +204,8 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		}
 	}
 	for _, field := range []string{
+		"QuotaTotalUsed",
+		"QuotaTotalResetAt",
 		"QuotaDailyLimit",
 		"QuotaDailyUsed",
 		"QuotaDailyUnlimited",
@@ -218,6 +221,9 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		if err := migrator.AddColumn(&APIKey{}, field); err != nil {
 			return fmt.Errorf("ensure api_keys quota column %s: %w", field, err)
 		}
+	}
+	if err := ensureAPIKeyTotalQuotaBackfill(ctx, db, time.Now()); err != nil {
+		return err
 	}
 	if err := ensureAPIKeyPeriodicQuotaBackfill(ctx, db, config.ResolveTimeZone(), time.Now()); err != nil {
 		return err
@@ -255,6 +261,35 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 	}
 	if err := ensureAdminSessionExpiresAtNullable(migrator); err != nil {
 		return err
+	}
+	return nil
+}
+
+func ensureAPIKeyTotalQuotaBackfill(ctx context.Context, db *gorm.DB, now time.Time) error {
+	var marker schemaUpgradeMarker
+	markerErr := db.WithContext(ctx).Where(&schemaUpgradeMarker{Name: apiKeyTotalQuotaBackfillMarker}).First(&marker).Error
+	if errors.Is(markerErr, gorm.ErrRecordNotFound) {
+		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var apiKeys []APIKey
+			if err := tx.Find(&apiKeys).Error; err != nil {
+				return fmt.Errorf("inspect api keys for total quota backfill: %w", err)
+			}
+			for i := range apiKeys {
+				apiKeys[i].QuotaTotalUsed = apiKeys[i].QuotaUsed
+				if err := tx.Save(&apiKeys[i]).Error; err != nil {
+					return fmt.Errorf("backfill api key total quota: %w", err)
+				}
+			}
+			return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&schemaUpgradeMarker{
+				Name:        apiKeyTotalQuotaBackfillMarker,
+				CompletedAt: now,
+			}).Error
+		})
+		if err != nil {
+			return fmt.Errorf("backfill api key total quota: %w", err)
+		}
+	} else if markerErr != nil {
+		return fmt.Errorf("check api key total quota backfill marker: %w", markerErr)
 	}
 	return nil
 }
