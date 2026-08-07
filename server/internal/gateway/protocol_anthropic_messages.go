@@ -13,7 +13,10 @@ import (
 	routeengine "xlyra/server/internal/router"
 )
 
-const gatewayEndpointMessages = "/v1/messages"
+const (
+	gatewayEndpointMessages   = "/v1/messages"
+	defaultAnthropicMaxTokens = 8192
+)
 
 type anthropicMessagesEndpointAdapter struct{}
 
@@ -1073,7 +1076,7 @@ func anthropicMaxTokens(request canonicalRequest, candidate routeengine.Candidat
 	if value, ok := intFromAny(spec.RequestParams.Defaults["max_tokens"]); ok && value > 0 {
 		return value, nil
 	}
-	return 0, fmt.Errorf("max_tokens is required for Anthropic Messages upstream; configure request_params.defaults.max_tokens for provider/model %q or pass max_output_tokens/max_tokens downstream", candidate.Model.UpstreamName)
+	return defaultAnthropicMaxTokens, nil
 }
 
 func anthropicImageURL(raw any) string {

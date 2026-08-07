@@ -1400,6 +1400,11 @@
     },
     "deepseek-v4*": {
       "provider": "deepseek",
+      "request_params": {
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
       "capabilities": {
         "thinking": true,
         "thinking_roundtrip": true,
@@ -1415,6 +1420,11 @@
     },
     "deepseek-chat": {
       "provider": "deepseek",
+      "request_params": {
+        "defaults": {
+          "max_tokens": 8192
+        }
+      },
       "capabilities": {
         "tool_calls": true
       },
@@ -1425,6 +1435,9 @@
     "deepseek-reasoner": {
       "provider": "deepseek",
       "request_params": {
+        "defaults": {
+          "max_tokens": 8192
+        },
         "unsupported": [
           "temperature",
           "top_p",

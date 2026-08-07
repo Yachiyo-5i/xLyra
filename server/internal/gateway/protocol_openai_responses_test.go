@@ -797,10 +797,10 @@ func TestXLyraRelayAnthropicPayloadUsesProviderMaxTokensDefault(t *testing.T) {
 	}
 }
 
-func TestProviderAnthropicPayloadRequiresMaxTokensWhenUnconfigured(t *testing.T) {
+func TestProviderAnthropicPayloadUsesGlobalMaxTokensFallbackWhenUnconfigured(t *testing.T) {
 	t.Parallel()
 
-	_, err := encodeCanonicalRequestToAnthropicMessages(canonicalRequest{
+	payload, err := encodeCanonicalRequestToAnthropicMessages(canonicalRequest{
 		SourceProtocol: canonicalProtocolOpenAIResponses,
 		Messages: []canonicalMessage{{
 			Type:    "message",
@@ -812,11 +812,34 @@ func TestProviderAnthropicPayloadRequiresMaxTokensWhenUnconfigured(t *testing.T)
 		Site:  routeengine.CandidateSite{SiteType: "unregistered_anthropic"},
 		Model: routeengine.CandidateModel{UpstreamName: "unregistered-model"},
 	})
-	if err == nil {
-		t.Fatal("expected missing max_tokens configuration error")
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "max_tokens is required") {
-		t.Fatalf("unexpected error: %v", err)
+	if payload["max_tokens"] != defaultAnthropicMaxTokens {
+		t.Fatalf("global max_tokens fallback = %#v, want %d", payload["max_tokens"], defaultAnthropicMaxTokens)
+	}
+}
+
+func TestDeepSeekAnthropicPayloadUsesModelMaxTokensDefaultOnOpenAICompatibleSite(t *testing.T) {
+	t.Parallel()
+
+	payload, err := encodeCanonicalRequestToAnthropicMessages(canonicalRequest{
+		SourceProtocol: canonicalProtocolOpenAIResponses,
+		Messages: []canonicalMessage{{
+			Type:    "message",
+			Role:    "user",
+			Content: []canonicalContentPart{{Type: "input_text", Text: "hi"}},
+		}},
+		Params: map[string]any{},
+	}, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "openai"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-flash-0731"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if payload["max_tokens"] != 8192 {
+		t.Fatalf("DeepSeek max_tokens = %#v, want model default 8192", payload["max_tokens"])
 	}
 }
 
