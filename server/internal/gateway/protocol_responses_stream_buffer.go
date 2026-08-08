@@ -62,6 +62,9 @@ func readBufferedResponsesStreamBody(reader io.Reader) ([]byte, error) {
 						if unmarshalErr := json.Unmarshal([]byte(data), &event); unmarshalErr != nil {
 							return nil, unmarshalErr
 						}
+						if failure, ok := semanticFailureFromJSON([]byte(data)); ok {
+							return nil, failure
+						}
 						lastEventType = strings.TrimSpace(event.Type)
 						if event.Error != nil {
 							return nil, fmt.Errorf("upstream %s: %s", nonEmptyString(event.Error.Code, event.Error.Type, "error"), nonEmptyString(event.Error.Message, "upstream returned an error event"))

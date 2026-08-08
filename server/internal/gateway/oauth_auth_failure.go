@@ -25,7 +25,8 @@ func oauthModelRequestAuthFailure(siteType string, result gatewayAttemptResult) 
 	if !isCodexSite(siteType) && !isAntigravitySite(siteType) && !isClaudeCodeSite(siteType) {
 		return false
 	}
-	return result.upstreamStatusCode == http.StatusUnauthorized || result.statusCode == http.StatusUnauthorized
+	return result.errorType == "upstream_credential_invalid" ||
+		result.upstreamStatusCode == http.StatusUnauthorized || result.statusCode == http.StatusUnauthorized
 }
 
 func oauthModelRequestAuthFailureMessage(candidate routeengine.Candidate, result gatewayAttemptResult) string {

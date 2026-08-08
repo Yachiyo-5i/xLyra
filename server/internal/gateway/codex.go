@@ -274,6 +274,16 @@ func classifyGatewayUpstreamErrorWithTimeZone(candidate routeengine.Candidate, r
 				RetryAfterSeconds: retryAfterSeconds,
 			}
 			ok = true
+		} else if failure.CredentialInvalid() {
+			classified = codexUpstreamError{
+				StatusCode:       result.statusCode,
+				ErrorType:        "upstream_credential_invalid",
+				ErrorMessage:     nonEmptyString(failure.Message, result.errorMessage),
+				CooldownReason:   store.CooldownReasonUpstreamCredentialUnauthorized,
+				CooldownScope:    "credential",
+				CooldownDuration: credentialUnauthorizedCooldownDuration,
+			}
+			ok = true
 		}
 	}
 	if !ok {

@@ -254,6 +254,8 @@ func (h Handler) requestLogFilters(w http.ResponseWriter, r *http.Request) (usag
 
 func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[string]any {
 	metadata := requestLogMetadata(item.Metadata)
+	attempt := intFromAny(metadata["attempt"])
+	credentialAttempt := intFromAny(metadata["credential_attempt"])
 	payload := map[string]any{
 		"id":                   item.ID.String(),
 		"request_id":           item.RequestID,
@@ -274,6 +276,10 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 		"original_model":       metadataString(metadata, "original_model"),
 		"mapped_model":         metadataString(metadata, "mapped_model"),
 		"mapping_mode":         metadataString(metadata, "mapping_mode"),
+		"attempt":              attempt,
+		"credential_attempt":   credentialAttempt,
+		"credential_total":     intFromAny(metadata["credential_total"]),
+		"failover":             attempt > 1 || credentialAttempt > 1,
 		"endpoint":             item.Endpoint,
 		"downstream_path":      valueOrFallback(metadata["downstream_path"], item.Endpoint),
 		"upstream_path":        metadata["upstream_path"],

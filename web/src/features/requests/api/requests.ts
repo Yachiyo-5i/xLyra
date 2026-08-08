@@ -118,6 +118,10 @@ export type RequestLogItem = {
   original_model?: string | null
   mapped_model?: string | null
   mapping_mode?: string | null
+  attempt?: number | null
+  credential_attempt?: number | null
+  credential_total?: number | null
+  failover?: boolean | null
   stream?: boolean | null
   response_mode?: string | null
   endpoint?: string | null

@@ -230,7 +230,12 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 			}
 			return capture, headersWritten, nil
 		}
-		if !capture.streamCompleted && !capture.sawDone {
+		if capture.endReason == "done" || (capture.endReason == "" && (capture.streamCompleted || capture.sawDone)) {
+			capture.streamCompleted = true
+			capture.endReason = "done"
+			return capture, headersWritten, nil
+		}
+		if capture.endReason == "" {
 			capture.endReason = "upstream_stream_read_failed"
 		}
 		return capture, headersWritten, err

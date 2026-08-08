@@ -113,6 +113,36 @@ func TestProxyUpstreamStreamWritesEventsAndCapturesUsage(t *testing.T) {
 	assertGatewayBodyContainsAll(t, rec.Body.String(), "data: [DONE]")
 }
 
+func TestProxyUpstreamStreamTreatsLateReadErrorAfterDoneAsComplete(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       &lateReadErrorBody{data: []byte("data: [DONE]\n\n")},
+	}
+	rec := httptest.NewRecorder()
+	capture, started, err := proxyUpstreamStream(context.Background(), rec, resp, time.Now())
+	if err != nil || !started || !capture.streamCompleted || capture.endReason != "done" {
+		t.Fatalf("late read error result: capture=%+v started=%v err=%v", capture, started, err)
+	}
+}
+
+type lateReadErrorBody struct {
+	data []byte
+	done bool
+}
+
+func (b *lateReadErrorBody) Read(p []byte) (int, error) {
+	if !b.done {
+		b.done = true
+		return copy(p, b.data), nil
+	}
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (*lateReadErrorBody) Close() error { return nil }
+
 func TestProxyUpstreamStreamDoesNotStartResponseOnEmptyBody(t *testing.T) {
 	t.Parallel()
 

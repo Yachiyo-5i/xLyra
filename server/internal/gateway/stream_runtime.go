@@ -102,6 +102,14 @@ func proxyUpstreamStreamWithInspector(
 			}
 			return capture, headersWritten, nil
 		}
+		if capture.endReason == "" && (capture.streamCompleted || capture.sawDone) {
+			// Providers may close the connection with a transport error immediately
+			// after sending the terminal event. The downstream response is already
+			// complete, so the late read error must not turn it into a failed attempt.
+			capture.streamCompleted = true
+			capture.endReason = "done"
+			return capture, headersWritten, nil
+		}
 		capture.endReason = "upstream_stream_read_failed"
 		if headersWritten {
 			return capture, true, err

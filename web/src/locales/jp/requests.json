@@ -14,6 +14,7 @@
     "test": "テスト",
     "success": "成功",
     "failure": "失敗",
+    "failover": "切り替え",
     "responseMode": {
       "stream": "ストリーム",
       "nonStream": "非ストリーム"

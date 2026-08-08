@@ -33,7 +33,9 @@ func shouldTryNextCredential(result gatewayAttemptResult) bool {
 		return false
 	}
 	switch result.errorType {
-	case "upstream_credential_decrypt_failed", "credential_concurrency_limited":
+	case "upstream_credential_decrypt_failed", "credential_concurrency_limited",
+		"upstream_credential_limited", "upstream_subscription_limit_exceeded",
+		"upstream_credential_invalid":
 		return true
 	}
 	switch result.statusCode {
@@ -133,6 +135,12 @@ func cooldownInputForFailure(candidate routeengine.Candidate, result gatewayAtte
 		base.Scope = "credential"
 		base.Reason = store.CooldownReasonUpstreamCredentialLimited
 		base.Duration = rateLimitedCooldownDuration(result.retryAfterSeconds)
+		return base, true
+	case result.errorType == "upstream_credential_invalid" && credentialID != uuid.Nil:
+		base.SiteCredentialID = &credentialID
+		base.Scope = "credential"
+		base.Reason = store.CooldownReasonUpstreamCredentialUnauthorized
+		base.Duration = credentialUnauthorizedCooldownDuration
 		return base, true
 	case upstreamNoResponseFailure(result):
 		base.SiteModelID = &siteModelID

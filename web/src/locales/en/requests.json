@@ -14,6 +14,7 @@
     "test": "Test",
     "success": "Success",
     "failure": "Failure",
+    "failover": "Failover",
     "responseMode": {
       "stream": "Stream",
       "nonStream": "Non-stream"

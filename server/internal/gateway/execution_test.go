@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -348,6 +349,26 @@ func TestStreamSucceededRejectsUpstreamReadFailure(t *testing.T) {
 	}
 	if got := streamMetadataEnvelope(capture)["stream_end_reason"]; got != "upstream_stream_read_failed" {
 		t.Fatalf("stream end reason metadata = %#v, want upstream_stream_read_failed", got)
+	}
+}
+
+func TestStreamSucceededAcceptsCompletedStreamAfterLateReadFailure(t *testing.T) {
+	t.Parallel()
+
+	capture := streamCaptureState{streamCompleted: true, endReason: "done"}
+	if !streamSucceeded(capture) {
+		t.Fatal("a stream with a terminal completion event must remain successful")
+	}
+}
+
+func TestStreamCompletedAfterReadErrorNormalizesToSuccess(t *testing.T) {
+	t.Parallel()
+
+	if !streamCompletedAfterReadError(streamCaptureState{streamCompleted: true, endReason: "upstream_stream_read_failed"}, io.ErrUnexpectedEOF) {
+		t.Fatal("completed stream with a late read error should be normalized")
+	}
+	if streamCompletedAfterReadError(streamCaptureState{streamCompleted: true, endReason: "upstream_stream_error"}, io.ErrUnexpectedEOF) {
+		t.Fatal("explicit semantic stream failure must not be normalized")
 	}
 }
 
