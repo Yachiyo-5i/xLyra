@@ -521,8 +521,10 @@ func (h Handler) handleBufferedResponse(
 		result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
 		return result
 	}
-	if semanticFailure, ok := semanticFailureFromJSON(responseBody); ok {
-		return h.finishBufferedSemanticFailure(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, semanticFailure)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if semanticFailure, ok := semanticFailureFromJSON(responseBody); ok {
+			return h.finishBufferedSemanticFailure(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, semanticFailure)
+		}
 	}
 
 	transformed, transformErr := protocol.TransformBufferedResponse(resp.StatusCode, resp.Header, responseBody)

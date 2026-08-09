@@ -110,7 +110,9 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 			capture.endReason = "done"
 			return capture, headersWritten, nil
 		}
-		capture.endReason = "upstream_stream_read_failed"
+		if capture.endReason == "" {
+			capture.endReason = "upstream_stream_read_failed"
+		}
 		return capture, headersWritten, err
 	}
 }

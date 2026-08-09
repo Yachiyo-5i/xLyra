@@ -110,7 +110,9 @@ func proxyUpstreamStreamWithInspector(
 			capture.endReason = "done"
 			return capture, headersWritten, nil
 		}
-		capture.endReason = "upstream_stream_read_failed"
+		if capture.endReason == "" {
+			capture.endReason = "upstream_stream_read_failed"
+		}
 		if headersWritten {
 			return capture, true, err
 		}

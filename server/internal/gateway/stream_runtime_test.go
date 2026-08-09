@@ -166,3 +166,39 @@ func TestProxyUpstreamStreamDoesNotStartResponseOnEmptyBody(t *testing.T) {
 		t.Fatalf("expected upstream_stream_empty, got %q", capture.endReason)
 	}
 }
+
+func TestProxyResponsesStreamPassthroughPreservesEndReasonOnReadError(t *testing.T) {
+	t.Parallel()
+
+	// response.failed sets endReason="upstream_stream_error"; a subsequent
+	// transport error must not overwrite it to "upstream_stream_read_failed".
+	data := "data: " + `{"type":"response.failed","response":{"status":"failed","error":{"code":"rate_limit_exceeded","message":"limit hit"}}}` + "\n\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       &lateReadErrorBody{data: []byte(data)},
+	}
+	rec := httptest.NewRecorder()
+	capture, _, _ := proxyResponsesStreamPassthrough(context.Background(), rec, resp, time.Now())
+	if capture.endReason != "upstream_stream_error" {
+		t.Fatalf("endReason = %q, want upstream_stream_error; semantic error reason must survive a subsequent read error", capture.endReason)
+	}
+}
+
+func TestProxyUpstreamStreamPreservesEndReasonOnReadError(t *testing.T) {
+	t.Parallel()
+
+	// Anthropic inspector sets endReason="upstream_stream_error" on an error event;
+	// a subsequent transport error must not overwrite it to "upstream_stream_read_failed".
+	data := "data: " + `{"type":"error","error":{"message":"upstream returned an error"}}` + "\n\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       &lateReadErrorBody{data: []byte(data)},
+	}
+	rec := httptest.NewRecorder()
+	capture, _, _ := proxyUpstreamStreamWithInspector(context.Background(), rec, resp, time.Now(), inspectAnthropicMessagesStreamLine)
+	if capture.endReason != "upstream_stream_error" {
+		t.Fatalf("endReason = %q, want upstream_stream_error; Anthropic error event endReason must survive a subsequent read error", capture.endReason)
+	}
+}

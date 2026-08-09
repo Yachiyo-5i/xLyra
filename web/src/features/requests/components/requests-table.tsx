@@ -117,11 +117,6 @@ export function RequestsTable({
                           <StatusBadge status={item.success ? 'healthy' : 'error'}>
                             {item.success ? t('table.success') : t('table.failure')}
                           </StatusBadge>
-                          {item.failover ? (
-                            <Badge variant="warning" className="px-2 py-0.5 text-xs">
-                              {t('table.failover')}
-                            </Badge>
-                          ) : null}
                           <span className="text-muted-soft text-xs">
                             {item.upstream_status_code ?? item.status_code ?? '-'}
                           </span>

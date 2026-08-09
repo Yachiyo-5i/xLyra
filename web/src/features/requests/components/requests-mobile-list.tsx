@@ -72,11 +72,6 @@ export function RequestsMobileList({
                     <StatusBadge status={item.success ? 'healthy' : 'error'}>
                       {item.success ? t('table.success') : t('table.failure')}
                     </StatusBadge>
-                    {item.failover ? (
-                      <Badge variant="warning" className="px-2 py-0.5 text-xs">
-                        {t('table.failover')}
-                      </Badge>
-                    ) : null}
                     <span className="flex size-6 items-center justify-center text-muted-soft">
                       {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                     </span>

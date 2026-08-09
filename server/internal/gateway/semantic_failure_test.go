@@ -145,3 +145,32 @@ func TestHandleBufferedResponseClassifiesSemanticCredentialFailure(t *testing.T)
 		t.Fatal("semantic credential failure should rotate to the next credential")
 	}
 }
+
+func TestHandleBufferedResponseDoesNotTreatNon2xxErrorBodyAsSemanticFailure(t *testing.T) {
+	t.Parallel()
+
+	result := Handler{logger: gatewayDiscardLogger()}.handleBufferedResponse(
+		context.Background(),
+		"req-http-error",
+		uuid.New(),
+		uuid.New(),
+		routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: "openai"}},
+		openAIChatProtocolAdapter{},
+		&http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"bad_request","message":"invalid parameter"}}`)),
+		},
+		gatewayAttemptResult{upstreamStatusCode: http.StatusBadRequest},
+		time.Now(),
+	)
+	if result.success {
+		t.Fatal("HTTP 400 with error body must not be treated as success")
+	}
+	if result.statusCode != http.StatusBadRequest {
+		t.Fatalf("statusCode = %d, want %d; HTTP 400 must not be overridden to 502 by semantic failure detection", result.statusCode, http.StatusBadRequest)
+	}
+	if result.errorType == "upstream_response_failed" {
+		t.Fatal("HTTP 400 must not enter the semantic failure path; got upstream_response_failed")
+	}
+}
