@@ -398,7 +398,7 @@ export function ImageView({
           }))}
           onParameterChange={setSize}
           disabled={apiKeys.length === 0}
-          triggerClassName="h-11 min-w-0 max-w-[13.5rem]"
+          triggerClassName="h-11 min-w-0 w-[min(13.5rem,calc(100vw-7rem))] max-w-full"
         />
       </div>
     </>

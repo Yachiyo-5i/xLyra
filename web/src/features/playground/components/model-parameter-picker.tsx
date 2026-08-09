@@ -48,8 +48,8 @@ function SubPanel<T extends string>({
   return (
     <div
       className={cn(
-        'glass-panel-strong min-w-[10rem] rounded-xl p-1.5 shadow-[var(--shadow-dialog)]',
-        mobile && 'max-h-[min(60vh,24rem)] w-52 max-w-[calc(100vw-1.5rem)] overflow-y-auto',
+        'glass-panel-strong max-h-[min(60vh,24rem)] min-w-[10rem] overflow-y-auto overscroll-contain rounded-xl p-1.5 shadow-[var(--shadow-dialog)]',
+        mobile && 'w-52 max-w-[calc(100vw-1.5rem)]',
       )}
     >
       {items.length === 0 && emptyLabel ? (
@@ -165,12 +165,10 @@ export function ModelParameterPicker<T extends string>({
 
   const selectModel = (id: string) => {
     onModelChange(id)
-    setOpen(false)
   }
 
   const selectParameter = (value: T) => {
     onParameterChange(value)
-    setOpen(false)
   }
 
   return (
@@ -180,7 +178,7 @@ export function ModelParameterPicker<T extends string>({
           type="button"
           disabled={disabled}
           className={cn(
-            'inline-flex h-8 max-w-[15rem] items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
+            'inline-flex h-8 w-[15rem] max-w-[15rem] items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
             triggerClassName,
           )}
         >

@@ -31,7 +31,7 @@ export function ModelPicker({
     <Select value={value ?? undefined} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger
         className={cn(
-          'inline-flex h-8 w-auto max-w-[13rem] gap-1 rounded-full border-none bg-transparent px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
+          'inline-flex h-8 w-[13rem] max-w-[13rem] gap-1 rounded-full border-none bg-transparent px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
           className,
         )}
       >
@@ -46,7 +46,11 @@ export function ModelPicker({
           </span>
         ) : placeholder}
       </SelectTrigger>
-      <SelectContent searchable={false} widthMode="content">
+      <SelectContent
+        searchable={false}
+        widthMode="content"
+        className="max-h-[min(var(--radix-select-content-available-height),24rem)]"
+      >
         {models.map((model) => (
           <SelectItem key={model.id} value={model.id} textValue={model.id}>
             <span className="flex min-w-0 items-center gap-1.5">

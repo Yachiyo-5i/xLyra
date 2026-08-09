@@ -78,7 +78,7 @@ function AppFooter() {
     <footer className="shrink-0 bg-transparent px-4 py-4 lg:px-8 lg:py-5">
       <div className="flex flex-col gap-3 text-xs text-[hsl(var(--text-muted-soft))] sm:flex-row sm:items-center sm:justify-between">
         <a
-          href="https://github.com/htnanako/xLyra"
+          href="https://github.com/Yachiyo-5i/xLyra"
           target="_blank"
           rel="noreferrer"
           className="inline-flex w-fit items-center gap-2 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
