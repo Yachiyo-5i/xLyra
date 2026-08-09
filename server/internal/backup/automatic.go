@@ -24,9 +24,8 @@ import (
 )
 
 const (
-	automaticBackupListLimit = 1000
-	automaticBackupTimeout   = 10 * time.Minute
-	automaticTaskRetention   = time.Hour
+	automaticBackupTimeout = 10 * time.Minute
+	automaticTaskRetention = time.Hour
 )
 
 type AutomaticConfigInput struct {
@@ -91,6 +90,13 @@ type AutomaticRunTask struct {
 	Filename  string    `json:"filename"`
 	Status    string    `json:"status"`
 	StartedAt time.Time `json:"started_at"`
+}
+
+type automaticBackupVersion struct {
+	Key            string
+	VersionID      string
+	IsLatest       bool
+	IsDeleteMarker bool
 }
 
 type AutomaticService struct {
@@ -158,6 +164,9 @@ func (s *AutomaticService) Test(ctx context.Context) (AutomaticTestResult, error
 	if _, err := s.listFilesWithClient(ctx, cfg, client, 1); err != nil {
 		return fail("list", err)
 	}
+	if _, err := s.bucketUsesVersioning(ctx, cfg, client); err != nil {
+		return fail("versioning", err)
+	}
 	return AutomaticTestResult{
 		OK:        true,
 		Stage:     "list",
@@ -171,7 +180,7 @@ func (s *AutomaticService) ListFiles(ctx context.Context) ([]AutomaticBackupFile
 	if err != nil {
 		return nil, err
 	}
-	files, err := s.listFilesWithClient(ctx, cfg, client, automaticBackupListLimit)
+	files, err := s.listFilesWithClient(ctx, cfg, client, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -242,10 +251,29 @@ func (s *AutomaticService) RunScheduled(ctx context.Context) (AutomaticRunResult
 		return AutomaticRunResult{}, err
 	}
 
+	startedAt := s.base.now().UTC()
+	filename := s.base.backupFilename(startedAt)
+	key := backupObjectKey(cfg.Storage.Prefix, filename)
+	taskFile := AutomaticBackupFile{
+		Key:          key,
+		Filename:     filename,
+		LastModified: startedAt,
+		Status:       "running",
+	}
+	s.storeTaskFile(taskFile)
+
 	ctx, cancel := context.WithTimeout(ctx, automaticBackupTimeout)
 	defer cancel()
 
-	return s.run(ctx, cfg, client, passphrase, s.base.now().UTC())
+	result, err := s.run(ctx, cfg, client, passphrase, startedAt)
+	if err != nil {
+		taskFile.Status = "failed"
+		taskFile.Error = err.Error()
+		s.storeTaskFile(taskFile)
+		return result, err
+	}
+	s.removeTaskFile(key)
+	return result, nil
 }
 
 func (s *AutomaticService) run(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, passphrase string, createdAt time.Time) (AutomaticRunResult, error) {
@@ -324,12 +352,12 @@ func (s *AutomaticService) Delete(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	s.removeTaskFile(key)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if err := client.RemoveObject(ctx, cfg.Storage.Bucket, key, minio.RemoveObjectOptions{}); err != nil {
+	if err := s.deleteBackupKeys(ctx, cfg, client, []string{key}); err != nil {
 		return fmt.Errorf("delete backup from S3: %w", err)
 	}
+	s.removeTaskFile(key)
 	return nil
 }
 
@@ -356,16 +384,21 @@ func (s *AutomaticService) mergeTaskFiles(cfg config.AutomaticBackupConfig, file
 		return files
 	}
 	now := time.Now().UTC()
-	existing := make(map[string]struct{}, len(files))
-	for _, file := range files {
-		existing[file.Key] = struct{}{}
+	existing := make(map[string]int, len(files))
+	for i, file := range files {
+		existing[file.Key] = i
 	}
 	for key, task := range s.tasks {
-		if _, ok := existing[key]; ok {
+		if task.Status != "running" && now.Sub(task.LastModified) > automaticTaskRetention {
 			delete(s.tasks, key)
 			continue
 		}
-		if task.Status != "running" && now.Sub(task.LastModified) > automaticTaskRetention {
+		if index, ok := existing[key]; ok {
+			if task.Status == "failed" {
+				files[index].Status = task.Status
+				files[index].Error = task.Error
+				continue
+			}
 			delete(s.tasks, key)
 			continue
 		}
@@ -488,11 +521,19 @@ func (s *AutomaticService) decryptBackupPassphrase(cfg config.AutomaticBackupCon
 }
 
 func (s *AutomaticService) listFilesWithClient(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, limit int) ([]AutomaticBackupFile, error) {
-	if limit <= 0 {
-		limit = automaticBackupListLimit
+	return s.listFiles(ctx, cfg, client, limit, 30*time.Second)
+}
+
+func (s *AutomaticService) listAllFilesWithClient(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client) ([]AutomaticBackupFile, error) {
+	return s.listFiles(ctx, cfg, client, 0, 0)
+}
+
+func (s *AutomaticService) listFiles(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, limit int, timeout time.Duration) ([]AutomaticBackupFile, error) {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
 	files := make([]AutomaticBackupFile, 0)
 	for item := range client.ListObjects(ctx, cfg.Storage.Bucket, minio.ListObjectsOptions{
 		Prefix:    cfg.Storage.Prefix,
@@ -510,7 +551,7 @@ func (s *AutomaticService) listFilesWithClient(ctx context.Context, cfg config.A
 			Size:         item.Size,
 			LastModified: item.LastModified,
 		})
-		if len(files) >= limit {
+		if limit > 0 && len(files) >= limit {
 			break
 		}
 	}
@@ -519,22 +560,199 @@ func (s *AutomaticService) listFilesWithClient(ctx context.Context, cfg config.A
 }
 
 func (s *AutomaticService) pruneBackups(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client) ([]string, error) {
-	files, err := s.listFilesWithClient(ctx, cfg, client, automaticBackupListLimit)
+	files, err := s.listAllFilesWithClient(ctx, cfg, client)
 	if err != nil {
 		return nil, err
+	}
+	retainedCount := cfg.RetentionCount
+	if retainedCount > len(files) {
+		retainedCount = len(files)
+	}
+	retained := make(map[string]struct{}, retainedCount)
+	for _, file := range files[:retainedCount] {
+		retained[file.Key] = struct{}{}
+	}
+	versioned, err := s.bucketUsesVersioning(ctx, cfg, client)
+	if err != nil {
+		return nil, err
+	}
+	if versioned {
+		return s.pruneVersionedBackups(ctx, cfg, client, retained)
 	}
 	if len(files) <= cfg.RetentionCount {
 		return nil, nil
 	}
-	toDelete := files[cfg.RetentionCount:]
-	deleted := make([]string, 0, len(toDelete))
-	for _, file := range toDelete {
-		if err := client.RemoveObject(ctx, cfg.Storage.Bucket, file.Key, minio.RemoveObjectOptions{}); err != nil {
-			return deleted, fmt.Errorf("prune backup %s: %w", file.Key, err)
-		}
-		deleted = append(deleted, file.Key)
+	toDelete := make([]string, 0, len(files)-cfg.RetentionCount)
+	for _, file := range files[cfg.RetentionCount:] {
+		toDelete = append(toDelete, file.Key)
 	}
-	return deleted, nil
+	if err := s.deleteUnversionedBackupKeys(ctx, cfg, client, toDelete); err != nil {
+		return nil, err
+	}
+	return toDelete, nil
+}
+
+func (s *AutomaticService) bucketUsesVersioning(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client) (bool, error) {
+	versioning, err := client.GetBucketVersioning(ctx, cfg.Storage.Bucket)
+	if err != nil {
+		return false, fmt.Errorf("read backup bucket versioning: %w", err)
+	}
+	return versioning.Enabled() || versioning.Suspended(), nil
+}
+
+func (s *AutomaticService) deleteBackupKeys(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, keys []string) error {
+	versioned, err := s.bucketUsesVersioning(ctx, cfg, client)
+	if err != nil {
+		return err
+	}
+	if !versioned {
+		return s.deleteUnversionedBackupKeys(ctx, cfg, client, keys)
+	}
+	versions, err := s.listBackupVersionsWithClient(ctx, cfg, client)
+	if err != nil {
+		return err
+	}
+	keysSet := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		keysSet[key] = struct{}{}
+	}
+	targets := make([]automaticBackupVersion, 0)
+	for _, version := range versions {
+		if _, ok := keysSet[version.Key]; ok {
+			targets = append(targets, version)
+		}
+	}
+	return s.deleteBackupVersions(ctx, cfg, client, targets)
+}
+
+func (s *AutomaticService) pruneVersionedBackups(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, retained map[string]struct{}) ([]string, error) {
+	versions, err := s.listBackupVersionsWithClient(ctx, cfg, client)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]automaticBackupVersion, 0, len(versions))
+	deletedKeys := make([]string, 0)
+	seenKeys := make(map[string]struct{})
+	for _, version := range versions {
+		_, keep := retained[version.Key]
+		if keep && version.IsLatest && !version.IsDeleteMarker {
+			continue
+		}
+		targets = append(targets, version)
+		if !keep {
+			if _, seen := seenKeys[version.Key]; seen {
+				continue
+			}
+			seenKeys[version.Key] = struct{}{}
+			deletedKeys = append(deletedKeys, version.Key)
+		}
+	}
+	if err := s.deleteBackupVersions(ctx, cfg, client, targets); err != nil {
+		return nil, err
+	}
+	return deletedKeys, nil
+}
+
+func (s *AutomaticService) deleteUnversionedBackupKeys(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	for _, key := range keys {
+		if err := client.RemoveObject(ctx, cfg.Storage.Bucket, key, minio.RemoveObjectOptions{}); err != nil {
+			return fmt.Errorf("delete backup %s: %w", key, err)
+		}
+	}
+	files, err := s.listAllFilesWithClient(ctx, cfg, client)
+	if err != nil {
+		return err
+	}
+	remaining := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		remaining[file.Key] = struct{}{}
+	}
+	for _, key := range keys {
+		if _, ok := remaining[key]; ok {
+			return fmt.Errorf("verify deleted backup %s: object is still present", key)
+		}
+	}
+	return nil
+}
+
+func (s *AutomaticService) deleteBackupVersions(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, targets []automaticBackupVersion) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	for _, target := range targets {
+		if strings.TrimSpace(target.VersionID) == "" {
+			return fmt.Errorf("delete backup %s: version ID is missing", target.Key)
+		}
+	}
+	objects := make(chan minio.ObjectInfo)
+	go func() {
+		defer close(objects)
+		for _, target := range targets {
+			select {
+			case objects <- minio.ObjectInfo{Key: target.Key, VersionID: target.VersionID}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	var deleteErr error
+	for result := range client.RemoveObjects(ctx, cfg.Storage.Bucket, objects, minio.RemoveObjectsOptions{}) {
+		if result.Err == nil || deleteErr != nil {
+			continue
+		}
+		if result.ObjectName == "" {
+			deleteErr = fmt.Errorf("delete backup versions: %w", result.Err)
+			continue
+		}
+		deleteErr = fmt.Errorf("delete backup %s version %s: %w", result.ObjectName, result.VersionID, result.Err)
+	}
+	if deleteErr != nil {
+		return deleteErr
+	}
+	versions, err := s.listBackupVersionsWithClient(ctx, cfg, client)
+	if err != nil {
+		return err
+	}
+	remaining := make(map[string]struct{}, len(versions))
+	for _, version := range versions {
+		remaining[backupVersionKey(version.Key, version.VersionID)] = struct{}{}
+	}
+	for _, target := range targets {
+		if _, ok := remaining[backupVersionKey(target.Key, target.VersionID)]; ok {
+			return fmt.Errorf("verify deleted backup %s version %s: object version is still present", target.Key, target.VersionID)
+		}
+	}
+	return nil
+}
+
+func (s *AutomaticService) listBackupVersionsWithClient(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client) ([]automaticBackupVersion, error) {
+	versions := make([]automaticBackupVersion, 0)
+	for item := range client.ListObjects(ctx, cfg.Storage.Bucket, minio.ListObjectsOptions{
+		Prefix:       cfg.Storage.Prefix,
+		Recursive:    true,
+		WithVersions: true,
+	}) {
+		if item.Err != nil {
+			return nil, fmt.Errorf("list backup versions from S3: %w", item.Err)
+		}
+		if !isBackupObject(cfg.Storage.Prefix, item.Key) {
+			continue
+		}
+		versions = append(versions, automaticBackupVersion{
+			Key:            item.Key,
+			VersionID:      item.VersionID,
+			IsLatest:       item.IsLatest,
+			IsDeleteMarker: item.IsDeleteMarker,
+		})
+	}
+	return versions, nil
+}
+
+func backupVersionKey(key string, versionID string) string {
+	return key + "\x00" + versionID
 }
 
 func automaticConfigPayload(cfg config.AutomaticBackupConfig) AutomaticConfigPayload {

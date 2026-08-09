@@ -95,6 +95,33 @@ func TestMergeTaskFilesIncludesRunningAndDropsCompletedPlaceholder(t *testing.T)
 	}
 }
 
+func TestMergeTaskFilesPreservesCleanupFailureForUploadedBackup(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	cfg := config.DefaultAutomaticBackupConfig()
+	cfg.Storage.Prefix = "xlyra/prod/"
+	file := AutomaticBackupFile{
+		Key:          "xlyra/prod/xlyra-backup-failed.zip.xlyra",
+		Filename:     "xlyra-backup-failed.zip.xlyra",
+		LastModified: time.Now().UTC(),
+	}
+	service.storeTaskFile(AutomaticBackupFile{
+		Key:          file.Key,
+		Filename:     file.Filename,
+		LastModified: file.LastModified,
+		Status:       "failed",
+		Error:        "delete backup failed",
+	})
+
+	files := service.mergeTaskFiles(cfg, []AutomaticBackupFile{file})
+
+	if len(files) != 1 || files[0].Status != "failed" || files[0].Error != "delete backup failed" {
+		t.Fatalf("files = %#v", files)
+	}
+	if _, ok := service.tasks[file.Key]; !ok {
+		t.Fatal("expected cleanup failure to remain visible while the task is retained")
+	}
+}
+
 func TestMergeTaskFilesDropsExpiredAndIgnoresForeignTaskPlaceholders(t *testing.T) {
 	service := NewAutomaticService(Service{}, "master-key")
 	cfg := config.DefaultAutomaticBackupConfig()
@@ -134,6 +161,33 @@ func TestMergeTaskFilesDropsExpiredAndIgnoresForeignTaskPlaceholders(t *testing.
 	}
 	if _, ok := service.tasks[foreign.Key]; !ok {
 		t.Fatalf("foreign task should be ignored but retained for its matching prefix")
+	}
+}
+
+func TestMergeTaskFilesExpiresFailureForUploadedBackup(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	cfg := config.DefaultAutomaticBackupConfig()
+	cfg.Storage.Prefix = "xlyra/prod/"
+	file := AutomaticBackupFile{
+		Key:          "xlyra/prod/xlyra-backup-expired.zip.xlyra",
+		Filename:     "xlyra-backup-expired.zip.xlyra",
+		LastModified: time.Now().UTC(),
+	}
+	service.storeTaskFile(AutomaticBackupFile{
+		Key:          file.Key,
+		Filename:     file.Filename,
+		LastModified: time.Now().UTC().Add(-automaticTaskRetention - time.Minute),
+		Status:       "failed",
+		Error:        "delete backup failed",
+	})
+
+	files := service.mergeTaskFiles(cfg, []AutomaticBackupFile{file})
+
+	if len(files) != 1 || files[0].Status != "" || files[0].Error != "" {
+		t.Fatalf("files = %#v", files)
+	}
+	if _, ok := service.tasks[file.Key]; ok {
+		t.Fatal("expected expired failure status to be removed")
 	}
 }
 
