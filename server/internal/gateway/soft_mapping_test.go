@@ -70,9 +70,10 @@ type softMappingUpstreamCall struct {
 }
 
 type softMappingHarness struct {
-	mu            sync.Mutex
-	upstreamCalls []softMappingUpstreamCall
-	requestLogs   []store.RequestLog
+	mu                   sync.Mutex
+	upstreamCalls        []softMappingUpstreamCall
+	requestLogs          []store.RequestLog
+	semanticFailurePaths map[string]bool
 
 	apiKey          store.APIKey
 	canonicalModels map[string]store.CanonicalModel
@@ -247,6 +248,20 @@ func softMappingUpstreamServer(t *testing.T, harness *softMappingHarness, failPr
 				_, _ = w.Write([]byte(`{"error":{"message":"upstream exploded","type":"server_error"}}`))
 				return
 			}
+		}
+		harness.mu.Lock()
+		semanticFailure := false
+		for prefix, enabled := range harness.semanticFailurePaths {
+			if enabled && strings.HasPrefix(r.URL.Path, prefix) {
+				semanticFailure = true
+				break
+			}
+		}
+		harness.mu.Unlock()
+		if semanticFailure {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"error":{"code":"invalid_api_key","message":"semantic credential rejected"}}`))
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"chatcmpl-soft","object":"chat.completion","model":"` + model + `","choices":[{"index":0,"message":{"role":"assistant","content":"soft-ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`))
@@ -442,6 +457,37 @@ func TestSoftMappingFallsBackAfterUpstreamFailures(t *testing.T) {
 	}
 	if successMetadata["mapping_mode"] != "soft" || successMetadata["mapped_model"] != "fallback-model" {
 		t.Fatalf("success metadata mapping = %v/%v, want soft fallback", successMetadata["mapping_mode"], successMetadata["mapped_model"])
+	}
+}
+
+func TestSoftMappingFallsBackAfterBufferedSemanticFailureWithoutLeakingIt(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSoftMappingFixture(t, `[{"pattern":"orig-model","target":"fallback-model","mode":"soft"}]`, true, 0)
+	fixture.harness.mu.Lock()
+	fixture.harness.semanticFailurePaths = map[string]bool{"/orig": true}
+	fixture.harness.mu.Unlock()
+	recorder := fixture.do(t, "orig-model")
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s, want 200 after semantic failover", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "semantic credential rejected") {
+		t.Fatalf("intermediate semantic failure leaked downstream: %s", recorder.Body.String())
+	}
+	models := fixture.harness.upstreamModels()
+	if len(models) != 2 || models[0] != "orig-upstream-model" || models[1] != "fallback-upstream-model" {
+		t.Fatalf("upstream models = %v, want original semantic failure then fallback success", models)
+	}
+	logs := fixture.harness.recordedLogs()
+	successCount := 0
+	for _, log := range logs {
+		if log.Success {
+			successCount++
+		}
+	}
+	if successCount != 1 {
+		t.Fatalf("success logs = %d of %d, want exactly one", successCount, len(logs))
 	}
 }
 

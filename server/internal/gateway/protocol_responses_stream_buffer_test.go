@@ -141,6 +141,17 @@ func TestReadBufferedResponsesStreamBodyReturnsUpstreamErrorEvent(t *testing.T) 
 	}
 }
 
+func TestReadBufferedResponsesStreamBodyReturnsNestedResponseFailedEvent(t *testing.T) {
+	t.Parallel()
+
+	_, err := readBufferedResponsesStreamBody(strings.NewReader(
+		gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"status":"failed","error":{"code":"rate_limit_exceeded","message":"Concurrency limit exceeded"}}}`),
+	))
+	if err == nil || !strings.Contains(err.Error(), "rate_limit_exceeded") || !strings.Contains(err.Error(), "Concurrency limit exceeded") {
+		t.Fatalf("error = %v, want nested response failure details", err)
+	}
+}
+
 func TestShouldBufferAsResponsesStreamByContentType(t *testing.T) {
 	t.Parallel()
 

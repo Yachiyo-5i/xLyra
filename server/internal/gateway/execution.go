@@ -511,11 +511,20 @@ func (h Handler) handleBufferedResponse(
 		responseBody, readErr = readResponseBodyWithLimit(bufferedBody, readLimit)
 	}
 	if readErr != nil {
+		var semanticFailure *upstreamSemanticFailure
+		if errors.As(readErr, &semanticFailure) {
+			return h.finishBufferedSemanticFailure(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, semanticFailure)
+		}
 		result.success = false
 		result.errorType = "upstream_response_read_failed"
 		result.errorMessage = readErr.Error()
 		result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
 		return result
+	}
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if semanticFailure, ok := semanticFailureFromJSON(responseBody); ok {
+			return h.finishBufferedSemanticFailure(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, semanticFailure)
+		}
 	}
 
 	transformed, transformErr := protocol.TransformBufferedResponse(resp.StatusCode, resp.Header, responseBody)
@@ -560,6 +569,30 @@ func (h Handler) handleBufferedResponse(
 	}
 
 	result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, upstreamResponseForMetadata(result.success, responseBody))
+	return result
+}
+
+func (h Handler) finishBufferedSemanticFailure(
+	ctx context.Context,
+	requestID string,
+	apiKeyID uuid.UUID,
+	canonicalModelID uuid.UUID,
+	candidate routeengine.Candidate,
+	result gatewayAttemptResult,
+	failure *upstreamSemanticFailure,
+) gatewayAttemptResult {
+	result.statusCode = http.StatusBadGateway
+	// Keep buffered failures internal while eligible alternatives are retried.
+	// Preserve the provider status for classification and diagnostics, while
+	// exposing a JSON-compatible response if this is the final failure.
+	result.contentType = "application/json"
+	result.errorType = "upstream_response_failed"
+	result.errorMessage = failure.Error()
+	result.body = failure.Body
+	result.failureResponse = diagnosticFailureResponse(failure.Body)
+	result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, failure.Body, time.Now(), h.timeZone)
+	h.markOAuthConnectionUnavailableOnAuthFailure(ctx, candidate, result)
+	result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, upstreamResponseForMetadata(false, failure.Body))
 	return result
 }
 
@@ -614,6 +647,12 @@ func (h Handler) handleStreamResponse(
 		setRouteSiteHeader(w.Header(), candidate.Site.Name)
 	}
 	capture, responseStarted, proxyErr := protocol.ProxyStream(ctx, w, resp, startedAt, candidate)
+	if proxyErr != nil && streamCompletedAfterReadError(capture, proxyErr) {
+		proxyErr = nil
+		capture.endReason = "done"
+		capture.streamCompleted = true
+		capture.sawDone = true
+	}
 	result.responseStarted = responseStarted
 	if responseStarted {
 		if writer, ok := w.(downstreamSSELifecycleWriter); ok {
@@ -680,6 +719,13 @@ func (h Handler) handleStreamResponse(
 	return result
 }
 
+func streamCompletedAfterReadError(capture streamCaptureState, err error) bool {
+	if err == nil || capture.endReason != "upstream_stream_read_failed" {
+		return false
+	}
+	return capture.streamCompleted || capture.sawDone
+}
+
 func applyStreamUsage(result gatewayAttemptResult, usage gatewayUsage) gatewayAttemptResult {
 	result.promptTokens               = usage.PromptTokens
 	result.completionTokens           = usage.CompletionTokens
@@ -696,7 +742,14 @@ func applyStreamUsage(result gatewayAttemptResult, usage gatewayUsage) gatewayAt
 }
 
 func streamSucceeded(capture streamCaptureState) bool {
-	return capture.streamCompleted || strings.TrimSpace(capture.endReason) == "response_incomplete"
+	switch strings.TrimSpace(capture.endReason) {
+	case "upstream_stream_error", "tool_call_arguments_invalid_json", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_read_failed", "upstream_stream_empty":
+		return false
+	case "response_incomplete":
+		return true
+	default:
+		return capture.streamCompleted
+	}
 }
 
 func streamErrorTypeFromEndReason(endReason string) string {

@@ -151,6 +151,15 @@ func TestGatewayOAuthAuthFailureMessageAndPredicates(t *testing.T) {
 		}
 	}
 
+	semanticResult := gatewayAttemptResult{
+		statusCode:         http.StatusBadGateway,
+		upstreamStatusCode: http.StatusOK,
+		errorType:          "upstream_credential_invalid",
+	}
+	if !oauthModelRequestAuthFailure(candidate.Site.SiteType, semanticResult) {
+		t.Fatal("expected semantic credential failure to be an OAuth auth failure")
+	}
+
 	Handler{}.markOAuthConnectionUnavailableOnAuthFailure(context.Background(), candidate, result)
 }
 

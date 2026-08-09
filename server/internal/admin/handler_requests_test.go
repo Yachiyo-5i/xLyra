@@ -183,3 +183,23 @@ func TestRequestLogPayloadIncludesFastBillingCostCalculation(t *testing.T) {
 		t.Fatalf("unexpected cost calculation: %#v", calculation)
 	}
 }
+
+func TestRequestLogPayloadMarksFailoverAttempt(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{
+		"attempt":            2,
+		"credential_attempt": 1,
+		"credential_total":   2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := requestLogPayload(store.RequestLogDetail{
+		RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req:2", Metadata: metadata},
+	}, false)
+	if payload["attempt"] != 2 || payload["credential_total"] != 2 || payload["failover"] != true {
+		t.Fatalf("unexpected failover fields: %#v", payload)
+	}
+}

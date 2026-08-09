@@ -407,6 +407,9 @@ func TestStreamFailureScopeClassifiesDownstreamAndUnknownReasons(t *testing.T) {
 	if got := streamFailureScope("downstream_client_cancelled"); got != "downstream" {
 		t.Fatalf("downstream client cancel scope = %#v, want downstream", got)
 	}
+	if got := streamFailureScope("upstream_stream_error"); got != "upstream" {
+		t.Fatalf("upstream stream error scope = %#v, want upstream", got)
+	}
 	if got := streamFailureScope("unexpected_reason"); got != nil {
 		t.Fatalf("unexpected stream end reason scope = %#v, want nil", got)
 	}

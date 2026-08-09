@@ -322,7 +322,7 @@ func TestHandleBufferedResponseReturnsTransformFailure(t *testing.T) {
 		&http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"error":"bad-shape"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"malformed":"bad-shape"}`)),
 		},
 		gatewayAttemptResult{attempt: 1, downstreamPath: gatewayEndpointResponses, currency: "USD"},
 		time.Now(),
@@ -334,7 +334,7 @@ func TestHandleBufferedResponseReturnsTransformFailure(t *testing.T) {
 	if result.errorType != "upstream_response_transform_failed" || !strings.Contains(result.errorMessage, wantErr.Error()) {
 		t.Fatalf("transform failure = type %q message %q", result.errorType, result.errorMessage)
 	}
-	if result.failureResponse != `{"error":"bad-shape"}` {
+	if result.failureResponse != `{"malformed":"bad-shape"}` {
 		t.Fatalf("failureResponse = %#v, want raw body string", result.failureResponse)
 	}
 }
