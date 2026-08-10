@@ -3,7 +3,7 @@ export type RequestTableColumnWidths = readonly number[]
 const REQUEST_TABLE_TOTAL_WIDTH_UNITS = 10_000
 const REQUEST_TABLE_WIDTH_PRECISION = 100
 
-export const REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS: RequestTableColumnWidths = [3, 11, 16, 11, 7, 15, 12, 8, 7, 10]
+export const REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS: RequestTableColumnWidths = [3, 11, 18, 11, 7, 15, 10, 8, 7, 10]
 export const REQUEST_TABLE_COLUMN_MINIMUM_WIDTHS: RequestTableColumnWidths = [3, 7, 10, 7, 6, 0, 8, 6, 6, 7]
 
 export function defaultRequestTableColumnWidths(): number[] {

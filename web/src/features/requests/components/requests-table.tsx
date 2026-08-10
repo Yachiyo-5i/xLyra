@@ -218,9 +218,11 @@ export function RequestsTable({
                       <td className="px-4 py-4 align-middle">
                         <div className="min-w-0 space-y-1">
                           <RequestModelMapping item={item} className="text-sm font-medium text-foreground" />
-                          <div className="min-w-0 text-xs text-foreground">
-                            <span className="block truncate" title={reasoningEffort ?? '-'}>{reasoningEffort ?? '-'}</span>
-                          </div>
+                          {reasoningEffort ? (
+                            <div className="min-w-0 text-xs text-foreground">
+                              <span className="block truncate" title={reasoningEffort}>{reasoningEffort}</span>
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                       <td className="px-4 py-4 align-middle">
@@ -242,17 +244,19 @@ export function RequestsTable({
                         </div>
                       </td>
                       <td className="overflow-hidden px-1 py-4 align-middle text-center">
-                        <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-                          <StatusBadge status={item.success ? 'healthy' : 'error'} className="shrink-0 px-1.5 py-0.5 text-[10px] leading-4">
-                            {item.success ? t('table.success') : t('table.failure')}
-                          </StatusBadge>
-                          <Badge
-                            variant={requestResponseModeVariant(item)}
-                            className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium tracking-wide"
-                          >
-                            {requestResponseModeLabel(item, t)}
-                          </Badge>
-                          <span className="shrink-0 text-[10px] text-muted-soft">
+                        <div className="flex flex-col items-center gap-1 text-xs leading-4">
+                          <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                            <StatusBadge status={item.success ? 'healthy' : 'error'} className="shrink-0 px-2 py-0.5 text-xs leading-4">
+                              {item.success ? t('table.success') : t('table.failure')}
+                            </StatusBadge>
+                            <Badge
+                              variant={requestResponseModeVariant(item)}
+                              className="shrink-0 px-2 py-0.5 text-xs font-medium tracking-wide"
+                            >
+                              {requestResponseModeLabel(item, t)}
+                            </Badge>
+                          </div>
+                          <span className="shrink-0 text-xs text-muted-soft">
                             {item.upstream_status_code ?? item.status_code ?? '-'}
                           </span>
                         </div>

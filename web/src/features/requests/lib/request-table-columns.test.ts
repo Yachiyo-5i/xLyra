@@ -7,11 +7,16 @@ import {
 } from '@/features/requests/lib/request-table-columns'
 
 describe('request table column resizing', () => {
+  it('uses a compact timing column by default', () => {
+    expect(REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS[2]).toBe(18)
+    expect(REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS[6]).toBe(10)
+  })
+
   it('resizes the target and proportionally links all other columns', () => {
     const initial = [...REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS]
     const resized = resizeRequestTableColumnBoundary(initial, 2, 4.25)
 
-    expect(resized[2]).toBe(20.25)
+    expect(resized[2]).toBe(initial[2] + 4.25)
     expect(resized[1]).toBeLessThan(initial[1])
     expect(resized[5]).toBeLessThan(initial[5])
     expect(resized.every((width, index) => width >= REQUEST_TABLE_COLUMN_MINIMUM_WIDTHS[index])).toBe(true)
@@ -23,7 +28,7 @@ describe('request table column resizing', () => {
     const initial = [...REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS]
     const resized = resizeRequestTableColumnBoundary(initial, 2, -4.25)
 
-    expect(resized[2]).toBe(11.75)
+    expect(resized[2]).toBe(initial[2] - 4.25)
     expect(resized[1]).toBeGreaterThan(initial[1])
     expect(resized[5]).toBeGreaterThan(initial[5])
     expect(totalWidthUnits(resized)).toBe(10_000)

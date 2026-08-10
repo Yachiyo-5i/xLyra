@@ -65,10 +65,12 @@ export function formatCostMultiplier(value?: number | null) {
 
 function requestCostMultiplierSuffix(detail: RequestLogDetail | RequestLogItem, t: TFunction) {
   const credentialMultiplier = requestCredentialMultiplier(detail)
-  const serviceTierMultiplier = requestServiceTierMultiplier(detail)
+  const serviceTierMultiplier = requestIsFastBilling(detail) ? requestServiceTierMultiplier(detail) : null
   const parts: string[] = []
   const credentialSuffix = formatCostMultiplier(credentialMultiplier)
-  const serviceTierSuffix = formatCostMultiplier(serviceTierMultiplier)
+  const serviceTierSuffix = serviceTierMultiplier != null && serviceTierMultiplier > 1
+    ? formatCostMultiplier(serviceTierMultiplier)
+    : null
   if (credentialSuffix) {
     parts.push(t('detail.formula.credentialMultiplier', { multiplier: credentialSuffix }))
   }

@@ -45,9 +45,6 @@ func retryAfterFromContext(ctx context.Context) (int64, bool) {
 	return v, ok && v > 0
 }
 
-// withReasoningEffort carries only the explicit scalar effort requested by the
-// downstream client. The request payload itself is intentionally not retained
-// in the recording context.
 func withReasoningEffort(ctx context.Context, effort string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -68,8 +65,6 @@ func reasoningEffortFromContext(ctx context.Context) (string, bool) {
 	return effort, ok && effort != ""
 }
 
-// reasoningEffortFromPayload extracts only the supported scalar request
-// fields. Non-string, blank, and all unrelated payload values are ignored.
 func reasoningEffortFromPayload(payload map[string]any) string {
 	if reasoning, ok := payload["reasoning"].(map[string]any); ok {
 		if effort, ok := reasoning["effort"].(string); ok {

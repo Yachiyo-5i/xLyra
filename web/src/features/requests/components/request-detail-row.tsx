@@ -87,8 +87,8 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
   return (
     <div className="space-y-2.5 text-left text-sm">
       <DetailRow label={t('detail.requestId')}>
-        <Badge variant="neutral" className="w-fit max-w-full justify-start rounded-md px-2 py-0.5 text-left text-xs tracking-normal">
-          <span className="min-w-0 break-all">{detail.request_id}</span>
+        <Badge variant="neutral" className="w-full max-w-full justify-start overflow-x-auto rounded-md px-2 py-0.5 text-left text-xs tracking-normal sm:w-fit">
+          <span className="block w-max min-w-full whitespace-nowrap">{detail.request_id}</span>
         </Badge>
       </DetailRow>
 

@@ -582,9 +582,6 @@ func (h Handler) finishBufferedSemanticFailure(
 	failure *upstreamSemanticFailure,
 ) gatewayAttemptResult {
 	result.statusCode = http.StatusBadGateway
-	// Keep buffered failures internal while eligible alternatives are retried.
-	// Preserve the provider status for classification and diagnostics, while
-	// exposing a JSON-compatible response if this is the final failure.
 	result.contentType = "application/json"
 	result.errorType = "upstream_response_failed"
 	result.errorMessage = failure.Error()

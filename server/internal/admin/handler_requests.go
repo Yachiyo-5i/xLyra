@@ -400,8 +400,6 @@ func requestMetadataInt64(metadata map[string]any, key string) any {
 	return value
 }
 
-// requestLogMetadataForResponse removes historical masked credential values
-// before exposing the raw metadata object in a request detail response.
 func requestLogMetadataForResponse(metadata map[string]any) map[string]any {
 	if metadata == nil {
 		return map[string]any{}

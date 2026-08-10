@@ -65,13 +65,17 @@ export function RequestsMobileList({
               <div className="min-w-0 space-y-3">
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
-                    <RequestModelMapping item={item} className="text-sm font-semibold text-foreground" />
-                    <div className="min-w-0 text-xs text-foreground">
-                      <span className="block truncate" title={reasoningEffort ?? '-'}>{reasoningEffort ?? '-'}</span>
-                    </div>
-                    <div className="text-muted-soft text-xs">
-                      {formatDateTime(item.created_at, i18n.language)}
-                    </div>
+                    <RequestModelMapping item={item} inline className="text-sm font-semibold text-foreground" />
+                    {reasoningEffort ? (
+                      <div className="flex min-w-0 items-center gap-2 text-xs">
+                        <span className="truncate text-foreground" title={reasoningEffort}>{reasoningEffort}</span>
+                        <span className="shrink-0 text-muted-soft">{formatDateTime(item.created_at, i18n.language)}</span>
+                      </div>
+                    ) : (
+                      <div className="text-muted-soft text-xs">
+                        {formatDateTime(item.created_at, i18n.language)}
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <StatusBadge status={item.success ? 'healthy' : 'error'}>
@@ -89,7 +93,7 @@ export function RequestsMobileList({
                     label={t('table.headers.apiKey')}
                     value={item.is_test ? t('table.test') : item.api_key.name ?? '-'}
                   />
-                  <RequestTiming item={item} className="col-span-2" />
+                  <RequestTiming item={item} className="pr-2" />
                   <MobileField label={t('table.headers.cost')} value={formatCurrency(item.usage.estimated_cost, item.usage.currency)} />
                 </div>
 

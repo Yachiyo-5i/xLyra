@@ -64,8 +64,8 @@ describe('request table column width preference', () => {
 
   it('reads and writes only validated width ratios', () => {
     const widths = [...REQUEST_TABLE_COLUMN_DEFAULT_WIDTHS]
-    widths[1] = 12.5
-    widths[2] = 14.5
+    widths[1] += 1.5
+    widths[2] -= 1.5
     vi.mocked(window.localStorage.getItem).mockReturnValue(JSON.stringify(widths))
 
     expect(readRequestsTableColumnWidthsPreference()).toEqual(widths)

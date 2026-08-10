@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// upstreamSemanticFailure represents a provider-declared failure carried in a
-// successful HTTP response.
 type upstreamSemanticFailure struct {
 	Code    string
 	Message string

@@ -91,7 +91,7 @@ describe('request log display helpers', () => {
     expect(requestReasoningEffort(detail)).toBeNull()
   })
 
-  it('shows saved component multipliers, including x1 values', () => {
+  it('shows the fast service multiplier and omits the standard service multiplier', () => {
     const detail = requestDetail()
     detail.pricing = { input_value: 1, output_value: 1 }
     detail.cost_calculation = {
@@ -101,13 +101,20 @@ describe('request log display helpers', () => {
       estimated_cost: 2,
       credential_upstream_cost_multiplier: 1,
       service_tier_multiplier: 2,
+      billing_mode: 'fast',
       currency: 'USD',
     }
     expect(requestCredentialMultiplier(detail)).toBe(1)
     expect(requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)).toContain('credentialMultiplier x1 * detail.formula.serviceTierMultiplier x2')
 
+    detail.cost_calculation.billing_mode = 'standard'
     detail.cost_calculation.service_tier_multiplier = 1
-    expect(requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)).toContain('credentialMultiplier x1 * detail.formula.serviceTierMultiplier x1')
+    const standardFormula = requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)
+    expect(standardFormula).toContain('credentialMultiplier x1')
+    expect(standardFormula).not.toContain('serviceTierMultiplier')
+
+    detail.cost_calculation.billing_mode = 'fast'
+    expect(requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)).not.toContain('serviceTierMultiplier')
 
     detail.cost_calculation.credential_upstream_cost_multiplier = -1
     expect(requestCredentialMultiplier(detail)).toBeNull()
