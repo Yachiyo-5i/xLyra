@@ -203,15 +203,16 @@ func TestAttemptMetadataIncludesFastBillingCalculation(t *testing.T) {
 			Model: routeengine.CandidateModel{SiteModelID: uuid.MustParse("44444444-4444-4444-4444-444444444444"), UpstreamName: "gpt-5.5-codex"},
 		},
 		gatewayAttemptResult{
-			promptTokens:       100,
-			completionTokens:   50,
-			cachedPromptTokens: 20,
-			estimatedCost:      &finalCost,
-			baseEstimatedCost:  &baseCost,
-			serviceTier:        "fast",
-			billingMode:        "fast",
-			costMultiplier:     2.5,
-			multiplierReason:   "codex_fast_mode",
+			promptTokens:             100,
+			completionTokens:         50,
+			cachedPromptTokens:       20,
+			estimatedCost:            &finalCost,
+			baseEstimatedCost:        &baseCost,
+			serviceTier:              "fast",
+			billingMode:              "fast",
+			costMultiplier:           2.5,
+			credentialCostMultiplier: 1.2,
+			multiplierReason:         "codex_fast_mode",
 			pricing: selectedPricing{
 				Currency:    "USD",
 				InputValue:  &inputValue,
@@ -244,6 +245,12 @@ func TestAttemptMetadataIncludesFastBillingCalculation(t *testing.T) {
 	}
 	if got := calculation["cost_multiplier_reason"]; got != "codex_fast_mode" {
 		t.Fatalf("cost_multiplier_reason = %#v, want codex_fast_mode", got)
+	}
+	if got := calculation["credential_upstream_cost_multiplier"]; got != 1.2 {
+		t.Fatalf("credential_upstream_cost_multiplier = %#v, want 1.2", got)
+	}
+	if got := calculation["service_tier_multiplier"]; got != 2.5 {
+		t.Fatalf("service_tier_multiplier = %#v, want 2.5", got)
 	}
 }
 
@@ -511,5 +518,72 @@ func TestRequestFailureMetadataDefaultsEndpointAndIncludesContextMetadata(t *tes
 	rateLimit, ok := metadata["rate_limit"].(map[string]any)
 	if !ok || rateLimit["scope"] != "global" || rateLimit["limit_type"] != "tpm" {
 		t.Fatalf("unexpected rate limit metadata: %#v", metadata["rate_limit"])
+	}
+}
+
+func TestReasoningEffortFromPayloadAcceptsOnlyExplicitScalar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		payload map[string]any
+		want    string
+	}{
+		{name: "nested effort", payload: map[string]any{"reasoning": map[string]any{"effort": " high "}}, want: "high"},
+		{name: "scalar fallback", payload: map[string]any{"reasoning_effort": "medium"}, want: "medium"},
+		{name: "nested wins", payload: map[string]any{"reasoning": map[string]any{"effort": "high"}, "reasoning_effort": "low"}, want: "high"},
+		{name: "blank nested falls back", payload: map[string]any{"reasoning": map[string]any{"effort": "  "}, "reasoning_effort": "low"}, want: "low"},
+		{name: "invalid nested and scalar", payload: map[string]any{"reasoning": map[string]any{"effort": 3}, "reasoning_effort": true}},
+		{name: "missing", payload: map[string]any{"model": "gpt-5"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := reasoningEffortFromPayload(tt.payload); got != tt.want {
+				t.Fatalf("reasoning effort = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAttemptMetadataPersistsReasoningEffortWithoutPayload(t *testing.T) {
+	t.Parallel()
+
+	ctx := withReasoningEffort(context.Background(), " high ")
+	metadata := attemptMetadata(
+		ctx,
+		"req-attempt",
+		"req-parent",
+		uuid.Nil,
+		uuid.Nil,
+		routeengine.Candidate{},
+		gatewayAttemptResult{},
+	)
+	if got := metadata["reasoning_effort"]; got != "high" {
+		t.Fatalf("reasoning_effort metadata = %#v, want high", got)
+	}
+	if _, ok := metadata["request_payload"]; ok {
+		t.Fatalf("request payload must not be recorded: %#v", metadata)
+	}
+}
+
+func TestRequestFailureMetadataPersistsReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	metadata := requestFailureMetadata(
+		withReasoningEffort(context.Background(), "medium"),
+		"req-parent",
+		uuid.Nil,
+		400,
+		"bad_request",
+		"bad request",
+		"gpt-5",
+		false,
+		"validate",
+		gatewayEndpointChatCompletions,
+	)
+	if got := metadata["reasoning_effort"]; got != "medium" {
+		t.Fatalf("reasoning_effort metadata = %#v, want medium", got)
 	}
 }

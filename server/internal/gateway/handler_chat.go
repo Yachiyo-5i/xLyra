@@ -89,7 +89,8 @@ func (h Handler) serveEndpoint(
 		return
 	}
 
-	ctx := r.Context()
+	ctx := withReasoningEffort(r.Context(), reasoningEffortFromPayload(request.Payload))
+	r = r.WithContext(ctx)
 	originalModel := request.RequestedModel
 	mappingRule, hasMapping := h.resolveModelMapping(apiKey, request.RequestedModel)
 	softFallbackTarget := ""

@@ -19,6 +19,7 @@ import {
   requestFiltersToListFilters,
   type RequestFilterState,
 } from '@/features/requests/lib/types'
+import { readRequestsAutoRefreshPreference, writeRequestsAutoRefreshPreference } from '@/features/requests/lib/request-preferences'
 import { listSites, sitesQueryKeys } from '@/features/sites/api/sites'
 import { useMobileLayout } from '@/hooks/use-media-query'
 
@@ -32,7 +33,7 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
   const initialSearchParams = useMemo(() => new URLSearchParams(initialSearch), [initialSearch])
   const [filters, setFilters] = useState<RequestFilterState>(() => requestFiltersFromSearchParams(initialSearchParams))
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(readRequestsAutoRefreshPreference)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const tableScrollRef = useRef<HTMLDivElement | null>(null)
@@ -127,6 +128,11 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
     }
   }
 
+  function handleAutoRefreshChange(enabled: boolean) {
+    setAutoRefresh(enabled)
+    writeRequestsAutoRefreshPreference(enabled)
+  }
+
   if (requestsQuery.isLoading) {
     return <RequestsWorkspaceSkeleton />
   }
@@ -181,7 +187,7 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
               currency={requestSummary?.currency}
               rateLimitUsage={rateLimitUsage}
               onFiltersChange={handleFiltersChange}
-              onAutoRefreshChange={setAutoRefresh}
+              onAutoRefreshChange={handleAutoRefreshChange}
               onRefresh={refreshRequests}
             />
           </div>
@@ -221,7 +227,7 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
           currency={requestSummary?.currency}
           rateLimitUsage={rateLimitUsage}
           onFiltersChange={handleFiltersChange}
-          onAutoRefreshChange={setAutoRefresh}
+          onAutoRefreshChange={handleAutoRefreshChange}
           onRefresh={refreshRequests}
         />
       </div>

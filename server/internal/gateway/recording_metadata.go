@@ -12,6 +12,7 @@ import (
 
 type modelMappingContextKey struct{}
 type retryAfterContextKey struct{}
+type reasoningEffortContextKey struct{}
 
 type modelMappingInfo struct {
 	OriginalModel string
@@ -42,6 +43,45 @@ func withRetryAfter(ctx context.Context, seconds int64) context.Context {
 func retryAfterFromContext(ctx context.Context) (int64, bool) {
 	v, ok := ctx.Value(retryAfterContextKey{}).(int64)
 	return v, ok && v > 0
+}
+
+// withReasoningEffort carries only the explicit scalar effort requested by the
+// downstream client. The request payload itself is intentionally not retained
+// in the recording context.
+func withReasoningEffort(ctx context.Context, effort string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	effort = strings.TrimSpace(effort)
+	if effort == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, reasoningEffortContextKey{}, effort)
+}
+
+func reasoningEffortFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	effort, ok := ctx.Value(reasoningEffortContextKey{}).(string)
+	effort = strings.TrimSpace(effort)
+	return effort, ok && effort != ""
+}
+
+// reasoningEffortFromPayload extracts only the supported scalar request
+// fields. Non-string, blank, and all unrelated payload values are ignored.
+func reasoningEffortFromPayload(payload map[string]any) string {
+	if reasoning, ok := payload["reasoning"].(map[string]any); ok {
+		if effort, ok := reasoning["effort"].(string); ok {
+			if effort = strings.TrimSpace(effort); effort != "" {
+				return effort
+			}
+		}
+	}
+	if effort, ok := payload["reasoning_effort"].(string); ok {
+		return strings.TrimSpace(effort)
+	}
+	return ""
 }
 
 const (
@@ -154,6 +194,9 @@ func attemptMetadata(
 		"billing_mode":       emptyToNil(result.billingMode),
 		"pricing":            pricingMetadata(result.pricing),
 		"cost_calculation":   costCalculation,
+	}
+	if effort, ok := reasoningEffortFromContext(ctx); ok {
+		meta["reasoning_effort"] = effort
 	}
 	if result.diagnostic {
 		meta["test"] = true
@@ -281,6 +324,9 @@ func requestFailureMetadata(
 	}
 	if rateLimit, ok := rateLimitMetadataFromContext(ctx); ok {
 		meta["rate_limit"] = rateLimit
+	}
+	if effort, ok := reasoningEffortFromContext(ctx); ok {
+		meta["reasoning_effort"] = effort
 	}
 	applyResponsesWebSocketMetadata(meta, ctx)
 	return meta

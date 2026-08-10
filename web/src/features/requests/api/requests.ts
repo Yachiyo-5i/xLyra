@@ -6,6 +6,11 @@ type RequestLogAPIKey = {
   masked_key?: string | null
 }
 
+export type RequestLogCredential = {
+  id?: string | null
+  name?: string | null
+}
+
 type RequestLogSite = {
   id?: string | null
   name?: string | null
@@ -82,6 +87,8 @@ type RequestLogCostCalculation = {
   cache_write_1h_cost?: number | null
   base_estimated_cost?: number | null
   cost_multiplier?: number | null
+  credential_upstream_cost_multiplier?: number | null
+  service_tier_multiplier?: number | null
   cost_multiplier_reason?: string | null
   estimated_cost?: number | null
   billing_type?: string | null
@@ -133,11 +140,14 @@ export type RequestLogItem = {
   success: boolean
   error_type?: string | null
   latency_ms?: number | null
+  first_byte_latency_ms?: number | null
+  reasoning_effort?: string | null
   upstream_latency_ms?: number | null
   request_tokens?: number | null
   response_tokens?: number | null
   pricing_group?: string | null
   api_key: RequestLogAPIKey
+  credential?: RequestLogCredential | null
   site: RequestLogSite
   model: RequestLogModel
   usage: RequestLogUsage

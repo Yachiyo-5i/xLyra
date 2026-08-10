@@ -3,6 +3,11 @@ import type { RequestLogDetail, RequestLogItem } from '@/features/requests/api/r
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string
 
+export type RequestLatencyTone = 'healthy' | 'slow' | 'very-slow' | 'critical' | 'muted'
+
+const firstByteLatencyThresholds = [5_000, 10_000, 20_000] as const
+const totalLatencyThresholds = [20_000, 40_000, 60_000] as const
+
 export function requestModelName(item: RequestLogItem) {
   return requestDownstreamModelName(item)
 }
@@ -25,6 +30,56 @@ export function requestMappedModel(item: RequestLogItem): string | null {
 export function requestGroupName(item: RequestLogItem) {
   if (item.site.site_type !== 'newapi') return null
   return item.pricing?.group_name || item.pricing_group || null
+}
+
+export function requestReasoningEffort(detail: RequestLogDetail | RequestLogItem) {
+  const value = detail.reasoning_effort
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+export function requestFirstByteLatency(item: RequestLogItem) {
+  if (item.stream !== true && item.response_mode !== 'stream') return null
+  if (!isPositiveFiniteNumber(item.first_byte_latency_ms)) return null
+  return item.first_byte_latency_ms
+}
+
+export function requestCredentialName(detail: RequestLogDetail | RequestLogItem) {
+  const value = detail.credential?.name
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+export function requestCredentialMultiplier(detail: RequestLogDetail | RequestLogItem) {
+  const value = detail.cost_calculation?.credential_upstream_cost_multiplier
+  return isPositiveFiniteNumber(value) ? value : null
+}
+
+export function requestServiceTierMultiplier(detail: RequestLogDetail | RequestLogItem) {
+  const value = detail.cost_calculation?.service_tier_multiplier
+  return isPositiveFiniteNumber(value) ? value : null
+}
+
+export function formatCostMultiplier(value?: number | null) {
+  if (!isPositiveFiniteNumber(value)) return null
+  return `x${formatDecimal(value)}`
+}
+
+function requestCostMultiplierSuffix(detail: RequestLogDetail | RequestLogItem, t: TFunction) {
+  const credentialMultiplier = requestCredentialMultiplier(detail)
+  const serviceTierMultiplier = requestServiceTierMultiplier(detail)
+  const parts: string[] = []
+  const credentialSuffix = formatCostMultiplier(credentialMultiplier)
+  const serviceTierSuffix = formatCostMultiplier(serviceTierMultiplier)
+  if (credentialSuffix) {
+    parts.push(t('detail.formula.credentialMultiplier', { multiplier: credentialSuffix }))
+  }
+  if (serviceTierSuffix) {
+    parts.push(t('detail.formula.serviceTierMultiplier', { multiplier: serviceTierSuffix }))
+  }
+  if (parts.length) {
+    return parts.join(' * ')
+  }
+  const multiplier = detail.cost_calculation?.cost_multiplier
+  return isPositiveFiniteNumber(multiplier) && multiplier > 1 ? formatDecimal(multiplier) : null
 }
 
 export function requestResponseModeLabel(item: RequestLogItem, t: TFunction) {
@@ -133,15 +188,15 @@ export function requestCostFormula(detail: RequestLogDetail | RequestLogItem, t:
   const groupRatio = requestGroupRatio(detail)
   const totalCost = detail.cost_calculation?.estimated_cost ?? detail.usage.estimated_cost
   const baseCost = detail.cost_calculation?.base_estimated_cost
-  const multiplier = detail.cost_calculation?.cost_multiplier
   const currency = detail.cost_calculation?.currency ?? detail.usage.currency
   const parts: string[] = []
   const hasGroupRatio = typeof groupRatio === 'number' && groupRatio !== 1
+  const multiplierSuffix = requestCostMultiplierSuffix(detail, t)
 
   if (typeof perRequestValue === 'number') {
     const summary = t('detail.formula.perRequest', { price: formatCurrency(perRequestValue, currency) })
-    if (typeof totalCost === 'number' && typeof baseCost === 'number' && typeof multiplier === 'number' && multiplier > 1) {
-      return `${summary} = ${formatCurrency(baseCost, currency)} * ${formatDecimal(multiplier)} = ${formatCurrency(totalCost, currency)}`
+    if (typeof totalCost === 'number' && typeof baseCost === 'number' && multiplierSuffix) {
+      return `${summary} = ${formatCurrency(baseCost, currency)} * ${multiplierSuffix} = ${formatCurrency(totalCost, currency)}`
     }
     if (typeof totalCost === 'number' && typeof perRequestCost === 'number') {
       return `${summary} = ${formatCurrency(totalCost, currency)}`
@@ -175,8 +230,8 @@ export function requestCostFormula(detail: RequestLogDetail | RequestLogItem, t:
     if (hasGroupRatio) {
       summary = `(${summary}) * ${formatDecimal(groupRatio)}`
     }
-    if (typeof totalCost === 'number' && typeof baseCost === 'number' && typeof multiplier === 'number' && multiplier > 1) {
-      return `${summary} = ${formatCurrency(baseCost, currency)} * ${formatDecimal(multiplier)} = ${formatCurrency(totalCost, currency)}`
+    if (typeof totalCost === 'number' && typeof baseCost === 'number' && multiplierSuffix) {
+      return `${summary} = ${formatCurrency(baseCost, currency)} * ${multiplierSuffix} = ${formatCurrency(totalCost, currency)}`
     }
     if (typeof totalCost === 'number') {
       return `${summary} = ${formatCurrency(totalCost, currency)}`
@@ -222,6 +277,14 @@ function firstNumber(...values: Array<number | null | undefined>) {
   return null
 }
 
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
 function firstPositiveNumber(...values: Array<number | null | undefined>) {
   for (const value of values) {
     if (typeof value === 'number' && value > 0) {
@@ -258,8 +321,27 @@ export function formatDateTime(value?: string | null, language?: string) {
 }
 
 export function formatLatency(value?: number | null) {
-  if (typeof value !== 'number') return '-'
+  if (!isNonNegativeFiniteNumber(value)) return '-'
   return `${Math.round(value)} ms`
+}
+
+export function requestFirstByteLatencyTone(value?: number | null): RequestLatencyTone {
+  return latencyToneForThresholds(value, firstByteLatencyThresholds)
+}
+
+export function requestTotalLatencyTone(value?: number | null): RequestLatencyTone {
+  return latencyToneForThresholds(value, totalLatencyThresholds)
+}
+
+function latencyToneForThresholds(
+  value: number | null | undefined,
+  [healthyMax, slowMax, verySlowMax]: readonly [number, number, number],
+): RequestLatencyTone {
+  if (!isNonNegativeFiniteNumber(value)) return 'muted'
+  if (value <= healthyMax) return 'healthy'
+  if (value <= slowMax) return 'slow'
+  if (value <= verySlowMax) return 'very-slow'
+  return 'critical'
 }
 
 export function formatInteger(value?: number | null) {
