@@ -34,7 +34,7 @@ func TestOpenCodeGoListModelsUsesSpecEndpointTypes(t *testing.T) {
 		"gpt-5.6-luna":       {"openai-response"},
 		"minimax-m3":         {"anthropic-messages"},
 		"kimi-k3":            {"openai"},
-		"unknown-next-model": nil,
+		"unknown-next-model": {"openai"},
 	}
 	for _, model := range models {
 		got, _ := model.Capabilities["supported_endpoint_types"].([]string)
@@ -45,7 +45,7 @@ func TestOpenCodeGoListModelsUsesSpecEndpointTypes(t *testing.T) {
 			t.Fatalf("model %q source = %#v", model.UpstreamName, model.Capabilities["source"])
 		}
 	}
-	if models[3].Capabilities["protocol_mapping_status"] != "unsupported" {
+	if models[3].Capabilities["protocol_mapping_status"] != "fallback" {
 		t.Fatalf("unknown model mapping status = %#v", models[3].Capabilities["protocol_mapping_status"])
 	}
 }

@@ -883,7 +883,10 @@ func TestOpenCodeGoSpecEndpointTypesRemainAuthoritativeDuringSiteEnrichment(t *t
 func TestOpenCodeGoSiteModelCapabilitiesPreserveSpecMapping(t *testing.T) {
 	t.Parallel()
 
-	encoded := openCodeGoSiteModelCapabilities(store.JSON(`{"source":"upstream","supported_endpoint_types":["openai"]}`), "minimax-m3")
+	encoded, err := openCodeGoSiteModelCapabilities(store.JSON(`{"source":"upstream","supported_endpoint_types":["openai"]}`), "minimax-m3")
+	if err != nil {
+		t.Fatalf("openCodeGoSiteModelCapabilities returned error: %v", err)
+	}
 	capabilities := map[string]any{}
 	if err := json.Unmarshal(encoded, &capabilities); err != nil {
 		t.Fatalf("decode capabilities: %v", err)
@@ -893,6 +896,26 @@ func TestOpenCodeGoSiteModelCapabilitiesPreserveSpecMapping(t *testing.T) {
 		t.Fatalf("stored endpoint types = %#v", capabilities["supported_endpoint_types"])
 	}
 	if capabilities["source"] != "opencode_go_spec" || capabilities["protocol_spec_version"] != float64(1) || capabilities["protocol_mapping_status"] != "mapped" {
+		t.Fatalf("stored capabilities = %#v", capabilities)
+	}
+}
+
+func TestOpenCodeGoSiteModelCapabilitiesFallbackToChatCompletions(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := openCodeGoSiteModelCapabilities(store.JSON(`{"source":"upstream","supported_endpoint_types":["anthropic-messages"]}`), "longcat-2.0-free")
+	if err != nil {
+		t.Fatalf("openCodeGoSiteModelCapabilities returned error: %v", err)
+	}
+	capabilities := map[string]any{}
+	if err := json.Unmarshal(encoded, &capabilities); err != nil {
+		t.Fatalf("decode capabilities: %v", err)
+	}
+	endpoints := stringSliceFromPricingRaw(capabilities["supported_endpoint_types"])
+	if len(endpoints) != 1 || endpoints[0] != "openai" {
+		t.Fatalf("stored endpoint types = %#v", capabilities["supported_endpoint_types"])
+	}
+	if capabilities["source"] != "opencode_go_spec" || capabilities["protocol_mapping_status"] != "fallback" {
 		t.Fatalf("stored capabilities = %#v", capabilities)
 	}
 }

@@ -64,6 +64,9 @@ func ResolveModelEndpointTypes(provider string, model string) ([]string, bool, e
 		}
 	}
 	if len(matches) == 0 {
+		if provider == "opencode_go" {
+			return []string{"openai"}, false, nil
+		}
 		return nil, false, nil
 	}
 	sort.SliceStable(matches, func(i int, j int) bool {

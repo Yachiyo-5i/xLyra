@@ -92,7 +92,7 @@ func (a OpenCodeGo) ListModels(ctx context.Context, site SiteConfig, _ string) (
 		if matched {
 			capabilities["protocol_mapping_status"] = "mapped"
 		} else {
-			capabilities["protocol_mapping_status"] = "unsupported"
+			capabilities["protocol_mapping_status"] = "fallback"
 		}
 		if item.Object != "" {
 			capabilities["object"] = item.Object

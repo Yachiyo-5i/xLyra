@@ -22,7 +22,13 @@ func TestResolveOpenCodeGoModelEndpointTypes(t *testing.T) {
 		{model: "deepseek-v4-pro", want: []string{"openai"}, ok: true},
 		{model: "mimo-v2.5-pro", want: []string{"openai"}, ok: true},
 		{model: "hy3-preview", want: []string{"openai"}, ok: true},
-		{model: "unknown-model", ok: false},
+		{model: "unknown-model", want: []string{"openai"}, ok: false},
+		{model: "big-pickle", want: []string{"openai"}, ok: false},
+		{model: "laguna-s-2.1-free", want: []string{"openai"}, ok: false},
+		{model: "ling-3.0-flash-free", want: []string{"openai"}, ok: false},
+		{model: "ling-3.0-tiny-free", want: []string{"openai"}, ok: false},
+		{model: "longcat-2.0-free", want: []string{"openai"}, ok: false},
+		{model: "north-mini-code-free", want: []string{"openai"}, ok: false},
 	}
 
 	for _, tt := range tests {

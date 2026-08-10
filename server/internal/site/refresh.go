@@ -1335,7 +1335,11 @@ func (s *Service) syncSiteModelsFromAPIKeyState(ctx context.Context, siteID uuid
 		if strings.EqualFold(strings.TrimSpace(siteType), "grok") {
 			capabilities = grokSiteModelCapabilities(rawCapabilitiesByModel[name], name)
 		} else if strings.EqualFold(strings.TrimSpace(siteType), "opencode_go") {
-			capabilities = openCodeGoSiteModelCapabilities(rawCapabilitiesByModel[name], name)
+			var capabilityErr error
+			capabilities, capabilityErr = openCodeGoSiteModelCapabilities(rawCapabilitiesByModel[name], name)
+			if capabilityErr != nil {
+				return nil, fmt.Errorf("resolve OpenCode Go model capabilities for %q: %w", name, capabilityErr)
+			}
 		} else if strings.TrimSpace(siteType) != "" && modelcapabilities.UsesModelNameEndpointInference(siteType) {
 			model := applyModelNameEndpointTypes(store.Site{SiteType: siteType, BaseURL: siteBaseURL}, adapter.Model{
 				UpstreamName: name,
@@ -1404,7 +1408,7 @@ func grokSiteModelCapabilities(raw store.JSON, modelName string) []byte {
 	return encoded
 }
 
-func openCodeGoSiteModelCapabilities(raw store.JSON, modelName string) []byte {
+func openCodeGoSiteModelCapabilities(raw store.JSON, modelName string) ([]byte, error) {
 	capabilities := map[string]any{}
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &capabilities)
@@ -1415,23 +1419,22 @@ func openCodeGoSiteModelCapabilities(raw store.JSON, modelName string) []byte {
 	capabilities["source"] = "opencode_go_spec"
 	endpointTypes, matched, err := protocolspec.ResolveModelEndpointTypes("opencode_go", modelName)
 	if err != nil {
-		endpointTypes = nil
-		matched = false
+		return nil, fmt.Errorf("resolve model endpoint types: %w", err)
 	}
 	capabilities["supported_endpoint_types"] = endpointTypes
 	if matched {
 		capabilities["protocol_mapping_status"] = "mapped"
 	} else {
-		capabilities["protocol_mapping_status"] = "unsupported"
+		capabilities["protocol_mapping_status"] = "fallback"
 	}
 	if version, versionErr := protocolspec.Version(); versionErr == nil {
 		capabilities["protocol_spec_version"] = version
 	}
 	encoded, err := json.Marshal(capabilities)
 	if err != nil {
-		return []byte(`{"source":"opencode_go_spec","supported_endpoint_types":[]}`)
+		return nil, fmt.Errorf("marshal capabilities: %w", err)
 	}
-	return encoded
+	return encoded, nil
 }
 
 func (s *Service) SiteState(ctx context.Context, siteID uuid.UUID) (store.SiteState, error) {
