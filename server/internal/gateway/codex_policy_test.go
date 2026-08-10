@@ -1,7 +1,9 @@
 package gateway
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	routeengine "xlyra/server/internal/router"
 )
@@ -323,5 +325,143 @@ func TestApplyCodexRequestPolicyRemovesMismatchedKnownItemIDs(t *testing.T) {
 	}
 	if got := items[1].(map[string]any)["call_id"]; got != "call_1" {
 		t.Fatalf("function call correlation ID = %#v, want call_1", got)
+	}
+}
+
+func TestApplyCodexRequestPolicyShortensOnlyLongCallIDs(t *testing.T) {
+	t.Parallel()
+
+	shortCallID := strings.Repeat("s", codexResponsesMaxCallIDLength)
+	longCallID := strings.Repeat("l", codexResponsesMaxCallIDLength+22)
+	payload := map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{
+			map[string]any{"type": "function_call", "call_id": shortCallID, "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": longCallID, "output": "ok"},
+			map[string]any{"type": "custom_tool_call", "call_id": longCallID, "name": "exec", "input": "pwd"},
+			map[string]any{"type": "custom_tool_call_output", "call_id": longCallID, "output": "ok"},
+		},
+	}
+	originalInput := payload["input"].([]any)
+
+	result := applyCodexRequestPolicy(payload, codexRequestPolicyCandidate())
+	input := result["input"].([]any)
+	if got := input[0].(map[string]any)["call_id"]; got != shortCallID {
+		t.Fatalf("short call_id = %#v, want unchanged %q", got, shortCallID)
+	}
+	shortened, _ := input[1].(map[string]any)["call_id"].(string)
+	if len(shortened) > codexResponsesMaxCallIDLength || shortened == longCallID {
+		t.Fatalf("long call_id = %q, want a shortened ID", shortened)
+	}
+	for index := 2; index < len(input); index++ {
+		if got := input[index].(map[string]any)["call_id"]; got != shortened {
+			t.Fatalf("input[%d].call_id = %#v, want %q", index, got, shortened)
+		}
+	}
+	if got := originalInput[1].(map[string]any)["call_id"]; got != longCallID {
+		t.Fatalf("caller payload call_id = %#v, want unchanged %q", got, longCallID)
+	}
+	second := applyCodexRequestPolicy(map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"}},
+	}, codexRequestPolicyCandidate())
+	if got := second["input"].([]any)[0].(map[string]any)["call_id"]; got != shortened {
+		t.Fatalf("replayed call_id = %#v, want stable %q", got, shortened)
+	}
+}
+
+func TestApplyCodexRequestPolicyCachesCollisionMappings(t *testing.T) {
+	t.Parallel()
+
+	longCallID := strings.Repeat("l", codexResponsesMaxCallIDLength+22) + "_collision"
+	baseCallID := codexShortCallID(longCallID, 0)
+	scope := "collision-cache-test"
+	first := applyCodexRequestPolicyWithCallIDMappingScope(map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{
+			map[string]any{"type": "function_call", "call_id": baseCallID, "name": "existing", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": longCallID, "output": "ok"},
+		},
+	}, codexRequestPolicyCandidate(), scope)
+	firstInput := first["input"].([]any)
+	mappedCallID := firstInput[1].(map[string]any)["call_id"].(string)
+	if mappedCallID == baseCallID || len(mappedCallID) > codexResponsesMaxCallIDLength {
+		t.Fatalf("collision call_id = %q, want a different valid ID", mappedCallID)
+	}
+	if got := firstInput[2].(map[string]any)["call_id"]; got != mappedCallID {
+		t.Fatalf("function output call_id = %#v, want %q", got, mappedCallID)
+	}
+
+	second := applyCodexRequestPolicyWithCallIDMappingScope(map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{
+			map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": longCallID, "output": "ok"},
+		},
+	}, codexRequestPolicyCandidate(), scope)
+	for index, rawItem := range second["input"].([]any) {
+		if got := rawItem.(map[string]any)["call_id"]; got != mappedCallID {
+			t.Fatalf("replayed input[%d].call_id = %#v, want cached %q", index, got, mappedCallID)
+		}
+	}
+}
+
+func TestApplyCodexRequestPolicyReplacesCachedMappingWhenItBecomesOccupied(t *testing.T) {
+	t.Parallel()
+
+	longCallID := strings.Repeat("l", codexResponsesMaxCallIDLength+22) + "_cache_refresh"
+	baseCallID := codexShortCallID(longCallID, 0)
+	scope := "collision-cache-refresh-test"
+	first := applyCodexRequestPolicyWithCallIDMappingScope(map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{
+			map[string]any{"type": "function_call", "call_id": baseCallID, "name": "existing", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"},
+		},
+	}, codexRequestPolicyCandidate(), scope)
+	firstMappedCallID := first["input"].([]any)[1].(map[string]any)["call_id"].(string)
+
+	second := applyCodexRequestPolicyWithCallIDMappingScope(map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{
+			map[string]any{"type": "function_call", "call_id": firstMappedCallID, "name": "new_existing", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": longCallID, "output": "ok"},
+		},
+	}, codexRequestPolicyCandidate(), scope)
+	secondInput := second["input"].([]any)
+	if got := secondInput[0].(map[string]any)["call_id"]; got != firstMappedCallID {
+		t.Fatalf("new short call_id = %#v, want unchanged %q", got, firstMappedCallID)
+	}
+	secondMappedCallID := secondInput[1].(map[string]any)["call_id"].(string)
+	if secondMappedCallID == firstMappedCallID || secondMappedCallID == baseCallID {
+		t.Fatalf("remapped collision call_id = %q, want a new available ID", secondMappedCallID)
+	}
+	if got := secondInput[2].(map[string]any)["call_id"]; got != secondMappedCallID {
+		t.Fatalf("function output call_id = %#v, want %q", got, secondMappedCallID)
+	}
+
+	third := applyCodexRequestPolicyWithCallIDMappingScope(map[string]any{
+		"model": codexRequestPolicyModel,
+		"input": []any{map[string]any{"type": "function_call", "call_id": longCallID, "name": "lookup", "arguments": "{}"}},
+	}, codexRequestPolicyCandidate(), scope)
+	if got := third["input"].([]any)[0].(map[string]any)["call_id"]; got != secondMappedCallID {
+		t.Fatalf("replayed remapped call_id = %#v, want cached %q", got, secondMappedCallID)
+	}
+}
+
+func TestCodexCallIDCollisionCacheExpires(t *testing.T) {
+	t.Parallel()
+
+	cache := newCodexCallIDCollisionCache()
+	now := time.Unix(100, 0)
+	cache.remember("scope", "original", "mapped", now)
+	if got, ok := cache.lookup("scope", "original", now.Add(codexCallIDCollisionCacheTTL-time.Nanosecond)); !ok || got != "mapped" {
+		t.Fatalf("cache lookup = %q, %v; want mapped, true", got, ok)
+	}
+	if got, ok := cache.lookup("scope", "original", now.Add(codexCallIDCollisionCacheTTL*2)); ok || got != "" {
+		t.Fatalf("expired cache lookup = %q, %v; want empty, false", got, ok)
 	}
 }

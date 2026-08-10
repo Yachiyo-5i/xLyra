@@ -1,11 +1,15 @@
 package gateway
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"xlyra/server/internal/adapter"
@@ -333,6 +337,14 @@ func subscriptionLimitCalendarResetAt(now time.Time, window string, timeZone con
 }
 
 func applyCodexRequestPolicy(payload map[string]any, candidate routeengine.Candidate) map[string]any {
+	return applyCodexRequestPolicyWithCallIDMappingScope(payload, candidate, "")
+}
+
+func applyCodexRequestPolicyForRequest(payload map[string]any, candidate routeengine.Candidate, request gatewayRequest) map[string]any {
+	return applyCodexRequestPolicyWithCallIDMappingScope(payload, candidate, codexCallIDMappingScope(request))
+}
+
+func applyCodexRequestPolicyWithCallIDMappingScope(payload map[string]any, candidate routeengine.Candidate, callIDMappingScope string) map[string]any {
 	if payload == nil {
 		return payload
 	}
@@ -354,9 +366,179 @@ func applyCodexRequestPolicy(payload map[string]any, candidate routeengine.Candi
 	applyRequestPolicyForCandidate(payload, canonicalProtocolCodexResponses, codexCandidate)
 	normalizeCodexResponsesInputItems(payload)
 	normalizeCodexResponsesInput(payload)
+	normalizeCodexResponsesCallIDs(payload, callIDMappingScope)
 	convertCodexSystemInputRoles(payload)
 	normalizeCodexBuiltinTools(payload)
 	return payload
+}
+
+const codexResponsesMaxCallIDLength = 64
+
+const (
+	codexCallIDCollisionCacheTTL        = time.Hour
+	codexCallIDCollisionCacheMaxEntries = 1024
+)
+
+type codexCallIDCollisionCacheKey struct {
+	Scope      string
+	OriginalID string
+}
+
+type codexCallIDCollisionCacheEntry struct {
+	MappedID  string
+	ExpiresAt time.Time
+}
+
+type codexCallIDCollisionCache struct {
+	mu      sync.Mutex
+	entries map[codexCallIDCollisionCacheKey]codexCallIDCollisionCacheEntry
+}
+
+var codexCallIDCollisions = newCodexCallIDCollisionCache()
+
+func newCodexCallIDCollisionCache() *codexCallIDCollisionCache {
+	return &codexCallIDCollisionCache{entries: map[codexCallIDCollisionCacheKey]codexCallIDCollisionCacheEntry{}}
+}
+
+func (c *codexCallIDCollisionCache) lookup(scope string, originalID string, now time.Time) (string, bool) {
+	if c == nil || scope == "" {
+		return "", false
+	}
+	key := codexCallIDCollisionCacheKey{Scope: scope, OriginalID: originalID}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok {
+		return "", false
+	}
+	if !entry.ExpiresAt.After(now) {
+		delete(c.entries, key)
+		return "", false
+	}
+	entry.ExpiresAt = now.Add(codexCallIDCollisionCacheTTL)
+	c.entries[key] = entry
+	return entry.MappedID, true
+}
+
+func (c *codexCallIDCollisionCache) remember(scope string, originalID string, mappedID string, now time.Time) {
+	if c == nil || scope == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, entry := range c.entries {
+		if !entry.ExpiresAt.After(now) {
+			delete(c.entries, key)
+		}
+	}
+	key := codexCallIDCollisionCacheKey{Scope: scope, OriginalID: originalID}
+	if _, exists := c.entries[key]; !exists && len(c.entries) >= codexCallIDCollisionCacheMaxEntries {
+		var oldestKey codexCallIDCollisionCacheKey
+		var oldestExpiry time.Time
+		for key, entry := range c.entries {
+			if oldestExpiry.IsZero() || entry.ExpiresAt.Before(oldestExpiry) {
+				oldestKey = key
+				oldestExpiry = entry.ExpiresAt
+			}
+		}
+		delete(c.entries, oldestKey)
+	}
+	c.entries[key] = codexCallIDCollisionCacheEntry{
+		MappedID:  mappedID,
+		ExpiresAt: now.Add(codexCallIDCollisionCacheTTL),
+	}
+}
+
+func codexCallIDMappingScope(request gatewayRequest) string {
+	conversationID := ""
+	for _, header := range []string{"thread-id", "session-id", "x-codex-parent-thread-id"} {
+		if value := strings.TrimSpace(request.DownstreamHeaders.Get(header)); value != "" {
+			conversationID = header + ":" + value
+			break
+		}
+	}
+	if conversationID == "" {
+		if previousResponseID := strings.TrimSpace(anyString(request.Payload["previous_response_id"])); previousResponseID != "" {
+			conversationID = "previous_response_id:" + previousResponseID
+		}
+	}
+	if conversationID == "" {
+		return ""
+	}
+	callerID := strings.TrimSpace(request.DownstreamHeaders.Get("Authorization"))
+	digest := sha256.Sum256([]byte(callerID + "\x00" + conversationID))
+	return base64.RawURLEncoding.EncodeToString(digest[:])
+}
+
+func normalizeCodexResponsesCallIDs(payload map[string]any, scope string) {
+	input, _ := payload["input"].([]any)
+	occupied := map[string]struct{}{}
+	longCallIDs := map[string]struct{}{}
+	for _, rawItem := range input {
+		item, _ := rawItem.(map[string]any)
+		callID, ok := item["call_id"].(string)
+		if !ok {
+			continue
+		}
+		if len(callID) <= codexResponsesMaxCallIDLength {
+			occupied[callID] = struct{}{}
+			continue
+		}
+		longCallIDs[callID] = struct{}{}
+	}
+	if len(longCallIDs) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(longCallIDs))
+	for callID := range longCallIDs {
+		ids = append(ids, callID)
+	}
+	sort.Strings(ids)
+	now := time.Now()
+	mappedIDs := make(map[string]string, len(ids))
+	for _, callID := range ids {
+		mappedID, cached := codexCallIDCollisions.lookup(scope, callID, now)
+		if cached {
+			if _, exists := occupied[mappedID]; !exists {
+				occupied[mappedID] = struct{}{}
+				mappedIDs[callID] = mappedID
+				continue
+			}
+		}
+		startAttempt := 0
+		if cached {
+			startAttempt = 1
+		}
+		for attempt := startAttempt; ; attempt++ {
+			candidate := codexShortCallID(callID, attempt)
+			if _, exists := occupied[candidate]; exists {
+				continue
+			}
+			mappedID = candidate
+			if attempt > 0 {
+				codexCallIDCollisions.remember(scope, callID, mappedID, now)
+			}
+			break
+		}
+		occupied[mappedID] = struct{}{}
+		mappedIDs[callID] = mappedID
+	}
+	for _, rawItem := range input {
+		item, _ := rawItem.(map[string]any)
+		callID, _ := item["call_id"].(string)
+		if mappedID, ok := mappedIDs[callID]; ok {
+			item["call_id"] = mappedID
+		}
+	}
+}
+
+func codexShortCallID(callID string, attempt int) string {
+	value := callID
+	if attempt > 0 {
+		value += "\x00" + strconv.Itoa(attempt)
+	}
+	digest := sha256.Sum256([]byte(value))
+	return "call_" + base64.RawURLEncoding.EncodeToString(digest[:])
 }
 
 func normalizeCodexResponsesInputItems(payload map[string]any) {

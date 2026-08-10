@@ -48,13 +48,13 @@ func (a codexProtocolAdapter) buildUpstreamPayload(request gatewayRequest, candi
 	if a.downstreamImages {
 		if request.Canonical != nil {
 			payload := encodeCanonicalImageRequestToCodexResponses(*request.Canonical, candidate)
-			return applyCodexRequestPolicy(payload, candidate), nil
+			return applyCodexRequestPolicyForRequest(payload, candidate, request), nil
 		}
 		payload, err := convertRequestBetweenProtocols(canonicalProtocolOpenAIImages, canonicalProtocolCodexResponses, request.Payload, stringFromPayloadModel(request.Payload), candidate)
 		if err != nil {
 			return nil, err
 		}
-		return applyCodexRequestPolicy(payload, candidate), nil
+		return applyCodexRequestPolicyForRequest(payload, candidate, request), nil
 	}
 	if request.DownstreamPath == gatewayEndpointResponses {
 		payload := clonePayload(request.Payload)
@@ -62,20 +62,20 @@ func (a codexProtocolAdapter) buildUpstreamPayload(request gatewayRequest, candi
 		if codexPayloadHasImageGenerationTool(payload) {
 			payload["stream"] = true
 		}
-		return applyCodexRequestPolicy(payload, candidate), nil
+		return applyCodexRequestPolicyForRequest(payload, candidate, request), nil
 	}
 	if request.Canonical != nil {
 		payload, err := encodeCanonicalRequestToOpenAIResponses(*request.Canonical, candidate)
 		if err != nil {
 			return nil, err
 		}
-		return applyCodexRequestPolicy(payload, candidate), nil
+		return applyCodexRequestPolicyForRequest(payload, candidate, request), nil
 	}
 	payload, err := convertRequestBetweenProtocols(canonicalProtocolOpenAIChat, canonicalProtocolOpenAIResponses, request.Payload, stringFromPayloadModel(request.Payload), candidate)
 	if err != nil {
 		return nil, err
 	}
-	return applyCodexRequestPolicy(payload, candidate), nil
+	return applyCodexRequestPolicyForRequest(payload, candidate, request), nil
 }
 
 func (a codexProtocolAdapter) UpstreamPath(baseURL string) string {
