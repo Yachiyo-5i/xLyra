@@ -1,12 +1,16 @@
 {
   "table": {
     "headers": {
+      "expand": "展開",
       "time": "時刻",
       "model": "モデル",
       "apiKey": "API Key",
       "site": "サイト",
       "status": "ステータス",
-      "latency": "レイテンシ",
+      "latency": "所要時間",
+      "firstByte": "最初のバイト",
+      "totalDuration": "総時間",
+      "reasoning": "推論の強度",
       "input": "入力",
       "output": "出力",
       "cost": "コスト"
@@ -19,6 +23,7 @@
       "nonStream": "非ストリーム"
     },
     "cache": "キャッシュ {{tokens}}",
+    "resizeColumn": "{{column}} 列の幅を調整",
     "empty": {
       "title": "リクエストログがありません",
       "description": "表示できる転送リクエスト記録はありません。"
@@ -69,6 +74,7 @@
     "failure": "失敗",
     "statusCode": "ステータスコード",
     "site": "サイト",
+    "upstreamCredential": "上流 API キー",
     "group": "グループ",
     "usage": "使用量",
     "input": "入力",
@@ -81,6 +87,7 @@
     "outputPrice": "出力価格",
     "cachePrice": "キャッシュ価格",
     "perRequestPrice": "リクエスト単価",
+    "credentialMultiplier": "上流 API キー倍率",
     "mode": "モード",
     "totalCost": "総コスト",
     "path": "パス",
@@ -99,6 +106,8 @@
       "cacheWrite5m": "キャッシュ書込(5m) {{tokens}} トークン / 100万トークン * {{price}}",
       "cacheWrite1h": "キャッシュ書込(1h) {{tokens}} トークン / 100万トークン * {{price}}",
       "output": "出力 {{tokens}} トークン / 100万トークン * {{price}}",
+      "credentialMultiplier": "上流 API キー {{multiplier}}",
+      "serviceTierMultiplier": "サービスティア {{multiplier}}",
       "perRequestUnit": "{{price}}/回"
     },
     "longContext": "長文脈課金",

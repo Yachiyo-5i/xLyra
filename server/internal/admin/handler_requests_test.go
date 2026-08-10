@@ -203,3 +203,84 @@ func TestRequestLogPayloadMarksFailoverAttempt(t *testing.T) {
 		t.Fatalf("unexpected failover fields: %#v", payload)
 	}
 }
+
+func TestRequestLogPayloadProjectsTimingReasoningAndSecretFreeCredential(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{
+		"first_byte_latency": 37,
+		"reasoning_effort":   "high",
+		"credential_id":      "credential-fallback",
+		"credential_name":    "Fallback name",
+		"credential_masked":  "sk-...fallback",
+		"credential": map[string]any{
+			"id":            "credential-123",
+			"name":          "Production key",
+			"masked_secret": "sk-...123",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := requestLogPayload(store.RequestLogDetail{
+		RequestLog: store.RequestLog{
+			ID:        uuid.New(),
+			RequestID: "req_reasoning",
+			Metadata:  metadata,
+		},
+	}, true)
+	if got := payload["first_byte_latency_ms"]; got != int64(37) {
+		t.Fatalf("first_byte_latency_ms = %#v, want 37", got)
+	}
+	if got := payload["reasoning_effort"]; got != "high" {
+		t.Fatalf("reasoning_effort = %#v, want high", got)
+	}
+	credential, ok := payload["credential"].(map[string]any)
+	if !ok || credential["id"] != "credential-123" || credential["name"] != "Production key" {
+		t.Fatalf("unexpected credential projection: %#v", payload["credential"])
+	}
+	if _, ok := credential["masked_secret"]; ok {
+		t.Fatalf("credential projection must not include masked secret: %#v", credential)
+	}
+	responseMetadata, ok := payload["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata payload = %#v", payload["metadata"])
+	}
+	if _, ok := responseMetadata["credential_masked"]; ok {
+		t.Fatalf("metadata must not expose credential_masked: %#v", responseMetadata)
+	}
+	responseCredential, ok := responseMetadata["credential"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata credential = %#v", responseMetadata["credential"])
+	}
+	if _, ok := responseCredential["masked_secret"]; ok {
+		t.Fatalf("metadata must not expose credential masked_secret: %#v", responseCredential)
+	}
+}
+
+func TestRequestLogPayloadOmitsUnknownFirstByteLatencyAndCredential(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{
+		"first_byte_latency": 0,
+		"reasoning_effort":   42,
+		"credential":         map[string]any{"masked_secret": "sk-...123"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := requestLogPayload(store.RequestLogDetail{
+		RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req_legacy", Metadata: metadata},
+	}, false)
+	if payload["first_byte_latency_ms"] != nil {
+		t.Fatalf("unknown first byte latency = %#v, want nil", payload["first_byte_latency_ms"])
+	}
+	if payload["reasoning_effort"] != nil {
+		t.Fatalf("invalid reasoning effort = %#v, want nil", payload["reasoning_effort"])
+	}
+	if payload["credential"] != nil {
+		t.Fatalf("credential without id/name = %#v, want nil", payload["credential"])
+	}
+}

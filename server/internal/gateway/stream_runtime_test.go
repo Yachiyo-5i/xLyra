@@ -170,8 +170,6 @@ func TestProxyUpstreamStreamDoesNotStartResponseOnEmptyBody(t *testing.T) {
 func TestProxyResponsesStreamPassthroughPreservesEndReasonOnReadError(t *testing.T) {
 	t.Parallel()
 
-	// response.failed sets endReason="upstream_stream_error"; a subsequent
-	// transport error must not overwrite it to "upstream_stream_read_failed".
 	data := "data: " + `{"type":"response.failed","response":{"status":"failed","error":{"code":"rate_limit_exceeded","message":"limit hit"}}}` + "\n\n"
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -188,8 +186,6 @@ func TestProxyResponsesStreamPassthroughPreservesEndReasonOnReadError(t *testing
 func TestProxyUpstreamStreamPreservesEndReasonOnReadError(t *testing.T) {
 	t.Parallel()
 
-	// Anthropic inspector sets endReason="upstream_stream_error" on an error event;
-	// a subsequent transport error must not overwrite it to "upstream_stream_read_failed".
 	data := "data: " + `{"type":"error","error":{"message":"upstream returned an error"}}` + "\n\n"
 	resp := &http.Response{
 		StatusCode: http.StatusOK,

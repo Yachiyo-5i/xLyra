@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { RequestLogDetail } from '@/features/requests/api/requests'
-import { requestDownstreamTransportLabel } from '@/features/requests/lib/request-utils'
+import {
+  formatLatency,
+  requestCostFormula,
+  requestCredentialMultiplier,
+  requestDownstreamTransportLabel,
+  requestFirstByteLatency,
+  requestFirstByteLatencyTone,
+  requestReasoningEffort,
+  requestTotalLatencyTone,
+} from '@/features/requests/lib/request-utils'
 
 describe('requestDownstreamTransportLabel', () => {
   it('labels websocket request metadata as WS', () => {
@@ -13,6 +22,116 @@ describe('requestDownstreamTransportLabel', () => {
     const legacyDetail = requestDetail()
     expect(requestDownstreamTransportLabel(httpDetail)).toBe('HTTP')
     expect(requestDownstreamTransportLabel(legacyDetail)).toBe('HTTP')
+  })
+})
+
+describe('request log display helpers', () => {
+  it('keeps missing first-byte latency unknown', () => {
+    expect(formatLatency()).toBe('-')
+    expect(formatLatency(12.6)).toBe('13 ms')
+    expect(formatLatency(Number.NaN)).toBe('-')
+
+    const nonStream = requestDetail()
+    nonStream.stream = false
+    nonStream.first_byte_latency_ms = 12
+    expect(requestFirstByteLatency(nonStream)).toBeNull()
+
+    const stream = requestDetail()
+    stream.stream = true
+    stream.first_byte_latency_ms = 12
+    expect(requestFirstByteLatency(stream)).toBe(12)
+
+    stream.first_byte_latency_ms = Number.NaN
+    expect(requestFirstByteLatency(stream)).toBeNull()
+
+    const legacy = requestDetail()
+    legacy.first_byte_latency_ms = 12
+    expect(requestFirstByteLatency(legacy)).toBeNull()
+  })
+
+  it.each([
+    [0, 'healthy'],
+    [5000, 'healthy'],
+    [5001, 'slow'],
+    [10000, 'slow'],
+    [10001, 'very-slow'],
+    [20000, 'very-slow'],
+    [20001, 'critical'],
+    [null, 'muted'],
+    [undefined, 'muted'],
+    [Number.NaN, 'muted'],
+    [-1, 'muted'],
+  ] as const)('assigns first-byte latency %s to the %s tone', (latency, tone) => {
+    expect(requestFirstByteLatencyTone(latency)).toBe(tone)
+  })
+
+  it.each([
+    [0, 'healthy'],
+    [20000, 'healthy'],
+    [20001, 'slow'],
+    [40000, 'slow'],
+    [40001, 'very-slow'],
+    [60000, 'very-slow'],
+    [60001, 'critical'],
+    [null, 'muted'],
+    [undefined, 'muted'],
+    [Number.NaN, 'muted'],
+    [-1, 'muted'],
+  ] as const)('assigns total latency %s to the %s tone', (latency, tone) => {
+    expect(requestTotalLatencyTone(latency)).toBe(tone)
+  })
+
+  it('only exposes a non-empty typed reasoning effort', () => {
+    const detail = requestDetail()
+    detail.reasoning_effort = ' high '
+    expect(requestReasoningEffort(detail)).toBe('high')
+    detail.reasoning_effort = 2 as unknown as string
+    expect(requestReasoningEffort(detail)).toBeNull()
+    detail.reasoning_effort = null
+    expect(requestReasoningEffort(detail)).toBeNull()
+  })
+
+  it('shows the fast service multiplier and omits the standard service multiplier', () => {
+    const detail = requestDetail()
+    detail.pricing = { input_value: 1, output_value: 1 }
+    detail.cost_calculation = {
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      base_estimated_cost: 1,
+      estimated_cost: 2,
+      credential_upstream_cost_multiplier: 1,
+      service_tier_multiplier: 2,
+      billing_mode: 'fast',
+      currency: 'USD',
+    }
+    expect(requestCredentialMultiplier(detail)).toBe(1)
+    expect(requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)).toContain('credentialMultiplier x1 * detail.formula.serviceTierMultiplier x2')
+
+    detail.cost_calculation.billing_mode = 'standard'
+    detail.cost_calculation.service_tier_multiplier = 1
+    const standardFormula = requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)
+    expect(standardFormula).toContain('credentialMultiplier x1')
+    expect(standardFormula).not.toContain('serviceTierMultiplier')
+
+    detail.cost_calculation.billing_mode = 'fast'
+    expect(requestCostFormula(detail, (key, options) => `${key} ${String(options?.multiplier ?? '')}`)).not.toContain('serviceTierMultiplier')
+
+    detail.cost_calculation.credential_upstream_cost_multiplier = -1
+    expect(requestCredentialMultiplier(detail)).toBeNull()
+  })
+
+  it('falls back to the legacy aggregate multiplier', () => {
+    const detail = requestDetail()
+    detail.cost_calculation = {
+      base_estimated_cost: 1,
+      estimated_cost: 2,
+      cost_multiplier: 2,
+      currency: 'USD',
+    }
+    detail.pricing = { input_value: 1, output_value: 1 }
+    detail.usage.prompt_tokens = 10
+    detail.usage.completion_tokens = 5
+    expect(requestCostFormula(detail, (key) => key)).toContain('* 2')
   })
 })
 

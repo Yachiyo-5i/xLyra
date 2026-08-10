@@ -1,12 +1,16 @@
 {
   "table": {
     "headers": {
+      "expand": "展开",
       "time": "时间",
       "model": "模型",
       "apiKey": "下游密钥",
       "site": "站点",
       "status": "状态",
       "latency": "用时",
+      "firstByte": "首字",
+      "totalDuration": "总时长",
+      "reasoning": "推理强度",
       "input": "输入",
       "output": "输出",
       "cost": "花费"
@@ -21,6 +25,7 @@
     "cache": "缓存 {{tokens}}",
     "cacheWrite": "缓存写入 {{tokens}}",
     "cacheReadWrite": "缓存 {{read}}/{{write}}",
+    "resizeColumn": "调整{{column}}列宽",
     "empty": {
       "title": "没有请求日志",
       "description": "当前没有可展示的转发请求记录。"
@@ -71,6 +76,7 @@
     "failure": "失败",
     "statusCode": "状态码",
     "site": "站点",
+    "upstreamCredential": "上游 API Key",
     "group": "分组",
     "usage": "用量",
     "input": "输入",
@@ -83,6 +89,7 @@
     "outputPrice": "输出价格",
     "cachePrice": "缓存价格",
     "perRequestPrice": "按次价格",
+    "credentialMultiplier": "上游 API Key 倍率",
     "mode": "模式",
     "totalCost": "总花费",
     "path": "路径",
@@ -101,6 +108,8 @@
       "cacheWrite5m": "缓存写入(5m) {{tokens}} tokens / 1M tokens * {{price}}",
       "cacheWrite1h": "缓存写入(1h) {{tokens}} tokens / 1M tokens * {{price}}",
       "output": "输出 {{tokens}} tokens / 1M tokens * {{price}}",
+      "credentialMultiplier": "上游 API Key {{multiplier}}",
+      "serviceTierMultiplier": "服务等级 {{multiplier}}",
       "perRequestUnit": "{{price}}/次"
     },
     "longContext": "长上下文计价",

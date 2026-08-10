@@ -17,6 +17,9 @@ import {
   requestCacheRatio,
   requestCacheTokens,
   requestCacheWriteTokens,
+  formatCostMultiplier,
+  requestCredentialMultiplier,
+  requestCredentialName,
   requestCostFormula,
   requestDownstreamTransportLabel,
   requestGroupName,
@@ -84,8 +87,8 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
   return (
     <div className="space-y-2.5 text-left text-sm">
       <DetailRow label={t('detail.requestId')}>
-        <Badge variant="neutral" className="w-fit max-w-full justify-start rounded-md px-2 py-0.5 text-left text-xs tracking-normal">
-          <span className="min-w-0 break-all">{detail.request_id}</span>
+        <Badge variant="neutral" className="w-full max-w-full justify-start overflow-x-auto rounded-md px-2 py-0.5 text-left text-xs tracking-normal sm:w-fit">
+          <span className="block w-max min-w-full whitespace-nowrap">{detail.request_id}</span>
         </Badge>
       </DetailRow>
 
@@ -104,6 +107,7 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
         </InlineItem>
         <InlineItem label={t('detail.statusCode')} value={String(detail.upstream_status_code ?? detail.status_code ?? '-')} tone="badge" />
         <InlineItem label={t('detail.site')} value={detail.site.name} tone="badge" />
+        <InlineItem label={t('detail.upstreamCredential')} value={requestCredentialName(detail)} tone="badge" />
         <InlineItem label={t('detail.group')} value={groupName} tone="badge" />
       </DetailRow>
 
@@ -124,6 +128,7 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
             <InlineItem label={t('detail.outputPrice')} value={formatPrice(detail.pricing?.output_value, detail.pricing?.currency)} tone="badge" />
             <InlineItem label={t('detail.cachePrice')} value={formatPrice(cachePrice, detail.pricing?.currency)} tone="badge" />
             <InlineItem label={t('detail.perRequestPrice')} value={formatPerRequestPrice(detail.pricing?.per_request_value, detail.pricing?.currency, t)} tone="badge" />
+            <InlineItem label={t('detail.credentialMultiplier')} value={formatCostMultiplier(requestCredentialMultiplier(detail))} tone="badge" />
             {fastBilling ? (
               <InlineItem label={t('detail.mode')}>
                 <Badge variant="secondary" className="rounded-md px-2 py-0.5 text-xs tracking-normal">

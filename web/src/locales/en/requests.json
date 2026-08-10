@@ -1,12 +1,16 @@
 {
   "table": {
     "headers": {
+      "expand": "Expand",
       "time": "Time",
       "model": "Model",
       "apiKey": "API Key",
       "site": "Site",
       "status": "Status",
-      "latency": "Latency",
+      "latency": "Timing",
+      "firstByte": "First byte",
+      "totalDuration": "Total duration",
+      "reasoning": "Reasoning effort",
       "input": "Input",
       "output": "Output",
       "cost": "Cost"
@@ -21,6 +25,7 @@
     "cache": "Cache {{tokens}}",
     "cacheWrite": "Cache write {{tokens}}",
     "cacheReadWrite": "Cache {{read}}/{{write}}",
+    "resizeColumn": "Resize {{column}} column width",
     "empty": {
       "title": "No request logs",
       "description": "No forwarded request records to display."
@@ -71,6 +76,7 @@
     "failure": "Failure",
     "statusCode": "Status code",
     "site": "Site",
+    "upstreamCredential": "Upstream API key",
     "group": "Group",
     "usage": "Usage",
     "input": "Input",
@@ -83,6 +89,7 @@
     "outputPrice": "Output price",
     "cachePrice": "Cache price",
     "perRequestPrice": "Per-request price",
+    "credentialMultiplier": "Upstream API key multiplier",
     "mode": "Mode",
     "totalCost": "Total cost",
     "path": "Path",
@@ -101,6 +108,8 @@
       "cacheWrite5m": "Cache write(5m) {{tokens}} tokens / 1M tokens * {{price}}",
       "cacheWrite1h": "Cache write(1h) {{tokens}} tokens / 1M tokens * {{price}}",
       "output": "Output {{tokens}} tokens / 1M tokens * {{price}}",
+      "credentialMultiplier": "Upstream API key {{multiplier}}",
+      "serviceTierMultiplier": "Service tier {{multiplier}}",
       "perRequestUnit": "{{price}}/req"
     },
     "longContext": "Long context billing",
