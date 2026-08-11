@@ -1,9 +1,11 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	routeengine "xlyra/server/internal/router"
 )
@@ -451,6 +453,60 @@ func TestProxyResponsesStreamPassthroughDoesNotDeferOverloadAfterOutput(t *testi
 		t.Fatalf("expected started upstream stream error, started=%v capture=%+v", started, capture)
 	}
 	assertGatewayBodyContainsAll(t, rec.Body.String(), "response.created", "response.output_text.delta", "server_is_overloaded")
+}
+
+func TestProxyResponsesStreamPassthroughCommitsLifecycleEventsBeforeDone(t *testing.T) {
+	t.Parallel()
+
+	body := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_empty"}}`) +
+		gatewaySSEEvent("response.in_progress", `{"type":"response.in_progress","response":{"id":"resp_empty"}}`) +
+		"data: [DONE]\n\n"
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t, body)
+	if err != nil {
+		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
+	}
+	if !started || !capture.streamCompleted || capture.endReason != "done" {
+		t.Fatalf("expected completed lifecycle-only stream, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.String() != body {
+		t.Fatalf("passthrough body = %q, want %q", rec.Body.String(), body)
+	}
+}
+
+func TestProxyResponsesStreamPassthroughKeepsFailoverAvailableAfterDownstreamHeartbeat(t *testing.T) {
+	recorder := newSynchronizedStreamRecorder()
+	ctx, cancel := context.WithCancel(context.Background())
+	session := newDownstreamSSESessionWithIntervals(ctx, recorder, gatewayEndpointResponses, cancel, 10*time.Millisecond, time.Second)
+	defer session.Close()
+	defer cancel()
+
+	waitForStreamBody(t, recorder, ": xlyra-keepalive\n\n")
+	overloadedBody := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded"}}`) +
+		gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded"}}}`)
+	capture, started, err := proxyResponsesStreamPassthrough(ctx, session, gatewayStreamTestResponse(overloadedBody), time.Now())
+	if err != nil {
+		t.Fatalf("overloaded passthrough returned error: %v", err)
+	}
+	if started || capture.endReason != "upstream_stream_error" {
+		t.Fatalf("expected unstarted overload after heartbeat, started=%v capture=%+v", started, capture)
+	}
+
+	fallbackBody := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_fallback"}}`) +
+		gatewaySSEEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_fallback","delta":"fallback-ok"}`) +
+		gatewaySSEEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_fallback","output":[]}}`)
+	capture, started, err = proxyResponsesStreamPassthrough(ctx, session, gatewayStreamTestResponse(fallbackBody), time.Now())
+	if err != nil {
+		t.Fatalf("fallback passthrough returned error: %v", err)
+	}
+	if !started || !capture.streamCompleted || capture.endReason != "done" {
+		t.Fatalf("expected completed fallback after heartbeat, started=%v capture=%+v", started, capture)
+	}
+	session.FinishSSE()
+	_, body, _ := recorder.snapshot()
+	assertGatewayBodyContainsAll(t, body, "xlyra-keepalive", "resp_fallback", "fallback-ok", "response.completed")
+	if strings.Contains(body, "resp_overloaded") || strings.Contains(body, "server_is_overloaded") {
+		t.Fatalf("pre-output overload leaked after heartbeat: %q", body)
+	}
 }
 
 func TestProxyCanonicalStreamResponsesErrorEventFails(t *testing.T) {

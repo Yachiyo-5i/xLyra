@@ -167,7 +167,13 @@ func responsesStreamPreOutputOverloaded(line []byte) bool {
 
 func responsesStreamPreOutputCommits(line []byte) bool {
 	data, done, ok := sseDataFromLine(line)
-	if !ok || done || strings.TrimSpace(data) == "" {
+	if !ok {
+		return false
+	}
+	if done {
+		return true
+	}
+	if strings.TrimSpace(data) == "" {
 		return false
 	}
 	var event responsesStreamEvent

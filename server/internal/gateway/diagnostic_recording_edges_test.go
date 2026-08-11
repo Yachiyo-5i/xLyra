@@ -170,6 +170,43 @@ func TestHandleSiteModelTestStreamResponseMapsCancelledProxyError(t *testing.T) 
 	}
 }
 
+func TestHandleSiteModelTestStreamResponseKeepsUnstartedErrorSemantics(t *testing.T) {
+	t.Parallel()
+
+	result := (Handler{logger: gatewayDiscardLogger()}).handleSiteModelTestStreamResponse(
+		context.Background(),
+		"stream-error",
+		uuid.New(),
+		routeengine.Candidate{
+			Site:  routeengine.CandidateSite{ID: uuid.New(), SiteType: "openai"},
+			Model: routeengine.CandidateModel{SiteModelID: uuid.New()},
+		},
+		siteModelTestProtocolAdapter{
+			streamCapture: streamCaptureState{
+				endReason:   "upstream_stream_error",
+				errorDetail: `{"type":"response.failed","error":{"code":"server_is_overloaded"}}`,
+			},
+		},
+		&http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+		},
+		gatewayAttemptResult{stream: true, currency: "USD", downstreamPath: gatewayEndpointResponses},
+		time.Now(),
+	)
+
+	if result.success || result.responseStarted {
+		t.Fatalf("unstarted diagnostic error result = %#v", result)
+	}
+	if result.statusCode != http.StatusBadGateway || result.upstreamStatusCode != http.StatusOK {
+		t.Fatalf("status = %d upstream = %d, want 502/200", result.statusCode, result.upstreamStatusCode)
+	}
+	if result.errorType != "upstream_stream_error" || result.errorMessage != "upstream stream returned an error event" {
+		t.Fatalf("stream error = %q %q", result.errorType, result.errorMessage)
+	}
+}
+
 func TestDiscardResponseWriterWriteHeaderIsNoop(t *testing.T) {
 	t.Parallel()
 
@@ -184,7 +221,8 @@ func TestDiscardResponseWriterWriteHeaderIsNoop(t *testing.T) {
 }
 
 type siteModelTestProtocolAdapter struct {
-	proxyErr error
+	streamCapture streamCaptureState
+	proxyErr      error
 }
 
 func (a siteModelTestProtocolAdapter) ProtocolName() string {
@@ -204,5 +242,8 @@ func (a siteModelTestProtocolAdapter) TransformBufferedResponse(int, http.Header
 }
 
 func (a siteModelTestProtocolAdapter) ProxyStream(context.Context, http.ResponseWriter, *http.Response, time.Time, routeengine.Candidate) (streamCaptureState, bool, error) {
-	return streamCaptureState{endReason: "downstream_client_cancelled"}, false, a.proxyErr
+	if a.streamCapture.endReason == "" && a.proxyErr != nil {
+		a.streamCapture.endReason = "downstream_client_cancelled"
+	}
+	return a.streamCapture, false, a.proxyErr
 }
