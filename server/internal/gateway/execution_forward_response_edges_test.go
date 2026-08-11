@@ -195,6 +195,43 @@ func TestHandleStreamResponseEmptySuccessfulUpstreamMarksSemanticFailure(t *test
 	}
 }
 
+func TestHandleStreamResponseUnstartedErrorKeepsFailureSemantics(t *testing.T) {
+	t.Parallel()
+
+	result := Handler{logger: gatewayDiscardLogger()}.handleStreamResponse(
+		context.Background(),
+		httptest.NewRecorder(),
+		"req-forward",
+		uuid.New(),
+		uuid.New(),
+		routeengine.Candidate{Site: routeengine.CandidateSite{Name: "unused-site"}},
+		&testGatewayProtocol{
+			streamCapture: streamCaptureState{
+				endReason:   "upstream_stream_error",
+				errorDetail: `{"type":"response.failed","error":{"code":"server_is_overloaded"}}`,
+			},
+			streamStarted: false,
+		},
+		&http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+		},
+		gatewayAttemptResult{attempt: 1, downstreamPath: gatewayEndpointResponses, stream: true},
+		time.Now(),
+	)
+
+	if result.success || result.responseStarted {
+		t.Fatalf("unstarted error result = %#v", result)
+	}
+	if result.statusCode != http.StatusBadGateway || result.upstreamStatusCode != http.StatusOK {
+		t.Fatalf("status = %d upstream = %d, want 502/200", result.statusCode, result.upstreamStatusCode)
+	}
+	if result.errorType != "upstream_stream_error" || result.errorMessage != "upstream stream returned an error event" {
+		t.Fatalf("stream error = %q %q", result.errorType, result.errorMessage)
+	}
+}
+
 func TestHandleStreamResponseDownstreamCancelAfterHeadersUses499(t *testing.T) {
 	t.Parallel()
 

@@ -70,10 +70,11 @@ type softMappingUpstreamCall struct {
 }
 
 type softMappingHarness struct {
-	mu                   sync.Mutex
-	upstreamCalls        []softMappingUpstreamCall
-	requestLogs          []store.RequestLog
-	semanticFailurePaths map[string]bool
+	mu                          sync.Mutex
+	upstreamCalls               []softMappingUpstreamCall
+	requestLogs                 []store.RequestLog
+	semanticFailurePaths        map[string]bool
+	preOutputOverloadStreamPath map[string]bool
 
 	apiKey          store.APIKey
 	canonicalModels map[string]store.CanonicalModel
@@ -159,6 +160,17 @@ func newSoftMappingHandler(t *testing.T, harness *softMappingHarness) Handler {
 			harness.mu.Unlock()
 			*dest = models
 			tx.Statement.RowsAffected = int64(len(models))
+		case *store.SiteModel:
+			harness.mu.Lock()
+			defer harness.mu.Unlock()
+			for _, model := range harness.siteModels {
+				if softMappingVarsContain(tx, model.ID.String()) {
+					*dest = model
+					tx.Statement.RowsAffected = 1
+					return
+				}
+			}
+			tx.AddError(gorm.ErrRecordNotFound)
 		case *[]store.Site:
 			sites := make([]store.Site, 0, len(harness.sites))
 			for _, site := range harness.sites {
@@ -240,6 +252,7 @@ func softMappingUpstreamServer(t *testing.T, harness *softMappingHarness, failPr
 		var payload map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&payload)
 		model, _ := payload["model"].(string)
+		stream, _ := payload["stream"].(bool)
 		harness.recordUpstream(softMappingUpstreamCall{Path: r.URL.Path, Model: model})
 		for prefix, status := range failPrefixes {
 			if strings.HasPrefix(r.URL.Path, prefix) {
@@ -258,6 +271,27 @@ func softMappingUpstreamServer(t *testing.T, harness *softMappingHarness, failPr
 			}
 		}
 		harness.mu.Unlock()
+		if stream {
+			harness.mu.Lock()
+			overloaded := false
+			for prefix, enabled := range harness.preOutputOverloadStreamPath {
+				if enabled && strings.HasPrefix(r.URL.Path, prefix) {
+					overloaded = true
+					break
+				}
+			}
+			harness.mu.Unlock()
+			w.Header().Set("Content-Type", "text/event-stream")
+			if overloaded {
+				_, _ = w.Write([]byte(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","model":"`+model+`"}}`)))
+				_, _ = w.Write([]byte(gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`)))
+				return
+			}
+			_, _ = w.Write([]byte(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_ok","model":"`+model+`"}}`)))
+			_, _ = w.Write([]byte(gatewaySSEEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_ok","delta":"soft-ok"}`)))
+			_, _ = w.Write([]byte(gatewaySSEEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_ok","model":"`+model+`","output":[]}}`)))
+			return
+		}
 		if semanticFailure {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"error":{"code":"invalid_api_key","message":"semantic credential rejected"}}`))
@@ -344,6 +378,18 @@ func (f softMappingFixture) do(t *testing.T, model string) *httptest.ResponseRec
 	req = req.WithContext(auth.WithAPIKey(req.Context(), f.apiKey))
 	recorder := httptest.NewRecorder()
 	f.handler.ChatCompletions(recorder, req)
+	return recorder
+}
+
+func (f softMappingFixture) doResponsesStream(t *testing.T, model string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	body := `{"model":"` + model + `","input":"hi","stream":true}`
+	req := httptest.NewRequest(http.MethodPost, gatewayEndpointResponses, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.WithAPIKey(req.Context(), f.apiKey))
+	recorder := httptest.NewRecorder()
+	f.handler.Responses(recorder, req)
 	return recorder
 }
 
@@ -488,6 +534,31 @@ func TestSoftMappingFallsBackAfterBufferedSemanticFailureWithoutLeakingIt(t *tes
 	}
 	if successCount != 1 {
 		t.Fatalf("success logs = %d of %d, want exactly one", successCount, len(logs))
+	}
+}
+
+func TestSoftMappingFailsOverAfterPreOutputResponsesOverloadWithoutLeakingIt(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSoftMappingFixture(t, `[{"pattern":"orig-model","target":"fallback-model","mode":"soft"}]`, true, 0)
+	fixture.harness.mu.Lock()
+	fixture.harness.preOutputOverloadStreamPath = map[string]bool{"/orig": true}
+	for index := range fixture.harness.siteModels {
+		fixture.harness.siteModels[index].Capabilities = store.JSON(`{"supported_endpoint_types":["openai-response"]}`)
+	}
+	fixture.harness.mu.Unlock()
+	recorder := fixture.doResponsesStream(t, "orig-model")
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s, want 200 after stream failover", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "server_is_overloaded") {
+		t.Fatalf("intermediate overload leaked downstream: %s", recorder.Body.String())
+	}
+	assertGatewayBodyContainsAll(t, recorder.Body.String(), "response.output_text.delta", "soft-ok")
+	models := fixture.harness.upstreamModels()
+	if len(models) != 2 || models[0] != "orig-upstream-model" || models[1] != "fallback-upstream-model" {
+		t.Fatalf("upstream models = %v, want original overload then fallback success", models)
 	}
 }
 

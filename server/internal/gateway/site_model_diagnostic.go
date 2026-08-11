@@ -611,6 +611,13 @@ func (h Handler) handleSiteModelTestStreamResponse(
 	}
 
 	if !responseStarted {
+		if capture.endReason == "upstream_stream_error" {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "upstream_stream_error"
+			result.errorMessage = streamErrorMessageFromEndReason(capture.endReason)
+			result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, streamMetadataEnvelope(capture))
+			return result
+		}
 		result.errorType = "upstream_stream_empty"
 		result.errorMessage = "upstream stream returned without any data"
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, streamMetadataEnvelope(capture))
