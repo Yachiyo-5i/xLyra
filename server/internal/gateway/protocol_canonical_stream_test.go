@@ -417,6 +417,42 @@ func TestProxyResponsesStreamPassthroughCapturesIncompleteErrorAndAnnotations(t 
 	}
 }
 
+func TestProxyResponsesStreamPassthroughDefersPreOutputOverloadForFailover(t *testing.T) {
+	t.Parallel()
+
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t,
+		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded"}}`)+
+			gatewaySSEEvent("response.in_progress", `{"type":"response.in_progress","response":{"id":"resp_overloaded"}}`)+
+			gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+	)
+	if err != nil {
+		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
+	}
+	if started || capture.endReason != "upstream_stream_error" {
+		t.Fatalf("expected unstarted upstream stream error, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("pre-output overload leaked downstream: %q", rec.Body.String())
+	}
+}
+
+func TestProxyResponsesStreamPassthroughDoesNotDeferOverloadAfterOutput(t *testing.T) {
+	t.Parallel()
+
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t,
+		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_started"}}`)+
+			gatewaySSEEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_started","delta":"hello"}`)+
+			gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_started","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+	)
+	if err != nil {
+		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
+	}
+	if !started || capture.endReason != "upstream_stream_error" {
+		t.Fatalf("expected started upstream stream error, started=%v capture=%+v", started, capture)
+	}
+	assertGatewayBodyContainsAll(t, rec.Body.String(), "response.created", "response.output_text.delta", "server_is_overloaded")
+}
+
 func TestProxyCanonicalStreamResponsesErrorEventFails(t *testing.T) {
 	t.Parallel()
 

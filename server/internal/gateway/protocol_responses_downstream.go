@@ -15,6 +15,8 @@ import (
 
 var synthesizedResponseCounter uint64
 
+const responsesPreOutputBufferLimit = 64 << 10
+
 type chatChoice struct {
 	Index        int         `json:"index"`
 	Message      chatMessage `json:"message"`
@@ -56,6 +58,7 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 	flusher, _ := w.(http.Flusher)
 	reader := bufio.NewReader(resp.Body)
 	headersWritten := false
+	var preOutput bytes.Buffer
 	writeHeaders := func() {
 		if headersWritten {
 			return
@@ -63,6 +66,45 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 		copyStreamingHeaders(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
 		headersWritten = true
+	}
+	flush := func() {
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	commitPreOutput := func() error {
+		if headersWritten {
+			return nil
+		}
+		capture.firstByteLatency = firstNonZero(capture.firstByteLatency, time.Since(startedAt).Milliseconds())
+		writeHeaders()
+		if preOutput.Len() == 0 {
+			return nil
+		}
+		if _, writeErr := w.Write(preOutput.Bytes()); writeErr != nil {
+			return writeErr
+		}
+		preOutput.Reset()
+		flush()
+		return nil
+	}
+	writeLine := func(line []byte) error {
+		if !headersWritten {
+			if preOutput.Len()+len(line) > responsesPreOutputBufferLimit || responsesStreamPreOutputCommits(line) {
+				if err := commitPreOutput(); err != nil {
+					return err
+				}
+			}
+		}
+		if !headersWritten {
+			_, err := preOutput.Write(line)
+			return err
+		}
+		if _, err := w.Write(line); err != nil {
+			return err
+		}
+		flush()
+		return nil
 	}
 	for {
 		if err := ctx.Err(); err != nil {
@@ -74,16 +116,13 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 			if normalizedLine, changed := normalizeResponsesStreamDataLine(line); changed {
 				line = normalizedLine
 			}
-			if !headersWritten {
-				capture.firstByteLatency = time.Since(startedAt).Milliseconds()
-				writeHeaders()
+			if !headersWritten && responsesStreamPreOutputOverloaded(line) {
+				inspectResponsesStreamLine(line, &capture)
+				return capture, false, nil
 			}
-			if _, writeErr := w.Write(line); writeErr != nil {
+			if writeErr := writeLine(line); writeErr != nil {
 				capture.endReason = "downstream_stream_write_failed"
 				return capture, headersWritten, writeErr
-			}
-			if flusher != nil {
-				flusher.Flush()
 			}
 			inspectResponsesStreamLine(line, &capture)
 		}
@@ -114,6 +153,32 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 			capture.endReason = "upstream_stream_read_failed"
 		}
 		return capture, headersWritten, err
+	}
+}
+
+func responsesStreamPreOutputOverloaded(line []byte) bool {
+	data, done, ok := sseDataFromLine(line)
+	if !ok || done {
+		return false
+	}
+	failure, ok := semanticFailureFromJSON([]byte(data))
+	return ok && strings.EqualFold(strings.TrimSpace(failure.Code), "server_is_overloaded")
+}
+
+func responsesStreamPreOutputCommits(line []byte) bool {
+	data, done, ok := sseDataFromLine(line)
+	if !ok || done || strings.TrimSpace(data) == "" {
+		return false
+	}
+	var event responsesStreamEvent
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(event.Type)) {
+	case "response.created", "response.in_progress", "response.queued", "keepalive", "ping":
+		return false
+	default:
+		return true
 	}
 }
 
