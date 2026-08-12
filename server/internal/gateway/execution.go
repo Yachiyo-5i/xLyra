@@ -665,11 +665,18 @@ func (h Handler) handleStreamResponse(
 	result.streamEndReason = capture.endReason
 	result = applyStreamUsage(result, capture.usage)
 	result.latencyMS = time.Since(startedAt).Milliseconds()
+	if !responseStarted && capture.semanticFailure != nil {
+		return h.finishStreamSemanticFailure(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, capture)
+	}
 
 	if proxyErr != nil {
 		var stateCommitErr *responsesWebSocketStateCommitError
 		var clientWriteErr *responsesWebSocketClientWriteError
-		if errors.As(proxyErr, &stateCommitErr) {
+		if errors.Is(proxyErr, errResponsesPreOutputTooLarge) {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "upstream_stream_preoutput_too_large"
+			result.errorMessage = proxyErr.Error()
+		} else if errors.As(proxyErr, &stateCommitErr) {
 			result.statusCode = http.StatusRequestEntityTooLarge
 			result.errorType = "websocket_state_too_large"
 			result.errorMessage = proxyErr.Error()
@@ -719,6 +726,29 @@ func (h Handler) handleStreamResponse(
 		result.errorType = streamErrorTypeFromEndReason(capture.endReason)
 		result.errorMessage = streamErrorMessageFromEndReason(capture.endReason)
 	}
+	result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, streamMetadataEnvelope(capture))
+	return result
+}
+
+func (h Handler) finishStreamSemanticFailure(
+	ctx context.Context,
+	requestID string,
+	apiKeyID uuid.UUID,
+	canonicalModelID uuid.UUID,
+	candidate routeengine.Candidate,
+	result gatewayAttemptResult,
+	capture streamCaptureState,
+) gatewayAttemptResult {
+	failure := capture.semanticFailure
+	classificationBody := semanticFailureClassificationBody(failure)
+	result.statusCode = http.StatusBadGateway
+	result.contentType = "application/json"
+	result.errorType = "upstream_response_failed"
+	result.errorMessage = failure.Error()
+	result.body = classificationBody
+	result.failureResponse = diagnosticFailureResponse(failure.Body)
+	result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, classificationBody, time.Now(), h.timeZone)
+	h.markOAuthConnectionUnavailableOnAuthFailure(ctx, candidate, result)
 	result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, streamMetadataEnvelope(capture))
 	return result
 }

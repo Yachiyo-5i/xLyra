@@ -417,6 +417,9 @@ func TestStreamFailureScopeClassifiesDownstreamAndUnknownReasons(t *testing.T) {
 	if got := streamFailureScope("upstream_stream_error"); got != "upstream" {
 		t.Fatalf("upstream stream error scope = %#v, want upstream", got)
 	}
+	if got := streamFailureScope("upstream_stream_preoutput_too_large"); got != "upstream" {
+		t.Fatalf("pre-output limit scope = %#v, want upstream", got)
+	}
 	if got := streamFailureScope("unexpected_reason"); got != nil {
 		t.Fatalf("unexpected stream end reason scope = %#v, want nil", got)
 	}

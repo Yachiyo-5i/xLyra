@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -409,13 +410,99 @@ func TestProxyResponsesStreamPassthroughCapturesIncompleteErrorAndAnnotations(t 
 		t.Fatalf("expected annotation and usage capture, got %+v", incompleteCapture)
 	}
 
-	_, errorCapture, started, err := proxyResponsesStreamPassthroughTest(t,
+	errorRec, errorCapture, started, err := proxyResponsesStreamPassthroughTest(t,
 		"data: {\"type\":\"response.error\",\"error\":{\"code\":\"bad_request\",\"message\":\"bad stream\"}}\n\n")
 	if err != nil {
 		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
 	}
-	if !started || errorCapture.streamCompleted || errorCapture.endReason != "upstream_stream_error" {
+	if started || errorCapture.streamCompleted || errorCapture.endReason != "upstream_stream_error" {
 		t.Fatalf("expected passthrough upstream_stream_error, started=%v capture=%+v", started, errorCapture)
+	}
+	if errorRec.Body.Len() != 0 {
+		t.Fatalf("pre-output error leaked downstream: %q", errorRec.Body.String())
+	}
+}
+
+func TestResponsesStreamPreOutputDispositionForLine(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want responsesPreOutputDisposition
+	}{
+		{name: "event field", line: "event: response.created\n", want: responsesPreOutputDefer},
+		{name: "created", line: "data: {\"type\":\"response.created\"}\n", want: responsesPreOutputDefer},
+		{name: "in progress", line: "data: {\"type\":\"response.in_progress\"}\n", want: responsesPreOutputDefer},
+		{name: "queued", line: "data: {\"type\":\"response.queued\"}\n", want: responsesPreOutputDefer},
+		{name: "keepalive", line: "data: {\"type\":\"keepalive\"}\n", want: responsesPreOutputDefer},
+		{name: "ping", line: "data: {\"type\":\"ping\"}\n", want: responsesPreOutputDefer},
+		{name: "empty message item", line: "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\",\"content\":[]}}\n", want: responsesPreOutputDefer},
+		{name: "empty content part", line: "data: {\"type\":\"response.content_part.added\",\"part\":{\"type\":\"output_text\",\"text\":\"\"}}\n", want: responsesPreOutputDefer},
+		{name: "function item without arguments", line: "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"name\":\"lookup\",\"arguments\":\"\"}}\n", want: responsesPreOutputDefer},
+		{name: "empty image item", line: "data: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"ig_1\",\"type\":\"image_generation_call\",\"status\":\"in_progress\"}}\n", want: responsesPreOutputDefer},
+		{name: "image item with result", line: "data: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"ig_1\",\"type\":\"image_generation_call\",\"status\":\"completed\",\"result\":\"aW1hZ2U=\"}}\n", want: responsesPreOutputCommit},
+		{name: "empty text delta", line: "data: {\"type\":\"response.output_text.delta\",\"delta\":\"\"}\n", want: responsesPreOutputDefer},
+		{name: "message item with text", line: "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}}\n", want: responsesPreOutputCommit},
+		{name: "function item with arguments", line: "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"arguments\":\"{}\"}}\n", want: responsesPreOutputCommit},
+		{name: "unknown advanced event", line: "data: {\"type\":\"response.approval_request.created\",\"approval_id\":\"approval_1\"}\n", want: responsesPreOutputCommit},
+		{name: "failed", line: "data: {\"type\":\"response.failed\",\"error\":{\"code\":\"server_is_overloaded\"}}\n", want: responsesPreOutputFail},
+		{name: "error", line: "data: {\"type\":\"response.error\",\"error\":{\"code\":\"upstream_error\"}}\n", want: responsesPreOutputFail},
+		{name: "generic error", line: "data: {\"type\":\"error\",\"error\":{\"code\":\"upstream_error\"}}\n", want: responsesPreOutputFail},
+		{name: "business output", line: "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n", want: responsesPreOutputCommit},
+		{name: "completed", line: "data: {\"type\":\"response.completed\"}\n", want: responsesPreOutputCommit},
+		{name: "done", line: "data: [DONE]\n", want: responsesPreOutputCommit},
+		{name: "malformed data", line: "data: {invalid\n", want: responsesPreOutputCommit},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, _ := responsesStreamPreOutputDispositionForLine([]byte(test.line))
+			if got != test.want {
+				t.Fatalf("disposition = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestProxyResponsesStreamPassthroughDefersEmptyOutputContainersForFailover(t *testing.T) {
+	t.Parallel()
+
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t,
+		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_empty_item"}}`)+
+			gatewaySSEEvent("response.output_item.added", `{"type":"response.output_item.added","item":{"id":"msg_empty","type":"message","status":"in_progress","content":[]}}`)+
+			gatewaySSEEvent("response.content_part.added", `{"type":"response.content_part.added","part":{"type":"output_text","text":""}}`)+
+			gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+	)
+	if err != nil {
+		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
+	}
+	if started || capture.endReason != "upstream_stream_error" || capture.semanticFailure == nil {
+		t.Fatalf("expected empty containers to preserve failover, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("empty output containers leaked downstream: %q", rec.Body.String())
+	}
+}
+
+func TestProxyResponsesStreamPassthroughRejectsOversizedPreOutputWithoutStartingResponse(t *testing.T) {
+	t.Parallel()
+
+	instructions := strings.Repeat("x", 1<<20)
+	var body strings.Builder
+	for body.Len() <= responsesPreOutputMaxBytes {
+		body.WriteString(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"instructions":"`+instructions+`"}}`))
+	}
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t, body.String())
+	if !errors.Is(err, errResponsesPreOutputTooLarge) {
+		t.Fatalf("error = %v, want pre-output size failure", err)
+	}
+	if started || capture.endReason != "upstream_stream_preoutput_too_large" {
+		t.Fatalf("oversized pre-output started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("oversized pre-output leaked downstream: %d bytes", rec.Body.Len())
 	}
 }
 
@@ -435,6 +522,44 @@ func TestProxyResponsesStreamPassthroughDefersPreOutputOverloadForFailover(t *te
 	}
 	if rec.Body.Len() != 0 {
 		t.Fatalf("pre-output overload leaked downstream: %q", rec.Body.String())
+	}
+}
+
+func TestProxyResponsesStreamPassthroughDefersLargePreOutputOverloadForFailover(t *testing.T) {
+	t.Parallel()
+
+	instructions := strings.Repeat("x", 70<<10)
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t,
+		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","instructions":"`+instructions+`"}}`)+
+			gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+	)
+	if err != nil {
+		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
+	}
+	if started || capture.endReason != "upstream_stream_error" || capture.firstByteLatency != 0 {
+		t.Fatalf("expected unstarted large upstream stream error, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("large pre-output overload leaked downstream: %d bytes", rec.Body.Len())
+	}
+}
+
+func TestProxyResponsesStreamPassthroughCommitsLargeLifecycleEventOnBusinessOutput(t *testing.T) {
+	t.Parallel()
+
+	instructions := strings.Repeat("x", 70<<10)
+	body := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_started","instructions":"`+instructions+`"}}`) +
+		gatewaySSEEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_started","delta":"hello"}`) +
+		gatewaySSEEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_started","output":[]}}`)
+	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t, body)
+	if err != nil {
+		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
+	}
+	if !started || !capture.streamCompleted || capture.endReason != "done" {
+		t.Fatalf("expected completed large lifecycle stream, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.String() != body {
+		t.Fatalf("passthrough body length = %d, want %d", rec.Body.Len(), len(body))
 	}
 }
 
@@ -481,7 +606,8 @@ func TestProxyResponsesStreamPassthroughKeepsFailoverAvailableAfterDownstreamHea
 	defer cancel()
 
 	waitForStreamBody(t, recorder, ": xlyra-keepalive\n\n")
-	overloadedBody := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded"}}`) +
+	instructions := strings.Repeat("x", 70<<10)
+	overloadedBody := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","instructions":"`+instructions+`"}}`) +
 		gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded"}}}`)
 	capture, started, err := proxyResponsesStreamPassthrough(ctx, session, gatewayStreamTestResponse(overloadedBody), time.Now())
 	if err != nil {

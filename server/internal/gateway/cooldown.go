@@ -381,7 +381,7 @@ func upstreamStreamFailure(result gatewayAttemptResult) bool {
 		return false
 	}
 	switch result.errorType {
-	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_stream_read_failed", "upstream_stream_empty":
+	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_stream_read_failed", "upstream_stream_empty", "upstream_stream_preoutput_too_large":
 		return true
 	default:
 		return false
@@ -393,7 +393,7 @@ func requestLogStreamFailure(item store.RequestLog) bool {
 		return false
 	}
 	switch item.ErrorType.String {
-	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_stream_read_failed", "upstream_stream_empty":
+	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_stream_read_failed", "upstream_stream_empty", "upstream_stream_preoutput_too_large":
 		return true
 	default:
 		return false
