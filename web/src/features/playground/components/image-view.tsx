@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Download, ImagePlus, Loader2, Paperclip, Pencil, X } from 'lucide-react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select'
+import { Copy, Download, ImagePlus, Loader2, Paperclip, Pencil } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { TextArea } from '@/components/ui/textarea'
@@ -14,7 +8,7 @@ import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { APIError } from '@/lib/http'
 import { editImage, generateImage } from '@/features/playground/api/playground'
 import { Composer } from '@/features/playground/components/composer'
-import { ModelPicker } from '@/features/playground/components/model-picker'
+import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { ModelParameterPicker } from '@/features/playground/components/model-parameter-picker'
 import {
   PlaygroundMessageAction,
@@ -75,22 +69,30 @@ function ImageAttachment({
   removeLabel: string
   onRemove: () => void
 }) {
-  const src = useMemo(() => URL.createObjectURL(file), [file])
+  const [src, setSrc] = useState<string | null>(null)
 
-  useEffect(() => () => URL.revokeObjectURL(src), [src])
+  useEffect(() => {
+    const reader = new FileReader()
+    reader.onload = () => setSrc(String(reader.result))
+    reader.readAsDataURL(file)
+    return () => {
+      reader.onload = null
+      if (reader.readyState === FileReader.LOADING) reader.abort()
+    }
+  }, [file])
 
   return (
-    <div className="relative h-14 w-14 overflow-hidden rounded-lg border border-[hsl(var(--glass-border))]">
-      <img src={src} alt={file.name} className="h-full w-full object-cover" />
-      <button
-        type="button"
-        onClick={onRemove}
-        className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white"
-        aria-label={removeLabel}
-      >
-        <X className="h-3 w-3" />
-      </button>
-    </div>
+    <ChatAttachmentItem
+      attachment={{
+        id: `${file.name}:${file.size}:${file.lastModified}`,
+        name: file.name,
+        mimeType: file.type,
+        size: file.size,
+        dataURL: src ?? undefined,
+      }}
+      removeLabel={removeLabel}
+      onRemove={onRemove}
+    />
   )
 }
 
@@ -145,9 +147,18 @@ export function ImageView({
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const addFiles = (list: FileList | null) => {
+  const addFiles = (list: FileList | File[] | null) => {
     if (!list) return
-    setFiles((current) => [...current, ...Array.from(list)].slice(0, 4))
+    const images = Array.from(list).filter((file) => file.type.startsWith('image/'))
+    setFiles((current) => [...current, ...images].slice(0, 4))
+  }
+
+  const handlePasteFiles = (pastedFiles: File[]) => {
+    if (submitting) return false
+    const images = pastedFiles.filter((file) => file.type.startsWith('image/'))
+    if (images.length === 0) return false
+    addFiles(images)
+    return true
   }
 
   const patchEntry = (id: string, patch: Partial<ImageHistoryEntry>) => {
@@ -359,27 +370,23 @@ export function ImageView({
     </>
   )
 
+  const sizeOptions = SIZE_OPTIONS.map((option) => ({
+    value: option,
+    label: option === 'auto' ? t('image.sizeAuto') : option,
+  }))
+
   const trailingControls = (
     <>
-      <div className="hidden items-center gap-1 md:flex">
-        <Select value={size} onValueChange={setSize}>
-          <SelectTrigger className="inline-flex h-8 w-auto gap-1 rounded-full border-none bg-transparent px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground">
-            {size === 'auto' ? t('image.sizeAuto') : size}
-          </SelectTrigger>
-          <SelectContent searchable={false} widthMode="content">
-            {SIZE_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option === 'auto' ? t('image.sizeAuto') : option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <ModelPicker
+      <div className="hidden md:block">
+        <ModelParameterPicker
           models={models}
-          value={model}
-          onChange={onModelChange}
-          disabled={!apiKey || models.length === 0}
-          placeholder={t('credential.modelPlaceholder')}
+          model={model}
+          onModelChange={onModelChange}
+          parameterLabel={t('image.size')}
+          parameterValue={size}
+          parameterOptions={sizeOptions}
+          onParameterChange={setSize}
+          disabled={!apiKey}
         />
       </div>
       <div className="min-w-0 md:hidden">
@@ -392,10 +399,7 @@ export function ImageView({
           onModelChange={onModelChange}
           parameterLabel={t('image.size')}
           parameterValue={size}
-          parameterOptions={SIZE_OPTIONS.map((option) => ({
-            value: option,
-            label: option === 'auto' ? t('image.sizeAuto') : option,
-          }))}
+          parameterOptions={sizeOptions}
           onParameterChange={setSize}
           disabled={apiKeys.length === 0}
           triggerClassName="h-11 min-w-0 w-[min(13.5rem,calc(100vw-7rem))] max-w-full"
@@ -413,6 +417,7 @@ export function ImageView({
       streaming={submitting}
       canSubmit={canSubmit}
       placeholder={t('image.promptPlaceholder')}
+      onPasteFiles={handlePasteFiles}
       controls={controls}
       trailingControls={trailingControls}
       attachments={attachments}

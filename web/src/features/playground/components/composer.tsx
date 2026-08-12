@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { ArrowUp, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { filesFromClipboard } from '@/features/playground/lib/clipboard-files'
 
 type ComposerProps = {
   value: string
@@ -13,6 +14,7 @@ type ComposerProps = {
   controls?: ReactNode
   trailingControls?: ReactNode
   attachments?: ReactNode
+  onPasteFiles?: (files: File[]) => boolean
 }
 
 export function Composer({
@@ -26,6 +28,7 @@ export function Composer({
   controls,
   trailingControls,
   attachments,
+  onPasteFiles,
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -43,6 +46,12 @@ export function Composer({
     }
   }
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onPasteFiles) return
+    const pastedFiles = filesFromClipboard(event.clipboardData)
+    if (pastedFiles.length > 0 && onPasteFiles(pastedFiles)) event.preventDefault()
+  }
+
   return (
     <div
       data-playground-composer="true"
@@ -54,6 +63,7 @@ export function Composer({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={placeholder}
         rows={1}
         className="max-h-[220px] w-full resize-none bg-transparent px-1.5 text-[15px] leading-6 text-foreground outline-none placeholder:text-[hsl(var(--input-placeholder))]"

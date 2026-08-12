@@ -226,7 +226,7 @@ export function ChatView({
     }
   }
 
-  const addAttachments = async (files: FileList | null) => {
+  const addAttachments = async (files: FileList | File[] | null) => {
     if (!files) return
     const remaining = MAX_ATTACHMENTS - attachments.length
     const selected = Array.from(files).slice(0, Math.max(remaining, 0))
@@ -252,6 +252,12 @@ export function ChatView({
     } catch {
       setAttachmentError(t('chat.attachmentReadFailed'))
     }
+  }
+
+  const handlePasteFiles = (files: File[]) => {
+    if (streaming) return false
+    void addAttachments(files)
+    return true
   }
 
   const handleSend = () => {
@@ -309,6 +315,7 @@ export function ChatView({
       streaming={streaming}
       canSubmit={canSend}
       placeholder={t('chat.inputPlaceholder')}
+      onPasteFiles={handlePasteFiles}
       controls={
         <>
           <input
