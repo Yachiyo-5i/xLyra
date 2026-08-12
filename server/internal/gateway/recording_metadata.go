@@ -229,7 +229,7 @@ func streamFailureScope(endReason string) any {
 		return nil
 	case "downstream_client_cancelled", "downstream_stream_write_failed":
 		return "downstream"
-	case "upstream_stream_error", "tool_call_arguments_invalid_json", "upstream_stream_read_failed", "upstream_stream_parse_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_empty", "upstream_stream_missing_body":
+	case "upstream_stream_error", "tool_call_arguments_invalid_json", "upstream_stream_read_failed", "upstream_stream_parse_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_empty", "upstream_stream_missing_body", "upstream_stream_preoutput_too_large":
 		return "upstream"
 	default:
 		return nil

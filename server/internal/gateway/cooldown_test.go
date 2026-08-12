@@ -124,6 +124,13 @@ func TestCooldownInputForFailureClassifiesStreamAndCredentialExhaustion(t *testi
 	if !ok || streamInput.Scope != "model" || streamInput.Reason != store.CooldownReasonUpstreamStreamUnstable || streamInput.Duration != transientCooldownBaseDuration {
 		t.Fatalf("stream failure input = %#v ok=%v, want transient model cooldown", streamInput, ok)
 	}
+	preOutputInput, ok := cooldownInputForFailure(candidate, gatewayAttemptResult{
+		statusCode: http.StatusBadGateway,
+		errorType:  "upstream_stream_preoutput_too_large",
+	})
+	if !ok || preOutputInput.Scope != "model" || preOutputInput.Reason != store.CooldownReasonUpstreamStreamUnstable {
+		t.Fatalf("pre-output stream failure input = %#v ok=%v, want transient model cooldown", preOutputInput, ok)
+	}
 
 	exhaustedInput, ok := cooldownInputForFailure(candidate, gatewayAttemptResult{
 		statusCode: http.StatusBadGateway,
@@ -237,6 +244,18 @@ func TestStreamFailureStreakRequiresThresholdAndBreaksOnSuccess(t *testing.T) {
 	}
 	if streamFailureStreakReached(broken, 3) {
 		t.Fatal("expected successful attempt to break stream failure streak")
+	}
+}
+
+func TestPreOutputLimitCountsTowardStreamFailureStreak(t *testing.T) {
+	t.Parallel()
+
+	item := streamFailureRequestLog()
+	item.StatusCode = http.StatusBadGateway
+	item.ErrorType = sql.NullString{String: "upstream_stream_preoutput_too_large", Valid: true}
+	item.Metadata = store.JSON([]byte(`{"stream_started":false}`))
+	if !requestLogStreamFailure(item) {
+		t.Fatal("pre-output resource limit must count as an upstream stream failure")
 	}
 }
 

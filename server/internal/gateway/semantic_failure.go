@@ -71,3 +71,16 @@ func semanticFailureDetails(value any) (string, string) {
 		return "", ""
 	}
 }
+
+func semanticFailureClassificationBody(failure *upstreamSemanticFailure) []byte {
+	if failure == nil {
+		return nil
+	}
+	body, _ := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"code":    failure.Code,
+			"message": failure.Message,
+		},
+	})
+	return body
+}

@@ -75,6 +75,7 @@ type softMappingHarness struct {
 	requestLogs                 []store.RequestLog
 	semanticFailurePaths        map[string]bool
 	preOutputOverloadStreamPath map[string]bool
+	preOutputOversizeStreamPath map[string]bool
 
 	apiKey          store.APIKey
 	canonicalModels map[string]store.CanonicalModel
@@ -274,16 +275,36 @@ func softMappingUpstreamServer(t *testing.T, harness *softMappingHarness, failPr
 		if stream {
 			harness.mu.Lock()
 			overloaded := false
+			oversized := false
 			for prefix, enabled := range harness.preOutputOverloadStreamPath {
 				if enabled && strings.HasPrefix(r.URL.Path, prefix) {
 					overloaded = true
 					break
 				}
 			}
+			for prefix, enabled := range harness.preOutputOversizeStreamPath {
+				if enabled && strings.HasPrefix(r.URL.Path, prefix) {
+					oversized = true
+					break
+				}
+			}
 			harness.mu.Unlock()
 			w.Header().Set("Content-Type", "text/event-stream")
+			if oversized {
+				instructions := strings.Repeat("x", 1<<20)
+				written := 0
+				for written <= responsesPreOutputMaxBytes {
+					event := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_oversized","instructions":"`+instructions+`"}}`)
+					if _, err := w.Write([]byte(event)); err != nil {
+						return
+					}
+					written += len(event)
+				}
+				return
+			}
 			if overloaded {
-				_, _ = w.Write([]byte(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","model":"`+model+`"}}`)))
+				instructions := strings.Repeat("x", 70<<10)
+				_, _ = w.Write([]byte(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","model":"`+model+`","instructions":"`+instructions+`"}}`)))
 				_, _ = w.Write([]byte(gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`)))
 				return
 			}
@@ -559,6 +580,31 @@ func TestSoftMappingFailsOverAfterPreOutputResponsesOverloadWithoutLeakingIt(t *
 	models := fixture.harness.upstreamModels()
 	if len(models) != 2 || models[0] != "orig-upstream-model" || models[1] != "fallback-upstream-model" {
 		t.Fatalf("upstream models = %v, want original overload then fallback success", models)
+	}
+}
+
+func TestSoftMappingFailsOverAfterOversizedResponsesPreOutput(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSoftMappingFixture(t, `[{"pattern":"orig-model","target":"fallback-model","mode":"soft"}]`, true, 0)
+	fixture.harness.mu.Lock()
+	fixture.harness.preOutputOversizeStreamPath = map[string]bool{"/orig": true}
+	for index := range fixture.harness.siteModels {
+		fixture.harness.siteModels[index].Capabilities = store.JSON(`{"supported_endpoint_types":["openai-response"]}`)
+	}
+	fixture.harness.mu.Unlock()
+	recorder := fixture.doResponsesStream(t, "orig-model")
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s, want 200 after pre-output size failover", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "resp_oversized") {
+		t.Fatalf("oversized pre-output leaked downstream: %s", recorder.Body.String())
+	}
+	assertGatewayBodyContainsAll(t, recorder.Body.String(), "response.output_text.delta", "soft-ok")
+	models := fixture.harness.upstreamModels()
+	if len(models) != 2 || models[0] != "orig-upstream-model" || models[1] != "fallback-upstream-model" {
+		t.Fatalf("upstream models = %v, want oversized original then fallback success", models)
 	}
 }
 

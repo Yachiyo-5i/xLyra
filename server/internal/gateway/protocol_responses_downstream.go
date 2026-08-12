@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,7 +16,20 @@ import (
 
 var synthesizedResponseCounter uint64
 
-const responsesPreOutputBufferLimit = 64 << 10
+const (
+	responsesPreOutputMaxBytes = 16 << 20
+	responsesPreOutputMaxLine  = 32 << 20
+)
+
+var errResponsesPreOutputTooLarge = errors.New("responses pre-output stream exceeded the buffering limit")
+
+type responsesPreOutputDisposition uint8
+
+const (
+	responsesPreOutputDefer responsesPreOutputDisposition = iota
+	responsesPreOutputCommit
+	responsesPreOutputFail
+)
 
 type chatChoice struct {
 	Index        int         `json:"index"`
@@ -90,13 +104,6 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 	}
 	writeLine := func(line []byte) error {
 		if !headersWritten {
-			if preOutput.Len()+len(line) > responsesPreOutputBufferLimit || responsesStreamPreOutputCommits(line) {
-				if err := commitPreOutput(); err != nil {
-					return err
-				}
-			}
-		}
-		if !headersWritten {
 			_, err := preOutput.Write(line)
 			return err
 		}
@@ -111,14 +118,43 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 			capture.endReason = "downstream_client_cancelled"
 			return capture, headersWritten, err
 		}
-		line, err := reader.ReadBytes('\n')
+		var line []byte
+		var err error
+		if headersWritten {
+			line, err = reader.ReadBytes('\n')
+		} else {
+			line, err = readResponsesPreOutputLine(reader)
+			if errors.Is(err, errResponsesPreOutputTooLarge) {
+				capture.endReason = "upstream_stream_preoutput_too_large"
+				return capture, false, err
+			}
+		}
 		if len(line) > 0 {
 			if normalizedLine, changed := normalizeResponsesStreamDataLine(line); changed {
 				line = normalizedLine
 			}
-			if !headersWritten && responsesStreamPreOutputOverloaded(line) {
-				inspectResponsesStreamLine(line, &capture)
-				return capture, false, nil
+			if !headersWritten {
+				disposition, failure := responsesStreamPreOutputDispositionForLine(line)
+				switch disposition {
+				case responsesPreOutputFail:
+					inspectResponsesStreamLine(line, &capture)
+					if capture.endReason == "" {
+						capture.endReason = "upstream_stream_error"
+						capture.errorDetail = truncatedStreamErrorDetail(string(failure.Body))
+					}
+					capture.semanticFailure = failure
+					return capture, false, nil
+				case responsesPreOutputCommit:
+					if commitErr := commitPreOutput(); commitErr != nil {
+						capture.endReason = "downstream_stream_write_failed"
+						return capture, headersWritten, commitErr
+					}
+				case responsesPreOutputDefer:
+					if preOutput.Len()+len(line) > responsesPreOutputMaxBytes {
+						capture.endReason = "upstream_stream_preoutput_too_large"
+						return capture, false, errResponsesPreOutputTooLarge
+					}
+				}
 			}
 			if writeErr := writeLine(line); writeErr != nil {
 				capture.endReason = "downstream_stream_write_failed"
@@ -156,35 +192,141 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 	}
 }
 
-func responsesStreamPreOutputOverloaded(line []byte) bool {
-	data, done, ok := sseDataFromLine(line)
-	if !ok || done {
-		return false
+func readResponsesPreOutputLine(reader *bufio.Reader) ([]byte, error) {
+	line := make([]byte, 0, reader.Size())
+	for {
+		fragment, err := reader.ReadSlice('\n')
+		if len(line)+len(fragment) > responsesPreOutputMaxLine {
+			return nil, errResponsesPreOutputTooLarge
+		}
+		line = append(line, fragment...)
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
+		return line, err
 	}
-	failure, ok := semanticFailureFromJSON([]byte(data))
-	return ok && strings.EqualFold(strings.TrimSpace(failure.Code), "server_is_overloaded")
 }
 
-func responsesStreamPreOutputCommits(line []byte) bool {
+func responsesStreamPreOutputDispositionForLine(line []byte) (responsesPreOutputDisposition, *upstreamSemanticFailure) {
 	data, done, ok := sseDataFromLine(line)
+	if !ok {
+		return responsesPreOutputDefer, nil
+	}
+	if done {
+		return responsesPreOutputCommit, nil
+	}
+	if strings.TrimSpace(data) == "" {
+		return responsesPreOutputDefer, nil
+	}
+	if failure, failed := semanticFailureFromJSON([]byte(data)); failed {
+		return responsesPreOutputFail, failure
+	}
+	var event map[string]any
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
+		return responsesPreOutputCommit, nil
+	}
+	eventType := strings.ToLower(strings.TrimSpace(anyString(event["type"])))
+	switch eventType {
+	case "response.created", "response.in_progress", "response.queued", "keepalive", "ping":
+		return responsesPreOutputDefer, nil
+	case "response.completed", "response.incomplete":
+		return responsesPreOutputCommit, nil
+	case "response.output_item.added", "response.output_item.done":
+		if responsesOutputItemStartsBusiness(event["item"]) {
+			return responsesPreOutputCommit, nil
+		}
+		return responsesPreOutputDefer, nil
+	case "response.content_part.added", "response.content_part.done":
+		if responsesContentPartStartsBusiness(event["part"]) || responsesContentPartStartsBusiness(event["content_part"]) {
+			return responsesPreOutputCommit, nil
+		}
+		return responsesPreOutputDefer, nil
+	case "response.image_generation_call.in_progress", "response.image_generation_call.generating", "response.mcp_call.in_progress", "response.tool_call.started":
+		return responsesPreOutputDefer, nil
+	case "response.output_text.delta", "response.output_text.done", "response.refusal.delta", "response.refusal.done",
+		"response.reasoning_summary_text.delta", "response.reasoning_text.delta", "response.reasoning_delta", "response.reasoning_summary.delta",
+		"response.reasoning.encrypted_content.delta", "response.reasoning.encrypted_content.done", "response.function_call_arguments.delta",
+		"response.function_call_arguments.done", "response.output_text.annotation.added":
+		if responsesEventHasBusinessOutput(event) {
+			return responsesPreOutputCommit, nil
+		}
+		return responsesPreOutputDefer, nil
+	default:
+		return responsesPreOutputCommit, nil
+	}
+}
+
+func responsesOutputItemStartsBusiness(value any) bool {
+	object, ok := value.(map[string]any)
 	if !ok {
 		return false
 	}
-	if done {
-		return true
-	}
-	if strings.TrimSpace(data) == "" {
-		return false
-	}
-	var event responsesStreamEvent
-	if err := json.Unmarshal([]byte(data), &event); err != nil {
-		return true
-	}
-	switch strings.ToLower(strings.TrimSpace(event.Type)) {
-	case "response.created", "response.in_progress", "response.queued", "keepalive", "ping":
+	switch strings.ToLower(strings.TrimSpace(anyString(object["type"]))) {
+	case "", "message":
+		content, _ := object["content"].([]any)
+		for _, item := range content {
+			if responsesContentPartStartsBusiness(item) {
+				return true
+			}
+		}
+		return responsesEventHasBusinessOutput(object)
+	case "function_call", "custom_tool_call":
+		for _, key := range []string{"arguments", "input"} {
+			if responsesBusinessValuePresent(object[key]) {
+				return true
+			}
+		}
 		return false
 	default:
-		return true
+		return responsesObjectHasNonStructuralPayload(object)
+	}
+}
+
+func responsesContentPartStartsBusiness(value any) bool {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(anyString(object["type"]))) {
+	case "", "output_text", "refusal", "text":
+		return responsesEventHasBusinessOutput(object)
+	default:
+		return responsesObjectHasNonStructuralPayload(object)
+	}
+}
+
+func responsesObjectHasNonStructuralPayload(object map[string]any) bool {
+	for key, value := range object {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "type", "id", "status", "role", "call_id", "name", "index", "output_index", "content_index", "item_id", "sequence_number":
+			continue
+		}
+		if responsesBusinessValuePresent(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func responsesEventHasBusinessOutput(object map[string]any) bool {
+	for _, key := range []string{"text", "refusal", "delta", "arguments", "result", "partial_image_b64", "stdout", "input", "output", "annotation", "patch", "command", "query", "encrypted_content"} {
+		if responsesBusinessValuePresent(object[key]) {
+			return true
+		}
+	}
+	return false
+}
+
+func responsesBusinessValuePresent(value any) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed) != ""
+	case []any:
+		return len(typed) > 0
+	case map[string]any:
+		return len(typed) > 0
+	default:
+		return value != nil
 	}
 }
 

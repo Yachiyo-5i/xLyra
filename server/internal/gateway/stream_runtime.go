@@ -17,6 +17,7 @@ type streamCaptureState struct {
 	streamCompleted  bool
 	endReason        string
 	errorDetail      string
+	semanticFailure  *upstreamSemanticFailure
 	firstByteLatency int64
 	malformedLines   int
 	annotations      []any

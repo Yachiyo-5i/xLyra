@@ -232,6 +232,79 @@ func TestHandleStreamResponseUnstartedErrorKeepsFailureSemantics(t *testing.T) {
 	}
 }
 
+func TestHandleStreamResponseClassifiesUnstartedSemanticCredentialFailure(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"type":"response.failed","response":{"status":"failed","error":{"code":"invalid_api_key","message":"credential rejected"}}}`)
+	failure, ok := semanticFailureFromJSON(body)
+	if !ok {
+		t.Fatal("expected semantic failure")
+	}
+	result := Handler{logger: gatewayDiscardLogger()}.handleStreamResponse(
+		context.Background(),
+		httptest.NewRecorder(),
+		"req-forward",
+		uuid.New(),
+		uuid.New(),
+		routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: "codex"}},
+		&testGatewayProtocol{
+			streamCapture: streamCaptureState{
+				endReason:       "upstream_stream_error",
+				errorDetail:     string(body),
+				semanticFailure: failure,
+			},
+		},
+		&http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+		},
+		gatewayAttemptResult{attempt: 1, downstreamPath: gatewayEndpointResponses, stream: true},
+		time.Now(),
+	)
+
+	if result.success || result.responseStarted {
+		t.Fatalf("semantic credential failure result = %#v", result)
+	}
+	if result.errorType != "upstream_credential_invalid" || result.cooldownScope != "credential" {
+		t.Fatalf("semantic credential classification = %#v", result)
+	}
+	if !strings.Contains(string(result.body), "invalid_api_key") || !strings.Contains(string(result.body), "credential rejected") || !shouldTryNextCredential(result) {
+		t.Fatalf("semantic credential body/retry = %q/%v", string(result.body), shouldTryNextCredential(result))
+	}
+}
+
+func TestHandleStreamResponseClassifiesPreOutputLimitAsRetryableStreamFailure(t *testing.T) {
+	t.Parallel()
+
+	result := Handler{logger: gatewayDiscardLogger()}.handleStreamResponse(
+		context.Background(),
+		httptest.NewRecorder(),
+		"req-forward",
+		uuid.New(),
+		uuid.New(),
+		routeengine.Candidate{},
+		&testGatewayProtocol{
+			streamCapture: streamCaptureState{endReason: "upstream_stream_preoutput_too_large"},
+			streamErr:     errResponsesPreOutputTooLarge,
+		},
+		&http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+		},
+		gatewayAttemptResult{attempt: 1, downstreamPath: gatewayEndpointResponses, stream: true},
+		time.Now(),
+	)
+
+	if result.success || result.responseStarted || result.statusCode != http.StatusBadGateway {
+		t.Fatalf("pre-output limit result = %#v", result)
+	}
+	if result.errorType != "upstream_stream_preoutput_too_large" || !upstreamStreamFailure(result) {
+		t.Fatalf("pre-output limit classification = %#v", result)
+	}
+}
+
 func TestHandleStreamResponseDownstreamCancelAfterHeadersUses499(t *testing.T) {
 	t.Parallel()
 

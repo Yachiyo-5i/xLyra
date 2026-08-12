@@ -34,6 +34,19 @@ func TestSemanticFailureFromJSONRecognizesTopLevelErrorEnvelope(t *testing.T) {
 	}
 }
 
+func TestSemanticFailureClassificationBodyFlattensNestedResponsesError(t *testing.T) {
+	t.Parallel()
+
+	failure, ok := semanticFailureFromJSON([]byte(`{"type":"response.failed","response":{"status":"failed","error":{"code":"invalid_api_key","message":"credential rejected"}}}`))
+	if !ok {
+		t.Fatal("expected semantic failure")
+	}
+	flattened, ok := semanticFailureFromJSON(semanticFailureClassificationBody(failure))
+	if !ok || flattened.Code != "invalid_api_key" || flattened.Message != "credential rejected" {
+		t.Fatalf("flattened failure = %#v, ok=%v", flattened, ok)
+	}
+}
+
 func TestSemanticFailureFromJSONIgnoresFailedOutputItem(t *testing.T) {
 	t.Parallel()
 
