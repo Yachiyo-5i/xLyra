@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.3](https://github.com/Yachiyo-5i/xLyra/compare/v1.1.2...v1.1.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* 🐛 修复多级代理连接 Codex OAuth 时命名空间工具调用被拒绝的问题 ([02d51a0](https://github.com/Yachiyo-5i/xLyra/commit/02d51a041e80f56514dd7c82d151e31839914efb))
+* 🐛 修复站点自定义请求头删除后仍被保留的问题 ([07cc9b2](https://github.com/Yachiyo-5i/xLyra/commit/07cc9b25458772f6c6b6821c355ff7959b3373d5))
+
 ## [1.1.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.1.1...v1.1.2) (2026-08-12)
 
 
