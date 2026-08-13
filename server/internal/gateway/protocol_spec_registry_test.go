@@ -135,6 +135,9 @@ func TestEffectiveProtocolSpecMergesProtocolProviderAndModel(t *testing.T) {
 	if !containsString(spec.RequestParams.Unsupported, "stream_options") {
 		t.Fatalf("expected Codex unsupported stream_options, got %#v", spec.RequestParams.Unsupported)
 	}
+	if !containsString(spec.RequestParams.Unsupported, "prompt_cache_options") {
+		t.Fatalf("expected Codex unsupported prompt_cache_options, got %#v", spec.RequestParams.Unsupported)
+	}
 	if got := spec.RequestParams.Forced["stream"]; got != true {
 		t.Fatalf("forced stream = %#v, want true", got)
 	}
