@@ -659,6 +659,7 @@
           "stream_options",
           "context_management",
           "truncation",
+          "prompt_cache_options",
           "prompt_cache_retention",
           "user",
           "metadata"

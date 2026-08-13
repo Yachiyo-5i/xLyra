@@ -123,7 +123,7 @@ func TestCodexProtocolBuildsResponsesPayloadFromStringInput(t *testing.T) {
 	}
 }
 
-func TestCodexProtocolNormalizesResponsesHistoryAndStripsCacheRetention(t *testing.T) {
+func TestCodexProtocolNormalizesResponsesHistoryAndStripsUnsupportedCacheFields(t *testing.T) {
 	t.Parallel()
 
 	protocol := newCodexProtocolAdapter(gatewayRequest{})
@@ -131,13 +131,15 @@ func TestCodexProtocolNormalizesResponsesHistoryAndStripsCacheRetention(t *testi
 		DownstreamPath: gatewayEndpointResponses,
 		Payload: map[string]any{
 			"model":                  "gpt-5.6-terra",
+			"prompt_cache_key":       "cache-key",
+			"prompt_cache_options":   map[string]any{"mode": "explicit"},
 			"prompt_cache_retention": "24h",
 			"input": []any{
 				map[string]any{
 					"type": "message",
 					"role": "user",
 					"content": []any{
-						map[string]any{"type": "output_text", "text": "hello"},
+						map[string]any{"type": "output_text", "text": "hello", "prompt_cache_breakpoint": map[string]any{}},
 					},
 				},
 				map[string]any{
@@ -160,6 +162,12 @@ func TestCodexProtocolNormalizesResponsesHistoryAndStripsCacheRetention(t *testi
 	if _, ok := payload["prompt_cache_retention"]; ok {
 		t.Fatalf("prompt_cache_retention should be stripped: %#v", payload)
 	}
+	if _, ok := payload["prompt_cache_options"]; ok {
+		t.Fatalf("prompt_cache_options should be stripped: %#v", payload)
+	}
+	if got := payload["prompt_cache_key"]; got != "cache-key" {
+		t.Fatalf("prompt_cache_key = %#v, want cache-key", got)
+	}
 	input, ok := payload["input"].([]any)
 	if !ok || len(input) != 2 {
 		t.Fatalf("input = %#v, want two messages", payload["input"])
@@ -168,12 +176,51 @@ func TestCodexProtocolNormalizesResponsesHistoryAndStripsCacheRetention(t *testi
 	if got := userContent[0].(map[string]any)["type"]; got != "input_text" {
 		t.Fatalf("user content type = %#v, want input_text", got)
 	}
+	if _, ok := userContent[0].(map[string]any)["prompt_cache_breakpoint"]; ok {
+		t.Fatalf("prompt_cache_breakpoint should be stripped: %#v", userContent[0])
+	}
 	assistantContent := input[1].(map[string]any)["content"].([]any)
 	if got := assistantContent[0].(map[string]any)["type"]; got != "output_text" {
 		t.Fatalf("assistant content type = %#v, want output_text", got)
 	}
 	if got := assistantContent[1].(map[string]any)["type"]; got != "refusal" {
 		t.Fatalf("assistant refusal type = %#v, want refusal", got)
+	}
+}
+
+func TestOpenAIResponsesProtocolPreservesPromptCacheOptions(t *testing.T) {
+	t.Parallel()
+
+	request := gatewayRequest{
+		DownstreamPath: gatewayEndpointResponses,
+		Payload: map[string]any{
+			"model":                "gpt-5.6",
+			"prompt_cache_options": map[string]any{"mode": "explicit"},
+			"input": []any{
+				map[string]any{
+					"type": "message",
+					"role": "user",
+					"content": []any{
+						map[string]any{"type": "input_text", "text": "hello", "prompt_cache_breakpoint": map[string]any{}},
+					},
+				},
+			},
+		},
+	}
+	payload, err := newOpenAIResponsesProtocolAdapter(request).BuildUpstreamPayload(request, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "openai"},
+		Model: routeengine.CandidateModel{UpstreamName: "gpt-5.6"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if _, ok := payload["prompt_cache_options"]; !ok {
+		t.Fatalf("prompt_cache_options should be preserved: %#v", payload)
+	}
+	input := payload["input"].([]any)
+	content := input[0].(map[string]any)["content"].([]any)
+	if _, ok := content[0].(map[string]any)["prompt_cache_breakpoint"]; !ok {
+		t.Fatalf("prompt_cache_breakpoint should be preserved: %#v", content[0])
 	}
 }
 
