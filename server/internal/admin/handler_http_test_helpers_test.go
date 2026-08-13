@@ -3,7 +3,10 @@ package admin
 import (
 	"bytes"
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -218,6 +221,91 @@ func adminGormWithCallbacks(t *testing.T, callbacks adminGormCallbacks) *gorm.DB
 		}
 		return nil
 	})
+}
+
+func adminTransactionGormWithCallbacks(t *testing.T, callbacks adminGormCallbacks) *gorm.DB {
+	t.Helper()
+
+	sqlDB := sql.OpenDB(adminTransactionConnector{})
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		Conn:                 sqlDB,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{
+		DisableAutomaticPing:   true,
+		SkipDefaultTransaction: true,
+		Logger:                 gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open transaction gorm db: %v", err)
+	}
+	if callbacks.query != nil {
+		if err := db.Callback().Query().Replace("gorm:query", callbacks.query); err != nil {
+			t.Fatalf("replace query callback: %v", err)
+		}
+	}
+	if callbacks.create != nil {
+		if err := db.Callback().Create().Replace("gorm:create", callbacks.create); err != nil {
+			t.Fatalf("replace create callback: %v", err)
+		}
+	}
+	if callbacks.update != nil {
+		if err := db.Callback().Update().Replace("gorm:update", callbacks.update); err != nil {
+			t.Fatalf("replace update callback: %v", err)
+		}
+	}
+	if callbacks.deleteCallback != nil {
+		if err := db.Callback().Delete().Replace("gorm:delete", callbacks.deleteCallback); err != nil {
+			t.Fatalf("replace delete callback: %v", err)
+		}
+	}
+	return db
+}
+
+type adminTransactionConnector struct{}
+
+func (adminTransactionConnector) Connect(context.Context) (driver.Conn, error) {
+	return adminTransactionConn{}, nil
+}
+
+func (adminTransactionConnector) Driver() driver.Driver {
+	return adminTransactionDriver{}
+}
+
+type adminTransactionDriver struct{}
+
+func (adminTransactionDriver) Open(string) (driver.Conn, error) {
+	return adminTransactionConn{}, nil
+}
+
+type adminTransactionConn struct{}
+
+func (adminTransactionConn) Prepare(string) (driver.Stmt, error) {
+	return nil, errors.New("admin fake driver only supports transactions")
+}
+
+func (adminTransactionConn) Close() error {
+	return nil
+}
+
+func (adminTransactionConn) Begin() (driver.Tx, error) {
+	return adminTransactionTx{}, nil
+}
+
+func (adminTransactionConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
+	return adminTransactionTx{}, nil
+}
+
+type adminTransactionTx struct{}
+
+func (adminTransactionTx) Commit() error {
+	return nil
+}
+
+func (adminTransactionTx) Rollback() error {
+	return nil
 }
 
 func adminStoreWithCallbacks(t *testing.T, callbacks adminGormCallbacks) *store.Store {

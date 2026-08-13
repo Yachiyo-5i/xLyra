@@ -149,20 +149,20 @@ type routeCooldownClearRequest struct {
 }
 
 type siteUpsertRequest struct {
-	Name            string              `json:"name"`
-	Slug            string              `json:"slug"`
-	SiteType        string              `json:"site_type"`
-	BaseURL         string              `json:"base_url"`
-	Enabled         *bool               `json:"enabled"`
-	RoutingPriority *float64            `json:"routing_priority"`
-	ProxyID         *string             `json:"proxy_id"`
-	RequestHeaders  []siteRequestHeader `json:"request_headers"`
-	Gateway         *siteGatewayRequest `json:"gateway"`
-	NewAPI          *siteNewAPIRequest  `json:"newapi"`
-	XLyra           *siteXLyraRequest   `json:"xlyra"`
-	APIKey          string              `json:"api_key"`
-	APIKeys         []siteAPIKeyRequest `json:"api_keys"`
-	SkipRefresh     bool                `json:"skip_refresh"`
+	Name            string               `json:"name"`
+	Slug            string               `json:"slug"`
+	SiteType        string               `json:"site_type"`
+	BaseURL         string               `json:"base_url"`
+	Enabled         *bool                `json:"enabled"`
+	RoutingPriority *float64             `json:"routing_priority"`
+	ProxyID         *string              `json:"proxy_id"`
+	RequestHeaders  *[]siteRequestHeader `json:"request_headers"`
+	Gateway         *siteGatewayRequest  `json:"gateway"`
+	NewAPI          *siteNewAPIRequest   `json:"newapi"`
+	XLyra           *siteXLyraRequest    `json:"xlyra"`
+	APIKey          string               `json:"api_key"`
+	APIKeys         []siteAPIKeyRequest  `json:"api_keys"`
+	SkipRefresh     bool                 `json:"skip_refresh"`
 }
 
 type siteAPIKeyRequest struct {

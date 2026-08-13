@@ -560,14 +560,22 @@ func TestPayloadCollectionsAndNumbersNormalizeInputs(t *testing.T) {
 		}
 	}
 
-	headers := requestHeadersFromInput([]siteRequestHeader{
+	headerInput := []siteRequestHeader{
 		{Key: " X-Test ", Value: "one"},
 		{Key: "X-Test", Value: "two"},
 		{Key: " ", Value: "ignored"},
 		{Key: "X-Empty", Value: ""},
-	})
+	}
+	headers := requestHeadersFromInput(&headerInput)
 	if len(headers) != 2 || headers["X-Test"] != "two" || headers["X-Empty"] != "" {
 		t.Fatalf("requestHeadersFromInput = %#v", headers)
+	}
+	var payload siteUpsertRequest
+	if err := json.Unmarshal([]byte(`{"request_headers":[]}`), &payload); err != nil {
+		t.Fatalf("decode empty request headers: %v", err)
+	}
+	if payload.RequestHeaders == nil || len(*payload.RequestHeaders) != 0 {
+		t.Fatalf("explicit empty request headers = %#v, want non-nil empty slice", payload.RequestHeaders)
 	}
 }
 

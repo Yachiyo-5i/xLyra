@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -241,6 +242,74 @@ func TestListSiteHealthUsesUnknownStateWhenMissing(t *testing.T) {
 	}
 	if meta, ok := health["metadata"].(map[string]any); !ok || len(meta) != 0 {
 		t.Fatalf("metadata = %#v, want empty object", health["metadata"])
+	}
+}
+
+func TestUpdateSiteClearsRequestHeadersAndPreservesOtherMeta(t *testing.T) {
+	t.Parallel()
+
+	siteID := uuid.New()
+	existing := store.Site{
+		ID:              siteID,
+		Name:            "Headers Site",
+		Slug:            "headers-site",
+		SiteType:        "openai",
+		BaseURL:         "https://api.example.com",
+		Status:          "active",
+		Enabled:         true,
+		RoutingPriority: 1,
+		Meta:            store.JSON(`{"keep":true,"request_headers":[{"key":"X-Trace","value":"enabled"}]}`),
+	}
+	var saved store.Site
+	db := adminTransactionGormWithCallbacks(t, adminGormCallbacks{
+		query: func(tx *gorm.DB) {
+			switch dest := tx.Statement.Dest.(type) {
+			case *store.Site:
+				if saved.ID != uuid.Nil {
+					*dest = saved
+				} else {
+					*dest = existing
+				}
+				tx.RowsAffected = 1
+				tx.Statement.RowsAffected = 1
+			case *store.SiteState:
+				tx.AddError(gorm.ErrRecordNotFound)
+			case *[]store.SiteModel:
+				*dest = []store.SiteModel{}
+			case *[]store.SiteCredential:
+				*dest = []store.SiteCredential{}
+			default:
+				tx.AddError(gorm.ErrInvalidData)
+			}
+		},
+		update: func(tx *gorm.DB) {
+			item, ok := tx.Statement.Dest.(*store.Site)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			saved = *item
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
+	})
+	handler := Handler{sites: sitepkg.NewService(adminStoreWithGorm(db), adminTestMasterKey)}
+	req := adminRequestWithRouteParam(
+		http.MethodPut,
+		"/api/v1/sites/"+siteID.String(),
+		`{"name":"Headers Site","slug":"headers-site","site_type":"openai","base_url":"https://api.example.com","enabled":true,"routing_priority":1,"request_headers":[],"skip_refresh":true}`,
+		"siteID",
+		siteID.String(),
+	)
+	rec := adminPerform(handler.UpdateSite, req)
+
+	adminAssertStatus(t, rec, http.StatusOK)
+	meta := map[string]any{}
+	if err := json.Unmarshal(saved.Meta, &meta); err != nil {
+		t.Fatalf("decode saved meta: %v", err)
+	}
+	if _, ok := meta["request_headers"]; ok || meta["keep"] != true {
+		t.Fatalf("saved meta = %#v, want request headers removed and other metadata preserved", meta)
 	}
 }
 

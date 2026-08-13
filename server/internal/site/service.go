@@ -59,18 +59,19 @@ type CreateSiteParams struct {
 }
 
 type UpdateSiteParams struct {
-	ID              uuid.UUID
-	Name            string
-	Slug            string
-	SiteType        string
-	BaseURL         string
-	Enabled         bool
-	RoutingPriority *float64
-	GatewayConfig   *GatewayConfig
-	ProxyID         *string
-	RequestHeaders  map[string]string
-	Credential      *CredentialInput
-	Credentials     []CredentialInput
+	ID                uuid.UUID
+	Name              string
+	Slug              string
+	SiteType          string
+	BaseURL           string
+	Enabled           bool
+	RoutingPriority   *float64
+	GatewayConfig     *GatewayConfig
+	ProxyID           *string
+	RequestHeaders    map[string]string
+	RequestHeadersSet bool
+	Credential        *CredentialInput
+	Credentials       []CredentialInput
 }
 
 type CredentialInput struct {
@@ -498,7 +499,7 @@ func (s *Service) Create(ctx context.Context, params CreateSiteParams) (store.Si
 			return err
 		}
 		meta = mergeStringMeta(meta, "proxy_id", params.ProxyID)
-		meta = mergeRequestHeadersMeta(meta, params.RequestHeaders)
+		meta = mergeRequestHeadersMeta(meta, params.RequestHeaders, true)
 
 		site, err := siteRepo.Create(ctx, store.CreateSiteParams{
 			Name:            params.Name,
@@ -597,7 +598,7 @@ func (s *Service) Update(ctx context.Context, params UpdateSiteParams) (store.Si
 			return err
 		}
 		meta = mergeStringMeta(meta, "proxy_id", params.ProxyID)
-		meta = mergeRequestHeadersMeta(meta, params.RequestHeaders)
+		meta = mergeRequestHeadersMeta(meta, params.RequestHeaders, params.RequestHeadersSet)
 
 		site, err := siteRepo.Update(ctx, store.UpdateSiteParams{
 			ID:              params.ID,
@@ -2573,8 +2574,8 @@ func mergeStringMeta(existing []byte, key string, value *string) []byte {
 	return encoded
 }
 
-func mergeRequestHeadersMeta(existing []byte, headers map[string]string) []byte {
-	if len(headers) == 0 {
+func mergeRequestHeadersMeta(existing []byte, headers map[string]string, set bool) []byte {
+	if !set {
 		return existing
 	}
 
@@ -2586,11 +2587,15 @@ func mergeRequestHeadersMeta(existing []byte, headers map[string]string) []byte 
 		root = map[string]any{}
 	}
 
-	items := make([]map[string]string, 0, len(headers))
-	for k, v := range headers {
-		items = append(items, map[string]string{"key": k, "value": v})
+	if len(headers) == 0 {
+		delete(root, "request_headers")
+	} else {
+		items := make([]map[string]string, 0, len(headers))
+		for k, v := range headers {
+			items = append(items, map[string]string{"key": k, "value": v})
+		}
+		root["request_headers"] = items
 	}
-	root["request_headers"] = items
 
 	encoded, err := json.Marshal(root)
 	if err != nil {

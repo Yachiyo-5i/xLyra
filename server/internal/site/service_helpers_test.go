@@ -347,7 +347,7 @@ func TestSiteMetaHelpersReadProxyAndMergeHeaders(t *testing.T) {
 
 	merged := mergeRequestHeadersMeta(store.JSON(`{"proxy_id":"proxy-a"}`), map[string]string{
 		"X-Trace": "enabled",
-	})
+	}, true)
 	root := siteMustJSONMap(t, merged)
 	if root["proxy_id"] != "proxy-a" {
 		t.Fatalf("expected existing proxy id to be preserved, got %#v", root)
@@ -361,12 +361,16 @@ func TestSiteMetaHelpersReadProxyAndMergeHeaders(t *testing.T) {
 		t.Fatalf("unexpected request header payload: %#v", header)
 	}
 
-	existing := store.JSON(`{"keep":true}`)
-	if got := mergeRequestHeadersMeta(existing, nil); string(got) != string(existing) {
-		t.Fatalf("empty headers should preserve existing meta, got %s", string(got))
+	existing := store.JSON(`{"keep":true,"request_headers":[{"key":"X-Trace","value":"enabled"}]}`)
+	if got := mergeRequestHeadersMeta(existing, nil, false); string(got) != string(existing) {
+		t.Fatalf("unset headers should preserve existing meta, got %s", string(got))
+	}
+	root = siteMustJSONMap(t, mergeRequestHeadersMeta(existing, nil, true))
+	if _, ok := root["request_headers"]; ok || root["keep"] != true {
+		t.Fatalf("explicit empty headers should remove only request headers, got %#v", root)
 	}
 
-	merged = mergeRequestHeadersMeta(store.JSON(`{`), map[string]string{"X-Trace": "enabled"})
+	merged = mergeRequestHeadersMeta(store.JSON(`{`), map[string]string{"X-Trace": "enabled"}, true)
 	root = siteMustJSONMap(t, merged)
 	headers, ok = root["request_headers"].([]any)
 	if !ok || len(headers) != 1 {

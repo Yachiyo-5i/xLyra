@@ -666,9 +666,7 @@ function siteUpsertBody(input: SiteUpsertInput) {
     routing_priority: input.routingPriority,
     proxy_id: input.proxyId ?? '',
     skip_refresh: input.skipRefresh,
-    request_headers: input.requestHeaders?.length
-      ? input.requestHeaders.map((h) => ({ key: h.key, value: h.value }))
-      : undefined,
+    request_headers: input.requestHeaders?.map((h) => ({ key: h.key, value: h.value })),
     gateway: input.gateway
       ? {
           responses_tool_policy: input.gateway.responsesToolPolicy,

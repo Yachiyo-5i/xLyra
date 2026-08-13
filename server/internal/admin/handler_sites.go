@@ -169,17 +169,18 @@ func (h Handler) UpdateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, _, err := h.sites.Update(r.Context(), sitepkg.UpdateSiteParams{
-		ID:              siteID,
-		Name:            payload.Name,
-		Slug:            payload.Slug,
-		SiteType:        payload.SiteType,
-		BaseURL:         baseURL,
-		Enabled:         enabled,
-		RoutingPriority: payload.RoutingPriority,
-		GatewayConfig:   payload.Gateway.toSiteGatewayConfig(),
-		ProxyID:         payload.ProxyID,
-		RequestHeaders:  requestHeadersFromInput(payload.RequestHeaders),
-		Credentials:     credentials,
+		ID:                siteID,
+		Name:              payload.Name,
+		Slug:              payload.Slug,
+		SiteType:          payload.SiteType,
+		BaseURL:           baseURL,
+		Enabled:           enabled,
+		RoutingPriority:   payload.RoutingPriority,
+		GatewayConfig:     payload.Gateway.toSiteGatewayConfig(),
+		ProxyID:           payload.ProxyID,
+		RequestHeaders:    requestHeadersFromInput(payload.RequestHeaders),
+		RequestHeadersSet: payload.RequestHeaders != nil,
+		Credentials:       credentials,
 	})
 	if err != nil {
 		h.writeError(w, r, http.StatusBadRequest, "site_update_failed", err.Error())
@@ -1688,12 +1689,12 @@ func oauthAccountPayload(meta map[string]any) map[string]any {
 	}
 }
 
-func requestHeadersFromInput(input []siteRequestHeader) map[string]string {
-	if len(input) == 0 {
+func requestHeadersFromInput(input *[]siteRequestHeader) map[string]string {
+	if input == nil || len(*input) == 0 {
 		return nil
 	}
-	result := make(map[string]string, len(input))
-	for _, h := range input {
+	result := make(map[string]string, len(*input))
+	for _, h := range *input {
 		key := strings.TrimSpace(h.Key)
 		if key == "" {
 			continue
