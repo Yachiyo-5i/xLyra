@@ -69,6 +69,56 @@ func TestApplyDownstreamPassthroughHeadersDropsAllDownstreamHeadersForCodex(t *t
 	}
 }
 
+func TestApplyDownstreamPassthroughHeadersPassesResponsesLiteForCodex(t *testing.T) {
+	upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses")
+	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent)
+	upstreamReq.Header.Set("Originator", codexOriginator)
+
+	downstreamHeaders := http.Header{}
+	downstreamHeaders.Set(codexResponsesLiteHeader, "true")
+	downstreamHeaders.Set("Session-Id", "session-123")
+	downstreamHeaders.Set("X-Downstream-Trace", "drop-me")
+
+	applyDownstreamPassthroughHeaders(upstreamReq, gatewayRequest{
+		DownstreamPath:    gatewayEndpointResponses,
+		DownstreamHeaders: downstreamHeaders,
+	}, testRouteCandidateForSite("codex", "gpt-5.6"))
+
+	assertGatewayHeader(t, upstreamReq, codexResponsesLiteHeader, "true")
+	for _, key := range []string{"Session-Id", "X-Downstream-Trace"} {
+		assertNoGatewayHeader(t, upstreamReq, key)
+	}
+	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "Originator", codexOriginator)
+}
+
+func TestApplyDownstreamPassthroughHeadersRejectsInactiveResponsesLiteForCodex(t *testing.T) {
+	tests := []struct {
+		name  string
+		path  string
+		value string
+	}{
+		{name: "false value", path: gatewayEndpointResponses, value: "false"},
+		{name: "unknown value", path: gatewayEndpointResponses, value: "enabled"},
+		{name: "messages endpoint", path: gatewayEndpointMessages, value: "true"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses")
+			downstreamHeaders := http.Header{}
+			downstreamHeaders.Set(codexResponsesLiteHeader, test.value)
+
+			applyDownstreamPassthroughHeaders(upstreamReq, gatewayRequest{
+				DownstreamPath:    test.path,
+				DownstreamHeaders: downstreamHeaders,
+			}, testRouteCandidateForSite("codex", "gpt-5.6"))
+
+			assertNoGatewayHeader(t, upstreamReq, codexResponsesLiteHeader)
+		})
+	}
+}
+
 func TestApplyDownstreamPassthroughHeadersPassesRemoteCompactionV2HeadersForCodex(t *testing.T) {
 	upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses")
 	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent)

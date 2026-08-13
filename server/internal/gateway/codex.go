@@ -48,10 +48,10 @@ func codexResponsesLiteRequested(request gatewayRequest) bool {
 	if request.DownstreamHeaders == nil {
 		return false
 	}
-	if !gatewayEndpointSupportsDownstreamHeaderPassthrough(request.DownstreamPath) {
+	if strings.TrimSpace(request.DownstreamPath) != gatewayEndpointResponses {
 		return false
 	}
-	return strings.TrimSpace(request.DownstreamHeaders.Get(codexResponsesLiteHeader)) != ""
+	return strings.EqualFold(strings.TrimSpace(request.DownstreamHeaders.Get(codexResponsesLiteHeader)), "true")
 }
 
 func applyCodexResponsesLitePolicy(payload map[string]any, request gatewayRequest) map[string]any {
@@ -106,7 +106,7 @@ func applyDownstreamPassthroughHeaders(req *http.Request, request gatewayRequest
 	}
 	remoteCompactionV2 := isCodexRemoteCompactionV2Request(request, candidate)
 	codexSite := isCodexSite(candidate.Site.SiteType)
-	if codexSite && !remoteCompactionV2 {
+	if codexSite && !remoteCompactionV2 && !codexResponsesLiteRequested(request) {
 		return
 	}
 	for key, values := range request.DownstreamHeaders {
@@ -169,6 +169,9 @@ func downstreamHeaderPassthroughAllowed(key string, remoteCompactionV2 bool, cod
 		return false
 	}
 	if codexSite {
+		if key == strings.ToLower(codexResponsesLiteHeader) {
+			return true
+		}
 		if _, ok := codexRemoteCompactionV2Headers[key]; ok {
 			return remoteCompactionV2
 		}

@@ -203,6 +203,48 @@ func TestCodexProtocolResponsesLiteForcesParallelToolCallsFalse(t *testing.T) {
 	}
 }
 
+func TestCodexProtocolResponsesLitePreservesNamespaceAndCapabilityHeader(t *testing.T) {
+	t.Parallel()
+
+	downstreamHeaders := http.Header{}
+	downstreamHeaders.Set(codexResponsesLiteHeader, "true")
+	request := gatewayRequest{
+		DownstreamPath:    gatewayEndpointResponses,
+		DownstreamHeaders: downstreamHeaders,
+		Payload: map[string]any{
+			"model": "gpt-5.6",
+			"input": []any{
+				map[string]any{
+					"type":      "function_call",
+					"call_id":   "call_1",
+					"name":      "lookup",
+					"namespace": "crm",
+					"arguments": `{"id":"C1"}`,
+				},
+			},
+		},
+	}
+	candidate := routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "codex"},
+		Model: routeengine.CandidateModel{UpstreamName: "gpt-5.6"},
+	}
+
+	payload, err := newCodexProtocolAdapter(request).BuildUpstreamPayload(request, candidate)
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	input := payload["input"].([]any)
+	call := input[0].(map[string]any)
+	if call["namespace"] != "crm" {
+		t.Fatalf("function call namespace = %#v, want crm", call["namespace"])
+	}
+
+	upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses")
+	applyCodexGatewayHeaders(upstreamReq, "account_1", true)
+	applyDownstreamPassthroughHeaders(upstreamReq, request, candidate)
+	assertGatewayHeader(t, upstreamReq, codexResponsesLiteHeader, "true")
+}
+
 func TestCodexProtocolWithoutResponsesLiteKeepsParallelToolCallsForced(t *testing.T) {
 	t.Parallel()
 
@@ -222,6 +264,44 @@ func TestCodexProtocolWithoutResponsesLiteKeepsParallelToolCallsForced(t *testin
 	}
 	if payload["parallel_tool_calls"] != true {
 		t.Fatalf("parallel_tool_calls = %#v, want true without Responses-Lite header", payload["parallel_tool_calls"])
+	}
+}
+
+func TestCodexProtocolInactiveResponsesLiteKeepsParallelToolCallsForced(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{name: "false value", value: "false"},
+		{name: "unknown value", value: "enabled"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			downstreamHeaders := http.Header{}
+			downstreamHeaders.Set(codexResponsesLiteHeader, test.value)
+			request := gatewayRequest{
+				DownstreamPath:    gatewayEndpointResponses,
+				DownstreamHeaders: downstreamHeaders,
+				Payload: map[string]any{
+					"model":               "gpt-5.6",
+					"input":               "hi",
+					"parallel_tool_calls": false,
+				},
+			}
+
+			payload, err := newCodexProtocolAdapter(request).BuildUpstreamPayload(request, routeengine.Candidate{
+				Model: routeengine.CandidateModel{UpstreamName: "gpt-5.6"},
+			})
+			if err != nil {
+				t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+			}
+			if payload["parallel_tool_calls"] != true {
+				t.Fatalf("parallel_tool_calls = %#v, want true", payload["parallel_tool_calls"])
+			}
+		})
 	}
 }
 
