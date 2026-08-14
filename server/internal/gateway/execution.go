@@ -66,6 +66,7 @@ type gatewayAttemptResult struct {
 	upstreamProtocol         string
 	upstreamURL              string
 	credentialID             uuid.UUID
+	cacheDomain              string
 	credentialName           string
 	credentialMasked         string
 	credentialPriority       float64
@@ -168,6 +169,7 @@ func (h Handler) forwardGatewayRequest(
 			downstreamPath:           request.DownstreamPath,
 			upstreamProtocol:         protocol.ProtocolName(),
 			credentialID:             selectedCredential.Credential.ID,
+			cacheDomain:              store.SiteCredentialCacheDomain(selectedCredential.Credential),
 			credentialName:           store.SiteCredentialDisplayName(selectedCredential.Credential, selectedCredential.State),
 			credentialMasked:         selectedCredential.Credential.MaskedSecret,
 			credentialPriority:       store.SiteCredentialRoutingPriority(selectedCredential.Credential),

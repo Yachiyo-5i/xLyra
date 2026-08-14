@@ -48,6 +48,7 @@ type RouteCandidateRow struct {
 	PreferredCredentialRoutingPriority float64
 	PreferredCredentialCostMultiplier  float64
 	PreferredCredentialGroupName       sql.NullString
+	PreferredCredentialCacheDomain     string
 	PricingGroupName                   sql.NullString
 	PricingCurrency                    sql.NullString
 	PricingInputValue                  sql.NullFloat64
@@ -268,6 +269,7 @@ func setPreferredRouteCredential(row *RouteCandidateRow, item GatewayCredential)
 	row.PreferredCredentialRoutingPriority = SiteCredentialRoutingPriority(item.Credential)
 	row.PreferredCredentialCostMultiplier = SiteCredentialUpstreamCostMultiplier(item.Credential)
 	row.PreferredCredentialGroupName = item.GroupName
+	row.PreferredCredentialCacheDomain = SiteCredentialCacheDomain(item.Credential)
 }
 
 func fillRoutePricing(row *RouteCandidateRow, pricings []SiteModelPricing) {

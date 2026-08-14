@@ -104,6 +104,12 @@ type RequestLogDetail struct {
 	UsageCurrency         sql.NullString
 }
 
+type RequestLogCacheObservation struct {
+	Success   bool
+	Metadata  JSON
+	CreatedAt time.Time
+}
+
 type RequestLogRepository struct {
 	db *gorm.DB
 }
@@ -183,6 +189,37 @@ func (r RequestLogRepository) ListRecentByAPIKeyAndCanonicalModel(ctx context.Co
 		Limit(limit).
 		Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list recent request logs by api key and canonical model: %w", err)
+	}
+	return items, nil
+}
+
+func (r RequestLogRepository) ListRecentCacheObservations(ctx context.Context, apiKeyID uuid.UUID, canonicalModelID uuid.UUID, since time.Time, limit int) ([]RequestLogCacheObservation, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("request log store is not initialized")
+	}
+	if apiKeyID == uuid.Nil || canonicalModelID == uuid.Nil || since.IsZero() {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	var items []RequestLogCacheObservation
+	if err := r.db.WithContext(ctx).
+		Model(&RequestLog{}).
+		Clauses(clause.Where{Exprs: []clause.Expression{
+			clause.Eq{Column: clause.Column{Name: "api_key_id"}, Value: apiKeyID},
+			clause.Eq{Column: clause.Column{Name: "canonical_model_id"}, Value: canonicalModelID},
+			clause.Gte{Column: clause.Column{Name: "created_at"}, Value: since},
+		}}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{
+			{Column: clause.Column{Name: "created_at"}, Desc: true},
+		}}).
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list recent request log cache observations: %w", err)
 	}
 	return items, nil
 }

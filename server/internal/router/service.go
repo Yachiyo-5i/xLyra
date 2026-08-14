@@ -104,6 +104,7 @@ type CandidateCredential struct {
 	Name                   string
 	RoutingPriority        float64
 	GroupName              *string
+	CacheDomain            string
 	UpstreamCostMultiplier float64
 }
 
@@ -262,6 +263,7 @@ func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (Candida
 				Name:                   nullStringText(row.PreferredCredentialName),
 				RoutingPriority:        row.PreferredCredentialRoutingPriority,
 				GroupName:              nullableString(row.PreferredCredentialGroupName),
+				CacheDomain:            row.PreferredCredentialCacheDomain,
 				UpstreamCostMultiplier: costMultiplier,
 			},
 			Pricing: CandidatePricing{

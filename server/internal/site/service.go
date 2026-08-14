@@ -854,6 +854,7 @@ type CreateAPIKeyInput struct {
 	DisplayName            string
 	RoutingPriority        *float64
 	UpstreamCostMultiplier *float64
+	CacheDomain            string
 }
 
 type UpdateAPIKeyInput struct {
@@ -861,6 +862,7 @@ type UpdateAPIKeyInput struct {
 	DisplayName            *string
 	RoutingPriority        *float64
 	UpstreamCostMultiplier *float64
+	CacheDomain            *string
 }
 
 func (s *Service) CreateAPIKey(ctx context.Context, siteID uuid.UUID, input CreateAPIKeyInput) (APIKeyCredential, error) {
@@ -880,6 +882,10 @@ func (s *Service) CreateAPIKey(ctx context.Context, siteID uuid.UUID, input Crea
 		return APIKeyCredential{}, err
 	}
 	costMultiplier, err := normalizeUpstreamCostMultiplierPointer(input.UpstreamCostMultiplier, 1.0)
+	if err != nil {
+		return APIKeyCredential{}, err
+	}
+	cacheDomain, err := normalizeCacheDomain(input.CacheDomain)
 	if err != nil {
 		return APIKeyCredential{}, err
 	}
@@ -916,7 +922,10 @@ func (s *Service) CreateAPIKey(ctx context.Context, siteID uuid.UUID, input Crea
 		credential, err := s.saveCredentialInput(ctx, credentialRepo, siteID, CredentialInput{
 			Type:   scopedAPIKeyCredentialType(),
 			Secret: apiKey,
-			Meta:   map[string]any{"enabled": true},
+			Meta: map[string]any{
+				"enabled":      true,
+				"cache_domain": cacheDomain,
+			},
 		})
 		if err != nil {
 			return err
@@ -1591,6 +1600,7 @@ type APIKeyCredential struct {
 	SecretMissing          bool
 	RoutingPriority        float64
 	UpstreamCostMultiplier float64
+	CacheDomain            string
 	Meta                   map[string]any
 }
 
@@ -1635,6 +1645,7 @@ func (s *Service) APIKeys(ctx context.Context, siteID uuid.UUID) ([]APIKeyCreden
 			SecretMissing:          boolFromMeta(meta, "raw_key_missing", false),
 			RoutingPriority:        credentialRoutingPriority(credential),
 			UpstreamCostMultiplier: credentialUpstreamCostMultiplier(credential),
+			CacheDomain:            store.SiteCredentialCacheDomain(credential),
 			Meta:                   meta,
 		})
 	}
@@ -1708,7 +1719,7 @@ func (s *Service) UpdateAPIKey(ctx context.Context, siteID uuid.UUID, credential
 	if err != nil {
 		return APIKeyCredential{}, err
 	}
-	if !SupportsMultipleAPIKeys(site.SiteType) && (input.DisplayName != nil || input.RoutingPriority != nil || input.UpstreamCostMultiplier != nil) {
+	if !SupportsMultipleAPIKeys(site.SiteType) && (input.DisplayName != nil || input.RoutingPriority != nil || input.UpstreamCostMultiplier != nil || input.CacheDomain != nil) {
 		return APIKeyCredential{}, fmt.Errorf("site type %s does not support api key routing configuration", site.SiteType)
 	}
 	if input.UpstreamCostMultiplier != nil && !SupportsAPIKeyCostMultiplier(site.SiteType) {
@@ -1740,6 +1751,13 @@ func (s *Service) UpdateAPIKey(ctx context.Context, siteID uuid.UUID, credential
 		}
 		params.UpstreamCostMultiplier = &value
 	}
+	if input.CacheDomain != nil {
+		value, err := normalizeCacheDomain(*input.CacheDomain)
+		if err != nil {
+			return APIKeyCredential{}, err
+		}
+		input.CacheDomain = &value
+	}
 
 	err = s.db.WithinTx(ctx, func(tx store.Tx) error {
 		repo := store.NewSiteCredentialRepository(tx)
@@ -1749,10 +1767,19 @@ func (s *Service) UpdateAPIKey(ctx context.Context, siteID uuid.UUID, credential
 				return err
 			}
 		}
-		if input.Enabled == nil {
+		if input.Enabled == nil && input.CacheDomain == nil {
 			return nil
 		}
-		meta["enabled"] = *input.Enabled
+		if input.Enabled != nil {
+			meta["enabled"] = *input.Enabled
+		}
+		if input.CacheDomain != nil {
+			if *input.CacheDomain == "" {
+				delete(meta, "cache_domain")
+			} else {
+				meta["cache_domain"] = *input.CacheDomain
+			}
+		}
 		credential, err = repo.UpdateMeta(ctx, credential.ID, store.JSON(jsonBytes(meta)))
 		if err != nil {
 			return err
@@ -1948,6 +1975,7 @@ func (s *Service) apiKeyCredentialFromStore(credential store.SiteCredential) (AP
 		SecretMissing:          boolFromMeta(meta, "raw_key_missing", false),
 		RoutingPriority:        credentialRoutingPriority(credential),
 		UpstreamCostMultiplier: credentialUpstreamCostMultiplier(credential),
+		CacheDomain:            store.SiteCredentialCacheDomain(credential),
 		Meta:                   meta,
 	}, nil
 }
@@ -2249,6 +2277,14 @@ func normalizeAPIKeyDisplayName(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if len([]rune(value)) > 100 {
 		return "", fmt.Errorf("name must be at most 100 characters")
+	}
+	return value, nil
+}
+
+func normalizeCacheDomain(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if len([]rune(value)) > 100 {
+		return "", fmt.Errorf("cache_domain must be at most 100 characters")
 	}
 	return value, nil
 }

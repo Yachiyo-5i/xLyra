@@ -30,6 +30,13 @@ type GeneralDataConfig struct {
 	RequestDetailRetentionDays  int  `json:"request_detail_retention_days"`
 }
 
+type GeneralCacheConfig struct {
+	Enabled                 bool `json:"enabled"`
+	ObservationEnabled      bool `json:"observation_enabled"`
+	ObservationTTLMinutes   int  `json:"observation_ttl_minutes"`
+	ObservationHistoryLimit int  `json:"observation_history_limit"`
+}
+
 type GeneralSecurityConfig struct {
 	SessionLifetimeHours int `json:"session_lifetime_hours"`
 }
@@ -39,6 +46,7 @@ type GeneralConfig struct {
 	IPWhitelist GeneralIPWhitelistConfig `json:"ip_whitelist"`
 	Log         GeneralLogConfig         `json:"log"`
 	Data        GeneralDataConfig        `json:"data"`
+	Cache       GeneralCacheConfig       `json:"cache"`
 	Security    GeneralSecurityConfig    `json:"security"`
 }
 
@@ -60,6 +68,12 @@ func DefaultGeneralConfig() GeneralConfig {
 		Data: GeneralDataConfig{
 			RequestDetailCleanupEnabled: true,
 			RequestDetailRetentionDays:  90,
+		},
+		Cache: GeneralCacheConfig{
+			Enabled:                 true,
+			ObservationEnabled:      true,
+			ObservationTTLMinutes:   30,
+			ObservationHistoryLimit: 12,
 		},
 		Security: GeneralSecurityConfig{
 			SessionLifetimeHours: 24,
@@ -102,6 +116,12 @@ func GeneralConfigFromRaw(raw any) GeneralConfig {
 		cfg.Data.RequestDetailCleanupEnabled = boolFromMap(dataConfig, "request_detail_cleanup_enabled", cfg.Data.RequestDetailCleanupEnabled)
 		cfg.Data.RequestDetailRetentionDays = intFromMap(dataConfig, "request_detail_retention_days", cfg.Data.RequestDetailRetentionDays)
 	}
+	if cacheConfig, ok := root["cache"].(map[string]any); ok {
+		cfg.Cache.Enabled = boolFromMap(cacheConfig, "enabled", cfg.Cache.Enabled)
+		cfg.Cache.ObservationEnabled = boolFromMap(cacheConfig, "observation_enabled", cfg.Cache.ObservationEnabled)
+		cfg.Cache.ObservationTTLMinutes = intFromMap(cacheConfig, "observation_ttl_minutes", cfg.Cache.ObservationTTLMinutes)
+		cfg.Cache.ObservationHistoryLimit = intFromMap(cacheConfig, "observation_history_limit", cfg.Cache.ObservationHistoryLimit)
+	}
 	if security, ok := root["security"].(map[string]any); ok {
 		cfg.Security.SessionLifetimeHours = intFromMap(security, "session_lifetime_hours", cfg.Security.SessionLifetimeHours)
 	}
@@ -138,6 +158,12 @@ func NormalizeGeneralConfig(cfg GeneralConfig) GeneralConfig {
 	if cfg.Data.RequestDetailRetentionDays == 0 {
 		cfg.Data.RequestDetailRetentionDays = defaults.Data.RequestDetailRetentionDays
 	}
+	if cfg.Cache.ObservationTTLMinutes == 0 {
+		cfg.Cache.ObservationTTLMinutes = defaults.Cache.ObservationTTLMinutes
+	}
+	if cfg.Cache.ObservationHistoryLimit == 0 {
+		cfg.Cache.ObservationHistoryLimit = defaults.Cache.ObservationHistoryLimit
+	}
 	return cfg
 }
 
@@ -164,6 +190,12 @@ func ValidateGeneralConfig(cfg GeneralConfig) error {
 	if cfg.Data.RequestDetailRetentionDays <= 0 {
 		return fmt.Errorf("data.request_detail_retention_days must be greater than 0")
 	}
+	if cfg.Cache.ObservationTTLMinutes <= 0 || cfg.Cache.ObservationTTLMinutes > 1440 {
+		return fmt.Errorf("cache.observation_ttl_minutes must be between 1 and 1440")
+	}
+	if cfg.Cache.ObservationHistoryLimit <= 0 || cfg.Cache.ObservationHistoryLimit > 200 {
+		return fmt.Errorf("cache.observation_history_limit must be between 1 and 200")
+	}
 	if cfg.Security.SessionLifetimeHours < 0 || cfg.Security.SessionLifetimeHours > 720 {
 		return fmt.Errorf("security.session_lifetime_hours must be between 0 and 720")
 	}
@@ -188,6 +220,12 @@ func GeneralConfigToMap(cfg GeneralConfig) map[string]any {
 		"data": map[string]any{
 			"request_detail_cleanup_enabled": cfg.Data.RequestDetailCleanupEnabled,
 			"request_detail_retention_days":  cfg.Data.RequestDetailRetentionDays,
+		},
+		"cache": map[string]any{
+			"enabled":                   cfg.Cache.Enabled,
+			"observation_enabled":       cfg.Cache.ObservationEnabled,
+			"observation_ttl_minutes":   cfg.Cache.ObservationTTLMinutes,
+			"observation_history_limit": cfg.Cache.ObservationHistoryLimit,
 		},
 		"security": map[string]any{
 			"session_lifetime_hours": cfg.Security.SessionLifetimeHours,

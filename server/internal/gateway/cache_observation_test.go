@@ -165,6 +165,62 @@ func TestCacheObservationLineageTracksAppendOnlyConversation(t *testing.T) {
 	}
 }
 
+func TestCacheObservationSeparatesCacheDirectivesFromSampling(t *testing.T) {
+	t.Parallel()
+
+	handler := Handler{cacheObservationKey: []byte("cache-observation-test-key")}
+	apiKeyID := uuid.New()
+	canonicalModelID := uuid.New()
+	candidate := routeengine.Candidate{
+		Site:  routeengine.CandidateSite{ID: uuid.New(), SiteType: "anthropic"},
+		Model: routeengine.CandidateModel{SiteModelID: uuid.New(), UpstreamName: "claude-test"},
+	}
+	request := cacheObservationRequest([]canonicalMessage{{
+		Type:       "message",
+		Role:       "user",
+		RawContent: "private user prompt",
+		Content:    []canonicalContentPart{{Type: "input_text", Text: "private user prompt"}},
+	}})
+	request.Canonical.RawSystem = []any{map[string]any{
+		"type": "text",
+		"text": "system instruction",
+		"cache_control": map[string]any{
+			"type": "ephemeral",
+			"ttl":  "5m",
+		},
+	}}
+	request.Canonical.Params = map[string]any{"temperature": 0.8}
+
+	firstCtx := handler.withCacheObservation(context.Background(), apiKeyID, canonicalModelID, request)
+	firstMetadata := map[string]any{}
+	handler.appendCacheObservationMetadata(firstCtx, firstMetadata, candidate, gatewayAttemptResult{upstreamProtocol: "anthropic_messages"})
+	first := firstMetadata["cache_observation"].(map[string]any)
+
+	changed := request
+	changedCanonical := *request.Canonical
+	changedCanonical.RawSystem = []any{map[string]any{
+		"type": "text",
+		"text": "system instruction",
+		"cache_control": map[string]any{
+			"type": "ephemeral",
+			"ttl":  "1h",
+		},
+	}}
+	changedCanonical.Params = map[string]any{"temperature": 0.1}
+	changed.Canonical = &changedCanonical
+	changedCtx := handler.withCacheObservation(context.Background(), apiKeyID, canonicalModelID, changed)
+	changedMetadata := map[string]any{}
+	handler.appendCacheObservationMetadata(changedCtx, changedMetadata, candidate, gatewayAttemptResult{upstreamProtocol: "anthropic_messages"})
+	changedObservation := changedMetadata["cache_observation"].(map[string]any)
+
+	if first["prefix_hash"] != changedObservation["prefix_hash"] {
+		t.Fatalf("sampling or cache directives split generic prefix: before=%q after=%q", first["prefix_hash"], changedObservation["prefix_hash"])
+	}
+	if first["cache_fingerprint"] == changedObservation["cache_fingerprint"] {
+		t.Fatalf("cache directive change retained candidate fingerprint: before=%q after=%q", first["cache_fingerprint"], changedObservation["cache_fingerprint"])
+	}
+}
+
 func TestCacheShadowAffinityFindsLongestPriorBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -202,11 +258,11 @@ func TestCacheShadowAffinityFindsLongestPriorBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal request log metadata: %v", err)
 	}
-	affinity := cacheShadowAffinityFromRequestLogs(current, []store.RequestLog{{
+	affinity := cacheShadowAffinityFromRequestLogs(handler.cacheObservationKey, current, nil, []store.RequestLogCacheObservation{{
 		Success:   true,
 		CreatedAt: time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC),
 		Metadata:  store.JSON(metadata),
-	}})
+	}}, time.Date(2026, 8, 14, 10, 1, 0, 0, time.UTC))
 	if !affinity.Eligible || !affinity.Matched || affinity.MatchKind != "prefix" || affinity.MatchedPrefixHash != first.PrefixHash ||
 		affinity.MatchedCacheDomain != "opaque-domain" || affinity.MatchedFingerprint != "opaque-fingerprint" || affinity.MatchedLineageDepth != 1 {
 		t.Fatalf("shadow affinity = %#v, want longest prior prefix match", affinity)
@@ -226,9 +282,123 @@ func TestCacheShadowAffinityMarksUnmatchedLineageEligible(t *testing.T) {
 	if !ok {
 		t.Fatal("expected cache observation")
 	}
-	affinity := cacheShadowAffinityFromRequestLogs(observation, nil)
+	affinity := cacheShadowAffinityFromRequestLogs(handler.cacheObservationKey, observation, nil, nil, time.Now())
 	if !affinity.Eligible || affinity.Matched {
 		t.Fatalf("unmatched shadow affinity = %#v, want eligible without match", affinity)
+	}
+}
+
+func TestCacheShadowAffinityRequiresCompatibleHealthyCandidate(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("cache-observation-test-key")
+	handler := Handler{cacheObservationKey: key}
+	apiKeyID := uuid.New()
+	canonicalModelID := uuid.New()
+	candidate := routeengine.Candidate{
+		Rank: 1,
+		Site: routeengine.CandidateSite{
+			ID:       uuid.New(),
+			SiteType: "openai",
+		},
+		Model: routeengine.CandidateModel{
+			SiteModelID:  uuid.New(),
+			UpstreamName: "gpt-test",
+		},
+	}
+	credentialID := uuid.New()
+	candidate.Credential.ID = &credentialID
+	firstRequest := cacheObservationRequest([]canonicalMessage{{
+		Type:       "message",
+		Role:       "user",
+		RawContent: "first user message",
+		Content:    []canonicalContentPart{{Type: "input_text", Text: "first user message"}},
+	}})
+	first, ok := cacheObservationFromContext(handler.withCacheObservation(context.Background(), apiKeyID, canonicalModelID, firstRequest))
+	if !ok {
+		t.Fatal("expected first cache observation")
+	}
+	firstMetadata := map[string]any{}
+	handler.appendCacheObservationMetadata(context.WithValue(context.Background(), cacheObservationContextKey{}, first), firstMetadata, candidate, gatewayAttemptResult{
+		credentialID:     credentialID,
+		upstreamProtocol: "openai_chat",
+	})
+	encoded, err := json.Marshal(firstMetadata)
+	if err != nil {
+		t.Fatalf("marshal first metadata: %v", err)
+	}
+
+	currentRequest := cacheObservationRequest([]canonicalMessage{
+		firstRequest.Canonical.Messages[0],
+		{
+			Type:       "message",
+			Role:       "assistant",
+			RawContent: "assistant response",
+			Content:    []canonicalContentPart{{Type: "output_text", Text: "assistant response"}},
+		},
+	})
+	current, ok := cacheObservationFromContext(handler.withCacheObservation(context.Background(), apiKeyID, canonicalModelID, currentRequest))
+	if !ok {
+		t.Fatal("expected current cache observation")
+	}
+	descriptor := cacheShadowCandidate{
+		Candidate:        candidate,
+		UpstreamProtocol: "openai_chat",
+		CacheDomainHash:  cacheObservationCacheDomainHash(key, candidate.Site.ID, credentialID, ""),
+	}
+	logs := []store.RequestLogCacheObservation{{
+		Success:   true,
+		CreatedAt: time.Now().Add(-time.Minute),
+		Metadata:  store.JSON(encoded),
+	}}
+	affinity := cacheShadowAffinityFromRequestLogs(key, current, []cacheShadowCandidate{descriptor}, logs, time.Now())
+	if !affinity.Matched || !affinity.Routable || affinity.MatchedCandidateRank != candidate.Rank {
+		t.Fatalf("compatible affinity = %#v, want routable candidate", affinity)
+	}
+
+	descriptor.UpstreamProtocol = "anthropic_messages"
+	affinity = cacheShadowAffinityFromRequestLogs(key, current, []cacheShadowCandidate{descriptor}, logs, time.Now())
+	if !affinity.Matched || affinity.Routable {
+		t.Fatalf("protocol-incompatible affinity = %#v, want unmatched candidate", affinity)
+	}
+}
+
+func TestCacheShadowAffinitySkipsExpiredObservation(t *testing.T) {
+	t.Parallel()
+
+	observation := cacheObservation{PrefixHash: "current", PrefixLineage: []string{"root", "previous", "current"}}
+	metadata, err := json.Marshal(map[string]any{"cache_observation": map[string]any{
+		"prefix_hash":       "previous",
+		"cache_domain_hash": "domain",
+		"cache_fingerprint": "fingerprint",
+		"expires_at":        time.Now().Add(-time.Minute),
+	}})
+	if err != nil {
+		t.Fatalf("marshal metadata: %v", err)
+	}
+	affinity := cacheShadowAffinityFromRequestLogs([]byte("cache-observation-test-key"), observation, nil, []store.RequestLogCacheObservation{{
+		Success:   true,
+		CreatedAt: time.Now().Add(-2 * time.Minute),
+		Metadata:  store.JSON(metadata),
+	}}, time.Now())
+	if affinity.Matched {
+		t.Fatalf("expired affinity = %#v, want no match", affinity)
+	}
+}
+
+func TestCacheObservationConfiguredDomainIsProtocolIndependent(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("cache-observation-test-key")
+	configured := cacheObservationCacheDomainHash(key, uuid.New(), uuid.New(), "shared-project")
+	otherConfigured := cacheObservationCacheDomainHash(key, uuid.New(), uuid.New(), "shared-project")
+	if configured != otherConfigured {
+		t.Fatalf("configured cache domain hashes differ: %q != %q", configured, otherConfigured)
+	}
+	defaultLeft := cacheObservationCacheDomainHash(key, uuid.New(), uuid.New(), "")
+	defaultRight := cacheObservationCacheDomainHash(key, uuid.New(), uuid.New(), "")
+	if defaultLeft == defaultRight {
+		t.Fatalf("default credential cache domains unexpectedly merged: %q", defaultLeft)
 	}
 }
 
