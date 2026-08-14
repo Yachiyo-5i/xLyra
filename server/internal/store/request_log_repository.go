@@ -213,6 +213,7 @@ func (r RequestLogRepository) ListRecentCacheObservations(ctx context.Context, a
 			clause.Eq{Column: clause.Column{Name: "api_key_id"}, Value: apiKeyID},
 			clause.Eq{Column: clause.Column{Name: "canonical_model_id"}, Value: canonicalModelID},
 			clause.Gte{Column: clause.Column{Name: "created_at"}, Value: since},
+			clause.Eq{Column: clause.Column{Name: "success"}, Value: true},
 		}}).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{
 			{Column: clause.Column{Name: "created_at"}, Desc: true},

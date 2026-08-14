@@ -493,13 +493,11 @@ func (r RequestUsageSummaryRepository) backfillCacheWriteTokensBetween(ctx conte
 	if len(updates) == 0 {
 		return 0, int64(len(logs)), nil
 	}
+	const backfillBatchSize = 200
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for index := range updates {
-			if err := tx.WithContext(ctx).Save(&updates[index]).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return tx.WithContext(ctx).
+			Clauses(clause.OnConflict{UpdateAll: true}).
+			CreateInBatches(&updates, backfillBatchSize).Error
 	})
 	if err != nil {
 		return 0, int64(len(logs)), fmt.Errorf("backfill cache write tokens usage: %w", err)
@@ -886,7 +884,10 @@ func (s *RequestUsageCostSummary) AddUsage(promptTokens int64, completionTokens 
 	s.CacheCreationInputTokens += cacheCreationInputTokens
 	s.CacheCreation5mInputTokens += cacheCreation5mInputTokens
 	s.CacheCreation1hInputTokens += cacheCreation1hInputTokens
-	s.CacheWriteTotalTokens += cacheWriteTokens + cacheCreationTotalTokens(cacheCreationInputTokens, cacheCreation5mInputTokens, cacheCreation1hInputTokens)
+	s.CacheWriteTotalTokens += cacheWriteTokens + cacheCreation5mInputTokens + cacheCreation1hInputTokens
+	if cacheCreation5mInputTokens == 0 && cacheCreation1hInputTokens == 0 && cacheCreationInputTokens > 0 {
+		s.CacheWriteTotalTokens += cacheCreationInputTokens
+	}
 }
 
 func (s *RequestUsageCostSummary) AddCacheWriteCost(value sql.NullFloat64, currency string) {
@@ -917,7 +918,9 @@ func (s *RequestUsageCostSummary) AddFloat(value float64, currency string) {
 		s.Currency = cur
 	}
 	s.TotalCost = s.CostByCurrency[s.Currency]
-	s.CacheWriteCost = s.CacheWriteCostByCurrency[s.Currency]
+	if v, ok := s.CacheWriteCostByCurrency[s.Currency]; ok {
+		s.CacheWriteCost = v
+	}
 }
 
 func cacheCreationTotalTokens(cacheCreationInputTokens int64, cacheCreation5mInputTokens int64, cacheCreation1hInputTokens int64) int64 {

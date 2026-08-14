@@ -321,7 +321,7 @@ func TestCacheShadowAffinityRequiresCompatibleHealthyCandidate(t *testing.T) {
 	firstMetadata := map[string]any{}
 	handler.appendCacheObservationMetadata(context.WithValue(context.Background(), cacheObservationContextKey{}, first), firstMetadata, candidate, gatewayAttemptResult{
 		credentialID:     credentialID,
-		upstreamProtocol: "openai_chat",
+		upstreamProtocol: "openai_chat_completions",
 	})
 	encoded, err := json.Marshal(firstMetadata)
 	if err != nil {
@@ -343,8 +343,8 @@ func TestCacheShadowAffinityRequiresCompatibleHealthyCandidate(t *testing.T) {
 	}
 	descriptor := cacheShadowCandidate{
 		Candidate:        candidate,
-		UpstreamProtocol: "openai_chat",
-		CacheDomainHash:  cacheObservationCacheDomainHash(key, candidate.Site.ID, credentialID, ""),
+		UpstreamProtocol: "openai_chat_completions",
+		CacheDomainHash:  cacheObservationCacheDomainHash(key, candidate.Site.ID, uuid.Nil, ""),
 	}
 	logs := []store.RequestLogCacheObservation{{
 		Success:   true,

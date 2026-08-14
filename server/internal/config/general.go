@@ -190,11 +190,13 @@ func ValidateGeneralConfig(cfg GeneralConfig) error {
 	if cfg.Data.RequestDetailRetentionDays <= 0 {
 		return fmt.Errorf("data.request_detail_retention_days must be greater than 0")
 	}
-	if cfg.Cache.ObservationTTLMinutes <= 0 || cfg.Cache.ObservationTTLMinutes > 1440 {
-		return fmt.Errorf("cache.observation_ttl_minutes must be between 1 and 1440")
-	}
-	if cfg.Cache.ObservationHistoryLimit <= 0 || cfg.Cache.ObservationHistoryLimit > 200 {
-		return fmt.Errorf("cache.observation_history_limit must be between 1 and 200")
+	if cfg.Cache.Enabled && cfg.Cache.ObservationEnabled {
+		if cfg.Cache.ObservationTTLMinutes <= 0 || cfg.Cache.ObservationTTLMinutes > 1440 {
+			return fmt.Errorf("cache.observation_ttl_minutes must be between 1 and 1440")
+		}
+		if cfg.Cache.ObservationHistoryLimit <= 0 || cfg.Cache.ObservationHistoryLimit > 200 {
+			return fmt.Errorf("cache.observation_history_limit must be between 1 and 200")
+		}
 	}
 	if cfg.Security.SessionLifetimeHours < 0 || cfg.Security.SessionLifetimeHours > 720 {
 		return fmt.Errorf("security.session_lifetime_hours must be between 0 and 720")

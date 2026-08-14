@@ -111,7 +111,7 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 		requestLog = createdLog
 
 		totalTokens := record.PromptTokens + record.CompletionTokens
-		if totalTokens > 0 || record.CacheWriteCost != nil || record.EstimatedCost != nil {
+		if totalTokens > 0 || record.EstimatedCost != nil {
 			createdUsage, err := store.NewUsageRecordRepository(tx).Create(ctx, store.CreateUsageRecordParams{
 				RequestLogID:               requestLog.ID,
 				APIKeyID:                   nullableUUID(record.APIKeyID),

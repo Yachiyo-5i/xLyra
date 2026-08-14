@@ -111,7 +111,7 @@ func cacheShadowAffinityFromContext(ctx context.Context) (cacheShadowAffinity, b
 	return affinity, ok
 }
 
-func (h Handler) withCacheShadowAffinity(ctx context.Context, apiKeyID uuid.UUID, canonicalModelID uuid.UUID, request gatewayRequest, plan routeengine.SelectionPlan, resolver upstreamProtocolResolver) context.Context {
+func (h Handler) withCacheShadowAffinity(ctx context.Context, apiKeyID uuid.UUID, canonicalModelID uuid.UUID, request gatewayRequest, plan routeengine.SelectionPlan, _ upstreamProtocolResolver) context.Context {
 	observation, ok := cacheObservationFromContext(ctx)
 	if !ok || h.db == nil {
 		return ctx
@@ -124,7 +124,7 @@ func (h Handler) withCacheShadowAffinity(ctx context.Context, apiKeyID uuid.UUID
 	if !affinity.Eligible {
 		return ctx
 	}
-	candidates := h.cacheShadowCandidates(ctx, request, plan, resolver)
+	candidates := h.cacheShadowCandidates(ctx, request, plan)
 	if len(candidates) == 0 {
 		return context.WithValue(ctx, cacheShadowAffinityContextKey{}, affinity)
 	}
@@ -140,31 +140,60 @@ func (h Handler) withCacheShadowAffinity(ctx context.Context, apiKeyID uuid.UUID
 	return context.WithValue(ctx, cacheShadowAffinityContextKey{}, affinity)
 }
 
-func (h Handler) cacheShadowCandidates(ctx context.Context, request gatewayRequest, plan routeengine.SelectionPlan, resolver upstreamProtocolResolver) []cacheShadowCandidate {
-	if resolver == nil {
-		return nil
-	}
+func (h Handler) cacheShadowCandidates(_ context.Context, request gatewayRequest, plan routeengine.SelectionPlan) []cacheShadowCandidate {
 	items := append([]routeengine.Candidate{plan.Selected}, plan.Failover...)
 	result := make([]cacheShadowCandidate, 0, len(items))
 	for _, candidate := range items {
 		if candidate.Cooling {
 			continue
 		}
-		protocol, err := resolver.Resolve(ctx, request, candidate)
-		if err != nil || protocol == nil {
-			continue
-		}
-		credentialID := uuid.Nil
-		if candidate.Credential.ID != nil {
-			credentialID = *candidate.Credential.ID
-		}
+		upstreamProtocol := cacheObservationInferUpstreamProtocol(candidate.Site.SiteType, request)
 		result = append(result, cacheShadowCandidate{
 			Candidate:        candidate,
-			UpstreamProtocol: strings.TrimSpace(protocol.ProtocolName()),
-			CacheDomainHash:  cacheObservationCacheDomainHash(h.cacheObservationKey, candidate.Site.ID, credentialID, candidate.Credential.CacheDomain),
+			UpstreamProtocol: upstreamProtocol,
+			CacheDomainHash:  cacheObservationCacheDomainHash(h.cacheObservationKey, candidate.Site.ID, uuid.Nil, candidate.Credential.CacheDomain),
 		})
 	}
 	return result
+}
+
+func cacheObservationInferUpstreamProtocol(siteType string, request gatewayRequest) string {
+	switch {
+	case isCodexSite(siteType):
+		return "codex_responses"
+	case isAntigravitySite(siteType):
+		if request.Stream {
+			return "antigravity_stream_generate_content"
+		}
+		return "antigravity_generate_content"
+	case isGoogleSite(siteType):
+		if request.Stream {
+			return "google_stream_generate_content"
+		}
+		return "google_generate_content"
+	case isAnthropicSite(siteType), isClaudeCodeSite(siteType):
+		switch downstreamCanonicalProtocol(request.DownstreamPath) {
+		case canonicalProtocolOpenAIChat:
+			return "anthropic_messages_to_chat_completions"
+		case canonicalProtocolOpenAIResponses:
+			return "anthropic_messages_to_responses"
+		}
+		return "anthropic_messages"
+	case isGrokSite(siteType):
+		switch downstreamCanonicalProtocol(request.DownstreamPath) {
+		case canonicalProtocolOpenAIResponses:
+			return "openai_responses"
+		}
+		return "openai_responses"
+	default:
+		switch downstreamCanonicalProtocol(request.DownstreamPath) {
+		case canonicalProtocolOpenAIResponses:
+			return "openai_responses"
+		case canonicalProtocolAnthropicMessages:
+			return "openai_responses_to_messages"
+		}
+		return "openai_chat_completions"
+	}
 }
 
 func cacheObservationFromRequest(key []byte, apiKeyID uuid.UUID, canonicalModelID uuid.UUID, request gatewayRequest) cacheObservation {
@@ -275,6 +304,14 @@ func cacheObservationDirectives(value any) any {
 }
 
 func cacheObservationCacheControlFields(value any) any {
+	return cacheObservationCacheControlFieldsWithDepth(value, 0)
+}
+
+func cacheObservationCacheControlFieldsWithDepth(value any, depth int) any {
+	const maxDepth = 100
+	if depth > maxDepth {
+		return nil
+	}
 	switch typed := value.(type) {
 	case map[string]any:
 		result := map[string]any{}
@@ -283,7 +320,7 @@ func cacheObservationCacheControlFields(value any) any {
 				result[key] = item
 				continue
 			}
-			if nested := cacheObservationCacheControlFields(item); nested != nil {
+			if nested := cacheObservationCacheControlFieldsWithDepth(item, depth+1); nested != nil {
 				result[key] = nested
 			}
 		}
@@ -295,7 +332,7 @@ func cacheObservationCacheControlFields(value any) any {
 		result := make([]any, len(typed))
 		found := false
 		for index, item := range typed {
-			if nested := cacheObservationCacheControlFields(item); nested != nil {
+			if nested := cacheObservationCacheControlFieldsWithDepth(item, depth+1); nested != nil {
 				result[index] = nested
 				found = true
 			}
@@ -362,7 +399,10 @@ func cacheShadowAffinityFromRequestLogs(key []byte, observation cacheObservation
 			continue
 		}
 		position, matches := lineagePositions[previous.PrefixHash]
-		if !matches || position <= bestPosition {
+		if !matches {
+			continue
+		}
+		if position <= bestPosition {
 			continue
 		}
 		bestPosition = position
@@ -482,7 +522,11 @@ func (h Handler) appendCacheObservationMetadata(ctx context.Context, metadata ma
 	if cacheDomain == "" {
 		cacheDomain = candidate.Credential.CacheDomain
 	}
-	cacheDomainHash := cacheObservationCacheDomainHash(h.cacheObservationKey, candidate.Site.ID, credentialID, cacheDomain)
+	cacheDomainCredID := credentialID
+	if cacheDomain == "" {
+		cacheDomainCredID = uuid.Nil
+	}
+	cacheDomainHash := cacheObservationCacheDomainHash(h.cacheObservationKey, candidate.Site.ID, cacheDomainCredID, cacheDomain)
 	shadowAffinity, shadowAffinityKnown := cacheShadowAffinityFromContext(ctx)
 	shadowMetadata := map[string]any{"eligible": false}
 	if shadowAffinityKnown {
