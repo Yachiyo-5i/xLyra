@@ -28,34 +28,6 @@ func TestUsageFromSummariesWrapsRateLimitQueryError(t *testing.T) {
 	}
 }
 
-func TestUsageFromSummariesWrapsAPIKeyNameQueryError(t *testing.T) {
-	t.Parallel()
-
-	apiKeyErr := errors.New("api key lookup offline")
-	apiKeyID := uuid.New()
-	service, window := serviceQueryEdgesService(t, func(tx *gorm.DB) {
-		switch dest := tx.Statement.Dest.(type) {
-		case *[]store.GatewayRateLimit:
-			*dest = nil
-		case *[]store.RequestLog:
-			*dest = nil
-		case *[]store.Site:
-			*dest = nil
-		case *[]store.APIKey:
-			tx.AddError(apiKeyErr)
-		default:
-			tx.AddError(errors.New("unexpected dashboard query destination"))
-		}
-	})
-
-	_, err := service.usageFromSummaries(context.Background(), window, []store.RequestUsageDailySummary{
-		{BucketStart: window.TodayStart, APIKeyID: uuid.NullUUID{UUID: apiKeyID, Valid: true}, APIKeyName: "Old Name", TotalTokens: 1},
-	})
-	if !errors.Is(err, apiKeyErr) || !strings.Contains(err.Error(), "dashboard api key names") {
-		t.Fatalf("usageFromSummaries error = %v, want wrapped api key name query error", err)
-	}
-}
-
 func TestHighLatencyWrapsRequestLogQueryError(t *testing.T) {
 	t.Parallel()
 

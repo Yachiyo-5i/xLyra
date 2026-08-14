@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, CalendarDays, Gauge, Hash, RefreshCw, Sigma, Timer, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -10,64 +10,42 @@ import type { TokenUsageColumn, TokenUsageLabels } from '@/components/common/tok
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  ApiKeyContributionsPanel,
-  DashboardChartPanel,
   DashboardCooldownList,
   DashboardMetricCard,
   DashboardRiskList,
-  ModelCostChart,
-  ModelRequestsChart,
-  SiteCostChart,
   SiteUptimeStrip,
   SystemResourcePanel,
 } from '@/features/dashboard/components'
-import { MobileDashboard } from '@/features/dashboard/components/mobile-dashboard'
+import { MobileDashboard, MobileDashboardSkeleton } from '@/features/dashboard/components/mobile-dashboard'
 import {
   dashboardQueryKeys,
   getDashboardCooldowns,
   getDashboardHealth,
   getDashboardInsights,
   getDashboardUsage,
-  type DashboardDays,
   type DashboardOverview,
 } from '@/features/dashboard/api/dashboard'
 import {
   buildCooldownItems,
   buildAttentionRiskItems,
-  buildApiKeyContributions,
-  buildRangedDailyModelCost,
-  buildRangedDailyModelRequests,
-  buildRangedDailySiteCost,
-  buildRangedDailySiteRequests,
-  buildSiteCosts,
   buildUptimeRows,
-  dashboardDaysToRange,
-  dashboardRangeToDays,
   formatCompactNumber,
   formatDashboardCurrency,
   formatDashboardRefreshTime,
   formatLimitValue,
   formatPercent,
-  selectedSiteCosts,
 } from '@/features/dashboard/lib/dashboard-utils'
 import { clearRouteCooldown, routeQueryKeys } from '@/features/routes/api/routes'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
-const CONTRIBUTION_DAYS = 365
-
 export function DashboardPage() {
   const { t, i18n } = useTranslation('dashboard')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isMobile = useMobileLayout()
-  const [days, setDays] = useState<DashboardDays>(30)
-  const [trendMetric, setTrendMetric] = useState<DashboardTrendMetric>('cost')
-  const [trendScope, setTrendScope] = useState<DashboardTrendScope>('model')
-  const [selectedContributionKeyId, setSelectedContributionKeyId] = useState('')
 
   const usageQuery = useQuery({
     queryKey: dashboardQueryKeys.usage(),
@@ -114,30 +92,7 @@ export function DashboardPage() {
       insightsQuery.refetch(),
     ])
   }
-  const modelCost = useMemo(
-    () => overview ? buildRangedDailyModelCost(overview.charts.daily_model_cost, overview, days) : { data: [], series: [] },
-    [days, overview],
-  )
-  const modelRequests = useMemo(
-    () => overview ? buildRangedDailyModelRequests(overview.charts.daily_model_requests, overview, days) : { data: [], series: [] },
-    [days, overview],
-  )
-  const siteCostTrend = useMemo(
-    () => overview ? buildRangedDailySiteCost(overview.charts.daily_site_cost, overview, days) : { data: [], series: [] },
-    [days, overview],
-  )
-  const siteRequestsTrend = useMemo(
-    () => overview ? buildRangedDailySiteRequests(overview.charts.daily_site_requests, overview, days) : { data: [], series: [] },
-    [days, overview],
-  )
-  const siteCosts = useMemo(
-    () => overview ? buildSiteCosts(selectedSiteCosts(overview, days)) : [],
-    [days, overview],
-  )
-  const apiKeyContributions = useMemo(
-    () => overview ? buildApiKeyContributions(overview.charts.api_key_contributions ?? [], overview, CONTRIBUTION_DAYS, selectedContributionKeyId) : undefined,
-    [overview, selectedContributionKeyId],
-  )
+
   const uptimeRows = useMemo(
     () => overview ? buildUptimeRows(overview.health.uptime_rows) : [],
     [overview],
@@ -150,7 +105,6 @@ export function DashboardPage() {
     () => overview ? buildAttentionRiskItems(overview, t) : [],
     [overview, t],
   )
-  const effectiveContributionKeyId = apiKeyContributions?.selectedKey?.id ?? apiKeyContributions?.defaultKeyId ?? ''
 
   const clearCooldownMutation = useMutation({
     mutationFn: async (item: typeof cooldownItems[number]) => {
@@ -201,7 +155,7 @@ export function DashboardPage() {
   })
 
   if (usageQuery.isLoading) {
-    return <DashboardSkeleton />
+    return isMobile ? <MobileDashboardSkeleton /> : <DashboardSkeleton />
   }
 
   if (usageQuery.isError) {
@@ -289,16 +243,6 @@ export function DashboardPage() {
         rpm={formatLimitValue(overview.kpis.rate_limit.rpm.used, overview.kpis.rate_limit.rpm.limit)}
         tpm={formatLimitValue(overview.kpis.rate_limit.tpm.used, overview.kpis.rate_limit.tpm.limit)}
         completedRpm={overview.kpis.rate_limit.completed_rpm ?? 0}
-        trendMetric={trendMetric}
-        trendScope={trendScope}
-        days={days}
-        modelCost={modelCost}
-        modelRequests={modelRequests}
-        siteCostTrend={siteCostTrend}
-        siteRequestsTrend={siteRequestsTrend}
-        siteCosts={siteCosts}
-        apiKeyContributions={apiKeyContributions}
-        selectedContributionKeyId={effectiveContributionKeyId}
         riskItems={riskItems}
         cooldownItems={cooldownItems}
         uptimeRows={uptimeRows}
@@ -306,10 +250,6 @@ export function DashboardPage() {
         clearAllCooldownsPending={clearAllCooldownsMutation.isPending}
         onRefresh={refetchDashboard}
         onRefreshCooldowns={() => cooldownsQuery.refetch()}
-        onTrendMetricChange={setTrendMetric}
-        onTrendScopeChange={setTrendScope}
-        onDaysChange={setDays}
-        onContributionKeyChange={setSelectedContributionKeyId}
         onRiskClick={handleRiskClick}
         onClearCooldown={(item) => clearCooldownMutation.mutate(item)}
         onClearAllCooldowns={() => clearAllCooldownsMutation.mutate()}
@@ -317,9 +257,6 @@ export function DashboardPage() {
       />
     )
   }
-
-  const costTrend = trendScope === 'model' ? modelCost : siteCostTrend
-  const requestsTrend = trendScope === 'model' ? modelRequests : siteRequestsTrend
 
   return (
     <div className="flex flex-col gap-5">
@@ -386,56 +323,14 @@ export function DashboardPage() {
           />
         </div>
 
-        <div className="grid auto-rows-[360px] gap-4 2xl:grid-cols-3">
-          <DashboardChartPanel
-            className="h-full 2xl:col-span-2"
-            title={(
-              <DashboardSlashTabs
-                value={trendMetric}
-                onValueChange={setTrendMetric}
-                items={orderedTrendMetricItems(trendScope, trendMetric, t)}
-              />
-            )}
-            description={t('charts.trend', { days })}
-            action={
-              <div className="flex items-center gap-5">
-                <DashboardRangeTabs days={days} onDaysChange={setDays} t={t} />
-                <div className="h-4 w-px bg-[hsl(var(--glass-divider))]" />
-                <DashboardSlashTabs
-                  value={trendScope}
-                  onValueChange={setTrendScope}
-                  items={[
-                    { label: t('charts.model'), value: 'model' },
-                    { label: t('charts.site'), value: 'site' },
-                  ]}
-                />
-              </div>
-            }
-          >
-            {trendMetric === 'cost' ? (
-              <ModelCostChart data={costTrend.data} series={costTrend.series} height={250} />
-            ) : (
-              <ModelRequestsChart data={requestsTrend.data} series={requestsTrend.series} height={250} />
-            )}
-          </DashboardChartPanel>
+        <div className="grid gap-4 xl:grid-cols-2">
           <DashboardRiskList
-            className="h-full"
+            className="h-[360px]"
             items={riskItems}
             onItemClick={handleRiskClick}
           />
-          <DashboardChartPanel className="h-full" title={t('charts.siteCost')} description={t('charts.summary', { days })}>
-            <SiteCostChart data={siteCosts} height={250} />
-          </DashboardChartPanel>
-          {apiKeyContributions ? (
-            <ApiKeyContributionsPanel
-              className="h-full"
-              contributions={apiKeyContributions}
-              selectedKeyId={effectiveContributionKeyId}
-              onSelectedKeyChange={setSelectedContributionKeyId}
-            />
-          ) : null}
           <DashboardCooldownList
-            className="h-full"
+            className="h-[360px]"
             items={cooldownItems}
             action={
               <div className="flex items-center gap-1">
@@ -472,76 +367,6 @@ export function DashboardPage() {
         </div>
       </div>
     </div>
-  )
-}
-
-type DashboardTrendMetric = 'cost' | 'requests'
-type DashboardTrendScope = 'model' | 'site'
-
-function orderedTrendMetricItems(
-  scope: DashboardTrendScope,
-  value: DashboardTrendMetric,
-  t: (key: string) => string,
-) {
-  const items: Array<{ label: string; value: DashboardTrendMetric }> = scope === 'model'
-    ? [
-        { label: t('charts.modelCost'), value: 'cost' },
-        { label: t('charts.modelRequests'), value: 'requests' },
-      ]
-    : [
-        { label: t('charts.siteCost'), value: 'cost' },
-        { label: t('charts.siteRequests'), value: 'requests' },
-      ]
-
-  return [
-    ...items.filter((item) => item.value === value),
-    ...items.filter((item) => item.value !== value),
-  ]
-}
-
-function DashboardSlashTabs<T extends string>({
-  value,
-  items,
-  onValueChange,
-}: {
-  value: T
-  items: Array<{ label: string; value: T }>
-  onValueChange: (value: T) => void
-}) {
-  return (
-    <Tabs variant="slash" value={value} onValueChange={(next) => onValueChange(next as T)}>
-      <TabsList>
-        {items.map((item) => (
-          <TabsTrigger key={item.value} value={item.value} className="text-sm">
-            {item.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
-  )
-}
-
-function DashboardRangeTabs({
-  days,
-  onDaysChange,
-  t,
-}: {
-  days: DashboardDays
-  onDaysChange: (days: DashboardDays) => void
-  t: (key: string) => string
-}) {
-  return (
-    <Tabs
-      variant="slash"
-      value={dashboardDaysToRange(days)}
-      onValueChange={(value) => onDaysChange(dashboardRangeToDays(value))}
-    >
-      <TabsList>
-        <TabsTrigger value="7d" className="text-sm">{t('ranges.7d')}</TabsTrigger>
-        <TabsTrigger value="30d" className="text-sm">{t('ranges.30d')}</TabsTrigger>
-        <TabsTrigger value="90d" className="text-sm">{t('ranges.90d')}</TabsTrigger>
-      </TabsList>
-    </Tabs>
   )
 }
 
@@ -598,12 +423,9 @@ function DashboardSkeleton() {
           </DashboardMetricSkeleton>
         </div>
 
-        <div className="grid auto-rows-[360px] gap-4 2xl:grid-cols-3">
-          <DashboardPanelSkeleton className="2xl:col-span-2" variant="chart" />
-          <DashboardPanelSkeleton variant="list" />
-          <DashboardPanelSkeleton variant="bar" />
-          <DashboardPanelSkeleton variant="heatmap" />
-          <DashboardPanelSkeleton variant="list" />
+        <div className="grid gap-4 xl:grid-cols-2">
+          <DashboardPanelSkeleton className="h-[360px]" variant="list" />
+          <DashboardPanelSkeleton className="h-[360px]" variant="list" />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
           <DashboardPanelSkeleton className="h-[320px]" variant="uptime" />
@@ -622,11 +444,11 @@ function DashboardMetricSkeleton({ children }: { children: ReactNode }) {
   )
 }
 
-type DashboardPanelSkeletonVariant = 'chart' | 'list' | 'bar' | 'heatmap' | 'resource' | 'uptime'
+type DashboardPanelSkeletonVariant = 'list' | 'resource' | 'uptime'
 
 function DashboardPanelSkeleton({
   className,
-  variant = 'chart',
+  variant = 'list',
 }: {
   className?: string
   variant?: DashboardPanelSkeletonVariant
@@ -643,7 +465,6 @@ function DashboardPanelSkeleton({
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-3 w-20" />
         </div>
-        {variant === 'chart' ? <Skeleton className="h-5 w-56" /> : null}
       </div>
       <DashboardPanelSkeletonContent variant={variant} />
     </Card>
@@ -664,35 +485,6 @@ function DashboardPanelSkeletonContent({ variant }: { variant: DashboardPanelSke
             <Skeleton className="h-4 w-12" />
           </div>
         ))}
-      </div>
-    )
-  }
-
-  if (variant === 'bar') {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col justify-center gap-4">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className={cn('h-6 rounded-md', index === 0 ? 'w-full' : index === 1 ? 'w-2/3' : 'w-1/3')} />
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (variant === 'heatmap') {
-    return (
-      <div className="min-h-0 flex-1">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-8 w-24" />
-        </div>
-        <div className="grid grid-cols-[repeat(26,minmax(0,1fr))] gap-1.5">
-          {Array.from({ length: 156 }).map((_, index) => (
-            <Skeleton key={index} className="aspect-square rounded-[4px]" />
-          ))}
-        </div>
       </div>
     )
   }

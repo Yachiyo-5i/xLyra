@@ -5,7 +5,6 @@ export type DashboardDays = 7 | 30 | 90
 export type DashboardOverview = {
   meta: {
     days: DashboardDays
-    available_days: DashboardDays[]
     timezone: string
     generated_at: string
     today_start: string
@@ -48,16 +47,6 @@ export type DashboardOverview = {
       completed_rpm?: number
     }
   }
-  charts: {
-    daily_model_cost: DashboardDailyModelCostPoint[]
-    daily_model_requests: DashboardDailyModelRequestPoint[]
-    daily_site_cost: DashboardDailySiteCostPoint[]
-    daily_site_requests: DashboardDailySiteRequestPoint[]
-    daily_api_key_usage: DashboardDailyAPIKeyUsagePoint[]
-    api_key_contributions: DashboardDailyAPIKeyUsagePoint[]
-    site_cost_summary: DashboardSiteCostSummaryItem[]
-  }
-  windows: Record<string, DashboardOverviewWindow | undefined>
   health: {
     uptime_rows: DashboardUptimeRow[]
   }
@@ -74,7 +63,7 @@ export type DashboardOverview = {
   }
 }
 
-export type DashboardUsage = Pick<DashboardOverview, 'meta' | 'kpis' | 'charts' | 'windows'>
+export type DashboardUsage = Pick<DashboardOverview, 'meta' | 'kpis'>
 export type DashboardCooldowns = DashboardOverview['cooldowns']
 export type DashboardHealth = DashboardOverview['health']
 export type DashboardInsights = Pick<DashboardOverview, 'insights' | 'attention'>
@@ -125,42 +114,6 @@ export type DashboardSystemResourcePoint = {
   }
 }
 
-export type DashboardDailyModelCostPoint = {
-  date: string
-  model_id?: string | null
-  model_key: string
-  cost: number
-  currency: string
-}
-
-export type DashboardDailyModelRequestPoint = {
-  date: string
-  model_id?: string | null
-  model_key: string
-  request_count: number
-}
-
-export type DashboardDailySiteCostPoint = {
-  date: string
-  site_id?: string | null
-  site_name: string
-  site_slug: string
-  site_type: string
-  site_key: string
-  cost: number
-  currency: string
-}
-
-export type DashboardDailySiteRequestPoint = {
-  date: string
-  site_id?: string | null
-  site_name: string
-  site_slug: string
-  site_type: string
-  site_key: string
-  request_count: number
-}
-
 export type DashboardDailyAPIKeyUsagePoint = {
   date: string
   api_key_id: string
@@ -168,28 +121,6 @@ export type DashboardDailyAPIKeyUsagePoint = {
   total_tokens: number
   cost: number
   currency: string
-}
-
-type DashboardSiteCostSummaryItem = {
-  site_id: string
-  site_name: string
-  site_slug: string
-  site_type: string
-  request_count: number
-  success_count: number
-  success_rate?: number | null
-  total_tokens: number
-  cost: number
-  currency: string
-}
-
-type DashboardOverviewWindow = {
-  days: DashboardDays
-  range_start: string
-  range_end: string
-  site_cost_summary: DashboardSiteCostSummaryItem[]
-  failure_reasons: DashboardFailureReasonItem[]
-  high_latency: DashboardHighLatencyItem[]
 }
 
 type DashboardUptimeRow = {

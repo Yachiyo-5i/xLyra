@@ -5,9 +5,6 @@ import { BadgeDollarSign, Clock3, Gauge, Route, ShieldAlert } from 'lucide-react
 import type {
   CooldownItem,
   DashboardRiskItem,
-  DashboardSeries,
-  DashboardTrendDatum,
-  SiteCostDatum,
   SiteUptimeItem,
   UptimeStatus,
 } from '@/features/dashboard/components'
@@ -15,22 +12,8 @@ import type {
   DashboardAttentionItem,
   DashboardDailyAPIKeyUsagePoint,
   DashboardCooldownAPIItem,
-  DashboardDailyModelCostPoint,
-  DashboardDailyModelRequestPoint,
-  DashboardDailySiteCostPoint,
-  DashboardDailySiteRequestPoint,
-  DashboardDays,
   DashboardOverview,
 } from '@/features/dashboard/api/dashboard'
-
-type DailyPoint = {
-  date: string
-}
-
-type TrendResult = {
-  data: DashboardTrendDatum[]
-  series: DashboardSeries[]
-}
 
 export type ApiKeyContributionKeyOption = {
   id: string
@@ -98,55 +81,6 @@ export function formatDashboardRefreshTime(value?: string | null, language?: str
   })
 }
 
-
-export function dashboardRangeToDays(range: string): DashboardDays {
-  if (range === '30d') return 30
-  if (range === '90d') return 90
-  return 7
-}
-
-export function dashboardDaysToRange(days: DashboardDays) {
-  return `${days}d` as '7d' | '30d' | '90d'
-}
-
-export function buildRangedDailyModelCost(
-  points: DashboardDailyModelCostPoint[],
-  overview: DashboardOverview,
-  days: DashboardDays,
-): TrendResult {
-  return buildDailyTrend(points, overview, days, (point) => point.model_key, (point) => point.cost)
-}
-
-export function buildRangedDailyModelRequests(
-  points: DashboardDailyModelRequestPoint[],
-  overview: DashboardOverview,
-  days: DashboardDays,
-): TrendResult {
-  return buildDailyTrend(points, overview, days, (point) => point.model_key, (point) => point.request_count)
-}
-
-export function buildRangedDailySiteCost(
-  points: DashboardDailySiteCostPoint[],
-  overview: DashboardOverview,
-  days: DashboardDays,
-): TrendResult {
-  return buildDailyTrend(points, overview, days, (point) => point.site_key, (point) => point.cost)
-}
-
-export function buildRangedDailySiteRequests(
-  points: DashboardDailySiteRequestPoint[],
-  overview: DashboardOverview,
-  days: DashboardDays,
-): TrendResult {
-  return buildDailyTrend(points, overview, days, (point) => point.site_key, (point) => point.request_count)
-}
-
-export function buildSiteCosts(items: DashboardOverview['charts']['site_cost_summary']): SiteCostDatum[] {
-  return items.map((item) => ({
-    site: item.site_name || item.site_slug || item.site_id,
-    cost: item.cost,
-  }))
-}
 
 export function buildApiKeyContributions(
   points: DashboardDailyAPIKeyUsagePoint[],
@@ -284,57 +218,6 @@ export function buildAttentionRiskItems(overview: DashboardOverview, t?: TFuncti
   )
 }
 
-export function selectedSiteCosts(overview: DashboardOverview, days: DashboardDays) {
-  return selectedOverviewWindow(overview, days)?.site_cost_summary ?? overview.charts.site_cost_summary
-}
-
-function buildDailyTrend<T extends DailyPoint>(
-  points: T[],
-  overview: DashboardOverview,
-  days: DashboardDays,
-  getSeriesName: (point: T) => string,
-  getValue: (point: T) => number,
-): TrendResult {
-  const dates = enumerateDateKeys(selectedRangeStart(overview, days), days)
-  const dateSet = new Set(dates)
-  const totals = new Map<string, number>()
-  for (const point of points) {
-    if (!dateSet.has(point.date)) continue
-    const seriesName = getSeriesName(point) || 'unknown'
-    totals.set(seriesName, (totals.get(seriesName) ?? 0) + getValue(point))
-  }
-  const seriesNames = [...totals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([seriesName]) => seriesName)
-
-  const keyByName = new Map(seriesNames.map((seriesName, index) => [seriesName, `m${index}`]))
-  const series = seriesNames.map((seriesName, index) => ({ key: `m${index}`, name: seriesName }))
-  const rows = dates.map((date) => {
-    const row: DashboardTrendDatum = { date: formatDateLabel(date) }
-    for (const seriesItem of series) row[seriesItem.key] = 0
-    return row
-  })
-  const rowByDate = new Map(dates.map((date, index) => [date, rows[index]]))
-
-  for (const point of points) {
-    if (!dateSet.has(point.date)) continue
-    const seriesKey = keyByName.get(getSeriesName(point) || 'unknown')
-    const row = rowByDate.get(point.date)
-    if (!seriesKey || !row) continue
-    row[seriesKey] = Number(row[seriesKey] ?? 0) + getValue(point)
-  }
-
-  return { data: rows, series }
-}
-
-function selectedOverviewWindow(overview: DashboardOverview, days: DashboardDays) {
-  return overview.windows?.[String(days)]
-}
-
-function selectedRangeStart(overview: DashboardOverview, days: DashboardDays) {
-  return selectedOverviewWindow(overview, days)?.range_start ?? overview.meta.range_start
-}
-
 function contributionRangeStart(overview: DashboardOverview, days: number) {
   const today = overview.meta.today_start.slice(0, 10)
   const [year, month, day] = today.split('-').map(Number)
@@ -384,10 +267,6 @@ function longestContributionStreak(days: ApiKeyContributionDay[]) {
     }
   }
   return longest
-}
-
-function formatDateLabel(date: string) {
-  return date.slice(5).replace('-', '/')
 }
 
 function formatHourLabel(value: string) {
