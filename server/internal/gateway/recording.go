@@ -49,6 +49,7 @@ func (h Handler) recordAttempt(
 		CacheCreationInputTokens:   result.cacheCreationInputTokens,
 		CacheCreation5mInputTokens: result.cacheCreation5mInputTokens,
 		CacheCreation1hInputTokens: result.cacheCreation1hInputTokens,
+		CacheWriteCost:             result.cacheWriteCost,
 		EstimatedCost:              result.estimatedCost,
 		Currency:                   result.currency,
 		UpstreamStatusCode:         result.upstreamStatusCode,

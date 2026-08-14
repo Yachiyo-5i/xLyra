@@ -341,15 +341,23 @@ func TestRequestUsageCostSummaryAggregatesTokens(t *testing.T) {
 	summary := RequestUsageCostSummary{Currency: requestUsageSummaryDefaultCurrency}
 
 	summary.AddFloat(1.25, "EUR")
-	summary.AddUsage(80, 40, 120, 30)
+	summary.AddCacheWriteCost(sql.NullFloat64{Float64: 0.5, Valid: true}, "EUR")
+	summary.AddUsage(80, 40, 120, 30, 5, 60, 40, 20)
 	summary.AddCost(sql.NullFloat64{Float64: 0.75, Valid: true}, "")
-	summary.AddUsage(20, 10, 30, 5)
+	summary.AddCacheWriteCost(sql.NullFloat64{Float64: 0.25, Valid: true}, "")
+	summary.AddUsage(20, 10, 30, 5, 3, 7, 0, 0)
 
 	if summary.TotalTokens != 150 {
 		t.Fatalf("expected total tokens 150, got %d", summary.TotalTokens)
 	}
 	if summary.PromptTokens != 100 || summary.CompletionTokens != 50 || summary.CachedTokens != 35 {
 		t.Fatalf("unexpected token breakdown: %#v", summary)
+	}
+	if summary.CacheWriteTokens != 8 || summary.CacheCreationInputTokens != 67 || summary.CacheCreation5mInputTokens != 40 || summary.CacheCreation1hInputTokens != 20 || summary.CacheWriteTotalTokens != 75 {
+		t.Fatalf("unexpected cache write breakdown: %#v", summary)
+	}
+	if summary.CacheWriteCost != 0.5 {
+		t.Fatalf("expected EUR-consistent cache write cost 0.5, got %f", summary.CacheWriteCost)
 	}
 	// F22: TotalCost is the established EUR currency only; the default-currency
 	// value is kept separate rather than mixed in.

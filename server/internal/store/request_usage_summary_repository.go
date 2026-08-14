@@ -61,6 +61,7 @@ type RequestUsageDailySummary struct {
 	CacheCreationInputTokens   int64   `gorm:"not null;default:0"`
 	CacheCreation5mInputTokens int64   `gorm:"not null;default:0"`
 	CacheCreation1hInputTokens int64   `gorm:"not null;default:0"`
+	CacheWriteCost             float64 `gorm:"type:numeric(18,8)"`
 	EstimatedCost              float64 `gorm:"type:numeric(18,8)"`
 	LatencyCount               int64
 	LatencyTotalMS             int64
@@ -148,16 +149,23 @@ type RequestUsageCostSummaryQuery struct {
 }
 
 type RequestUsageCostSummary struct {
-	TotalCost        float64
-	PromptTokens     int64
-	CompletionTokens int64
-	TotalTokens      int64
-	CachedTokens     int64
-	Currency         string
+	TotalCost                  float64
+	PromptTokens               int64
+	CompletionTokens           int64
+	TotalTokens                int64
+	CachedTokens               int64
+	CacheWriteTokens           int64
+	CacheCreationInputTokens   int64
+	CacheCreation5mInputTokens int64
+	CacheCreation1hInputTokens int64
+	CacheWriteTotalTokens      int64
+	CacheWriteCost             float64
+	Currency                   string
 	// CostByCurrency holds the exact per-currency totals. TotalCost/Currency
 	// expose a single currency-consistent view (the summary currency) rather than
 	// summing across currencies.
-	CostByCurrency map[string]float64
+	CostByCurrency           map[string]float64
+	CacheWriteCostByCurrency map[string]float64
 }
 
 func NewRequestUsageSummaryRepository(db *gorm.DB) RequestUsageSummaryRepository {
@@ -669,7 +677,8 @@ func (r RequestUsageSummaryRepository) CostSummary(ctx context.Context, query Re
 			continue
 		}
 		result.AddFloat(row.EstimatedCost, row.Currency)
-		result.AddUsage(row.PromptTokens, row.CompletionTokens, row.TotalTokens, row.CachedTokens)
+		result.AddCacheWriteCost(sql.NullFloat64{Float64: row.CacheWriteCost, Valid: true}, row.Currency)
+		result.AddUsage(row.PromptTokens, row.CompletionTokens, row.TotalTokens, row.CachedTokens, row.CacheWriteTokens, row.CacheCreationInputTokens, row.CacheCreation5mInputTokens, row.CacheCreation1hInputTokens)
 	}
 	return result, nil
 }
@@ -824,6 +833,7 @@ func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Cont
 			row.CacheCreationInputTokens = 0
 			row.CacheCreation5mInputTokens = 0
 			row.CacheCreation1hInputTokens = 0
+			row.CacheWriteCost = 0
 			row.EstimatedCost = 0
 			row.LatencyCount = 0
 			row.LatencyTotalMS = 0
@@ -867,11 +877,31 @@ func (s *RequestUsageCostSummary) AddCost(value sql.NullFloat64, currency string
 	s.AddFloat(value.Float64, currency)
 }
 
-func (s *RequestUsageCostSummary) AddUsage(promptTokens int64, completionTokens int64, totalTokens int64, cachedTokens int64) {
+func (s *RequestUsageCostSummary) AddUsage(promptTokens int64, completionTokens int64, totalTokens int64, cachedTokens int64, cacheWriteTokens int64, cacheCreationInputTokens int64, cacheCreation5mInputTokens int64, cacheCreation1hInputTokens int64) {
 	s.PromptTokens += promptTokens
 	s.CompletionTokens += completionTokens
 	s.TotalTokens += totalTokens
 	s.CachedTokens += cachedTokens
+	s.CacheWriteTokens += cacheWriteTokens
+	s.CacheCreationInputTokens += cacheCreationInputTokens
+	s.CacheCreation5mInputTokens += cacheCreation5mInputTokens
+	s.CacheCreation1hInputTokens += cacheCreation1hInputTokens
+	s.CacheWriteTotalTokens += cacheWriteTokens + cacheCreationTotalTokens(cacheCreationInputTokens, cacheCreation5mInputTokens, cacheCreation1hInputTokens)
+}
+
+func (s *RequestUsageCostSummary) AddCacheWriteCost(value sql.NullFloat64, currency string) {
+	if !value.Valid {
+		return
+	}
+	cur := stringDefault(strings.TrimSpace(currency), requestUsageSummaryDefaultCurrency)
+	if s.CacheWriteCostByCurrency == nil {
+		s.CacheWriteCostByCurrency = map[string]float64{}
+	}
+	s.CacheWriteCostByCurrency[cur] += value.Float64
+	if strings.TrimSpace(s.Currency) == "" || s.Currency == requestUsageSummaryDefaultCurrency {
+		s.Currency = cur
+	}
+	s.CacheWriteCost = s.CacheWriteCostByCurrency[s.Currency]
 }
 
 func (s *RequestUsageCostSummary) AddFloat(value float64, currency string) {
@@ -887,6 +917,14 @@ func (s *RequestUsageCostSummary) AddFloat(value float64, currency string) {
 		s.Currency = cur
 	}
 	s.TotalCost = s.CostByCurrency[s.Currency]
+	s.CacheWriteCost = s.CacheWriteCostByCurrency[s.Currency]
+}
+
+func cacheCreationTotalTokens(cacheCreationInputTokens int64, cacheCreation5mInputTokens int64, cacheCreation1hInputTokens int64) int64 {
+	if cacheCreation5mInputTokens > 0 || cacheCreation1hInputTokens > 0 {
+		return cacheCreation5mInputTokens + cacheCreation1hInputTokens
+	}
+	return cacheCreationInputTokens
 }
 
 func (r RequestUsageSummaryRepository) summaryFromRequestLog(ctx context.Context, log RequestLog, usage *UsageRecord, timeZone config.TimeZone) (RequestUsageDailySummary, error) {
@@ -983,6 +1021,7 @@ func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.T
 	cacheCreationInputTokens := int64(0)
 	cacheCreation5mInputTokens := int64(0)
 	cacheCreation1hInputTokens := int64(0)
+	cacheWriteCost := float64(0)
 	estimatedCost := float64(0)
 	if usage != nil {
 		currency = stringDefault(usage.Currency, requestUsageSummaryDefaultCurrency)
@@ -1003,6 +1042,9 @@ func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.T
 		}
 		if usage.CacheCreation1hInputTokens.Valid {
 			cacheCreation1hInputTokens = usage.CacheCreation1hInputTokens.Int64
+		}
+		if usage.CacheWriteCost.Valid {
+			cacheWriteCost = usage.CacheWriteCost.Float64
 		}
 		if usage.EstimatedCost.Valid {
 			estimatedCost = usage.EstimatedCost.Float64
@@ -1039,6 +1081,7 @@ func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.T
 		CacheCreationInputTokens:   cacheCreationInputTokens,
 		CacheCreation5mInputTokens: cacheCreation5mInputTokens,
 		CacheCreation1hInputTokens: cacheCreation1hInputTokens,
+		CacheWriteCost:             cacheWriteCost,
 		EstimatedCost:              estimatedCost,
 		FirstRequestAt:             sql.NullTime{Time: log.CreatedAt, Valid: true},
 		LastRequestAt:              sql.NullTime{Time: log.CreatedAt, Valid: true},
@@ -1117,6 +1160,7 @@ func addSummaryValues(existing *RequestUsageDailySummary, delta RequestUsageDail
 	existing.CacheCreationInputTokens += delta.CacheCreationInputTokens
 	existing.CacheCreation5mInputTokens += delta.CacheCreation5mInputTokens
 	existing.CacheCreation1hInputTokens += delta.CacheCreation1hInputTokens
+	existing.CacheWriteCost += delta.CacheWriteCost
 	existing.EstimatedCost += delta.EstimatedCost
 	existing.LatencyCount += delta.LatencyCount
 	existing.LatencyTotalMS += delta.LatencyTotalMS

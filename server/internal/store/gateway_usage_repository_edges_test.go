@@ -222,16 +222,24 @@ func TestRequestUsageCostSummaryFiltersModelAndKeepsCurrencyOffline(t *testing.T
 		}
 		*rows = []RequestUsageDailySummary{
 			{
-				CanonicalModelKey: "gpt-4.1",
-				EstimatedCost:     0.25,
-				TotalTokens:       10,
-				Currency:          "",
+				CanonicalModelKey:        "gpt-4.1",
+				EstimatedCost:            0.25,
+				TotalTokens:              10,
+				CacheWriteTokens:         2,
+				CacheCreationInputTokens: 4,
+				CacheWriteCost:           0.05,
+				Currency:                 "",
 			},
 			{
-				UpstreamModelName: "vendor-gpt-4.1-mini",
-				EstimatedCost:     0.75,
-				TotalTokens:       20,
-				Currency:          "EUR",
+				UpstreamModelName:          "vendor-gpt-4.1-mini",
+				EstimatedCost:              0.75,
+				TotalTokens:                20,
+				CacheWriteTokens:           3,
+				CacheCreationInputTokens:   6,
+				CacheCreation5mInputTokens: 2,
+				CacheCreation1hInputTokens: 4,
+				CacheWriteCost:             0.2,
+				Currency:                   "EUR",
 			},
 			{
 				CanonicalModelKey: "claude",
@@ -257,6 +265,9 @@ func TestRequestUsageCostSummaryFiltersModelAndKeepsCurrencyOffline(t *testing.T
 	}
 	if summary.CostByCurrency["USD"] != 0.25 || summary.CostByCurrency["EUR"] != 0.75 {
 		t.Fatalf("per-currency breakdown = %#v", summary.CostByCurrency)
+	}
+	if summary.CacheWriteTokens != 5 || summary.CacheCreationInputTokens != 10 || summary.CacheCreation5mInputTokens != 2 || summary.CacheCreation1hInputTokens != 4 || summary.CacheWriteTotalTokens != 15 || summary.CacheWriteCost != 0.2 {
+		t.Fatalf("cache write summary = %#v, want deduplicated EUR-consistent values", summary)
 	}
 }
 

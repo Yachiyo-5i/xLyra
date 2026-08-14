@@ -49,6 +49,7 @@ func TestSummaryFromRequestLogUsesUsageRecordAndContextDimensions(t *testing.T) 
 		CacheCreationInputTokens:   sql.NullInt64{Int64: 6, Valid: true},
 		CacheCreation5mInputTokens: sql.NullInt64{Int64: 4, Valid: true},
 		CacheCreation1hInputTokens: sql.NullInt64{Int64: 2, Valid: true},
+		CacheWriteCost:             sql.NullFloat64{Float64: 0.075, Valid: true},
 		EstimatedCost:              sql.NullFloat64{Float64: 0.125, Valid: true},
 		Currency:                   "EUR",
 	}
@@ -89,6 +90,9 @@ func TestSummaryFromRequestLogUsesUsageRecordAndContextDimensions(t *testing.T) 
 	}
 	if row.CacheWriteTokens != 5 || row.CacheCreationInputTokens != 6 || row.CacheCreation5mInputTokens != 4 || row.CacheCreation1hInputTokens != 2 {
 		t.Fatalf("expected cache write tokens to be included in summary, got %#v", row)
+	}
+	if row.CacheWriteCost != 0.075 {
+		t.Fatalf("expected cache write cost to be included in summary, got %#v", row)
 	}
 	if row.EstimatedCost != 0.125 || row.Currency != "EUR" {
 		t.Fatalf("unexpected cost: %#v", row)

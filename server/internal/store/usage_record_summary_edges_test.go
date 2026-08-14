@@ -52,6 +52,7 @@ func TestUsageRecordRepositoryCreateBuildsRecordWithoutRealWrite(t *testing.T) {
 		CacheCreationInputTokens:   9,
 		CacheCreation5mInputTokens: 6,
 		CacheCreation1hInputTokens: 3,
+		CacheWriteCost:             0.05,
 		EstimatedCost:              float32(0.125),
 	})
 	if err != nil {
@@ -74,6 +75,9 @@ func TestUsageRecordRepositoryCreateBuildsRecordWithoutRealWrite(t *testing.T) {
 		!captured.CacheCreation5mInputTokens.Valid || captured.CacheCreation5mInputTokens.Int64 != 6 ||
 		!captured.CacheCreation1hInputTokens.Valid || captured.CacheCreation1hInputTokens.Int64 != 3 {
 		t.Fatalf("captured cache write tokens = %#v", captured)
+	}
+	if !captured.CacheWriteCost.Valid || captured.CacheWriteCost.Float64 != 0.05 {
+		t.Fatalf("captured cache write cost = %#v", captured.CacheWriteCost)
 	}
 	if !captured.EstimatedCost.Valid || captured.EstimatedCost.Float64 != float64(float32(0.125)) {
 		t.Fatalf("captured cost = %#v", captured.EstimatedCost)

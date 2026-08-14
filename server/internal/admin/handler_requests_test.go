@@ -85,14 +85,20 @@ func TestRequestLogSummaryReturnsUnsupportedPayloadForSearchFilter(t *testing.T)
 	adminAssertStatus(t, rec, http.StatusOK)
 	body := adminDecodeJSON[struct {
 		Summary struct {
-			TotalCost         any    `json:"total_cost"`
-			PromptTokens      any    `json:"prompt_tokens"`
-			CompletionTokens  any    `json:"completion_tokens"`
-			TotalTokens       any    `json:"total_tokens"`
-			CachedTokens      any    `json:"cached_tokens"`
-			Currency          string `json:"currency"`
-			Supported         bool   `json:"supported"`
-			UnsupportedReason string `json:"unsupported_reason"`
+			TotalCost                any    `json:"total_cost"`
+			PromptTokens             any    `json:"prompt_tokens"`
+			CompletionTokens         any    `json:"completion_tokens"`
+			TotalTokens              any    `json:"total_tokens"`
+			CachedTokens             any    `json:"cached_tokens"`
+			CacheWriteTokens         any    `json:"cache_write_tokens"`
+			CacheCreationInputTokens any    `json:"cache_creation_input_tokens"`
+			CacheWrite5mTokens       any    `json:"cache_write_5m_tokens"`
+			CacheWrite1hTokens       any    `json:"cache_write_1h_tokens"`
+			CacheWriteTotalTokens    any    `json:"cache_write_total_tokens"`
+			CacheWriteCost           any    `json:"cache_write_cost"`
+			Currency                 string `json:"currency"`
+			Supported                bool   `json:"supported"`
+			UnsupportedReason        string `json:"unsupported_reason"`
 		} `json:"summary"`
 	}](t, rec)
 	if body.Summary.Supported {
@@ -101,7 +107,7 @@ func TestRequestLogSummaryReturnsUnsupportedPayloadForSearchFilter(t *testing.T)
 	if body.Summary.UnsupportedReason != "search_filter" || body.Summary.Currency != "USD" {
 		t.Fatalf("unexpected unsupported summary metadata: %#v", body.Summary)
 	}
-	if body.Summary.TotalCost != nil || body.Summary.PromptTokens != nil || body.Summary.CompletionTokens != nil || body.Summary.TotalTokens != nil || body.Summary.CachedTokens != nil {
+	if body.Summary.TotalCost != nil || body.Summary.PromptTokens != nil || body.Summary.CompletionTokens != nil || body.Summary.TotalTokens != nil || body.Summary.CachedTokens != nil || body.Summary.CacheWriteTokens != nil || body.Summary.CacheCreationInputTokens != nil || body.Summary.CacheWrite5mTokens != nil || body.Summary.CacheWrite1hTokens != nil || body.Summary.CacheWriteTotalTokens != nil || body.Summary.CacheWriteCost != nil {
 		t.Fatalf("unsupported summary should null totals, got %#v", body.Summary)
 	}
 }

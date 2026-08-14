@@ -39,6 +39,7 @@ type GatewayRequestRecord struct {
 	CacheCreationInputTokens   int
 	CacheCreation5mInputTokens int
 	CacheCreation1hInputTokens int
+	CacheWriteCost             *float64
 	EstimatedCost              *float64
 	Currency                   string
 	UpstreamStatusCode         int
@@ -110,7 +111,7 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 		requestLog = createdLog
 
 		totalTokens := record.PromptTokens + record.CompletionTokens
-		if totalTokens > 0 || record.EstimatedCost != nil {
+		if totalTokens > 0 || record.CacheWriteCost != nil || record.EstimatedCost != nil {
 			createdUsage, err := store.NewUsageRecordRepository(tx).Create(ctx, store.CreateUsageRecordParams{
 				RequestLogID:               requestLog.ID,
 				APIKeyID:                   nullableUUID(record.APIKeyID),
@@ -124,6 +125,7 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 				CacheCreationInputTokens:   record.CacheCreationInputTokens,
 				CacheCreation5mInputTokens: record.CacheCreation5mInputTokens,
 				CacheCreation1hInputTokens: record.CacheCreation1hInputTokens,
+				CacheWriteCost:             nullableFloat(record.CacheWriteCost),
 				EstimatedCost:              nullableFloat(record.EstimatedCost),
 				Currency:                   record.Currency,
 			})

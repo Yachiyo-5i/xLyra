@@ -24,6 +24,7 @@ type UsageRecord struct {
 	CacheCreationInputTokens   sql.NullInt64 `gorm:"type:bigint"`
 	CacheCreation5mInputTokens sql.NullInt64 `gorm:"type:bigint"`
 	CacheCreation1hInputTokens sql.NullInt64 `gorm:"type:bigint"`
+	CacheWriteCost             sql.NullFloat64
 	EstimatedCost              sql.NullFloat64
 	Currency                   string
 	CreatedAt                  time.Time
@@ -42,6 +43,7 @@ type CreateUsageRecordParams struct {
 	CacheCreationInputTokens   any
 	CacheCreation5mInputTokens any
 	CacheCreation1hInputTokens any
+	CacheWriteCost             any
 	EstimatedCost              any
 	Currency                   string
 }
@@ -71,6 +73,7 @@ func (r UsageRecordRepository) Create(ctx context.Context, params CreateUsageRec
 		CacheCreationInputTokens:   nullInt64FromAny(params.CacheCreationInputTokens),
 		CacheCreation5mInputTokens: nullInt64FromAny(params.CacheCreation5mInputTokens),
 		CacheCreation1hInputTokens: nullInt64FromAny(params.CacheCreation1hInputTokens),
+		CacheWriteCost:             nullFloatFromAny(params.CacheWriteCost),
 		EstimatedCost:              nullFloatFromAny(params.EstimatedCost),
 		Currency:                   params.Currency,
 	}

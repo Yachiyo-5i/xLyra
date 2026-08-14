@@ -285,6 +285,16 @@ func applyEstimatedCostBillingAdjustment(result gatewayAttemptResult) gatewayAtt
 	}
 	baseCost := *result.estimatedCost
 	result.baseEstimatedCost = &baseCost
+	multiplier := gatewayBillingMultiplier(result)
+	if multiplier == 1 {
+		return result
+	}
+	finalCost := baseCost * multiplier
+	result.estimatedCost = &finalCost
+	return result
+}
+
+func gatewayBillingMultiplier(result gatewayAttemptResult) float64 {
 	credentialMultiplier := result.credentialCostMultiplier
 	if credentialMultiplier <= 0 {
 		credentialMultiplier = 1
@@ -293,12 +303,7 @@ func applyEstimatedCostBillingAdjustment(result gatewayAttemptResult) gatewayAtt
 	if result.billingMode == "fast" && result.costMultiplier > 1 {
 		serviceMultiplier = result.costMultiplier
 	}
-	if credentialMultiplier == 1 && serviceMultiplier == 1 {
-		return result
-	}
-	finalCost := baseCost * credentialMultiplier * serviceMultiplier
-	result.estimatedCost = &finalCost
-	return result
+	return credentialMultiplier * serviceMultiplier
 }
 
 func firstPricingValue(primary *float64, fallback *float64) *float64 {
@@ -545,6 +550,15 @@ func cacheWriteTokenCost(usage gatewayUsage, pricing selectedPricing) (float64, 
 		usedPrice = true
 	}
 	return total, usedPrice
+}
+
+func cacheWriteCostForAttempt(usage gatewayUsage, result gatewayAttemptResult) *float64 {
+	cost, ok := cacheWriteTokenCost(usage, result.pricing)
+	if !ok {
+		return nil
+	}
+	cost *= gatewayBillingMultiplier(result)
+	return &cost
 }
 
 func cacheWriteRatioValue(ratio *float64) float64 {

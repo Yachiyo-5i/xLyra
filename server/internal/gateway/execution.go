@@ -45,6 +45,7 @@ type gatewayAttemptResult struct {
 	cacheCreationInputTokens   int
 	cacheCreation5mInputTokens int
 	cacheCreation1hInputTokens int
+	cacheWriteCost            *float64
 	imageCount               int
 	audioOutputTokens        int
 	estimatedCost            *float64
@@ -555,6 +556,7 @@ func (h Handler) handleBufferedResponse(
 		result.pricing = applyLongContextPricing(transformed.Usage, result.pricing)
 		result.estimatedCost = estimateCost(transformed.Usage, result.pricing)
 		result = applyEstimatedCostBillingAdjustment(result)
+		result.cacheWriteCost = cacheWriteCostForAttempt(transformed.Usage, result)
 	} else {
 		result.errorType = "upstream_http_error"
 		result.errorMessage = fmt.Sprintf("upstream returned HTTP %d", transformed.StatusCode)
@@ -567,6 +569,7 @@ func (h Handler) handleBufferedResponse(
 			result.pricing = applyLongContextPricing(transformed.Usage, result.pricing)
 			result.estimatedCost = estimateCost(transformed.Usage, result.pricing)
 			result = applyEstimatedCostBillingAdjustment(result)
+			result.cacheWriteCost = cacheWriteCostForAttempt(transformed.Usage, result)
 		}
 	}
 
@@ -774,7 +777,9 @@ func applyStreamUsage(result gatewayAttemptResult, usage gatewayUsage) gatewayAt
 	result.audioOutputTokens          = usage.AudioOutputTokens
 	result.pricing = applyLongContextPricing(usage, result.pricing)
 	result.estimatedCost = estimateCost(usage, result.pricing)
-	return applyEstimatedCostBillingAdjustment(result)
+	result = applyEstimatedCostBillingAdjustment(result)
+	result.cacheWriteCost = cacheWriteCostForAttempt(usage, result)
+	return result
 }
 
 func streamSucceeded(capture streamCaptureState) bool {

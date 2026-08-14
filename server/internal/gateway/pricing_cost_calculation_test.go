@@ -201,6 +201,23 @@ func TestEstimateCostBillsCacheWriteTokens(t *testing.T) {
 	}
 }
 
+func TestCacheWriteCostForAttemptAppliesBillingMultipliers(t *testing.T) {
+	t.Parallel()
+
+	cost := cacheWriteCostForAttempt(gatewayUsage{PromptTokens: 400_000, CacheWriteTokens: 400_000}, gatewayAttemptResult{
+		pricing: selectedPricing{
+			InputValue:      pricingAmount(2),
+			CacheWriteRatio: pricingAmount(1.25),
+		},
+		credentialCostMultiplier: 1.5,
+		billingMode:              "fast",
+		costMultiplier:           2,
+	})
+	if cost == nil || *cost != 3 {
+		t.Fatalf("cache write cost = %v, want 3", cost)
+	}
+}
+
 func TestCostCalculationMetadataForPerRequestAndImageUnit(t *testing.T) {
 	t.Parallel()
 

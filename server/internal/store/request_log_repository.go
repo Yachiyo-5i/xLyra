@@ -403,11 +403,28 @@ func (r RequestLogRepository) CostSummary(ctx context.Context, params ListReques
 	for _, log := range logs {
 		if usage, ok := usageByRequestLogID[log.ID]; ok {
 			result.AddCost(usage.EstimatedCost, usage.Currency)
+			result.AddCacheWriteCost(usage.CacheWriteCost, usage.Currency)
 			cachedTokens := int64(0)
 			if usage.CachedTokens.Valid {
 				cachedTokens = usage.CachedTokens.Int64
 			}
-			result.AddUsage(int64(usage.PromptTokens), int64(usage.CompletionTokens), int64(usage.TotalTokens), cachedTokens)
+			cacheWriteTokens := int64(0)
+			cacheCreationInputTokens := int64(0)
+			cacheCreation5mInputTokens := int64(0)
+			cacheCreation1hInputTokens := int64(0)
+			if usage.CacheWriteTokens.Valid {
+				cacheWriteTokens = usage.CacheWriteTokens.Int64
+			}
+			if usage.CacheCreationInputTokens.Valid {
+				cacheCreationInputTokens = usage.CacheCreationInputTokens.Int64
+			}
+			if usage.CacheCreation5mInputTokens.Valid {
+				cacheCreation5mInputTokens = usage.CacheCreation5mInputTokens.Int64
+			}
+			if usage.CacheCreation1hInputTokens.Valid {
+				cacheCreation1hInputTokens = usage.CacheCreation1hInputTokens.Int64
+			}
+			result.AddUsage(int64(usage.PromptTokens), int64(usage.CompletionTokens), int64(usage.TotalTokens), cachedTokens, cacheWriteTokens, cacheCreationInputTokens, cacheCreation5mInputTokens, cacheCreation1hInputTokens)
 			continue
 		}
 		promptTokens := int64(0)
@@ -418,7 +435,7 @@ func (r RequestLogRepository) CostSummary(ctx context.Context, params ListReques
 		if log.ResponseTokens.Valid {
 			completionTokens = log.ResponseTokens.Int64
 		}
-		result.AddUsage(promptTokens, completionTokens, promptTokens+completionTokens, 0)
+		result.AddUsage(promptTokens, completionTokens, promptTokens+completionTokens, 0, 0, 0, 0, 0)
 	}
 	return result, nil
 }

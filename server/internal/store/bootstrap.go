@@ -262,6 +262,11 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure usage_records cache write column %s: %w", field, err)
 		}
 	}
+	if !migrator.HasColumn(&UsageRecord{}, "CacheWriteCost") {
+		if err := migrator.AddColumn(&UsageRecord{}, "CacheWriteCost"); err != nil {
+			return fmt.Errorf("ensure usage_records.cache_write_cost column: %w", err)
+		}
+	}
 	if !migrator.HasColumn(&RequestUsageDailySummary{}, "CachedTokens") {
 		if err := migrator.AddColumn(&RequestUsageDailySummary{}, "CachedTokens"); err != nil {
 			return fmt.Errorf("ensure request_usage_daily_summaries.cached_tokens column: %w", err)
@@ -273,6 +278,11 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		}
 		if err := migrator.AddColumn(&RequestUsageDailySummary{}, field); err != nil {
 			return fmt.Errorf("ensure request_usage_daily_summaries cache write column %s: %w", field, err)
+		}
+	}
+	if !migrator.HasColumn(&RequestUsageDailySummary{}, "CacheWriteCost") {
+		if err := migrator.AddColumn(&RequestUsageDailySummary{}, "CacheWriteCost"); err != nil {
+			return fmt.Errorf("ensure request_usage_daily_summaries.cache_write_cost column: %w", err)
 		}
 	}
 	if err := ensureAPIKeyModelRuleFormat(db); err != nil {
