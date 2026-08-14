@@ -26,6 +26,7 @@ func (h Handler) recordAttempt(
 
 	attemptRequestID := fmt.Sprintf("%s:%d:%s", requestID, result.attempt, uuid.NewString())
 	metadata := attemptMetadata(ctx, attemptRequestID, requestID, apiKeyID, canonicalModelID, candidate, result)
+	h.appendCacheObservationMetadata(ctx, metadata, candidate, result)
 	internal, parentLogID := bridgeRecordingFromContext(ctx)
 	requestLog, _, err := h.recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
 		RequestID:                  attemptRequestID,

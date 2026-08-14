@@ -38,6 +38,7 @@ type Handler struct {
 	usage               *usage.Service
 	timeZone            config.TimeZone
 	exposeRouteSite     bool
+	cacheObservationKey []byte
 }
 
 func (h Handler) WithRouteSiteHeader() Handler {
@@ -79,5 +80,6 @@ func NewHandlerWithTimeZone(logger *slog.Logger, authService *auth.Service, rout
 		confFile:            confFile,
 		usage:               usageService,
 		timeZone:            timeZone,
+		cacheObservationKey: cacheObservationKey(masterKey),
 	}
 }

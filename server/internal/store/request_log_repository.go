@@ -18,9 +18,9 @@ import (
 type RequestLog struct {
 	ID                 uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	RequestID          string
-	APIKeyID           uuid.NullUUID
+	APIKeyID           uuid.NullUUID `gorm:"index:request_logs_cache_observation_lookup_idx,priority:1"`
 	SiteID             uuid.NullUUID
-	CanonicalModelID   uuid.NullUUID
+	CanonicalModelID   uuid.NullUUID `gorm:"index:request_logs_cache_observation_lookup_idx,priority:2"`
 	SiteModelID        uuid.NullUUID
 	Endpoint           string
 	StatusCode         int
@@ -33,7 +33,7 @@ type RequestLog struct {
 	Metadata           JSON          `gorm:"type:jsonb"`
 	Internal           bool          `gorm:"default:false;not null"`
 	ParentRequestLogID uuid.NullUUID `gorm:"type:uuid;index:request_logs_parent_request_log_id_idx"`
-	CreatedAt          time.Time
+	CreatedAt          time.Time     `gorm:"index:request_logs_cache_observation_lookup_idx,priority:3"`
 }
 
 type CreateRequestLogParams struct {
@@ -154,6 +154,35 @@ func (r RequestLogRepository) ListRecentSiteModelAttempts(ctx context.Context, s
 		Limit(limit).
 		Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list recent site model attempts: %w", err)
+	}
+	return items, nil
+}
+
+func (r RequestLogRepository) ListRecentByAPIKeyAndCanonicalModel(ctx context.Context, apiKeyID uuid.UUID, canonicalModelID uuid.UUID, limit int) ([]RequestLog, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("request log store is not initialized")
+	}
+	if apiKeyID == uuid.Nil || canonicalModelID == uuid.Nil {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	var items []RequestLog
+	if err := r.db.WithContext(ctx).
+		Where(&RequestLog{
+			APIKeyID:         uuid.NullUUID{UUID: apiKeyID, Valid: true},
+			CanonicalModelID: uuid.NullUUID{UUID: canonicalModelID, Valid: true},
+		}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{
+			{Column: clause.Column{Name: "created_at"}, Desc: true},
+		}}).
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list recent request logs by api key and canonical model: %w", err)
 	}
 	return items, nil
 }

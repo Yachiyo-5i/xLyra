@@ -144,6 +144,9 @@ func (h Handler) serveEndpoint(
 	}
 	access := setup.access
 	plan := setup.plan
+	ctx = h.withCacheObservation(ctx, apiKey.ID, plan.CanonicalModel.ID, request)
+	ctx = h.withCacheShadowAffinity(ctx, apiKey.ID, plan.CanonicalModel.ID)
+	r = r.WithContext(ctx)
 
 	reservation, limitErr, limitAcquireErr := h.acquireRateLimit(ctx, apiKey.ID, endpoint, request, startedAt)
 	if limitAcquireErr != nil {
@@ -218,6 +221,9 @@ func (h Handler) serveEndpoint(
 		imageIntent = fallbackIntent
 		access = fallbackSetup.access
 		plan = fallbackSetup.plan
+		ctx = h.withCacheObservation(ctx, apiKey.ID, plan.CanonicalModel.ID, request)
+		ctx = h.withCacheShadowAffinity(ctx, apiKey.ID, plan.CanonicalModel.ID)
+		r = r.WithContext(ctx)
 		attempts = append([]routeengine.Candidate{plan.Selected}, plan.Failover...)
 		inflight.SetModel(requestID, plan.CanonicalModel.ModelKey, plan.CanonicalModel.Provider)
 		if h.logger != nil {

@@ -36,10 +36,11 @@ func (chatCompletionsEndpointAdapter) DecodeRequest(r *http.Request) (gatewayReq
 
 	stream, _ := payload["stream"].(bool)
 	request := gatewayRequest{
-		DownstreamPath: gatewayEndpointChatCompletions,
-		RequestedModel: model,
-		Stream:         stream,
-		Payload:        payload,
+		DownstreamPath:    gatewayEndpointChatCompletions,
+		DownstreamHeaders: r.Header.Clone(),
+		RequestedModel:    model,
+		Stream:            stream,
+		Payload:           payload,
 	}
 	if canonical, err := canonicalRequestFromOpenAIChatPayload(payload, model); err == nil {
 		request.Canonical = &canonical
