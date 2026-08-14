@@ -20,30 +20,34 @@ type Recorder struct {
 }
 
 type GatewayRequestRecord struct {
-	RequestID          string
-	APIKeyID           uuid.UUID
-	SiteID             uuid.UUID
-	CanonicalModelID   uuid.UUID
-	SiteModelID        uuid.UUID
-	Endpoint           string
-	StatusCode         int
-	Success            bool
-	ErrorType          string
-	LatencyMS          int64
-	UpstreamLatencyMS  int64
-	FirstByteLatencyMS int64
-	PromptTokens       int
-	CompletionTokens   int
-	CachedTokens       int
-	EstimatedCost      *float64
-	Currency           string
-	UpstreamStatusCode int
-	UpstreamResponse   any
-	ErrorMessage       string
-	Metadata           map[string]any
-	SkipHealthSnapshot bool
-	Internal           bool
-	ParentRequestLogID uuid.UUID
+	RequestID                  string
+	APIKeyID                   uuid.UUID
+	SiteID                     uuid.UUID
+	CanonicalModelID           uuid.UUID
+	SiteModelID                uuid.UUID
+	Endpoint                   string
+	StatusCode                 int
+	Success                    bool
+	ErrorType                  string
+	LatencyMS                  int64
+	UpstreamLatencyMS          int64
+	FirstByteLatencyMS         int64
+	PromptTokens               int
+	CompletionTokens           int
+	CachedTokens               int
+	CacheWriteTokens           int
+	CacheCreationInputTokens   int
+	CacheCreation5mInputTokens int
+	CacheCreation1hInputTokens int
+	EstimatedCost              *float64
+	Currency                   string
+	UpstreamStatusCode         int
+	UpstreamResponse           any
+	ErrorMessage               string
+	Metadata                   map[string]any
+	SkipHealthSnapshot         bool
+	Internal                   bool
+	ParentRequestLogID         uuid.UUID
 }
 
 func NewRecorder(db *store.Store, logger *slog.Logger, timeZones ...config.TimeZone) Recorder {
@@ -108,16 +112,20 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 		totalTokens := record.PromptTokens + record.CompletionTokens
 		if totalTokens > 0 || record.EstimatedCost != nil {
 			createdUsage, err := store.NewUsageRecordRepository(tx).Create(ctx, store.CreateUsageRecordParams{
-				RequestLogID:     requestLog.ID,
-				APIKeyID:         nullableUUID(record.APIKeyID),
-				SiteID:           nullableUUID(record.SiteID),
-				CanonicalModelID: nullableUUID(record.CanonicalModelID),
-				PromptTokens:     record.PromptTokens,
-				CompletionTokens: record.CompletionTokens,
-				TotalTokens:      totalTokens,
-				CachedTokens:     record.CachedTokens,
-				EstimatedCost:    nullableFloat(record.EstimatedCost),
-				Currency:         record.Currency,
+				RequestLogID:               requestLog.ID,
+				APIKeyID:                   nullableUUID(record.APIKeyID),
+				SiteID:                     nullableUUID(record.SiteID),
+				CanonicalModelID:           nullableUUID(record.CanonicalModelID),
+				PromptTokens:               record.PromptTokens,
+				CompletionTokens:           record.CompletionTokens,
+				TotalTokens:                totalTokens,
+				CachedTokens:               record.CachedTokens,
+				CacheWriteTokens:           record.CacheWriteTokens,
+				CacheCreationInputTokens:   record.CacheCreationInputTokens,
+				CacheCreation5mInputTokens: record.CacheCreation5mInputTokens,
+				CacheCreation1hInputTokens: record.CacheCreation1hInputTokens,
+				EstimatedCost:              nullableFloat(record.EstimatedCost),
+				Currency:                   record.Currency,
 			})
 			if err != nil {
 				return err

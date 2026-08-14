@@ -41,12 +41,16 @@ func TestSummaryFromRequestLogUsesUsageRecordAndContextDimensions(t *testing.T) 
 		CreatedAt:      createdAt,
 	}
 	usage := &UsageRecord{
-		PromptTokens:     10,
-		CompletionTokens: 20,
-		TotalTokens:      30,
-		CachedTokens:     sql.NullInt64{Int64: 4, Valid: true},
-		EstimatedCost:    sql.NullFloat64{Float64: 0.125, Valid: true},
-		Currency:         "EUR",
+		PromptTokens:               10,
+		CompletionTokens:           20,
+		TotalTokens:                30,
+		CachedTokens:               sql.NullInt64{Int64: 4, Valid: true},
+		CacheWriteTokens:           sql.NullInt64{Int64: 5, Valid: true},
+		CacheCreationInputTokens:   sql.NullInt64{Int64: 6, Valid: true},
+		CacheCreation5mInputTokens: sql.NullInt64{Int64: 4, Valid: true},
+		CacheCreation1hInputTokens: sql.NullInt64{Int64: 2, Valid: true},
+		EstimatedCost:              sql.NullFloat64{Float64: 0.125, Valid: true},
+		Currency:                   "EUR",
 	}
 
 	row := summaryFromRequestLog(log, usage, timeZone, requestUsageSummaryContext{
@@ -82,6 +86,9 @@ func TestSummaryFromRequestLogUsesUsageRecordAndContextDimensions(t *testing.T) 
 	}
 	if row.PromptTokens != 10 || row.CompletionTokens != 20 || row.TotalTokens != 30 || row.CachedTokens != 4 {
 		t.Fatalf("expected usage record tokens to win over log snapshot, got %#v", row)
+	}
+	if row.CacheWriteTokens != 5 || row.CacheCreationInputTokens != 6 || row.CacheCreation5mInputTokens != 4 || row.CacheCreation1hInputTokens != 2 {
+		t.Fatalf("expected cache write tokens to be included in summary, got %#v", row)
 	}
 	if row.EstimatedCost != 0.125 || row.Currency != "EUR" {
 		t.Fatalf("unexpected cost: %#v", row)
@@ -141,6 +148,9 @@ func TestRequestUsageSummaryRepositoryNilStoreGuards(t *testing.T) {
 	_, err = repo.BackfillCachedTokens(t.Context(), day, timeZone)
 	assertRequestUsageSummaryStoreNotInitialized(t, "BackfillCachedTokens", err)
 
+	_, err = repo.BackfillCacheWriteTokens(t.Context(), day, timeZone)
+	assertRequestUsageSummaryStoreNotInitialized(t, "BackfillCacheWriteTokens", err)
+
 	_, err = repo.List(t.Context(), RequestUsageSummaryQuery{TimeZone: "UTC"})
 	assertRequestUsageSummaryStoreNotInitialized(t, "List", err)
 
@@ -152,6 +162,30 @@ func TestRequestUsageSummaryRepositoryNilStoreGuards(t *testing.T) {
 
 	_, err = repo.DeleteDetailsBefore(t.Context(), day)
 	assertRequestUsageSummaryStoreNotInitialized(t, "DeleteDetailsBefore", err)
+}
+
+func TestRequestUsageSummaryCacheWriteTokensMetadata(t *testing.T) {
+	t.Parallel()
+
+	values, known := requestUsageSummaryCacheWriteTokens(JSON(`{
+		"cost_calculation": {
+			"cache_write_tokens": 3,
+			"cache_creation_tokens": 5,
+			"cache_creation_5m_tokens": 2,
+			"cache_creation_1h_tokens": 3
+		}
+	}`))
+	if !known || !values.CacheWriteTokens.Valid || values.CacheWriteTokens.Int64 != 3 ||
+		!values.CacheCreationInputTokens.Valid || values.CacheCreationInputTokens.Int64 != 5 ||
+		!values.CacheCreation5mInputTokens.Valid || values.CacheCreation5mInputTokens.Int64 != 2 ||
+		!values.CacheCreation1hInputTokens.Valid || values.CacheCreation1hInputTokens.Int64 != 3 {
+		t.Fatalf("cache write tokens = %#v known=%t, want structured metadata values", values, known)
+	}
+
+	values, known = requestUsageSummaryCacheWriteTokens(JSON(`{"cost_calculation":{"cache_write_tokens":-1}}`))
+	if known || values != (requestUsageCacheWriteTokens{}) {
+		t.Fatalf("negative cache write tokens = %#v known=%t, want unknown", values, known)
+	}
 }
 
 func TestRequestUsageSummaryRepositorySiteIDsWithUsageEmptyInputDoesNotNeedDB(t *testing.T) {

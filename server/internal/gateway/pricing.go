@@ -44,6 +44,8 @@ type gatewayUsage struct {
 	TotalTokens                int                  `json:"total_tokens"`
 	ImageCount                 int                  `json:"image_count,omitempty"`
 	CachedPromptTokens         int                  `json:"cached_tokens,omitempty"`
+	PromptCacheHitTokens       int                  `json:"prompt_cache_hit_tokens,omitempty"`
+	PromptCacheMissTokens      int                  `json:"prompt_cache_miss_tokens,omitempty"`
 	CacheWriteTokens           int                  `json:"cache_write_tokens,omitempty"`
 	CacheCreationInputTokens   int                  `json:"cache_creation_input_tokens,omitempty"`
 	CacheCreation5mInputTokens int                  `json:"cache_creation_5m_input_tokens,omitempty"`
@@ -625,6 +627,18 @@ func scaledFloat64Value(base *float64, ratio *float64) any {
 }
 
 func (u gatewayUsage) normalized() gatewayUsage {
+	if u.PromptCacheHitTokens < 0 {
+		u.PromptCacheHitTokens = 0
+	}
+	if u.PromptCacheMissTokens < 0 {
+		u.PromptCacheMissTokens = 0
+	}
+	if u.PromptTokens == 0 && (u.PromptCacheHitTokens > 0 || u.PromptCacheMissTokens > 0) {
+		u.PromptTokens = u.PromptCacheHitTokens + u.PromptCacheMissTokens
+	}
+	if u.CachedPromptTokens == 0 && u.PromptCacheHitTokens > 0 {
+		u.CachedPromptTokens = u.PromptCacheHitTokens
+	}
 	if u.CachedPromptTokens == 0 && u.PromptTokensDetail != nil {
 		u.CachedPromptTokens = u.PromptTokensDetail.CachedTokens
 	}

@@ -150,6 +150,27 @@ func TestGatewayUsageReadsChatCompletionsCacheWriteTokens(t *testing.T) {
 	}
 }
 
+func TestParseCompletionUsageNormalizesDeepSeekCacheTokens(t *testing.T) {
+	t.Parallel()
+
+	usage := parseCompletionUsage([]byte(`{
+		"usage": {
+			"prompt_tokens": 100,
+			"completion_tokens": 8,
+			"total_tokens": 108,
+			"prompt_cache_hit_tokens": 60,
+			"prompt_cache_miss_tokens": 40
+		}
+	}`))
+
+	if usage.CachedPromptTokens != 60 {
+		t.Fatalf("cached prompt tokens = %d, want DeepSeek cache hit tokens", usage.CachedPromptTokens)
+	}
+	if usage.uncachedPromptTokens() != 40 {
+		t.Fatalf("uncached prompt tokens = %d, want DeepSeek cache miss tokens", usage.uncachedPromptTokens())
+	}
+}
+
 func TestEstimateCostBillsCacheWriteTokens(t *testing.T) {
 	t.Parallel()
 

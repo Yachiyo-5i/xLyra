@@ -294,12 +294,74 @@ func TestRequestUsageCachedTokensBackfillDoesNotMarkIncompleteCoverage(t *testin
 		}
 		tx.Statement.RowsAffected = 1
 	})
-
 	repo := NewRequestUsageSummaryRepository(db)
 	for attempt := 0; attempt < 2; attempt++ {
 		_, err := repo.BackfillCachedTokens(ctx, day.AddDate(0, 0, 1).Add(time.Hour), config.LoadTimeZone("UTC"))
 		if err == nil || !strings.Contains(err.Error(), "summary coverage incomplete") {
 			t.Fatalf("BackfillCachedTokens attempt %d error = %v, want incomplete coverage", attempt+1, err)
+		}
+	}
+	if markerQueries != 2 || markerCreates != 0 {
+		t.Fatalf("marker queries=%d creates=%d, want retry without completion marker", markerQueries, markerCreates)
+	}
+}
+
+func TestRequestUsageCacheWriteTokensBackfillDoesNotMarkIncompleteCoverage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	day := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)
+	requestLogID := uuid.New()
+	db := storeTransactionGorm(t, "request_usage_cache_write_tokens_backfill")
+	markerQueries := 0
+	markerCreates := 0
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		switch dest := tx.Statement.Dest.(type) {
+		case *schemaUpgradeMarker:
+			markerQueries++
+			tx.AddError(gorm.ErrRecordNotFound)
+		case *[]RequestLog:
+			*dest = []RequestLog{{
+				ID:        requestLogID,
+				CreatedAt: day.Add(time.Hour),
+				Metadata:  JSON(`{"cost_calculation":{"cache_write_tokens":3}}`),
+			}}
+			tx.Statement.RowsAffected = 1
+		case *[]UsageRecord:
+			*dest = []UsageRecord{{ID: uuid.New(), RequestLogID: requestLogID}}
+			tx.Statement.RowsAffected = 1
+		case *RequestUsageSummaryDay:
+			*dest = RequestUsageSummaryDay{
+				BucketStart:  day,
+				TimeZone:     "UTC",
+				Status:       RequestUsageSummaryDayStatusComplete,
+				RequestCount: 2,
+			}
+			tx.Statement.RowsAffected = 1
+		default:
+			tx.AddError(errors.New("unexpected cache write tokens backfill query destination"))
+		}
+	})
+	storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*schemaUpgradeMarker); ok {
+			markerCreates++
+		}
+		tx.Statement.RowsAffected = 1
+	})
+	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*UsageRecord)
+		if !ok || !item.CacheWriteTokens.Valid || item.CacheWriteTokens.Int64 != 3 {
+			tx.AddError(errors.New("unexpected cache write tokens backfill update"))
+			return
+		}
+		tx.Statement.RowsAffected = 1
+	})
+
+	repo := NewRequestUsageSummaryRepository(db)
+	for attempt := 0; attempt < 2; attempt++ {
+		_, err := repo.BackfillCacheWriteTokens(ctx, day.AddDate(0, 0, 1).Add(time.Hour), config.LoadTimeZone("UTC"))
+		if err == nil || !strings.Contains(err.Error(), "summary coverage incomplete") {
+			t.Fatalf("BackfillCacheWriteTokens attempt %d error = %v, want incomplete coverage", attempt+1, err)
 		}
 	}
 	if markerQueries != 2 || markerCreates != 0 {
