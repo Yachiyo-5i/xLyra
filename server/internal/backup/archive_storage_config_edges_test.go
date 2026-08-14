@@ -27,7 +27,7 @@ func TestWriteArchiveReportsCloseZipError(t *testing.T) {
 		Config: map[string]any{"general": map[string]any{"log": map[string]any{"level": "info"}}},
 	}
 
-	err := writeArchive(payload, func(*zip.Writer) error { return nil }, &zipCentralDirectoryFailWriter{})
+	err := writeArchive(payload, func(*zip.Writer) (map[string]int, error) { return map[string]int{}, nil }, &zipCentralDirectoryFailWriter{})
 	if err == nil || !strings.Contains(err.Error(), "close zip") {
 		t.Fatalf("writeArchive error = %v, want close zip context", err)
 	}

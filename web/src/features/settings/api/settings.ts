@@ -1,4 +1,4 @@
-import { apiFetch, apiURL, type DownloadTicket } from '@/lib/http'
+import { apiFetch, apiFetchResponse, apiURL, type DownloadTicket } from '@/lib/http'
 
 export type ProxyConfig = {
   id: string
@@ -202,16 +202,6 @@ export function backupDownloadURL(ticket: DownloadTicket) {
   return apiURL(ticket.url)
 }
 
-export async function importBackup(input: { file: File; passphrase: string }) {
-  const body = new FormData()
-  body.set('file', input.file)
-  body.set('passphrase', input.passphrase)
-  return apiFetch<{ backup: BackupImportSummary }>('/api/v1/settings/backup/import', {
-    method: 'POST',
-    body,
-  })
-}
-
 export async function fetchAutomaticBackupConfig() {
   return apiFetch<{ automatic_backup: AutomaticBackupConfig }>('/api/v1/settings/backup/automatic')
 }
@@ -239,11 +229,86 @@ export async function runAutomaticBackup() {
   })
 }
 
-export async function restoreAutomaticBackupFile(key: string) {
-  return apiFetch<{ backup: BackupImportSummary }>('/api/v1/settings/backup/automatic/files/restore', {
+export type RestoreProgressEvent = {
+  step: 'download' | 'decrypt' | 'parse' | 'import' | 'complete'
+  status: 'in_progress' | 'complete' | 'error'
+  rows?: number
+  total_rows?: number
+  table?: string
+  bytes?: number
+  total_bytes?: number
+  summary?: BackupImportSummary
+  message?: string
+}
+
+export async function* restoreAutomaticBackupFileSSE(key: string, signal?: AbortSignal): AsyncGenerator<RestoreProgressEvent> {
+  const response = await apiFetchResponse('/api/v1/settings/backup/automatic/files/restore', {
     method: 'POST',
+    headers: { Accept: 'text/event-stream' },
     body: { key },
+    signal,
   })
+  for await (const event of readRestoreProgress(response)) {
+    yield event
+  }
+}
+
+export async function* importBackupSSE(input: { file: File; passphrase: string }, signal?: AbortSignal): AsyncGenerator<RestoreProgressEvent> {
+  const body = new FormData()
+  body.set('file', input.file)
+  body.set('passphrase', input.passphrase)
+
+  const response = await apiFetchResponse('/api/v1/settings/backup/import', {
+    method: 'POST',
+    headers: { Accept: 'text/event-stream' },
+    body,
+    signal,
+  })
+  for await (const event of readRestoreProgress(response)) {
+    yield event
+  }
+}
+
+async function* readRestoreProgress(response: Response): AsyncGenerator<RestoreProgressEvent> {
+  if (!response.body) {
+    throw new Error('restore response stream is unavailable')
+  }
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let terminal = false
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done }).replaceAll('\r\n', '\n')
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() ?? ''
+      if (done && buffer.trim()) {
+        parts.push(buffer)
+        buffer = ''
+      }
+      for (const part of parts) {
+        const data = part
+          .split('\n')
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).trimStart())
+          .join('\n')
+        if (!data) continue
+        const event = JSON.parse(data) as RestoreProgressEvent
+        if (event.step === 'complete' || event.status === 'error') {
+          terminal = true
+        }
+        yield event
+      }
+      if (done) break
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  if (!terminal) {
+    throw new Error('restore response stream ended unexpectedly')
+  }
 }
 
 export async function deleteAutomaticBackupFile(key: string) {

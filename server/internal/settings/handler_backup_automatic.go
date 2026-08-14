@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -88,12 +89,24 @@ func (h Handler) RestoreAutomaticBackupFile(w http.ResponseWriter, r *http.Reque
 		httpx.Error(w, r, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
+
+	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+		h.restoreAutomaticBackupFileSSE(w, r, req.Key)
+		return
+	}
+
 	summary, err := h.autoBackups.Restore(r.Context(), req.Key)
 	if err != nil {
 		h.writeAutomaticBackupError(w, r, err)
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"backup": summary})
+}
+
+func (h Handler) restoreAutomaticBackupFileSSE(w http.ResponseWriter, r *http.Request, key string) {
+	streamBackupRestore(w, r, "download", func(ctx context.Context, progress backup.ProgressFunc) (backup.ImportSummary, error) {
+		return h.autoBackups.RestoreWithProgress(ctx, key, progress)
+	})
 }
 
 func (h Handler) DeleteAutomaticBackupFile(w http.ResponseWriter, r *http.Request) {

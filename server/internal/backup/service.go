@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	currentFormatVersion = 2
-	backupAppName        = "xlyra"
+	currentFormatVersion       = 2
+	backupAppName              = "xlyra"
+	MaxImportBytes       int64 = 512 << 20
 )
 
 type Service struct {
@@ -33,6 +34,20 @@ type ImportSummary struct {
 	ConfigKeys    int `json:"config_keys"`
 	FormatVersion int `json:"format_version"`
 }
+
+type ProgressEvent struct {
+	Step      string         `json:"step"`
+	Status    string         `json:"status"`
+	Rows      int            `json:"rows,omitempty"`
+	TotalRows int            `json:"total_rows,omitempty"`
+	Table     string         `json:"table,omitempty"`
+	Bytes     int64          `json:"bytes,omitempty"`
+	Total     int64          `json:"total_bytes,omitempty"`
+	Summary   *ImportSummary `json:"summary,omitempty"`
+	Message   string         `json:"message,omitempty"`
+}
+
+type ProgressFunc func(ProgressEvent)
 
 func NewService(db *store.Store, confFile *config.ConfigFile, masterKey string, timeZones ...config.TimeZone) Service {
 	return Service{
@@ -81,7 +96,7 @@ func (s Service) exportAt(ctx context.Context, passphrase string, createdAt time
 	}
 	writeErrs := make(chan error, 1)
 	go func() {
-		writeErr := writeArchive(payload, func(zw *zip.Writer) error {
+		writeErr := writeArchive(payload, func(zw *zip.Writer) (map[string]int, error) {
 			return exportDatabase(ctx, s.db.DB(), s.masterKey, zw)
 		}, plainWriter)
 		if writeErr != nil {
@@ -124,7 +139,7 @@ func backupTimeZone(timeZones ...config.TimeZone) config.TimeZone {
 	return config.TimeZoneOrDefault(timeZones...)
 }
 
-func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte) (ImportSummary, error) {
+func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte, progress ...ProgressFunc) (ImportSummary, error) {
 	if err := s.ready(); err != nil {
 		return ImportSummary{}, err
 	}
@@ -134,6 +149,17 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 	if len(encrypted) == 0 {
 		return ImportSummary{}, fmt.Errorf("backup file is required")
 	}
+
+	var prog ProgressFunc
+	if len(progress) > 0 {
+		prog = progress[0]
+	}
+	emit := func(ev ProgressEvent) {
+		if prog != nil {
+			prog(ev)
+		}
+	}
+	emit(ProgressEvent{Step: "decrypt", Status: "in_progress", Message: "Decrypting backup archive"})
 
 	archiveFile, err := os.CreateTemp("", "xlyra-backup-import-*.zip")
 	if err != nil {
@@ -150,27 +176,46 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 	if closeErr != nil {
 		return ImportSummary{}, fmt.Errorf("close backup archive: %w", closeErr)
 	}
-	payload, dbDump, err := parseArchive(archivePath)
+
+	emit(ProgressEvent{Step: "decrypt", Status: "complete"})
+	emit(ProgressEvent{Step: "parse", Status: "in_progress", Message: "Parsing backup archive"})
+
+	payload, dbDump, err := parseArchiveContext(ctx, archivePath)
 	if err != nil {
 		return ImportSummary{}, err
 	}
 	if err := validateManifest(payload.Manifest); err != nil {
 		return ImportSummary{}, err
 	}
-	importedRows, err := importDatabase(ctx, s.db.DB(), s.masterKey, dbDump)
+	preparedConfig, err := s.confFile.PrepareReplace(config.MergeImportedConfig(s.confFile.Data(), payload.Config))
+	if err != nil {
+		return ImportSummary{}, fmt.Errorf("prepare config replacement: %w", err)
+	}
+	defer preparedConfig.Discard()
+
+	emit(ProgressEvent{Step: "parse", Status: "complete", TotalRows: dbDump.TotalRows})
+	emit(ProgressEvent{Step: "import", Status: "in_progress", TotalRows: dbDump.TotalRows, Message: "Writing backup data to database"})
+
+	importedRows, totalRows, err := importDatabase(ctx, s.db.DB(), s.masterKey, dbDump, prog)
 	if err != nil {
 		return ImportSummary{}, err
 	}
-	if err := s.confFile.Replace(config.MergeImportedConfig(s.confFile.Data(), payload.Config)); err != nil {
+
+	emit(ProgressEvent{Step: "import", Status: "complete", Rows: importedRows, TotalRows: totalRows})
+
+	if err := preparedConfig.Commit(); err != nil {
 		return ImportSummary{}, fmt.Errorf("replace config: %w", err)
 	}
 
-	return ImportSummary{
+	summary := ImportSummary{
 		Tables:        len(backupTables),
 		Rows:          importedRows,
 		ConfigKeys:    len(payload.Config),
 		FormatVersion: payload.Manifest.FormatVersion,
-	}, nil
+	}
+	emit(ProgressEvent{Step: "complete", Status: "complete", Rows: importedRows, TotalRows: totalRows, Summary: &summary})
+
+	return summary, nil
 }
 
 func (s Service) ready() error {

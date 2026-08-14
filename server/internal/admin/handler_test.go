@@ -278,6 +278,10 @@ func TestAuditAdminMutationHelpers(t *testing.T) {
 	if writer.status != http.StatusCreated {
 		t.Fatalf("explicit write status = %d, want 201", writer.status)
 	}
+	writer.Flush()
+	if !rec.Flushed {
+		t.Fatal("audit response writer did not preserve streaming flush")
+	}
 }
 
 func TestAuditAdminMutationPassesThroughWithoutAuthService(t *testing.T) {
