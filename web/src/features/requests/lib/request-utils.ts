@@ -1,5 +1,5 @@
 import { localeFromLanguage } from '@/lib/locale'
-import type { RequestLogDetail, RequestLogItem } from '@/features/requests/api/requests'
+import type { RequestLogCredential, RequestLogDetail, RequestLogFailoverChannel, RequestLogFailoverCredentialAttempt, RequestLogItem } from '@/features/requests/api/requests'
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string
 
@@ -99,6 +99,116 @@ export function requestResponseModeVariant(item: RequestLogItem): 'accent' | 'se
     return 'accent'
   }
   return 'secondary'
+}
+
+export function requestHasFailover(item: Pick<RequestLogItem, 'failover'>): boolean {
+  return item.failover === true
+}
+
+export function requestFailoverRouteAttempt(item: Pick<RequestLogItem, 'attempt' | 'failover'>): number | null {
+  if (!requestHasFailover(item) || typeof item.attempt !== 'number' || item.attempt <= 1) return null
+  return item.attempt
+}
+
+export function requestFailoverCredentialAttempt(item: Pick<RequestLogItem, 'credential_attempt' | 'credential_total' | 'failover'>): { attempt: number; total: number | null } | null {
+  if (!requestHasFailover(item) || typeof item.credential_attempt !== 'number' || item.credential_attempt <= 1) return null
+  return {
+    attempt: item.credential_attempt,
+    total: typeof item.credential_total === 'number' && item.credential_total > 0 ? item.credential_total : null,
+  }
+}
+
+export type RequestFailoverTrace = {
+  defaultChannel: RequestFailoverChannel
+  intermediateChannels: RequestFailoverChannel[]
+  finalChannel: RequestFailoverChannel | null
+  credentialAttempts: RequestFailoverCredentialAttempt[]
+}
+
+export type RequestFailoverChannel = {
+  success: boolean
+  siteName: string
+  siteType: string | null
+  errorType: string | null
+  statusCode: number | null
+}
+
+export type RequestFailoverCredentialAttempt = RequestFailoverChannel & {
+  credentialId: string | null
+  credentialName: string | null
+  attempt: number | null
+  total: number | null
+}
+
+export function requestFailoverTrace(item: Pick<RequestLogItem, 'failover_trace'>): RequestFailoverTrace | null {
+  const source = item.failover_trace
+  if (!source) return null
+  const defaultChannel = requestFailoverChannel(source.default_channel)
+  if (!defaultChannel) return null
+  return {
+    defaultChannel,
+    intermediateChannels: (source.intermediate_channels ?? [])
+      .map(requestFailoverChannel)
+      .filter((channel): channel is RequestFailoverChannel => channel != null),
+    finalChannel: requestFailoverChannel(source.final_channel),
+    credentialAttempts: (source.credential_attempts ?? [])
+      .map(requestFailoverCredentialAttemptDetail)
+      .filter((attempt): attempt is RequestFailoverCredentialAttempt => attempt != null),
+  }
+}
+
+export function requestFailoverFailureReason(channel: RequestFailoverChannel, t: TFunction): string {
+  const statusCode = channel.statusCode
+  if (statusCode === 401) return t('detail.failoverFailureAuth')
+  if (statusCode === 403) return t('detail.failoverFailurePermission')
+  if (statusCode === 404) return t('detail.failoverFailureModel')
+  if (statusCode === 429) return t('detail.failoverFailureRateLimited')
+
+  const errorType = (channel.errorType ?? '').toLowerCase()
+  if (errorType.includes('timeout')) return t('detail.failoverFailureTimeout')
+  if (errorType.includes('limited') || errorType.includes('rate_limit')) return t('detail.failoverFailureRateLimited')
+  if (errorType.includes('credential') || errorType.includes('oauth')) return t('detail.failoverFailureCredential')
+  if (errorType.includes('overload') || errorType.includes('capacity')) return t('detail.failoverFailureOverloaded')
+  if (errorType.includes('transport') || errorType.includes('connection')) return t('detail.failoverFailureConnection')
+  if (errorType.includes('stream')) return t('detail.failoverFailureStream')
+  if (statusCode != null && statusCode >= 500) return t('detail.failoverFailureUpstream')
+  return t('detail.failoverFailureUnknown')
+}
+
+function requestFailoverChannel(value?: RequestLogFailoverChannel | null): RequestFailoverChannel | null {
+  if (!value) return null
+  const siteName = nonEmptyString(value.site?.name)
+  if (!siteName) return null
+  return {
+    success: value.success === true,
+    siteName,
+    siteType: nonEmptyString(value.site.site_type),
+    errorType: nonEmptyString(value.error_type),
+    statusCode: requestFailoverStatusCode(value),
+  }
+}
+
+function requestFailoverCredentialAttemptDetail(value?: RequestLogFailoverCredentialAttempt | null): RequestFailoverCredentialAttempt | null {
+  const channel = requestFailoverChannel(value)
+  if (!channel) return null
+  return {
+    ...channel,
+    credentialId: nonEmptyString(value?.credential?.id),
+    credentialName: requestCredentialNameValue(value?.credential),
+    attempt: positiveInteger(value?.credential_attempt),
+    total: positiveInteger(value?.credential_total),
+  }
+}
+
+function requestCredentialNameValue(credential?: RequestLogCredential | null) {
+  return nonEmptyString(credential?.name)
+}
+
+function requestFailoverStatusCode(channel: RequestLogFailoverChannel): number | null {
+  const upstream = positiveInteger(channel.upstream_status_code)
+  if (upstream != null && upstream >= 100 && upstream <= 599) return upstream
+  const status = positiveInteger(channel.status_code)
+  return status != null && status >= 100 && status <= 599 ? status : null
 }
 
 export function requestDownstreamTransportLabel(detail: RequestLogDetail | RequestLogItem) {
@@ -281,6 +391,14 @@ function firstNumber(...values: Array<number | null | undefined>) {
 
 function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {

@@ -98,6 +98,8 @@ func TestShouldTryNextCredentialRetriesOnlyCredentialScopedFailures(t *testing.T
 		{name: "credential_concurrency", item: gatewayAttemptResult{errorType: "credential_concurrency_limited"}, want: true},
 		{name: "semantic_rate_limited", item: gatewayAttemptResult{statusCode: http.StatusBadGateway, upstreamStatusCode: http.StatusOK, errorType: "upstream_credential_limited"}, want: true},
 		{name: "semantic_credential_invalid", item: gatewayAttemptResult{statusCode: http.StatusBadGateway, upstreamStatusCode: http.StatusOK, errorType: "upstream_credential_invalid"}, want: true},
+		{name: "pre_output_overloaded", item: gatewayAttemptResult{statusCode: http.StatusBadGateway, upstreamStatusCode: http.StatusOK, errorType: "upstream_pre_output_overloaded"}, want: true},
+		{name: "generic_stream_error", item: gatewayAttemptResult{statusCode: http.StatusBadGateway, upstreamStatusCode: http.StatusOK, errorType: "upstream_stream_error"}, want: false},
 		{name: "server_error", item: gatewayAttemptResult{statusCode: http.StatusBadGateway}, want: false},
 		{name: "bad_request", item: gatewayAttemptResult{statusCode: http.StatusBadRequest}, want: false},
 	} {

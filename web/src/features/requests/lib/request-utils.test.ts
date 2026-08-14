@@ -5,6 +5,11 @@ import {
   requestCostFormula,
   requestCredentialMultiplier,
   requestDownstreamTransportLabel,
+  requestFailoverFailureReason,
+  requestFailoverCredentialAttempt,
+  requestFailoverRouteAttempt,
+  requestFailoverTrace,
+  requestHasFailover,
   requestFirstByteLatency,
   requestFirstByteLatencyTone,
   requestReasoningEffort,
@@ -26,6 +31,143 @@ describe('requestDownstreamTransportLabel', () => {
 })
 
 describe('request log display helpers', () => {
+  it('projects route and credential failover details', () => {
+    const item = requestDetail()
+    item.failover = true
+    item.attempt = 2
+    item.credential_attempt = 2
+    item.credential_total = 3
+
+    expect(requestHasFailover(item)).toBe(true)
+    expect(requestFailoverRouteAttempt(item)).toBe(2)
+    expect(requestFailoverCredentialAttempt(item)).toEqual({ attempt: 2, total: 3 })
+  })
+
+  it('does not project failover details for the first attempt', () => {
+    const item = requestDetail()
+    item.attempt = 1
+    item.credential_attempt = 1
+
+    expect(requestHasFailover(item)).toBe(false)
+    expect(requestFailoverRouteAttempt(item)).toBeNull()
+    expect(requestFailoverCredentialAttempt(item)).toBeNull()
+  })
+
+  it('keeps credential failover detail useful when total is missing', () => {
+    const item = requestDetail()
+    item.failover = true
+    item.credential_attempt = 2
+
+    expect(requestFailoverCredentialAttempt(item)).toEqual({ attempt: 2, total: null })
+  })
+
+  it('projects channels in a failover trace and hides invalid channel data', () => {
+    const item = requestDetail()
+    item.failover_trace = {
+      default_channel: {
+        success: false,
+        site: { name: 'Default', site_type: 'openai' },
+        error_type: 'upstream_timeout',
+        upstream_status_code: 504,
+      },
+      intermediate_channels: [
+        {
+          success: false,
+          site: { name: 'Fallback A', site_type: 'openai' },
+          error_type: 'upstream_credential_limited',
+          upstream_status_code: 429,
+        },
+        { success: false, site: {} },
+      ],
+      final_channel: {
+        success: true,
+        site: { name: 'Fallback B', site_type: 'anthropic' },
+      },
+      credential_attempts: [
+        {
+          success: false,
+          site: { name: 'Default', site_type: 'openai' },
+          credential: { id: 'credential-a', name: 'Primary' },
+          credential_attempt: 1,
+          credential_total: 2,
+          error_type: 'upstream_credential_limited',
+          upstream_status_code: 429,
+        },
+        {
+          success: true,
+          site: { name: 'Default', site_type: 'openai' },
+          credential: { id: 'credential-b', name: 'Backup' },
+          credential_attempt: 2,
+          credential_total: 2,
+        },
+      ],
+    }
+
+    expect(requestFailoverTrace(item)).toEqual({
+      defaultChannel: {
+        success: false,
+        siteName: 'Default',
+        siteType: 'openai',
+        errorType: 'upstream_timeout',
+        statusCode: 504,
+      },
+      intermediateChannels: [{
+        success: false,
+        siteName: 'Fallback A',
+        siteType: 'openai',
+        errorType: 'upstream_credential_limited',
+        statusCode: 429,
+      }],
+      finalChannel: {
+        success: true,
+        siteName: 'Fallback B',
+        siteType: 'anthropic',
+        errorType: null,
+        statusCode: null,
+      },
+      credentialAttempts: [
+        {
+          success: false,
+          siteName: 'Default',
+          siteType: 'openai',
+          errorType: 'upstream_credential_limited',
+          statusCode: 429,
+          credentialId: 'credential-a',
+          credentialName: 'Primary',
+          attempt: 1,
+          total: 2,
+        },
+        {
+          success: true,
+          siteName: 'Default',
+          siteType: 'openai',
+          errorType: null,
+          statusCode: null,
+          credentialId: 'credential-b',
+          credentialName: 'Backup',
+          attempt: 2,
+          total: 2,
+        },
+      ],
+    })
+  })
+
+  it('maps failure categories to user-facing translation keys', () => {
+    const t = (key: string) => key
+    const item = requestDetail()
+    item.failover_trace = {
+      default_channel: {
+        success: false,
+        site: { name: 'Default' },
+        error_type: 'upstream_timeout',
+      },
+    }
+    const trace = requestFailoverTrace(item)
+    expect(trace).not.toBeNull()
+    expect(requestFailoverFailureReason(trace!.defaultChannel, t)).toBe('detail.failoverFailureTimeout')
+    expect(requestFailoverFailureReason({ ...trace!.defaultChannel, errorType: null, statusCode: 429 }, t)).toBe('detail.failoverFailureRateLimited')
+  })
+
   it('keeps missing first-byte latency unknown', () => {
     expect(formatLatency()).toBe('-')
     expect(formatLatency(12.6)).toBe('13 ms')

@@ -350,6 +350,9 @@ func TestStreamSucceededRejectsUpstreamReadFailure(t *testing.T) {
 	if got := streamMetadataEnvelope(capture)["stream_end_reason"]; got != "upstream_stream_read_failed" {
 		t.Fatalf("stream end reason metadata = %#v, want upstream_stream_read_failed", got)
 	}
+	if got := streamMetadataEnvelope(capture)["stream_incomplete"]; got != true {
+		t.Fatalf("stream incomplete metadata = %#v, want true", got)
+	}
 }
 
 func TestStreamSucceededAcceptsCompletedStreamAfterLateReadFailure(t *testing.T) {

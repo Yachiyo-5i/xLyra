@@ -494,6 +494,7 @@ CREATE INDEX request_logs_created_success_idx ON request_logs (created_at DESC, 
 CREATE INDEX request_logs_canonical_model_created_idx ON request_logs (canonical_model_id, created_at DESC);
 CREATE INDEX request_logs_error_type_created_idx ON request_logs (error_type, created_at DESC);
 CREATE INDEX request_logs_site_id_idx ON request_logs (site_id);
+CREATE INDEX request_logs_parent_request_id_metadata_idx ON request_logs ((metadata ->> 'parent_request_id'));
 
 CREATE TABLE usage_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

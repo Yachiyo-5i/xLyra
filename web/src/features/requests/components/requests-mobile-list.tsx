@@ -16,6 +16,7 @@ import {
   requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
+  requestHasFailover,
   requestResponseModeLabel,
   requestResponseModeVariant,
 } from '@/features/requests/lib/request-utils'
@@ -77,10 +78,15 @@ export function RequestsMobileList({
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
                     <StatusBadge status={item.success ? 'healthy' : 'error'}>
                       {item.success ? t('table.success') : t('table.failure')}
                     </StatusBadge>
+                    {requestHasFailover(item) ? (
+                      <Badge variant="warning" className="px-2.5 py-1 text-xs tracking-normal">
+                        {t('table.failover')}
+                      </Badge>
+                    ) : null}
                     <span className="flex size-6 items-center justify-center text-muted-soft">
                       {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                     </span>

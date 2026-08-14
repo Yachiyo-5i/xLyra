@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -81,6 +82,57 @@ func TestRequestLogRepositoryKeepsDBDependency(t *testing.T) {
 	repo := NewRequestLogRepository(nil)
 	if repo.db != nil {
 		t.Fatalf("request log repository db = %#v, want nil", repo.db)
+	}
+}
+
+func TestRequestLogRepositoryListsAttemptsForParentRequest(t *testing.T) {
+	t.Parallel()
+
+	firstID := uuid.New()
+	secondID := uuid.New()
+	db := storeRepositoryOfflineGorm(t)
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		switch destination := tx.Statement.Dest.(type) {
+		case *[]RequestLog:
+			where, ok := tx.Statement.Clauses["WHERE"].Expression.(clause.Where)
+			if !ok || len(where.Exprs) != 1 {
+				tx.AddError(errors.New("expected one parent request filter"))
+				return
+			}
+			expression, ok := where.Exprs[0].(clause.Expr)
+			if !ok || expression.SQL != "metadata ->> 'parent_request_id' = ?" || len(expression.Vars) != 1 || expression.Vars[0] != "req-parent" {
+				tx.AddError(errors.New("unexpected request attempt parent filter"))
+				return
+			}
+			order, ok := tx.Statement.Clauses["ORDER BY"].Expression.(clause.OrderBy)
+			if !ok || len(order.Columns) != 2 || order.Columns[0].Column.Name != "created_at" || order.Columns[0].Desc {
+				tx.AddError(errors.New("expected request attempts in execution order"))
+				return
+			}
+			*destination = []RequestLog{
+				{ID: firstID, RequestID: "req-parent:1:attempt", Metadata: JSON(`{"parent_request_id":"req-parent","attempt":1}`)},
+				{ID: secondID, RequestID: "req-parent:2:attempt", Success: true, Metadata: JSON(`{"parent_request_id":"req-parent","attempt":2}`)},
+			}
+		case *[]UsageRecord:
+			*destination = []UsageRecord{}
+		default:
+			tx.AddError(errors.New("unexpected request attempt query destination"))
+			return
+		}
+		tx.Statement.RowsAffected = 1
+	})
+
+	attempts, err := NewRequestLogRepository(db).ListAttemptsForParentRequest(context.Background(), " req-parent ")
+	if err != nil {
+		t.Fatalf("ListAttemptsForParentRequest: %v", err)
+	}
+	if len(attempts) != 2 || attempts[0].ID != firstID || attempts[1].ID != secondID || !attempts[1].Success {
+		t.Fatalf("unexpected request attempts: %#v", attempts)
+	}
+
+	missing, err := NewRequestLogRepository(nil).ListAttemptsForParentRequest(context.Background(), " \t\n ")
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("blank parent result = %#v, %v; want empty, nil", missing, err)
 	}
 }
 

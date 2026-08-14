@@ -30,7 +30,7 @@ type RequestLog struct {
 	UpstreamLatencyMS  sql.NullInt64
 	RequestTokens      sql.NullInt64
 	ResponseTokens     sql.NullInt64
-	Metadata           JSON          `gorm:"type:jsonb"`
+	Metadata           JSON          `gorm:"type:jsonb;index:request_logs_parent_request_id_metadata_idx,expression:(metadata ->> 'parent_request_id')"`
 	Internal           bool          `gorm:"default:false;not null"`
 	ParentRequestLogID uuid.NullUUID `gorm:"type:uuid;index:request_logs_parent_request_log_id_idx"`
 	CreatedAt          time.Time
@@ -459,6 +459,13 @@ func requestLogDefaultOrderClause() clause.OrderBy {
 	}}
 }
 
+func requestLogAttemptOrderClause() clause.OrderBy {
+	return clause.OrderBy{Columns: []clause.OrderByColumn{
+		{Column: clause.Column{Name: "created_at"}},
+		{Column: clause.Column{Name: "id"}},
+	}}
+}
+
 func (r RequestLogRepository) GetDetailed(ctx context.Context, requestLogID uuid.UUID) (RequestLogDetail, error) {
 	var log RequestLog
 	if err := r.db.WithContext(ctx).Where(&RequestLog{ID: requestLogID}).First(&log).Error; err != nil {
@@ -472,6 +479,33 @@ func (r RequestLogRepository) GetDetailed(ctx context.Context, requestLogID uuid
 		return RequestLogDetail{}, fmt.Errorf("get request log detail: %w", gorm.ErrRecordNotFound)
 	}
 	return details[0], nil
+}
+
+// ListAttemptsForParentRequest returns all recorded attempts for one downstream
+// request in execution order. Attempts are linked through the immutable
+// parent_request_id metadata written by the gateway.
+func (r RequestLogRepository) ListAttemptsForParentRequest(ctx context.Context, parentRequestID string) ([]RequestLogDetail, error) {
+	parentRequestID = strings.TrimSpace(parentRequestID)
+	if parentRequestID == "" {
+		return []RequestLogDetail{}, nil
+	}
+
+	var logs []RequestLog
+	if err := r.db.WithContext(ctx).
+		Where("metadata ->> 'parent_request_id' = ?", parentRequestID).
+		Clauses(requestLogAttemptOrderClause()).
+		Find(&logs).Error; err != nil {
+		return nil, fmt.Errorf("list request attempts: %w", err)
+	}
+	if len(logs) == 0 {
+		return []RequestLogDetail{}, nil
+	}
+
+	details, err := r.detailsForLogs(ctx, logs)
+	if err != nil {
+		return nil, fmt.Errorf("list request attempt details: %w", err)
+	}
+	return details, nil
 }
 
 func (r RequestLogRepository) detailsForLogs(ctx context.Context, logs []RequestLog) ([]RequestLogDetail, error) {

@@ -35,7 +35,7 @@ func shouldTryNextCredential(result gatewayAttemptResult) bool {
 	switch result.errorType {
 	case "upstream_credential_decrypt_failed", "credential_concurrency_limited",
 		"upstream_credential_limited", "upstream_subscription_limit_exceeded",
-		"upstream_credential_invalid":
+		"upstream_credential_invalid", "upstream_pre_output_overloaded":
 		return true
 	}
 	switch result.statusCode {
@@ -44,6 +44,29 @@ func shouldTryNextCredential(result gatewayAttemptResult) bool {
 	default:
 		return false
 	}
+}
+
+type credentialFailoverDecision struct {
+	NextCredentialAvailable bool
+	ShouldTryNextCredential bool
+	Action                  string
+}
+
+func credentialFailoverDecisionForResult(result gatewayAttemptResult, nextCredentialAvailable bool) credentialFailoverDecision {
+	shouldRetry := !result.success && !result.responseStarted && nextCredentialAvailable && shouldTryNextCredential(result)
+	action := "stop"
+	if shouldRetry {
+		action = "try_next_credential"
+	}
+	return credentialFailoverDecision{
+		NextCredentialAvailable: nextCredentialAvailable,
+		ShouldTryNextCredential: shouldRetry,
+		Action:                  action,
+	}
+}
+
+func nextCredentialAvailableForResult(result gatewayAttemptResult) bool {
+	return result.credentialAttempt > 0 && result.credentialTotal > result.credentialAttempt
 }
 
 func (h Handler) cooldownAfterFailure(ctx context.Context, candidate routeengine.Candidate, result gatewayAttemptResult) {
@@ -381,7 +404,7 @@ func upstreamStreamFailure(result gatewayAttemptResult) bool {
 		return false
 	}
 	switch result.errorType {
-	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_stream_read_failed", "upstream_stream_empty", "upstream_stream_preoutput_too_large":
+	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_pre_output_overloaded", "upstream_stream_read_failed", "upstream_stream_empty", "upstream_stream_preoutput_too_large":
 		return true
 	default:
 		return false
@@ -393,7 +416,7 @@ func requestLogStreamFailure(item store.RequestLog) bool {
 		return false
 	}
 	switch item.ErrorType.String {
-	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_stream_read_failed", "upstream_stream_empty", "upstream_stream_preoutput_too_large":
+	case "upstream_stream_failed", "upstream_stream_incomplete", "upstream_stream_eof", "upstream_stream_error", "upstream_pre_output_overloaded", "upstream_stream_read_failed", "upstream_stream_empty", "upstream_stream_preoutput_too_large":
 		return true
 	default:
 		return false

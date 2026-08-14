@@ -21,6 +21,10 @@ import {
   requestCredentialMultiplier,
   requestCredentialName,
   requestCostFormula,
+  requestFailoverFailureReason,
+  requestFailoverTrace,
+  type RequestFailoverChannel,
+  type RequestFailoverCredentialAttempt,
   requestDownstreamTransportLabel,
   requestGroupName,
   requestGroupRatio,
@@ -77,6 +81,7 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
   const longContext = detail.cost_calculation?.long_context === true
   const longContextInputMultiplier = detail.cost_calculation?.long_context_input_multiplier
   const longContextOutputMultiplier = detail.cost_calculation?.long_context_output_multiplier
+  const failoverTrace = requestFailoverTrace(detail)
   const ratios = compactJoin([
     ratioPart(t('detail.ratioModel'), detail.pricing?.model_ratio),
     ratioPart(t('detail.ratioCompletion'), detail.pricing?.completion_ratio),
@@ -166,6 +171,57 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
         </div>
       </DetailRow>
 
+      {failoverTrace ? (
+        <DetailRow
+          label={
+            failoverTrace.credentialAttempts.length > 0
+              ? t('detail.failoverAttemptSummary', { count: failoverTrace.credentialAttempts.length })
+              : undefined
+          }
+        >
+          {failoverTrace.credentialAttempts.length > 0 ? (
+            <>
+              {failoverTrace.credentialAttempts.map((attempt, index) => (
+                <FailoverCredentialAttempt
+                  key={`${attempt.credentialName ?? 'credential'}-${attempt.attempt ?? index}-${index}`}
+                  attempt={attempt}
+                  reason={attempt.success ? undefined : requestFailoverFailureReason(attempt, t)}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <FailoverChannel
+                label={t('detail.failoverDefaultChannel')}
+                channel={failoverTrace.defaultChannel}
+                reason={requestFailoverFailureReason(failoverTrace.defaultChannel, t)}
+              />
+              {failoverTrace.intermediateChannels.length > 0 ? (
+                <div className="basis-full pl-3 text-xs text-[hsl(var(--text-muted-soft))]">
+                  {t('detail.failoverIntermediateSummary', { count: failoverTrace.intermediateChannels.length })}
+                </div>
+              ) : null}
+              {failoverTrace.intermediateChannels.map((channel, index) => (
+                <FailoverChannel
+                  key={`${channel.siteName}-${index}`}
+                  label={t('detail.failoverIntermediateChannel', { count: index + 1 })}
+                  channel={channel}
+                  reason={requestFailoverFailureReason(channel, t)}
+                />
+              ))}
+              {failoverTrace.finalChannel ? (
+                <FailoverChannel
+                  label={t('detail.failoverFinalChannel')}
+                  channel={failoverTrace.finalChannel}
+                  reason={requestFailoverFailureReason(failoverTrace.finalChannel, t)}
+                  result
+                />
+              ) : null}
+            </>
+          )}
+        </DetailRow>
+      ) : null}
+
       {!detail.success ? (
         <DetailRow label={t('detail.failureLabel')}>
           <pre className="max-h-72 min-w-0 overflow-auto rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-2 whitespace-pre-wrap break-all text-xs leading-6 text-[hsl(var(--text-muted-soft))]">
@@ -181,15 +237,88 @@ function DetailRow({
   label,
   children,
 }: {
-  label: string
+  label?: string
   children: ReactNode
 }) {
   return (
     <div className="min-w-0 space-y-2 border-t border-[hsl(var(--glass-divider))] py-3 first:border-t-0 first:pt-0 last:pb-0">
-      <div className="text-[11px] font-medium tracking-[0.12em] text-[hsl(var(--text-muted-soft))]">{label}</div>
+      {label ? <div className="text-[11px] font-medium tracking-[0.12em] text-[hsl(var(--text-muted-soft))]">{label}</div> : null}
       <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 text-foreground">
         {children}
       </div>
+    </div>
+  )
+}
+
+function FailoverChannel({
+  label,
+  channel,
+  reason,
+  result = false,
+}: {
+  label: string
+  channel: RequestFailoverChannel
+  reason?: string
+  result?: boolean
+}) {
+  const { t } = useTranslation('requests')
+  const channelName = compactJoin([channel.siteName, channel.siteType])
+
+  return (
+    <div className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-[hsl(var(--glass-divider))] py-1 pl-3">
+      <span className="shrink-0 text-xs text-[hsl(var(--text-muted-soft))]">{label}</span>
+      <Badge variant={channel.success ? 'success' : 'neutral'} className="max-w-full rounded-md px-2 py-0.5 text-xs tracking-normal">
+        <span className="truncate">{channelName}</span>
+      </Badge>
+      {result ? (
+        <StatusBadge status={channel.success ? 'healthy' : 'error'}>
+          {channel.success ? t('detail.success') : t('detail.failure')}
+        </StatusBadge>
+      ) : null}
+      {!channel.success ? (
+        <span className="min-w-0 truncate text-xs text-[hsl(var(--destructive))]">
+          {t('detail.failoverFailureReason')}: {reason}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function FailoverCredentialAttempt({
+  attempt,
+  reason,
+}: {
+  attempt: RequestFailoverCredentialAttempt
+  reason?: string
+}) {
+  const { t } = useTranslation('requests')
+  const credentialLabel = attempt.credentialName || attempt.credentialId || t('detail.failoverCredential')
+  const channelName = compactJoin([attempt.siteName, attempt.siteType])
+  const attemptLabel = attempt.attempt != null && attempt.total != null
+    ? t('detail.failoverCredentialOf', { attempt: attempt.attempt, total: attempt.total })
+    : attempt.attempt != null
+      ? t('detail.failoverCredentialAttempt', { attempt: attempt.attempt })
+      : null
+
+  return (
+    <div className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 border-l-2 border-[hsl(var(--glass-divider))] py-1 pl-3">
+      <span className="shrink-0 text-xs text-[hsl(var(--text-muted-soft))]">{t('detail.failoverCredentialChannel')}</span>
+      <Badge variant="neutral" className="max-w-full rounded-md px-2 py-0.5 text-xs tracking-normal">
+        <span className="truncate">{channelName}</span>
+      </Badge>
+      <span className="shrink-0 text-xs text-[hsl(var(--text-muted-soft))]">{t('detail.failoverCredentialAttemptLabel')}</span>
+      <Badge variant={attempt.success ? 'success' : 'neutral'} className="max-w-full rounded-md px-2 py-0.5 text-xs tracking-normal">
+        <span className="truncate">{credentialLabel}</span>
+      </Badge>
+      <StatusBadge status={attempt.success ? 'healthy' : 'error'}>
+        {attempt.success ? t('detail.success') : t('detail.failure')}
+      </StatusBadge>
+      {attemptLabel ? <span className="text-xs text-[hsl(var(--text-muted-soft))]">{attemptLabel}</span> : null}
+      {!attempt.success ? (
+        <span className="min-w-0 truncate text-xs text-[hsl(var(--destructive))]">
+          {t('detail.failoverFailureReason')}: {reason}
+        </span>
+      ) : null}
     </div>
   )
 }

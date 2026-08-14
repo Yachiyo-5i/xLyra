@@ -26,6 +26,7 @@ import {
   requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
+  requestHasFailover,
   requestResponseModeLabel,
   requestResponseModeVariant,
 } from '@/features/requests/lib/request-utils'
@@ -245,7 +246,7 @@ export function RequestsTable({
                       </td>
                       <td className="overflow-hidden px-1 py-4 align-middle text-center">
                         <div className="flex flex-col items-center gap-1 text-xs leading-4">
-                          <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5">
                             <StatusBadge status={item.success ? 'healthy' : 'error'} className="shrink-0 px-2 py-0.5 text-xs leading-4">
                               {item.success ? t('table.success') : t('table.failure')}
                             </StatusBadge>
@@ -255,6 +256,11 @@ export function RequestsTable({
                             >
                               {requestResponseModeLabel(item, t)}
                             </Badge>
+                            {requestHasFailover(item) ? (
+                              <Badge variant="warning" className="shrink-0 px-2 py-0.5 text-xs leading-4">
+                                {t('table.failover')}
+                              </Badge>
+                            ) : null}
                           </div>
                           <span className="shrink-0 text-xs text-muted-soft">
                             {item.upstream_status_code ?? item.status_code ?? '-'}

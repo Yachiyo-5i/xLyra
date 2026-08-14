@@ -270,6 +270,19 @@ func TestGormSchemaMetadataForStoreModels(t *testing.T) {
 	}
 }
 
+func TestRequestLogSchemaIncludesParentRequestMetadataExpressionIndex(t *testing.T) {
+	t.Parallel()
+
+	requestLogSchema := parseStoreSchema(t, &RequestLog{})
+	index := requestLogSchema.LookIndex("request_logs_parent_request_id_metadata_idx")
+	if index == nil || len(index.Fields) != 1 {
+		t.Fatalf("request log parent metadata index = %#v, want one field", index)
+	}
+	if index.Fields[0].Expression != "(metadata ->> 'parent_request_id')" {
+		t.Fatalf("request log parent metadata index expression = %q, want JSONB parent_request_id expression", index.Fields[0].Expression)
+	}
+}
+
 func parseStoreSchema(t *testing.T, model any) *schema.Schema {
 	t.Helper()
 

@@ -241,6 +241,9 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 	if err := ensureSchemaIndex(migrator, &RequestLog{}, "request_logs_parent_request_log_id_idx"); err != nil {
 		return err
 	}
+	if err := ensureSchemaIndex(migrator, &RequestLog{}, "request_logs_parent_request_id_metadata_idx"); err != nil {
+		return err
+	}
 	if !migrator.HasColumn(&RequestUsageDailySummary{}, "Internal") {
 		if err := migrator.AddColumn(&RequestUsageDailySummary{}, "Internal"); err != nil {
 			return fmt.Errorf("ensure request_usage_daily_summaries.internal column: %w", err)
