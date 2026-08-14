@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/analytics"
 	"xlyra/server/internal/auth"
 	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
@@ -41,6 +42,7 @@ type Handler struct {
 	router    *routeengine.Service
 	usage     *usage.Service
 	dashboard *dashboard.Service
+	analytics *analytics.Service
 	system    *systemstats.Service
 	gateway   *gateway.Handler
 	newAPI    *newapi.Service
@@ -76,6 +78,11 @@ func NewHandler(logger *slog.Logger, authService *auth.Service, siteService *sit
 
 func (h Handler) WithDownloadService(downloadService *downloads.Service) Handler {
 	h.downloads = downloadService
+	return h
+}
+
+func (h Handler) WithAnalyticsService(analyticsService *analytics.Service) Handler {
+	h.analytics = analyticsService
 	return h
 }
 

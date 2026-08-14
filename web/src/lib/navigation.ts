@@ -2,6 +2,7 @@ import {
   Activity,
   BadgeDollarSign,
   Cable,
+  ChartColumn,
   ChartNoAxesCombined,
   DatabaseBackup,
   DatabaseZap,
@@ -55,6 +56,12 @@ export function getAppNavSections(t: TFunction): AppNavSection[] {
           label: t('nav.dashboard'),
           icon: ChartNoAxesCombined,
           description: 'Global health, alerts, throughput and spend at a glance.',
+        },
+        {
+          to: '/analytics',
+          label: t('nav.analytics'),
+          icon: ChartColumn,
+          description: 'Analyze usage, cost and performance trends with filters.',
         },
         {
           to: '/traffic-flow',

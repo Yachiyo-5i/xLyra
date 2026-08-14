@@ -106,7 +106,7 @@ func TestRequestUsageSummaryFromRequestLogNormalizesDefaultDimensions(t *testing
 		PromptTokens:     4,
 		CompletionTokens: 5,
 		TotalTokens:      9,
-	}, config.LoadTimeZone("UTC"), requestUsageSummaryContext{})
+	}, config.LoadTimeZone("UTC"), requestUsageSummaryContext{}, config.LoadTimeZone("UTC").StartOfDay)
 
 	if row.Endpoint != requestUsageSummaryNoneKey || row.ErrorType != "unknown" {
 		t.Fatalf("blank endpoint/error should normalize to defaults, got endpoint=%q error=%q", row.Endpoint, row.ErrorType)

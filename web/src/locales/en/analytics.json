@@ -1,0 +1,108 @@
+{
+  "page": {
+    "eyebrow": "Analytics",
+    "title": "Usage Analytics",
+    "description": "Analyze usage, cost and performance trends by site, model and user.",
+    "update": "Updated",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "loadFailed": "Failed to load usage analytics",
+    "noData": "No data",
+    "noDataDesc": "No usage data under the current filters"
+  },
+  "filters": {
+    "ranges": {
+      "label": "Time Range",
+      "today": "Today",
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days",
+      "all": "All",
+      "custom": "Custom"
+    },
+    "from": "Start date",
+    "to": "End date",
+    "site": "Site",
+    "model": "Model",
+    "apiKey": "User",
+    "siteAll": "All sites",
+    "modelAll": "All models",
+    "apiKeyAll": "All users",
+    "search": "Search...",
+    "noOptions": "No options",
+    "statusAll": "All statuses",
+    "statusSuccess": "Success",
+    "statusFailure": "Failure",
+    "currency": "Currency",
+    "open": "Filters",
+    "clear": "Clear",
+    "done": "Done"
+  },
+  "kpis": {
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "requests": "Requests",
+    "avgLatency": "Avg latency",
+    "multiCurrency": "{{count}} currencies included",
+    "cacheHitRate": "Cache hit rate {{value}}",
+    "successRate": "Success rate {{value}}",
+    "maxLatency": "Max latency {{value}}",
+    "vsPrevious": "vs previous period"
+  },
+  "tokens": {
+    "total": "Total tokens",
+    "input": "Input tokens",
+    "output": "Output tokens",
+    "cached": "Cached tokens",
+    "hitRate": "Cache hit rate"
+  },
+  "trend": {
+    "description": "Trend from {{from}} to {{to}}",
+    "hourDescription": "{{date}} hourly trend",
+    "metrics": {
+      "cost": "Cost",
+      "tokens": "Tokens",
+      "requests": "Requests",
+      "successRate": "Success rate",
+      "latency": "Avg latency"
+    },
+    "dimensions": {
+      "none": "Total",
+      "site": "By site",
+      "model": "By model",
+      "apiKey": "By user"
+    },
+    "chartTypes": {
+      "stackedArea": "Stacked area",
+      "percentArea": "Percent area",
+      "stackedBar": "Stacked bar",
+      "line": "Line"
+    },
+    "empty": "No trend data in this range"
+  },
+  "dimensions": {
+    "site": "Site",
+    "model": "Model",
+    "apiKey": "User"
+  },
+  "donut": {
+    "title": "Cost Breakdown",
+    "description": "Click a slice to drill down",
+    "total": "Total cost",
+    "other": "Other",
+    "clear": "Clear",
+    "clearFilter": "Clear filter",
+    "empty": "No cost data"
+  },
+  "ranking": {
+    "title": "Leaderboard",
+    "metrics": {
+      "cost": "Cost",
+      "tokens": "Tokens",
+      "requests": "Requests",
+      "failures": "Failures",
+      "latency": "Avg latency"
+    },
+    "empty": "No ranking data"
+  }
+}

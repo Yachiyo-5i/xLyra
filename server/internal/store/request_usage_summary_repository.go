@@ -99,12 +99,16 @@ type RequestUsageSummaryIncrement struct {
 }
 
 type RequestUsageSummaryQuery struct {
-	TimeZone string
-	From     *time.Time
-	To       *time.Time
-	SiteID   *uuid.UUID
-	SiteIDs  []uuid.UUID
-	APIKeyID *uuid.UUID
+	TimeZone  string
+	From      *time.Time
+	To        *time.Time
+	SiteID    *uuid.UUID
+	SiteIDs   []uuid.UUID
+	APIKeyID  *uuid.UUID
+	APIKeyIDs []uuid.UUID
+	ModelKeys []string
+	Success   *bool
+	Currency  string
 }
 
 type SiteUsageSummaryRow struct {
@@ -184,7 +188,7 @@ func (r RequestUsageSummaryRepository) RebuildDay(ctx context.Context, day time.
 	if err != nil {
 		return RequestUsageSummaryDay{}, fmt.Errorf("rebuild request usage summary day: %w", err)
 	}
-	rows, err := r.summariesFromRequestLogs(ctx, logs, usageByLogID, timeZone)
+	rows, err := r.summariesFromRequestLogs(ctx, logs, usageByLogID, timeZone, timeZone.StartOfDay)
 	if err != nil {
 		return RequestUsageSummaryDay{}, fmt.Errorf("rebuild request usage summary day: %w", err)
 	}
@@ -229,7 +233,7 @@ func (r RequestUsageSummaryRepository) ListFromDetails(ctx context.Context, star
 	if err != nil {
 		return nil, fmt.Errorf("list request usage summaries from details: %w", err)
 	}
-	rows, err := r.summariesFromRequestLogs(ctx, logs, usageByLogID, timeZone)
+	rows, err := r.summariesFromRequestLogs(ctx, logs, usageByLogID, timeZone, timeZone.StartOfDay)
 	if err != nil {
 		return nil, fmt.Errorf("list request usage summaries from details: %w", err)
 	}
@@ -412,6 +416,26 @@ func (r RequestUsageSummaryRepository) List(ctx context.Context, query RequestUs
 	}
 	if query.APIKeyID != nil {
 		exprs = append(exprs, clause.Eq{Column: clause.Column{Name: "api_key_id"}, Value: *query.APIKeyID})
+	}
+	if len(query.APIKeyIDs) > 0 {
+		values := make([]any, 0, len(query.APIKeyIDs))
+		for _, apiKeyID := range query.APIKeyIDs {
+			values = append(values, apiKeyID)
+		}
+		exprs = append(exprs, clause.IN{Column: clause.Column{Name: "api_key_id"}, Values: values})
+	}
+	if len(query.ModelKeys) > 0 {
+		values := make([]any, 0, len(query.ModelKeys))
+		for _, modelKey := range query.ModelKeys {
+			values = append(values, modelKey)
+		}
+		exprs = append(exprs, clause.IN{Column: clause.Column{Name: "canonical_model_key"}, Values: values})
+	}
+	if query.Success != nil {
+		exprs = append(exprs, clause.Eq{Column: clause.Column{Name: "success"}, Value: *query.Success})
+	}
+	if value := strings.TrimSpace(query.Currency); value != "" {
+		exprs = append(exprs, clause.Eq{Column: clause.Column{Name: "currency"}, Value: value})
 	}
 
 	db := r.db.WithContext(ctx)
@@ -673,7 +697,30 @@ func (r RequestUsageSummaryRepository) listCompleteDaysBefore(ctx context.Contex
 	return days, nil
 }
 
-func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Context, logs []RequestLog, usageByLogID map[uuid.UUID]UsageRecord, timeZone config.TimeZone) ([]RequestUsageDailySummary, error) {
+func (r RequestUsageSummaryRepository) ListFromDetailsByHour(ctx context.Context, start time.Time, end time.Time, timeZone config.TimeZone) ([]RequestUsageDailySummary, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("request usage summary store is not initialized")
+	}
+	if !end.After(start) {
+		return nil, nil
+	}
+	logRepo := NewRequestLogRepository(r.db)
+	logs, err := logRepo.ListCreatedBetween(ctx, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("list request usage summaries from details by hour: %w", err)
+	}
+	usageByLogID, err := logRepo.usageByRequestLogID(ctx, requestLogIDs(logs))
+	if err != nil {
+		return nil, fmt.Errorf("list request usage summaries from details by hour: %w", err)
+	}
+	rows, err := r.summariesFromRequestLogs(ctx, logs, usageByLogID, timeZone, timeZone.StartOfHour)
+	if err != nil {
+		return nil, fmt.Errorf("list request usage summaries from details by hour: %w", err)
+	}
+	return rows, nil
+}
+
+func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Context, logs []RequestLog, usageByLogID map[uuid.UUID]UsageRecord, timeZone config.TimeZone, bucketFn func(time.Time) time.Time) ([]RequestUsageDailySummary, error) {
 	summaryContext, err := r.summaryContext(ctx, logs)
 	if err != nil {
 		return nil, err
@@ -685,7 +732,7 @@ func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Cont
 		if usage.ID != uuid.Nil {
 			usagePtr = &usage
 		}
-		row := summaryFromRequestLog(log, usagePtr, timeZone, summaryContext)
+		row := summaryFromRequestLog(log, usagePtr, timeZone, summaryContext, bucketFn)
 		existing := byKey[row.SummaryKey]
 		if existing == nil {
 			row.RequestCount = 0
@@ -709,7 +756,7 @@ func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Cont
 			byKey[row.SummaryKey] = &row
 			existing = &row
 		}
-		addSummaryValues(existing, summaryFromRequestLog(log, usagePtr, timeZone, summaryContext))
+		addSummaryValues(existing, summaryFromRequestLog(log, usagePtr, timeZone, summaryContext, bucketFn))
 		byKey[row.SummaryKey] = existing
 	}
 	rows := make([]RequestUsageDailySummary, 0, len(byKey))
@@ -765,7 +812,7 @@ func (r RequestUsageSummaryRepository) summaryFromRequestLog(ctx context.Context
 	if err != nil {
 		return RequestUsageDailySummary{}, err
 	}
-	return summaryFromRequestLog(log, usage, timeZone, summaryContext), nil
+	return summaryFromRequestLog(log, usage, timeZone, summaryContext, timeZone.StartOfDay), nil
 }
 
 type requestUsageSummaryContext struct {
@@ -842,9 +889,9 @@ func (r RequestUsageSummaryRepository) summaryContext(ctx context.Context, logs 
 	return result, nil
 }
 
-func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.TimeZone, context requestUsageSummaryContext) RequestUsageDailySummary {
+func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.TimeZone, context requestUsageSummaryContext, bucketFn func(time.Time) time.Time) RequestUsageDailySummary {
 	timeZone = normalizeSummaryTimeZone(timeZone)
-	bucketStart := timeZone.StartOfDay(log.CreatedAt)
+	bucketStart := bucketFn(log.CreatedAt)
 	currency := requestUsageSummaryDefaultCurrency
 	promptTokens := int64(0)
 	completionTokens := int64(0)
@@ -1164,6 +1211,26 @@ func maxNullableTime(left sql.NullTime, right sql.NullTime) sql.NullTime {
 		return right
 	}
 	return left
+}
+
+func (r RequestUsageSummaryRepository) OldestBucketStart(ctx context.Context) (*time.Time, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("request usage summary store is not initialized")
+	}
+	var items []RequestUsageDailySummary
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{
+			{Column: clause.Column{Name: "bucket_start"}},
+		}}).
+		Limit(1).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("oldest bucket start: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	value := items[0].BucketStart
+	return &value, nil
 }
 
 func normalizeSummaryTimeZone(timeZone config.TimeZone) config.TimeZone {
