@@ -8,6 +8,7 @@ import type { RequestLogItem } from '@/features/requests/api/requests'
 import { RequestDetailContent } from '@/features/requests/components/request-detail-row'
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
 import { RequestTiming } from '@/features/requests/components/request-timing'
+import { requestFailoverBadgeClassName } from '@/features/requests/lib/request-badge-styles'
 import {
   formatCurrency,
   formatDateTime,
@@ -79,14 +80,17 @@ export function RequestsMobileList({
                     )}
                   </div>
                   <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
-                    <StatusBadge status={item.success ? 'healthy' : 'error'}>
-                      {item.success ? t('table.success') : t('table.failure')}
-                    </StatusBadge>
                     {requestHasFailover(item) ? (
-                      <Badge variant="warning" className="px-2.5 py-1 text-xs tracking-normal">
+                      <Badge
+                        variant="neutral"
+                        className={cn(requestFailoverBadgeClassName, 'px-2.5 py-1 text-xs tracking-normal')}
+                      >
                         {t('table.failover')}
                       </Badge>
                     ) : null}
+                    <StatusBadge status={item.success ? 'healthy' : 'error'}>
+                      {item.success ? t('table.success') : t('table.failure')}
+                    </StatusBadge>
                     <span className="flex size-6 items-center justify-center text-muted-soft">
                       {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                     </span>

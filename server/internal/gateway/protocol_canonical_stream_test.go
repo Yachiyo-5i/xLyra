@@ -656,6 +656,26 @@ func TestProxyCanonicalStreamResponsesPreOutputOverloadDefersAcrossConversion(t 
 	}
 }
 
+func TestProxyCanonicalStreamResponsesRejectsOversizedPreOutputWithoutStartingResponse(t *testing.T) {
+	t.Parallel()
+
+	identifier := strings.Repeat("x", 1<<20)
+	var body strings.Builder
+	for body.Len() <= responsesPreOutputMaxBytes {
+		body.WriteString(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"`+identifier+`","model":"gpt-5.6-terra"}}`))
+	}
+	rec, capture, started, err := proxyCanonicalStreamTest(t, body.String(), canonicalProtocolOpenAIResponses, canonicalProtocolOpenAIChat, canonicalStreamOptions{})
+	if !errors.Is(err, errResponsesPreOutputTooLarge) {
+		t.Fatalf("error = %v, want pre-output size failure", err)
+	}
+	if started || capture.endReason != "upstream_stream_preoutput_too_large" {
+		t.Fatalf("oversized pre-output started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("oversized pre-output leaked downstream: %d bytes", rec.Body.Len())
+	}
+}
+
 func TestProxyCanonicalStreamResponsesDefersEmptyFunctionCallBeforeFailure(t *testing.T) {
 	t.Parallel()
 

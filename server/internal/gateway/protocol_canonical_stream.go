@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -157,6 +158,7 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 	encoder := target.NewEncoder(options, w, &capture)
 	deferResponsesPreOutput := from == canonicalProtocolOpenAIResponses || from == canonicalProtocolCodexResponses
 	var preOutputEvents []canonicalStreamEvent
+	preOutputBytes := 0
 	responsesPreOutputCommitted := false
 	flushPreOutput := func() error {
 		for _, event := range preOutputEvents {
@@ -169,14 +171,21 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 			}
 		}
 		preOutputEvents = nil
+		preOutputBytes = 0
 		return nil
 	}
-	bufferPreOutputEvents := func(events []canonicalStreamEvent) {
+	bufferPreOutputEvents := func(events []canonicalStreamEvent, sourceBytes int) error {
 		if len(events) == 0 {
-			return
+			return nil
+		}
+		if preOutputBytes+sourceBytes > responsesPreOutputMaxBytes {
+			capture.endReason = "upstream_stream_preoutput_too_large"
+			return errResponsesPreOutputTooLarge
 		}
 		preOutputEvents = append(preOutputEvents, events...)
+		preOutputBytes += sourceBytes
 		capture.preOutputEventsBuffered += len(events)
+		return nil
 	}
 	encodeEvents := func(events []canonicalStreamEvent) error {
 		for _, event := range events {
@@ -202,7 +211,17 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 			}
 			return capture, headersWritten, err
 		}
-		line, err := reader.ReadBytes('\n')
+		var line []byte
+		var err error
+		if deferResponsesPreOutput && !headersWritten {
+			line, err = readResponsesPreOutputLine(reader)
+			if errors.Is(err, errResponsesPreOutputTooLarge) {
+				capture.endReason = "upstream_stream_preoutput_too_large"
+				return capture, false, err
+			}
+		} else {
+			line, err = reader.ReadBytes('\n')
+		}
 		if len(line) > 0 {
 			if options.UpstreamLineInspect != nil {
 				options.UpstreamLineInspect(line, &capture)
@@ -238,7 +257,9 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 				}
 				capture.malformedLines++
 			} else if deferResponsesPreOutput && !headersWritten && !responsesPreOutputCommitted && preOutputDisposition == responsesPreOutputDefer {
-				bufferPreOutputEvents(events)
+				if bufferErr := bufferPreOutputEvents(events, len(line)); bufferErr != nil {
+					return capture, false, bufferErr
+				}
 			} else {
 				if deferResponsesPreOutput && !headersWritten && !responsesPreOutputCommitted && preOutputDisposition == responsesPreOutputCommit {
 					responsesPreOutputCommitted = true

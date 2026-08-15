@@ -78,6 +78,22 @@ func TestRequestLogFiltersRejectInvalidBooleanFilters(t *testing.T) {
 	}
 }
 
+func TestRequestLogParentRequestIDPrefersTypedColumn(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{"parent_request_id": "legacy-parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := store.RequestLogDetail{RequestLog: store.RequestLog{
+		ParentRequestID: sql.NullString{String: "typed-parent", Valid: true},
+		Metadata:        metadata,
+	}}
+	if got := requestLogParentRequestID(item); got != "typed-parent" {
+		t.Fatalf("parent request id = %q, want typed-parent", got)
+	}
+}
+
 func TestRequestLogSummaryReturnsUnsupportedPayloadForSearchFilter(t *testing.T) {
 	t.Parallel()
 
@@ -358,7 +374,7 @@ func TestRequestLogFailoverTracePayloadKeepsSameChannelCredentialChain(t *testin
 	}
 }
 
-func TestRequestLogFailoverTracePayloadKeepsTerminalChannelWhenNoSwitchOccurs(t *testing.T) {
+func TestRequestLogFailoverTracePayloadOmitsTerminalChannelWhenNoSwitchOccurs(t *testing.T) {
 	t.Parallel()
 
 	metadata, err := json.Marshal(map[string]any{
@@ -383,13 +399,8 @@ func TestRequestLogFailoverTracePayloadKeepsTerminalChannelWhenNoSwitchOccurs(t 
 			},
 		},
 	})
-	if trace == nil {
-		t.Fatal("expected failover trace")
-	}
-	finalChannel, _ := trace["final_channel"].(map[string]any)
-	finalSite, _ := finalChannel["site"].(map[string]any)
-	if finalChannel["success"] != false || finalChannel["error_type"] != "upstream_credential_limited" || finalSite["name"] != "Default" {
-		t.Fatalf("unexpected terminal channel: %#v", finalChannel)
+	if trace != nil {
+		t.Fatalf("unexpected failover trace without a switch: %#v", trace)
 	}
 }
 

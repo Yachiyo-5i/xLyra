@@ -270,7 +270,7 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 	payload := map[string]any{
 		"id":                          item.ID.String(),
 		"request_id":                  item.RequestID,
-		"parent_request_id":           metadataString(metadata, "parent_request_id"),
+		"parent_request_id":           emptyStringAsNil(requestLogParentRequestID(item)),
 		"scope":                       metadataString(metadata, "scope"),
 		"is_test":                     metadata["test"] == true,
 		"stream":                      metadata["stream"],
@@ -343,8 +343,11 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 }
 
 func requestLogParentRequestID(item store.RequestLogDetail) string {
+	if value := strings.TrimSpace(item.ParentRequestID.String); item.ParentRequestID.Valid && value != "" {
+		return value
+	}
 	value, _ := metadataString(requestLogMetadata(item.Metadata), "parent_request_id").(string)
-	return value
+	return strings.TrimSpace(value)
 }
 
 type requestLogFailoverChannel struct {
@@ -355,7 +358,7 @@ type requestLogFailoverChannel struct {
 func requestLogFailoverTracePayload(attempts []store.RequestLogDetail) map[string]any {
 	channels := requestLogFailoverChannels(attempts)
 	credentialAttempts := requestLogCredentialAttemptsPayload(attempts)
-	if len(channels) == 0 || (len(channels) == 1 && channels[0].item.Success && len(credentialAttempts) <= 1) {
+	if len(channels) == 0 || (len(channels) == 1 && len(credentialAttempts) <= 1) {
 		return nil
 	}
 

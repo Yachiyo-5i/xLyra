@@ -18,6 +18,7 @@ import (
 type RequestLog struct {
 	ID                 uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	RequestID          string
+	ParentRequestID    sql.NullString `gorm:"index:request_logs_parent_request_id_idx"`
 	APIKeyID           uuid.NullUUID
 	SiteID             uuid.NullUUID
 	CanonicalModelID   uuid.NullUUID
@@ -30,7 +31,7 @@ type RequestLog struct {
 	UpstreamLatencyMS  sql.NullInt64
 	RequestTokens      sql.NullInt64
 	ResponseTokens     sql.NullInt64
-	Metadata           JSON          `gorm:"type:jsonb;index:request_logs_parent_request_id_metadata_idx,expression:(metadata ->> 'parent_request_id')"`
+	Metadata           JSON          `gorm:"type:jsonb"`
 	Internal           bool          `gorm:"default:false;not null"`
 	ParentRequestLogID uuid.NullUUID `gorm:"type:uuid;index:request_logs_parent_request_log_id_idx"`
 	CreatedAt          time.Time
@@ -38,6 +39,7 @@ type RequestLog struct {
 
 type CreateRequestLogParams struct {
 	RequestID          string
+	ParentRequestID    any
 	APIKeyID           any
 	SiteID             any
 	CanonicalModelID   any
@@ -115,6 +117,7 @@ func NewRequestLogRepository(db *gorm.DB) RequestLogRepository {
 func (r RequestLogRepository) Create(ctx context.Context, params CreateRequestLogParams) (RequestLog, error) {
 	item := RequestLog{
 		RequestID:          params.RequestID,
+		ParentRequestID:    nullStringFromAny(params.ParentRequestID),
 		APIKeyID:           nullUUIDFromAny(params.APIKeyID),
 		SiteID:             nullUUIDFromAny(params.SiteID),
 		CanonicalModelID:   nullUUIDFromAny(params.CanonicalModelID),
@@ -481,9 +484,6 @@ func (r RequestLogRepository) GetDetailed(ctx context.Context, requestLogID uuid
 	return details[0], nil
 }
 
-// ListAttemptsForParentRequest returns all recorded attempts for one downstream
-// request in execution order. Attempts are linked through the immutable
-// parent_request_id metadata written by the gateway.
 func (r RequestLogRepository) ListAttemptsForParentRequest(ctx context.Context, parentRequestID string) ([]RequestLogDetail, error) {
 	parentRequestID = strings.TrimSpace(parentRequestID)
 	if parentRequestID == "" {
@@ -492,10 +492,30 @@ func (r RequestLogRepository) ListAttemptsForParentRequest(ctx context.Context, 
 
 	var logs []RequestLog
 	if err := r.db.WithContext(ctx).
-		Where("metadata ->> 'parent_request_id' = ?", parentRequestID).
+		Clauses(clause.Where{Exprs: []clause.Expression{
+			clause.Eq{Column: clause.Column{Name: "parent_request_id"}, Value: parentRequestID},
+		}}).
 		Clauses(requestLogAttemptOrderClause()).
 		Find(&logs).Error; err != nil {
 		return nil, fmt.Errorf("list request attempts: %w", err)
+	}
+	if len(logs) == 0 {
+		legacyPrefix := parentRequestID + ":"
+		if err := r.db.WithContext(ctx).
+			Clauses(clause.Where{Exprs: []clause.Expression{
+				clause.Like{Column: clause.Column{Name: "request_id"}, Value: requestLogLegacyPrefixPattern(parentRequestID)},
+			}}).
+			Clauses(requestLogAttemptOrderClause()).
+			Find(&logs).Error; err != nil {
+			return nil, fmt.Errorf("list legacy request attempts: %w", err)
+		}
+		filtered := logs[:0]
+		for _, log := range logs {
+			if strings.HasPrefix(log.RequestID, legacyPrefix) {
+				filtered = append(filtered, log)
+			}
+		}
+		logs = filtered
 	}
 	if len(logs) == 0 {
 		return []RequestLogDetail{}, nil
@@ -793,6 +813,11 @@ func requestLogTextMatches(needle string, values ...string) bool {
 
 func requestLogLikePattern(value string) string {
 	return "%" + strings.TrimSpace(value) + "%"
+}
+
+func requestLogLegacyPrefixPattern(value string) string {
+	value = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.TrimSpace(value))
+	return value + ":%"
 }
 
 func requestLogUUIDInExpression(column string, values []uuid.UUID) clause.Expression {

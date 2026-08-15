@@ -9,6 +9,7 @@ import type { RequestLogItem } from '@/features/requests/api/requests'
 import { RequestDetailRow } from '@/features/requests/components/request-detail-row'
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
 import { RequestTiming } from '@/features/requests/components/request-timing'
+import { requestFailoverBadgeClassName } from '@/features/requests/lib/request-badge-styles'
 import {
   readRequestsTableColumnWidthsPreference,
   writeRequestsTableColumnWidthsPreference,
@@ -256,15 +257,18 @@ export function RequestsTable({
                             >
                               {requestResponseModeLabel(item, t)}
                             </Badge>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5 text-xs">
                             {requestHasFailover(item) ? (
-                              <Badge variant="warning" className="shrink-0 px-2 py-0.5 text-xs leading-4">
+                              <Badge
+                                variant="neutral"
+                                className={cn(requestFailoverBadgeClassName, 'px-2 py-0.5 text-xs leading-4 tracking-normal')}
+                              >
                                 {t('table.failover')}
                               </Badge>
                             ) : null}
+                            <span className="text-muted-soft">{item.upstream_status_code ?? item.status_code ?? '-'}</span>
                           </div>
-                          <span className="shrink-0 text-xs text-muted-soft">
-                            {item.upstream_status_code ?? item.status_code ?? '-'}
-                          </span>
                         </div>
                       </td>
                       <td className="px-4 py-4 align-middle">

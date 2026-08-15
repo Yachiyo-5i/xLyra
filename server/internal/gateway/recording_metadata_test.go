@@ -188,6 +188,37 @@ func TestAttemptMetadataRecordsStoppedDecisionAfterStreamStart(t *testing.T) {
 	}
 }
 
+func TestAttemptMetadataRecordsExecutedCredentialDecision(t *testing.T) {
+	t.Parallel()
+
+	metadata := attemptMetadata(
+		context.Background(),
+		"req-attempt",
+		"req-parent",
+		uuid.Nil,
+		uuid.Nil,
+		routeengine.Candidate{},
+		gatewayAttemptResult{
+			statusCode:            502,
+			errorType:             "grok_oauth_refresh_failed",
+			credentialAttempt:     1,
+			credentialTotal:       2,
+			credentialDecision:    credentialFailoverDecisionForAction(true, true),
+			credentialDecisionSet: true,
+		},
+	)
+
+	if got := metadata["next_credential_available"]; got != true {
+		t.Fatalf("next credential availability = %#v, want true", got)
+	}
+	if got := metadata["should_try_next_credential"]; got != true {
+		t.Fatalf("retry decision = %#v, want true", got)
+	}
+	if got := metadata["failover_action"]; got != "try_next_credential" {
+		t.Fatalf("failover action = %#v, want try_next_credential", got)
+	}
+}
+
 func TestAttemptMetadataDoesNotMarkResponsesIncompleteAsTransportFailure(t *testing.T) {
 	t.Parallel()
 

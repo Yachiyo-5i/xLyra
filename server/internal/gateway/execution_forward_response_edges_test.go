@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +35,7 @@ func TestLogGatewayCredentialDecisionIncludesFailoverFields(t *testing.T) {
 		attempt:                  2,
 		statusCode:               http.StatusBadGateway,
 		upstreamStatusCode:       http.StatusOK,
-		errorType:                "upstream_pre_output_overloaded",
+		errorType:                "codex_model_capacity",
 		upstreamErrorCode:        "server_is_overloaded",
 		stream:                   true,
 		streamEndReason:          "upstream_stream_error",
@@ -291,15 +290,18 @@ func TestHandleStreamResponseUnstartedErrorKeepsFailureSemantics(t *testing.T) {
 	if result.statusCode != http.StatusBadGateway || result.upstreamStatusCode != http.StatusOK {
 		t.Fatalf("status = %d upstream = %d, want 502/200", result.statusCode, result.upstreamStatusCode)
 	}
-	if result.errorType != "upstream_pre_output_overloaded" || !strings.Contains(result.errorMessage, "server_is_overloaded") {
+	if result.errorType != "upstream_stream_error" || result.errorMessage != "upstream stream returned an error event" {
 		t.Fatalf("stream error = %q %q", result.errorType, result.errorMessage)
 	}
-	if !shouldTryNextCredential(result) {
-		t.Fatal("pre-output overload should retry the next credential")
+	if result.upstreamErrorCode != "server_is_overloaded" {
+		t.Fatalf("upstream error code = %q", result.upstreamErrorCode)
+	}
+	if shouldTryNextCredential(result) {
+		t.Fatal("generic pre-output overload should keep the existing route-level failover behavior")
 	}
 }
 
-func TestForwardGatewayRequestRetriesPreOutputOverloadWithNextCredential(t *testing.T) {
+func TestForwardGatewayRequestDoesNotRetryPreOutputOverloadWithNextCredential(t *testing.T) {
 	siteID := uuid.New()
 	siteModelID := uuid.New()
 	firstCredentialID := uuid.New()
@@ -401,14 +403,17 @@ func TestForwardGatewayRequestRetriesPreOutputOverloadWithNextCredential(t *test
 		openAIResponsesProtocolAdapter{downstreamProtocol: canonicalProtocolOpenAIResponses},
 	)
 
-	if !result.success || !result.responseStarted {
-		t.Fatalf("result = %#v, want successful started stream", result)
+	if result.success || result.responseStarted {
+		t.Fatalf("result = %#v, want unstarted failure", result)
 	}
-	if got, want := seenCredentials, []string{"Bearer first-secret", "Bearer second-secret"}; !slices.Equal(got, want) {
-		t.Fatalf("upstream credentials = %v, want %v", got, want)
+	if result.errorType != "upstream_response_failed" || result.upstreamErrorCode != "server_is_overloaded" {
+		t.Fatalf("result = %#v, want existing semantic failure classification", result)
 	}
-	if body := recorder.Body.String(); strings.Contains(body, "server_is_overloaded") || !strings.Contains(body, "recovered") {
-		t.Fatalf("downstream body leaked overload or missed recovery: %q", body)
+	if len(seenCredentials) != 1 || seenCredentials[0] != "Bearer first-secret" {
+		t.Fatalf("upstream credentials = %v, want only first credential", seenCredentials)
+	}
+	if body := recorder.Body.String(); body != "" {
+		t.Fatalf("downstream body = %q, want empty before route failover", body)
 	}
 }
 

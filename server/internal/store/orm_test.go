@@ -99,8 +99,8 @@ func TestRequestLogRepositoryListsAttemptsForParentRequest(t *testing.T) {
 				tx.AddError(errors.New("expected one parent request filter"))
 				return
 			}
-			expression, ok := where.Exprs[0].(clause.Expr)
-			if !ok || expression.SQL != "metadata ->> 'parent_request_id' = ?" || len(expression.Vars) != 1 || expression.Vars[0] != "req-parent" {
+			expression, ok := where.Exprs[0].(clause.Eq)
+			if !ok || columnName(expression.Column) != "parent_request_id" || expression.Value != "req-parent" {
 				tx.AddError(errors.New("unexpected request attempt parent filter"))
 				return
 			}
@@ -110,8 +110,8 @@ func TestRequestLogRepositoryListsAttemptsForParentRequest(t *testing.T) {
 				return
 			}
 			*destination = []RequestLog{
-				{ID: firstID, RequestID: "req-parent:1:attempt", Metadata: JSON(`{"parent_request_id":"req-parent","attempt":1}`)},
-				{ID: secondID, RequestID: "req-parent:2:attempt", Success: true, Metadata: JSON(`{"parent_request_id":"req-parent","attempt":2}`)},
+				{ID: firstID, RequestID: "req-parent:1:attempt", ParentRequestID: sql.NullString{String: "req-parent", Valid: true}, Metadata: JSON(`{"attempt":1}`)},
+				{ID: secondID, RequestID: "req-parent:2:attempt", ParentRequestID: sql.NullString{String: "req-parent", Valid: true}, Success: true, Metadata: JSON(`{"attempt":2}`)},
 			}
 		case *[]UsageRecord:
 			*destination = []UsageRecord{}
@@ -133,6 +133,53 @@ func TestRequestLogRepositoryListsAttemptsForParentRequest(t *testing.T) {
 	missing, err := NewRequestLogRepository(nil).ListAttemptsForParentRequest(context.Background(), " \t\n ")
 	if err != nil || len(missing) != 0 {
 		t.Fatalf("blank parent result = %#v, %v; want empty, nil", missing, err)
+	}
+}
+
+func TestRequestLogRepositoryListsLegacyAttemptsByRequestID(t *testing.T) {
+	t.Parallel()
+
+	parentRequestID := `req%_\parent`
+	requestLogID := uuid.New()
+	requestLogQueries := 0
+	db := storeRepositoryOfflineGorm(t)
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		switch destination := tx.Statement.Dest.(type) {
+		case *[]RequestLog:
+			requestLogQueries++
+			where, ok := tx.Statement.Clauses["WHERE"].Expression.(clause.Where)
+			if !ok || len(where.Exprs) != 1 {
+				tx.AddError(errors.New("expected one legacy request filter"))
+				return
+			}
+			if requestLogQueries == 1 {
+				assertEqClause(t, where.Exprs[0], "parent_request_id", parentRequestID)
+				*destination = []RequestLog{}
+				return
+			}
+			like, ok := where.Exprs[0].(clause.Like)
+			if !ok || columnName(like.Column) != "request_id" || like.Value != `req\%\_\\parent:%` {
+				tx.AddError(errors.New("unexpected legacy request attempt filter"))
+				return
+			}
+			*destination = []RequestLog{
+				{ID: requestLogID, RequestID: parentRequestID + ":1:attempt"},
+				{ID: uuid.New(), RequestID: "req-other:1:attempt"},
+			}
+		case *[]UsageRecord:
+			*destination = []UsageRecord{}
+		default:
+			tx.AddError(errors.New("unexpected legacy request attempt query destination"))
+		}
+		tx.Statement.RowsAffected = 1
+	})
+
+	attempts, err := NewRequestLogRepository(db).ListAttemptsForParentRequest(context.Background(), parentRequestID)
+	if err != nil {
+		t.Fatalf("ListAttemptsForParentRequest: %v", err)
+	}
+	if requestLogQueries != 2 || len(attempts) != 1 || attempts[0].ID != requestLogID {
+		t.Fatalf("legacy request attempts = %#v after %d queries", attempts, requestLogQueries)
 	}
 }
 

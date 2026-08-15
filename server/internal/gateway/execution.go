@@ -85,6 +85,8 @@ type gatewayAttemptResult struct {
 	rateLimit                  *ratelimit.Reservation
 	diagnostic                 bool
 	requestLogID               uuid.UUID
+	credentialDecision         credentialFailoverDecision
+	credentialDecisionSet      bool
 }
 
 func (h Handler) forwardGatewayRequest(
@@ -182,6 +184,15 @@ func (h Handler) forwardGatewayRequest(
 			rateLimit:                rateLimit,
 			diagnostic:               request.Diagnostic,
 		}
+		nextCredentialAvailable := credentialIndex < len(credentials)-1
+		recordCredentialAttempt := func(result gatewayAttemptResult, upstreamResponse any, shouldTryNextCredential bool) gatewayAttemptResult {
+			decision := credentialFailoverDecisionForAction(nextCredentialAvailable, shouldTryNextCredential)
+			result.credentialDecision = decision
+			result.credentialDecisionSet = true
+			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, upstreamResponse)
+			h.logGatewayCredentialDecision(ctx, requestID, candidate, request, result, decision)
+			return result
+		}
 		if h.logger != nil {
 			h.logger.DebugContext(ctx, "gateway credential attempt started",
 				"scope", "gateway",
@@ -208,9 +219,9 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "upstream_credential_decrypt_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, true)
 			lastResult = result
-			if credentialIndex < len(credentials)-1 {
+			if result.credentialDecision.ShouldTryNextCredential {
 				if releaseCredentialSelection != nil {
 					releaseCredentialSelection()
 				}
@@ -226,7 +237,7 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "codex_oauth_refresh_failed"
 				result.errorMessage = err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, false)
 				return result
 			}
 			upstreamKey = connection.AccessToken
@@ -239,7 +250,7 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "antigravity_oauth_refresh_failed"
 				result.errorMessage = err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, false)
 				return result
 			}
 			upstreamKey = connection.AccessToken
@@ -252,7 +263,7 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "claude_code_oauth_refresh_failed"
 				result.errorMessage = err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, false)
 				return result
 			}
 			upstreamKey = connection.AccessToken
@@ -268,9 +279,9 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "grok_oauth_refresh_failed"
 				result.errorMessage = refreshErr.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, true)
 				lastResult = result
-				if credentialIndex < len(credentials)-1 {
+				if result.credentialDecision.ShouldTryNextCredential {
 					if releaseCredentialSelection != nil {
 						releaseCredentialSelection()
 					}
@@ -289,7 +300,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "request_encode_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		result = applyUpstreamBillingMetadata(result, payload, candidate)
@@ -298,7 +309,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "request_param_validation_failed"
 			result.errorMessage = validationErr.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		upstreamStream := request.Stream
@@ -319,7 +330,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "upstream_client_unavailable"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		claudeCodeSessionID := applyGatewayClientImpersonationPayload(payload, siteConfig, protocol, request, candidate)
@@ -329,7 +340,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "request_encode_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 
@@ -342,7 +353,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "upstream_request_build_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		req.Header.Set("Authorization", "Bearer "+upstreamKey)
@@ -399,8 +410,8 @@ func (h Handler) forwardGatewayRequest(
 			}
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
-			if errors.Is(err, errCredentialConcurrencyLimited) && credentialIndex < len(credentials)-1 {
+			result = recordCredentialAttempt(result, nil, errors.Is(err, errCredentialConcurrencyLimited))
+			if result.credentialDecision.ShouldTryNextCredential {
 				if releaseCredentialSelection != nil {
 					releaseCredentialSelection()
 				}
@@ -420,11 +431,11 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = transportErrorType(err)
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, isGrokSite(candidate.Site.SiteType))
 			if releaseCredentialSelection != nil {
 				releaseCredentialSelection()
 			}
-			if isGrokSite(candidate.Site.SiteType) && credentialIndex < len(credentials)-1 {
+			if result.credentialDecision.ShouldTryNextCredential {
 				lastResult = result
 				continue
 			}
@@ -742,12 +753,6 @@ func (h Handler) handleStreamResponse(
 			result.statusCode = http.StatusBadGateway
 			result.errorType = "upstream_stream_error"
 			result.errorMessage = streamErrorMessageFromEndReason(capture.endReason)
-			if failure, ok := semanticFailureFromJSON([]byte(capture.errorDetail)); ok && strings.EqualFold(strings.TrimSpace(failure.Code), "server_is_overloaded") {
-				// The Responses passthrough defers this provider event until actual output.
-				// No downstream bytes were written, so another credential can still serve it.
-				result.errorType = "upstream_pre_output_overloaded"
-				result.errorMessage = failure.Error()
-			}
 			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, streamMetadataEnvelope(capture))
 			return result
 		}
@@ -785,12 +790,6 @@ func (h Handler) finishStreamSemanticFailure(
 	result.body = classificationBody
 	result.failureResponse = diagnosticFailureResponse(failure.Body)
 	result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, classificationBody, time.Now(), h.timeZone)
-	if !result.responseStarted && strings.EqualFold(strings.TrimSpace(failure.Code), "server_is_overloaded") {
-		// Preserve the pre-output overload retry contract while keeping the
-		// generic semantic-failure classification for other provider errors.
-		result.errorType = "upstream_pre_output_overloaded"
-		result.errorMessage = failure.Error()
-	}
 	h.markOAuthConnectionUnavailableOnAuthFailure(ctx, candidate, result)
 	result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, streamMetadataEnvelope(capture))
 	return result

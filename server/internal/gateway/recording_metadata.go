@@ -126,7 +126,7 @@ func attemptMetadata(
 	if result.billingMode == "fast" && result.costMultiplier > 1 {
 		serviceTierMultiplier = result.costMultiplier
 	}
-	failoverDecision := credentialFailoverDecisionForResult(result, nextCredentialAvailableForResult(result))
+	failoverDecision := credentialFailoverDecisionForAttempt(result)
 	costCalculation["base_estimated_cost"] = float64PtrValue(result.baseEstimatedCost)
 	costCalculation["credential_upstream_cost_multiplier"] = credentialMultiplier
 	costCalculation["service_tier_multiplier"] = serviceTierMultiplier
