@@ -19,9 +19,8 @@ import (
 )
 
 const (
-	overviewDays       = 90
-	apiKeyActivityDays = 365
-	failureReasonTopN  = 10
+	overviewDays      = 90
+	failureReasonTopN = 10
 	highLatencyTopN    = 10
 	uptimeBucketCount  = 24
 	insufficientRouteN = 10
@@ -49,10 +48,8 @@ func NewService(db *store.Store, timeZones ...config.TimeZone) *Service {
 }
 
 type UsageOverview struct {
-	Meta    OverviewMeta              `json:"meta"`
-	KPIs    OverviewKPIs              `json:"kpis"`
-	Charts  OverviewCharts            `json:"charts"`
-	Windows map[string]OverviewWindow `json:"windows"`
+	Meta OverviewMeta `json:"meta"`
+	KPIs OverviewKPIs `json:"kpis"`
 }
 
 type InsightsOverview struct {
@@ -62,8 +59,7 @@ type InsightsOverview struct {
 
 type OverviewMeta struct {
 	Days          int    `json:"days"`
-	AvailableDays []int  `json:"available_days"`
-	Timezone      string `json:"timezone"`
+	Timezone    string `json:"timezone"`
 	GeneratedAt   string `json:"generated_at"`
 	TodayStart    string `json:"today_start"`
 	RangeStart    string `json:"range_start"`
@@ -154,16 +150,6 @@ type TPMWindowKPI struct {
 	Limit    *int64 `json:"limit"`
 }
 
-type OverviewCharts struct {
-	DailyModelCost      []DailyModelCostPoint    `json:"daily_model_cost"`
-	DailyModelRequests  []DailyModelRequestPoint `json:"daily_model_requests"`
-	DailySiteCost       []DailySiteCostPoint     `json:"daily_site_cost"`
-	DailySiteRequests   []DailySiteRequestPoint  `json:"daily_site_requests"`
-	DailyAPIKeyUsage    []DailyAPIKeyUsagePoint  `json:"daily_api_key_usage"`
-	APIKeyContributions []DailyAPIKeyUsagePoint  `json:"api_key_contributions"`
-	SiteCostSummary     []SiteCostSummaryItem    `json:"site_cost_summary"`
-}
-
 type OverviewWindow struct {
 	Days            int                   `json:"days"`
 	RangeStart      string                `json:"range_start"`
@@ -171,51 +157,6 @@ type OverviewWindow struct {
 	SiteCostSummary []SiteCostSummaryItem `json:"site_cost_summary"`
 	FailureReasons  []FailureReasonItem   `json:"failure_reasons"`
 	HighLatency     []HighLatencyItem     `json:"high_latency"`
-}
-
-type DailyModelCostPoint struct {
-	Date     string  `json:"date"`
-	ModelID  *string `json:"model_id"`
-	ModelKey string  `json:"model_key"`
-	Cost     float64 `json:"cost"`
-	Currency string  `json:"currency"`
-}
-
-type DailyModelRequestPoint struct {
-	Date         string  `json:"date"`
-	ModelID      *string `json:"model_id"`
-	ModelKey     string  `json:"model_key"`
-	RequestCount int64   `json:"request_count"`
-}
-
-type DailySiteCostPoint struct {
-	Date     string  `json:"date"`
-	SiteID   *string `json:"site_id"`
-	SiteName string  `json:"site_name"`
-	SiteSlug string  `json:"site_slug"`
-	SiteType string  `json:"site_type"`
-	SiteKey  string  `json:"site_key"`
-	Cost     float64 `json:"cost"`
-	Currency string  `json:"currency"`
-}
-
-type DailySiteRequestPoint struct {
-	Date         string  `json:"date"`
-	SiteID       *string `json:"site_id"`
-	SiteName     string  `json:"site_name"`
-	SiteSlug     string  `json:"site_slug"`
-	SiteType     string  `json:"site_type"`
-	SiteKey      string  `json:"site_key"`
-	RequestCount int64   `json:"request_count"`
-}
-
-type DailyAPIKeyUsagePoint struct {
-	Date        string  `json:"date"`
-	APIKeyID    string  `json:"api_key_id"`
-	APIKeyName  string  `json:"api_key_name"`
-	TotalTokens int64   `json:"total_tokens"`
-	Cost        float64 `json:"cost"`
-	Currency    string  `json:"currency"`
 }
 
 type SiteCostSummaryItem struct {
@@ -521,61 +462,20 @@ func (s *Service) usageFromSummaries(ctx context.Context, window timeWindow, row
 	if err != nil {
 		return UsageOverview{}, err
 	}
-	dailyCost, err := s.dailyModelCostFromSummaries(window, rows)
-	if err != nil {
-		return UsageOverview{}, err
-	}
-	dailyRequests, err := s.dailyModelRequestsFromSummaries(window, rows)
-	if err != nil {
-		return UsageOverview{}, err
-	}
-	dailySiteCost, err := s.dailySiteCostFromSummaries(ctx, window, rows)
-	if err != nil {
-		return UsageOverview{}, err
-	}
-	dailySiteRequests, err := s.dailySiteRequestsFromSummaries(ctx, window, rows)
-	if err != nil {
-		return UsageOverview{}, err
-	}
-	apiKeys, err := s.apiKeysByID(ctx, dashboardAPIKeyUsageIDs(rows))
-	if err != nil {
-		return UsageOverview{}, fmt.Errorf("dashboard api key names: %w", err)
-	}
-	dailyAPIKeyUsage := dailyAPIKeyUsageFromSummaries(window, rows, apiKeys)
-	apiKeyContributions := dailyAPIKeyUsageFromSummaries(s.newTimeWindow(apiKeyActivityDays, window.Now), rows, apiKeys)
-	siteCosts, err := s.siteCostSummaryFromSummaries(ctx, window, rows)
-	if err != nil {
-		return UsageOverview{}, err
-	}
-	windows, err := s.overviewWindowsFromSummaries(ctx, window.Now, rows)
-	if err != nil {
-		return UsageOverview{}, err
-	}
 	return UsageOverview{
 		Meta: OverviewMeta{
-			Days:          overviewDays,
-			AvailableDays: append([]int(nil), overviewWindowDays...),
-			Timezone:      window.TimeZoneName,
-			GeneratedAt:   window.format(window.Now, time.RFC3339),
-			TodayStart:    window.format(window.TodayStart, time.RFC3339),
-			RangeStart:    window.format(window.RangeStart, time.RFC3339),
-			RangeEnd:      window.format(window.RangeEnd, time.RFC3339),
+			Days:        overviewDays,
+			Timezone:    window.TimeZoneName,
+			GeneratedAt: window.format(window.Now, time.RFC3339),
+			TodayStart:  window.format(window.TodayStart, time.RFC3339),
+			RangeStart:  window.format(window.RangeStart, time.RFC3339),
+			RangeEnd:    window.format(window.RangeEnd, time.RFC3339),
 		},
 		KPIs: OverviewKPIs{
 			Cost:      cost,
 			Requests:  requests,
 			RateLimit: rateLimit,
 		},
-		Charts: OverviewCharts{
-			DailyModelCost:      dailyCost,
-			DailyModelRequests:  dailyRequests,
-			DailySiteCost:       dailySiteCost,
-			DailySiteRequests:   dailySiteRequests,
-			DailyAPIKeyUsage:    dailyAPIKeyUsage,
-			APIKeyContributions: apiKeyContributions,
-			SiteCostSummary:     siteCosts,
-		},
-		Windows: windows,
 	}, nil
 }
 
@@ -635,331 +535,6 @@ func requestsKPIFromSummaries(window timeWindow, rows []store.RequestUsageDailyS
 	return result
 }
 
-func (s *Service) dailyModelCostFromSummaries(window timeWindow, rows []store.RequestUsageDailySummary) ([]DailyModelCostPoint, error) {
-	type aggregate struct {
-		date     string
-		modelID  uuid.NullUUID
-		modelKey string
-		cost     float64
-		currency string
-	}
-	byKey := map[string]*aggregate{}
-	for _, row := range rows {
-		if row.BucketStart.Before(window.RangeStart) {
-			continue
-		}
-		date := summaryDate(row.BucketStart, window)
-		modelKey := defaultString(row.CanonicalModelKey, "unknown")
-		if modelKey == summaryNoneKey {
-			modelKey = "unknown"
-		}
-		currency := defaultString(row.Currency, "USD")
-		key := date + "\x00" + nullableUUIDKey(row.CanonicalModelID) + "\x00" + modelKey + "\x00" + currency
-		item := byKey[key]
-		if item == nil {
-			item = &aggregate{date: date, modelID: row.CanonicalModelID, modelKey: modelKey, currency: currency}
-			byKey[key] = item
-		}
-		item.cost += row.EstimatedCost
-	}
-	rowsOut := make([]aggregate, 0, len(byKey))
-	for _, row := range byKey {
-		rowsOut = append(rowsOut, *row)
-	}
-	sort.SliceStable(rowsOut, func(i, j int) bool {
-		if rowsOut[i].date != rowsOut[j].date {
-			return rowsOut[i].date < rowsOut[j].date
-		}
-		return rowsOut[i].cost > rowsOut[j].cost
-	})
-	items := make([]DailyModelCostPoint, 0, len(rowsOut))
-	for _, row := range rowsOut {
-		items = append(items, DailyModelCostPoint{
-			Date:     row.date,
-			ModelID:  nullableUUIDString(row.modelID),
-			ModelKey: row.modelKey,
-			Cost:     row.cost,
-			Currency: defaultString(row.currency, "USD"),
-		})
-	}
-	return items, nil
-}
-
-func (s *Service) dailyModelRequestsFromSummaries(window timeWindow, rows []store.RequestUsageDailySummary) ([]DailyModelRequestPoint, error) {
-	type aggregate struct {
-		date         string
-		modelID      uuid.NullUUID
-		modelKey     string
-		requestCount int64
-	}
-	byKey := map[string]*aggregate{}
-	for _, row := range rows {
-		if row.BucketStart.Before(window.RangeStart) || !row.Success {
-			continue
-		}
-		date := summaryDate(row.BucketStart, window)
-		modelKey := defaultString(row.CanonicalModelKey, "unknown")
-		if modelKey == summaryNoneKey {
-			modelKey = "unknown"
-		}
-		key := date + "\x00" + nullableUUIDKey(row.CanonicalModelID) + "\x00" + modelKey
-		item := byKey[key]
-		if item == nil {
-			item = &aggregate{date: date, modelID: row.CanonicalModelID, modelKey: modelKey}
-			byKey[key] = item
-		}
-		item.requestCount += row.SuccessCount
-	}
-	rowsOut := make([]aggregate, 0, len(byKey))
-	for _, row := range byKey {
-		rowsOut = append(rowsOut, *row)
-	}
-	sort.SliceStable(rowsOut, func(i, j int) bool {
-		if rowsOut[i].date != rowsOut[j].date {
-			return rowsOut[i].date < rowsOut[j].date
-		}
-		return rowsOut[i].requestCount > rowsOut[j].requestCount
-	})
-	items := make([]DailyModelRequestPoint, 0, len(rowsOut))
-	for _, row := range rowsOut {
-		items = append(items, DailyModelRequestPoint{
-			Date:         row.date,
-			ModelID:      nullableUUIDString(row.modelID),
-			ModelKey:     row.modelKey,
-			RequestCount: row.requestCount,
-		})
-	}
-	return items, nil
-}
-
-func (s *Service) dailySiteCostFromSummaries(ctx context.Context, window timeWindow, rows []store.RequestUsageDailySummary) ([]DailySiteCostPoint, error) {
-	sites, err := s.sitesByID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("dashboard daily site cost: %w", err)
-	}
-	type aggregate struct {
-		date     string
-		siteID   uuid.NullUUID
-		siteName string
-		siteSlug string
-		siteType string
-		siteKey  string
-		cost     float64
-		currency string
-	}
-	byKey := map[string]*aggregate{}
-	for _, row := range rows {
-		if row.BucketStart.Before(window.RangeStart) {
-			continue
-		}
-		date := summaryDate(row.BucketStart, window)
-		snapshot := resolveSummarySiteSnapshot(row, sites)
-		currency := defaultString(row.Currency, "USD")
-		key := date + "\x00" + snapshot.aggregateKey + "\x00" + currency
-		item := byKey[key]
-		if item == nil {
-			item = &aggregate{
-				date:     date,
-				siteID:   snapshot.siteID,
-				siteName: snapshot.siteName,
-				siteSlug: snapshot.siteSlug,
-				siteType: snapshot.siteType,
-				siteKey:  snapshot.siteKey,
-				currency: currency,
-			}
-			byKey[key] = item
-		}
-		item.cost += row.EstimatedCost
-	}
-	rowsOut := make([]aggregate, 0, len(byKey))
-	for _, row := range byKey {
-		rowsOut = append(rowsOut, *row)
-	}
-	sort.SliceStable(rowsOut, func(i, j int) bool {
-		if rowsOut[i].date != rowsOut[j].date {
-			return rowsOut[i].date < rowsOut[j].date
-		}
-		return rowsOut[i].cost > rowsOut[j].cost
-	})
-	items := make([]DailySiteCostPoint, 0, len(rowsOut))
-	for _, row := range rowsOut {
-		items = append(items, DailySiteCostPoint{
-			Date:     row.date,
-			SiteID:   nullableUUIDString(row.siteID),
-			SiteName: row.siteName,
-			SiteSlug: row.siteSlug,
-			SiteType: row.siteType,
-			SiteKey:  defaultString(row.siteKey, "unknown"),
-			Cost:     row.cost,
-			Currency: defaultString(row.currency, "USD"),
-		})
-	}
-	return items, nil
-}
-
-func (s *Service) dailySiteRequestsFromSummaries(ctx context.Context, window timeWindow, rows []store.RequestUsageDailySummary) ([]DailySiteRequestPoint, error) {
-	sites, err := s.sitesByID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("dashboard daily site requests: %w", err)
-	}
-	type aggregate struct {
-		date         string
-		siteID       uuid.NullUUID
-		siteName     string
-		siteSlug     string
-		siteType     string
-		siteKey      string
-		requestCount int64
-	}
-	byKey := map[string]*aggregate{}
-	for _, row := range rows {
-		if row.BucketStart.Before(window.RangeStart) || !row.Success {
-			continue
-		}
-		date := summaryDate(row.BucketStart, window)
-		snapshot := resolveSummarySiteSnapshot(row, sites)
-		key := date + "\x00" + snapshot.aggregateKey
-		item := byKey[key]
-		if item == nil {
-			item = &aggregate{
-				date:     date,
-				siteID:   snapshot.siteID,
-				siteName: snapshot.siteName,
-				siteSlug: snapshot.siteSlug,
-				siteType: snapshot.siteType,
-				siteKey:  snapshot.siteKey,
-			}
-			byKey[key] = item
-		}
-		item.requestCount += row.SuccessCount
-	}
-	rowsOut := make([]aggregate, 0, len(byKey))
-	for _, row := range byKey {
-		rowsOut = append(rowsOut, *row)
-	}
-	sort.SliceStable(rowsOut, func(i, j int) bool {
-		if rowsOut[i].date != rowsOut[j].date {
-			return rowsOut[i].date < rowsOut[j].date
-		}
-		return rowsOut[i].requestCount > rowsOut[j].requestCount
-	})
-	items := make([]DailySiteRequestPoint, 0, len(rowsOut))
-	for _, row := range rowsOut {
-		items = append(items, DailySiteRequestPoint{
-			Date:         row.date,
-			SiteID:       nullableUUIDString(row.siteID),
-			SiteName:     row.siteName,
-			SiteSlug:     row.siteSlug,
-			SiteType:     row.siteType,
-			SiteKey:      defaultString(row.siteKey, "unknown"),
-			RequestCount: row.requestCount,
-		})
-	}
-	return items, nil
-}
-
-func dailyAPIKeyUsageFromSummaries(window timeWindow, rows []store.RequestUsageDailySummary, apiKeys map[uuid.UUID]store.APIKey) []DailyAPIKeyUsagePoint {
-	type aggregate struct {
-		date        string
-		apiKeyID    uuid.UUID
-		apiKeyName  string
-		totalTokens int64
-		cost        float64
-		currency    string
-	}
-	byKey := map[string]*aggregate{}
-	for _, row := range rows {
-		if row.BucketStart.Before(window.RangeStart) || !row.APIKeyID.Valid {
-			continue
-		}
-		date := summaryDate(row.BucketStart, window)
-		apiKeyID := row.APIKeyID.UUID
-		currency := defaultString(row.Currency, "USD")
-		key := date + "\x00" + apiKeyID.String() + "\x00" + currency
-		item := byKey[key]
-		if item == nil {
-			item = &aggregate{
-				date:       date,
-				apiKeyID:   apiKeyID,
-				apiKeyName: strings.TrimSpace(row.APIKeyName),
-				currency:   currency,
-			}
-			byKey[key] = item
-		}
-		if item.apiKeyName == "" {
-			item.apiKeyName = strings.TrimSpace(row.APIKeyName)
-		}
-		item.totalTokens += row.TotalTokens
-		item.cost += row.EstimatedCost
-	}
-	rowsOut := make([]aggregate, 0, len(byKey))
-	for _, row := range byKey {
-		rowsOut = append(rowsOut, *row)
-	}
-	sort.SliceStable(rowsOut, func(i, j int) bool {
-		if rowsOut[i].date != rowsOut[j].date {
-			return rowsOut[i].date < rowsOut[j].date
-		}
-		if rowsOut[i].totalTokens != rowsOut[j].totalTokens {
-			return rowsOut[i].totalTokens > rowsOut[j].totalTokens
-		}
-		return dashboardAPIKeyUsageName(rowsOut[i].apiKeyID, rowsOut[i].apiKeyName, apiKeys) < dashboardAPIKeyUsageName(rowsOut[j].apiKeyID, rowsOut[j].apiKeyName, apiKeys)
-	})
-	items := make([]DailyAPIKeyUsagePoint, 0, len(rowsOut))
-	for _, row := range rowsOut {
-		apiKeyID := row.apiKeyID.String()
-		items = append(items, DailyAPIKeyUsagePoint{
-			Date:        row.date,
-			APIKeyID:    apiKeyID,
-			APIKeyName:  defaultString(dashboardAPIKeyUsageName(row.apiKeyID, row.apiKeyName, apiKeys), apiKeyID),
-			TotalTokens: row.totalTokens,
-			Cost:        row.cost,
-			Currency:    defaultString(row.currency, "USD"),
-		})
-	}
-	return items
-}
-
-func (s *Service) apiKeysByID(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]store.APIKey, error) {
-	result := map[uuid.UUID]store.APIKey{}
-	if len(ids) == 0 {
-		return result, nil
-	}
-	apiKeys, err := store.NewAPIKeyRepository(s.db.DB()).ListByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	for _, apiKey := range apiKeys {
-		result[apiKey.ID] = apiKey
-	}
-	return result, nil
-}
-
-func dashboardAPIKeyUsageIDs(rows []store.RequestUsageDailySummary) []uuid.UUID {
-	ids := make([]uuid.UUID, 0)
-	seen := map[uuid.UUID]struct{}{}
-	for _, row := range rows {
-		if !row.APIKeyID.Valid {
-			continue
-		}
-		apiKeyID := row.APIKeyID.UUID
-		if _, ok := seen[apiKeyID]; ok {
-			continue
-		}
-		seen[apiKeyID] = struct{}{}
-		ids = append(ids, apiKeyID)
-	}
-	return ids
-}
-
-func dashboardAPIKeyUsageName(apiKeyID uuid.UUID, snapshotName string, apiKeys map[uuid.UUID]store.APIKey) string {
-	if apiKey, ok := apiKeys[apiKeyID]; ok {
-		if name := strings.TrimSpace(apiKey.Name); name != "" {
-			return name
-		}
-	}
-	return strings.TrimSpace(snapshotName)
-}
 
 func (s *Service) siteCostSummaryFromSummaries(ctx context.Context, window timeWindow, rows []store.RequestUsageDailySummary) ([]SiteCostSummaryItem, error) {
 	sites, err := s.sitesByID(ctx)

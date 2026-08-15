@@ -150,7 +150,7 @@ func TestDatabaseImportExportWrapTransactionBeginFailures(t *testing.T) {
 
 	txErr := errors.New("transaction begin failed")
 	db := backupTransactionGorm(t, txErr)
-	err := exportDatabase(context.Background(), db, "master-key", nil)
+	_, err := exportDatabase(context.Background(), db, "master-key", nil)
 	if !errors.Is(err, txErr) {
 		t.Fatalf("exportDatabase err=%v, want transaction begin failure", err)
 	}
@@ -159,7 +159,7 @@ func TestDatabaseImportExportWrapTransactionBeginFailures(t *testing.T) {
 	for _, table := range backupTables {
 		dump.Tables[table.Name] = nil
 	}
-	_, err = importDatabase(context.Background(), db, "master-key", dump)
+	_, _, err = importDatabase(context.Background(), db, "master-key", dump)
 	if !errors.Is(err, txErr) {
 		t.Fatalf("importDatabase err=%v, want transaction begin failure", err)
 	}
@@ -220,6 +220,42 @@ func TestAutomaticFileMutationsRejectBlankObjectKey(t *testing.T) {
 	}
 }
 
+func TestRestoreDownloadCounterReportsBoundedProgress(t *testing.T) {
+	t.Parallel()
+
+	events := make([]ProgressEvent, 0, 2)
+	counter := &restoreDownloadCounter{
+		total: 10 << 20,
+		next:  4 << 20,
+		progress: func(event ProgressEvent) {
+			events = append(events, event)
+		},
+	}
+	if _, err := counter.Write(make([]byte, 3<<20)); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	if _, err := counter.Write(make([]byte, 2<<20)); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+	if _, err := counter.Write(make([]byte, 5<<20)); err != nil {
+		t.Fatalf("third write: %v", err)
+	}
+	if len(events) != 2 || events[0].Bytes != 5<<20 || events[1].Bytes != 10<<20 || events[1].Total != 10<<20 {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestValidateRestoreObjectSizeRejectsOversizedBackup(t *testing.T) {
+	t.Parallel()
+
+	if err := validateRestoreObjectSize(MaxImportBytes); err != nil {
+		t.Fatalf("maximum backup size rejected: %v", err)
+	}
+	if err := validateRestoreObjectSize(MaxImportBytes + 1); err == nil || !strings.Contains(err.Error(), "exceeds maximum") {
+		t.Fatalf("oversized backup error = %v", err)
+	}
+}
+
 func TestImportDatabaseRejectsUnregisteredDeleteOrderTable(t *testing.T) {
 	dump := databaseDump{Tables: make(map[string][]map[string]any, len(backupTables))}
 	for _, table := range backupTables {
@@ -231,7 +267,7 @@ func TestImportDatabaseRejectsUnregisteredDeleteOrderTable(t *testing.T) {
 		importDeleteOrder = original
 	})
 
-	_, err := importDatabase(context.Background(), backupTransactionGorm(t, nil), "master-key", dump)
+	_, _, err := importDatabase(context.Background(), backupTransactionGorm(t, nil), "master-key", dump)
 	if err == nil || !strings.Contains(err.Error(), "backup table not_registered was not registered") {
 		t.Fatalf("importDatabase err=%v, want unregistered table error", err)
 	}

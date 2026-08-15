@@ -1,16 +1,20 @@
 package settings
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 
+	"xlyra/server/internal/backup"
 	"xlyra/server/internal/downloads"
 	"xlyra/server/internal/httpx"
 )
 
-const maxBackupUploadBytes = 512 << 20
+const maxBackupUploadBytes = backup.MaxImportBytes
 
 type backupPassphraseRequest struct {
 	Passphrase string `json:"passphrase"`
@@ -68,12 +72,72 @@ func (h Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, "backup_file_read_failed", err.Error())
 		return
 	}
+
+	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+		h.importBackupSSE(w, r, passphrase, data)
+		return
+	}
+
 	summary, err := h.backups.Import(r.Context(), passphrase, data)
 	if err != nil {
 		h.writeBackupError(w, r, err)
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"backup": summary})
+}
+
+func (h Handler) importBackupSSE(w http.ResponseWriter, r *http.Request, passphrase string, data []byte) {
+	streamBackupRestore(w, r, "decrypt", func(ctx context.Context, progress backup.ProgressFunc) (backup.ImportSummary, error) {
+		return h.backups.Import(ctx, passphrase, data, progress)
+	})
+}
+
+func streamBackupRestore(w http.ResponseWriter, r *http.Request, initialStep string, run func(context.Context, backup.ProgressFunc) (backup.ImportSummary, error)) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpx.Error(w, r, http.StatusInternalServerError, "streaming_unsupported", "streaming is not supported")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	currentStep := initialStep
+	var writeErr error
+	progress := func(event backup.ProgressEvent) {
+		if event.Step != "complete" {
+			currentStep = event.Step
+		}
+		if writeErr != nil {
+			return
+		}
+		writeErr = writeBackupProgressEvent(w, event)
+		if writeErr != nil {
+			cancel()
+			return
+		}
+		flusher.Flush()
+	}
+	_, err := run(ctx, progress)
+	if writeErr != nil {
+		return
+	}
+	if err != nil {
+		_ = writeBackupProgressEvent(w, backup.ProgressEvent{Step: currentStep, Status: "error", Message: err.Error()})
+		flusher.Flush()
+	}
+}
+
+func writeBackupProgressEvent(w http.ResponseWriter, event backup.ProgressEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(w, "data: %s\n\n", data)
+	return err
 }
 
 func (h Handler) writeBackupError(w http.ResponseWriter, r *http.Request, err error) {

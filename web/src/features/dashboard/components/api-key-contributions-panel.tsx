@@ -76,7 +76,7 @@ export function ApiKeyContributionsPanel({
   return (
     <Card
       className={cn(
-        'flex h-full min-h-0 flex-col rounded-lg p-5 [--contribution-gap:5px] [--contribution-size:16px] sm:[--contribution-size:18px]',
+        'flex h-full min-h-0 flex-col rounded-lg p-5 [--contribution-gap:5px] [--contribution-size:23px]',
         className,
       )}
     >
@@ -104,29 +104,30 @@ export function ApiKeyContributionsPanel({
         </Select>
       </div>
 
-      <div className="mb-3 grid grid-cols-3 items-baseline gap-x-5 gap-y-1">
-        <ContributionStat label={t('contributions.currentStreakLabel')} value={t('contributions.daysValue', { count: contributions.currentStreak })} />
-        <ContributionStat label={t('contributions.longestStreakLabel')} value={t('contributions.daysValue', { count: contributions.longestStreak })} />
-        <ContributionStat label={t('contributions.monthTokensLabel')} value={formatDashboardTokens(contributions.monthTokens)} />
-      </div>
+      <div className="flex min-h-0 flex-1 gap-5">
+        <div className="flex shrink-0 flex-col gap-4 pt-6">
+          <ContributionStat label={t('contributions.currentStreakLabel')} value={t('contributions.daysValue', { count: contributions.currentStreak })} />
+          <ContributionStat label={t('contributions.longestStreakLabel')} value={t('contributions.daysValue', { count: contributions.longestStreak })} />
+          <ContributionStat label={t('contributions.monthTokensLabel')} value={formatDashboardTokens(contributions.monthTokens)} />
+        </div>
 
-      <div
-        data-contributions-grid
-        className="relative min-h-0 flex-1 overflow-visible"
-        onMouseLeave={() => setActiveDay(null)}
-      >
+        <div
+          data-contributions-grid
+          className="relative min-w-0 flex-1 overflow-visible"
+          onMouseLeave={() => setActiveDay(null)}
+        >
         {hasKeys ? (
           <div className="h-full pb-1">
             <div className="grid min-h-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-x-2">
               <div className="pt-6">
-                <div className="grid grid-rows-7 text-xs text-faint" style={{ rowGap: 'var(--contribution-gap)' }}>
-                  <span />
-                  <span>{t('contributions.weekdays.mon')}</span>
-                  <span />
-                  <span>{t('contributions.weekdays.wed')}</span>
-                  <span />
-                  <span>{t('contributions.weekdays.fri')}</span>
-                  <span />
+                <div className="flex flex-col text-xs text-faint" style={{ gap: 'var(--contribution-gap)' }}>
+                  <span style={{ height: 'var(--contribution-size)' }} />
+                  <span className="flex items-center" style={{ height: 'var(--contribution-size)' }}>{t('contributions.weekdays.mon')}</span>
+                  <span style={{ height: 'var(--contribution-size)' }} />
+                  <span className="flex items-center" style={{ height: 'var(--contribution-size)' }}>{t('contributions.weekdays.wed')}</span>
+                  <span style={{ height: 'var(--contribution-size)' }} />
+                  <span className="flex items-center" style={{ height: 'var(--contribution-size)' }}>{t('contributions.weekdays.fri')}</span>
+                  <span style={{ height: 'var(--contribution-size)' }} />
                 </div>
               </div>
               <div ref={scrollAreaRef} className="scrollbar-hidden min-w-0 overflow-x-auto overflow-y-visible">
@@ -218,6 +219,7 @@ export function ApiKeyContributionsPanel({
             <p className="text-muted-soft">{t('contributions.tooltipTokens', { value: formatDashboardTokens(activeDay.day.tokens) })}</p>
           </div>
         ) : null}
+        </div>
       </div>
     </Card>
   )
@@ -226,10 +228,8 @@ export function ApiKeyContributionsPanel({
 function ContributionStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="flex min-w-0 items-baseline gap-2 text-[11px] font-medium leading-5 text-muted-soft">
-        <span className="truncate">{label}</span>
-        <span className="shrink-0 text-sm font-semibold text-foreground">{value}</span>
-      </p>
+      <p className="text-[11px] font-medium leading-4 text-muted-soft">{label}</p>
+      <p className="mt-0.5 text-xl font-semibold tabular-nums leading-tight text-foreground">{value}</p>
     </div>
   )
 }

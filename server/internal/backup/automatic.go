@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -317,6 +318,30 @@ func (s *AutomaticService) run(ctx context.Context, cfg config.AutomaticBackupCo
 }
 
 func (s *AutomaticService) Restore(ctx context.Context, key string) (ImportSummary, error) {
+	return s.restore(ctx, key, nil)
+}
+
+func (s *AutomaticService) RestoreWithProgress(ctx context.Context, key string, progress ProgressFunc) (ImportSummary, error) {
+	return s.restore(ctx, key, progress)
+}
+
+type restoreDownloadCounter struct {
+	progress ProgressFunc
+	total    int64
+	read     int64
+	next     int64
+}
+
+func (c *restoreDownloadCounter) Write(data []byte) (int, error) {
+	c.read += int64(len(data))
+	if c.progress != nil && (c.read >= c.next || (c.total > 0 && c.read >= c.total)) {
+		c.progress(ProgressEvent{Step: "download", Status: "in_progress", Bytes: c.read, Total: c.total})
+		c.next = c.read + 4<<20
+	}
+	return len(data), nil
+}
+
+func (s *AutomaticService) restore(ctx context.Context, key string, progress ProgressFunc) (ImportSummary, error) {
 	cfg, client, err := s.readyClient()
 	if err != nil {
 		return ImportSummary{}, err
@@ -331,16 +356,52 @@ func (s *AutomaticService) Restore(ctx context.Context, key string) (ImportSumma
 	}
 	ctx, cancel := context.WithTimeout(ctx, automaticBackupTimeout)
 	defer cancel()
+
+	if progress != nil {
+		progress(ProgressEvent{Step: "download", Status: "in_progress", Message: "Downloading backup file from storage"})
+	}
+
 	object, err := client.GetObject(ctx, cfg.Storage.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return ImportSummary{}, fmt.Errorf("download backup from S3: %w", err)
 	}
 	defer object.Close()
-	data, err := io.ReadAll(object)
+	stat, err := object.Stat()
+	if err != nil {
+		return ImportSummary{}, fmt.Errorf("stat backup from S3: %w", err)
+	}
+	if err := validateRestoreObjectSize(stat.Size); err != nil {
+		return ImportSummary{}, err
+	}
+	if progress != nil {
+		progress(ProgressEvent{Step: "download", Status: "in_progress", Total: stat.Size})
+	}
+	counter := &restoreDownloadCounter{progress: progress, total: stat.Size, next: 4 << 20}
+	var dataBuffer bytes.Buffer
+	if stat.Size > 0 && stat.Size <= int64(^uint(0)>>1) {
+		dataBuffer.Grow(int(stat.Size))
+	}
+	_, err = io.Copy(&dataBuffer, io.TeeReader(io.LimitReader(object, MaxImportBytes+1), counter))
 	if err != nil {
 		return ImportSummary{}, fmt.Errorf("read backup from S3: %w", err)
 	}
-	return s.base.Import(ctx, passphrase, data)
+	if err := validateRestoreObjectSize(counter.read); err != nil {
+		return ImportSummary{}, err
+	}
+	data := dataBuffer.Bytes()
+
+	if progress != nil {
+		progress(ProgressEvent{Step: "download", Status: "complete", Bytes: counter.read, Total: stat.Size})
+	}
+
+	return s.base.Import(ctx, passphrase, data, progress)
+}
+
+func validateRestoreObjectSize(size int64) error {
+	if size > MaxImportBytes {
+		return fmt.Errorf("backup file size %d exceeds maximum %d", size, MaxImportBytes)
+	}
+	return nil
 }
 
 func (s *AutomaticService) Delete(ctx context.Context, key string) error {

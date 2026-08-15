@@ -5,89 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm/clause"
 
 	"xlyra/server/internal/config"
-	"xlyra/server/internal/store"
 )
-
-func TestDailyModelSummariesRespectWindowBoundariesAndDefaults(t *testing.T) {
-	t.Parallel()
-
-	timeZone := config.LoadTimeZone("UTC")
-	window := newTimeWindow(3, time.Date(2026, 6, 6, 15, 30, 0, 0, time.UTC), timeZone)
-	modelID := uuid.New()
-	service := NewService(nil, timeZone)
-	rows := []store.RequestUsageDailySummary{
-		{BucketStart: window.RangeStart.Add(-time.Nanosecond), CanonicalModelKey: "too-old", EstimatedCost: 99, Success: true, SuccessCount: 99},
-		{BucketStart: window.RangeStart, CanonicalModelID: uuid.NullUUID{UUID: modelID, Valid: true}, CanonicalModelKey: "gpt-5", EstimatedCost: 1.5, Success: true, SuccessCount: 2},
-		{BucketStart: window.RangeStart.Add(2 * time.Hour), CanonicalModelID: uuid.NullUUID{UUID: modelID, Valid: true}, CanonicalModelKey: "gpt-5", EstimatedCost: 2.5, Success: true, SuccessCount: 3},
-		{BucketStart: window.RangeStart, CanonicalModelKey: "", EstimatedCost: 6, Currency: "EUR", Success: false, SuccessCount: 7},
-		{BucketStart: window.TodayStart, CanonicalModelKey: summaryNoneKey, EstimatedCost: 4, Success: true, SuccessCount: 5},
-	}
-
-	costs, err := service.dailyModelCostFromSummaries(window, rows)
-	if err != nil {
-		t.Fatalf("daily model cost: %v", err)
-	}
-	if len(costs) != 3 {
-		t.Fatalf("expected three cost points, got %#v", costs)
-	}
-	if costs[0].Date != "2026-06-04" || costs[0].ModelKey != "unknown" || costs[0].Cost != 6 || costs[0].Currency != "EUR" {
-		t.Fatalf("expected unknown EUR cost first for range start day, got %#v", costs[0])
-	}
-	if costs[1].Date != "2026-06-04" || costs[1].ModelID == nil || *costs[1].ModelID != modelID.String() || costs[1].Cost != 4 || costs[1].Currency != "USD" {
-		t.Fatalf("expected gpt-5 default-currency aggregate second, got %#v", costs[1])
-	}
-	if costs[2].Date != "2026-06-06" || costs[2].ModelKey != "unknown" || costs[2].Cost != 4 {
-		t.Fatalf("expected today none-key cost normalized to unknown, got %#v", costs[2])
-	}
-
-	requests, err := service.dailyModelRequestsFromSummaries(window, rows)
-	if err != nil {
-		t.Fatalf("daily model requests: %v", err)
-	}
-	if len(requests) != 2 {
-		t.Fatalf("expected two request points, got %#v", requests)
-	}
-	if requests[0].Date != "2026-06-04" || requests[0].ModelKey != "gpt-5" || requests[0].RequestCount != 5 {
-		t.Fatalf("expected successful gpt-5 requests at range boundary, got %#v", requests[0])
-	}
-	if requests[1].Date != "2026-06-06" || requests[1].ModelKey != "unknown" || requests[1].RequestCount != 5 {
-		t.Fatalf("expected today none-key requests normalized to unknown, got %#v", requests[1])
-	}
-}
-
-func TestDailyAPIKeyUsageDefaultsAndSortsBoundedRows(t *testing.T) {
-	t.Parallel()
-
-	timeZone := config.LoadTimeZone("UTC")
-	window := newTimeWindow(2, time.Date(2026, 6, 6, 9, 0, 0, 0, time.UTC), timeZone)
-	namedID := uuid.New()
-	blankNameID := uuid.New()
-	items := dailyAPIKeyUsageFromSummaries(window, []store.RequestUsageDailySummary{
-		{BucketStart: window.RangeStart.Add(-time.Nanosecond), APIKeyID: uuid.NullUUID{UUID: namedID, Valid: true}, APIKeyName: "Too Old", TotalTokens: 900, EstimatedCost: 9},
-		{BucketStart: window.RangeStart, APIKeyID: uuid.NullUUID{UUID: blankNameID, Valid: true}, TotalTokens: 20, EstimatedCost: 0.2},
-		{BucketStart: window.RangeStart, APIKeyID: uuid.NullUUID{UUID: namedID, Valid: true}, APIKeyName: "Build", TotalTokens: 15, EstimatedCost: 0.15, Currency: "EUR"},
-		{BucketStart: window.RangeStart, APIKeyID: uuid.NullUUID{UUID: namedID, Valid: true}, APIKeyName: "Build", TotalTokens: 15, EstimatedCost: 0.15, Currency: "EUR"},
-		{BucketStart: window.TodayStart, APIKeyID: uuid.NullUUID{UUID: namedID, Valid: true}, APIKeyName: "Build", TotalTokens: 100, EstimatedCost: 1},
-		{BucketStart: window.TodayStart, APIKeyName: "Missing ID", TotalTokens: 500, EstimatedCost: 5},
-	}, nil)
-
-	if len(items) != 3 {
-		t.Fatalf("expected three API key usage points, got %#v", items)
-	}
-	if items[0].Date != "2026-06-05" || items[0].APIKeyID != namedID.String() || items[0].APIKeyName != "Build" || items[0].TotalTokens != 30 || items[0].Cost != 0.3 || items[0].Currency != "EUR" {
-		t.Fatalf("expected named EUR aggregate first on range start day, got %#v", items[0])
-	}
-	if items[1].Date != "2026-06-05" || items[1].APIKeyID != blankNameID.String() || items[1].APIKeyName != blankNameID.String() || items[1].TotalTokens != 20 || items[1].Currency != "USD" {
-		t.Fatalf("expected blank name to fall back to key id with default currency, got %#v", items[1])
-	}
-	if items[2].Date != "2026-06-06" || items[2].APIKeyID != namedID.String() || items[2].TotalTokens != 100 || items[2].Currency != "USD" {
-		t.Fatalf("expected today row after older date groups, got %#v", items[2])
-	}
-}
 
 func TestSummaryDateAndUptimeHourKeyUseProvidedLocations(t *testing.T) {
 	t.Parallel()

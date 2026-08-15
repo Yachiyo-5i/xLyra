@@ -1,0 +1,108 @@
+{
+  "page": {
+    "eyebrow": "概览",
+    "title": "用量分析",
+    "description": "按站点、模型和用户维度分析用量、费用与性能趋势。",
+    "update": "更新",
+    "refresh": "刷新",
+    "retry": "重试",
+    "loadFailed": "用量分析加载失败",
+    "noData": "暂无数据",
+    "noDataDesc": "当前筛选条件下没有用量数据"
+  },
+  "filters": {
+    "ranges": {
+      "label": "时间范围",
+      "today": "今天",
+      "7d": "7 天",
+      "30d": "30 天",
+      "90d": "90 天",
+      "all": "全部",
+      "custom": "自定义"
+    },
+    "from": "开始日期",
+    "to": "结束日期",
+    "site": "站点",
+    "model": "模型",
+    "apiKey": "用户",
+    "siteAll": "全部站点",
+    "modelAll": "全部模型",
+    "apiKeyAll": "全部用户",
+    "search": "搜索...",
+    "noOptions": "暂无选项",
+    "statusAll": "全部状态",
+    "statusSuccess": "成功",
+    "statusFailure": "失败",
+    "currency": "币种",
+    "open": "筛选",
+    "clear": "清除",
+    "done": "完成"
+  },
+  "kpis": {
+    "cost": "费用",
+    "tokens": "Tokens",
+    "requests": "请求数",
+    "avgLatency": "平均延迟",
+    "multiCurrency": "含 {{count}} 种币种",
+    "cacheHitRate": "缓存命中率 {{value}}",
+    "successRate": "成功率 {{value}}",
+    "maxLatency": "最大延迟 {{value}}",
+    "vsPrevious": "环比上周期"
+  },
+  "tokens": {
+    "total": "总 Tokens",
+    "input": "输入 Tokens",
+    "output": "输出 Tokens",
+    "cached": "缓存命中 Tokens",
+    "hitRate": "缓存命中率"
+  },
+  "trend": {
+    "description": "{{from}} 至 {{to}} 趋势",
+    "hourDescription": "{{date}} 小时趋势",
+    "metrics": {
+      "cost": "费用",
+      "tokens": "Tokens",
+      "requests": "请求数",
+      "successRate": "成功率",
+      "latency": "平均延迟"
+    },
+    "dimensions": {
+      "none": "总计",
+      "site": "按站点",
+      "model": "按模型",
+      "apiKey": "按用户"
+    },
+    "chartTypes": {
+      "stackedArea": "堆叠面积",
+      "percentArea": "百分比面积",
+      "stackedBar": "堆叠柱状",
+      "line": "折线"
+    },
+    "empty": "当前范围内没有趋势数据"
+  },
+  "dimensions": {
+    "site": "站点",
+    "model": "模型",
+    "apiKey": "用户"
+  },
+  "donut": {
+    "title": "费用构成",
+    "description": "点击扇区可下钻筛选",
+    "total": "总费用",
+    "other": "其他",
+    "clear": "清除",
+    "clearFilter": "清除筛选",
+    "empty": "暂无费用数据"
+  },
+  "ranking": {
+    "title": "用户排行榜",
+    "metrics": {
+      "cost": "费用",
+      "tokens": "Tokens",
+      "requests": "请求数",
+      "failures": "失败数",
+      "latency": "平均延迟"
+    },
+    "empty": "暂无排行数据"
+  }
+}

@@ -175,6 +175,8 @@
       "modelMappingDesc": "将下游请求的模型名按规则映射到系统标准模型。支持三种规则：精确模型名、前缀通配（如 gpt-4*）、单独 * 为兜底。优先级固定为 精确 > 最长前缀 > 兜底。精确规则的别名会出现在 /v1/models 列表中。 硬映射：始终改写为目标模型。软映射：优先按原模型路由，仅当原模型无可用上游（全部冷却或未部署）时兜底到目标模型。",
       "downstreamPlaceholder": "模型名 / 前缀* / *",
       "selectModelPlaceholder": "选择模型",
+      "modelMappingLoading": "正在加载启用站点的可用模型…",
+      "modelMappingNoModels": "启用站点中没有可映射的标准模型",
       "duplicateKey": "规则 pattern 重复",
       "add": "新增",
       "rateLimit": "速率限制",

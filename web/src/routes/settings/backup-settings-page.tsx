@@ -40,17 +40,18 @@ import {
   deleteAutomaticBackupFile,
   exportBackup,
   fetchAutomaticBackupConfig,
-  importBackup,
   listAutomaticBackupFiles,
-  restoreAutomaticBackupFile,
   runAutomaticBackup,
   testAutomaticBackupConfig,
   updateAutomaticBackupConfig,
   type AutomaticBackupConfig,
   type AutomaticBackupConfigInput,
   type AutomaticBackupFile,
-  type BackupImportSummary,
 } from '@/features/settings/api/settings'
+import {
+  RestoreProgressDialog,
+  type RestoreTask,
+} from '@/features/settings/components/backup/restore-progress-dialog'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -103,6 +104,7 @@ export function BackupSettingsPage() {
   const [automaticDraftOverride, setAutomaticDraftOverride] = useState<AutomaticBackupDraft | null>(null)
   const [restoreTarget, setRestoreTarget] = useState<AutomaticBackupFile | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AutomaticBackupFile | null>(null)
+  const [restoreTask, setRestoreTask] = useState<RestoreTask | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const automaticQuery = useQuery({
@@ -146,17 +148,6 @@ export function BackupSettingsPage() {
     },
     onError: (error) => {
       toast.error(t('backup.export.failed'), { description: error.message })
-    },
-  })
-
-  const importMutation = useMutation({
-    mutationFn: importBackup,
-    onSuccess: ({ backup }) => {
-      toast.success(t('backup.import.success'), { description: importSummaryText(backup, t) })
-      closeImportDialog()
-    },
-    onError: (error) => {
-      toast.error(t('backup.import.failed'), { description: error.message })
     },
   })
 
@@ -213,18 +204,6 @@ export function BackupSettingsPage() {
     },
   })
 
-  const restoreAutomaticMutation = useMutation({
-    mutationFn: restoreAutomaticBackupFile,
-    onSuccess: async ({ backup }) => {
-      setRestoreTarget(null)
-      await queryClient.invalidateQueries({ queryKey: automaticBackupConfigKey })
-      toast.success(t('backup.import.success'), { description: importSummaryText(backup, t) })
-    },
-    onError: (error) => {
-      toast.error(t('backup.automatic.restoreFailed'), { description: error.message })
-    },
-  })
-
   const deleteAutomaticMutation = useMutation({
     mutationFn: deleteAutomaticBackupFile,
     onSuccess: async () => {
@@ -276,7 +255,8 @@ export function BackupSettingsPage() {
       toast.error(t('backup.validation.passphraseRequired'))
       return
     }
-    importMutation.mutate({ file: importFile, passphrase: importPassphrase })
+    setRestoreTask({ type: 'manual', file: importFile, passphrase: importPassphrase })
+    closeImportDialog()
   }
 
   function patchAutomaticDraft(patch: Partial<AutomaticBackupDraft>) {
@@ -368,7 +348,7 @@ export function BackupSettingsPage() {
                 t('backup.import.noticePreserved'),
                 t('backup.import.noticeRestart'),
               ]} />
-              <Button variant="destructive" onClick={() => setImportOpen(true)} disabled={importMutation.isPending}>
+              <Button variant="destructive" onClick={() => setImportOpen(true)}>
                 <DatabaseBackup className="h-4 w-4" />
                 {t('backup.import.action')}
               </Button>
@@ -670,11 +650,11 @@ export function BackupSettingsPage() {
             </FormField>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={closeImportDialog} disabled={importMutation.isPending}>
+            <Button variant="outline" onClick={closeImportDialog}>
               {t('common:actions.cancel', { ns: 'common' })}
             </Button>
-            <Button variant="destructive" onClick={handleImport} disabled={importMutation.isPending}>
-              {importMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <DatabaseBackup className="h-4 w-4" />}
+            <Button variant="destructive" onClick={handleImport}>
+              <DatabaseBackup className="h-4 w-4" />
               {t('backup.import.confirmAction')}
             </Button>
           </DialogFooter>
@@ -686,11 +666,22 @@ export function BackupSettingsPage() {
         title={t('backup.automatic.restoreConfirmTitle')}
         description={restoreTarget ? t('backup.automatic.restoreConfirmDescription', { filename: restoreTarget.filename }) : ''}
         confirmLabel={t('backup.automatic.restoreConfirmAction')}
-        pending={restoreAutomaticMutation.isPending}
+        pending={false}
         destructive
         onCancel={() => setRestoreTarget(null)}
         onConfirm={() => {
-          if (restoreTarget) restoreAutomaticMutation.mutate(restoreTarget.key)
+          if (restoreTarget) {
+            setRestoreTask({ type: 'automatic', key: restoreTarget.key, filename: restoreTarget.filename })
+            setRestoreTarget(null)
+          }
+        }}
+      />
+
+      <RestoreProgressDialog
+        task={restoreTask}
+        onClose={() => {
+          setRestoreTask(null)
+          void queryClient.invalidateQueries()
         }}
       />
 
@@ -792,14 +783,6 @@ function ConfirmDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function importSummaryText(summary: BackupImportSummary, t: (key: string, options?: Record<string, unknown>) => string) {
-  return t('backup.import.summary', {
-    tables: summary.tables,
-    rows: summary.rows,
-    configKeys: summary.config_keys,
-  })
 }
 
 function isBackupFile(file: File) {

@@ -13,60 +13,6 @@ import (
 	"xlyra/server/internal/store"
 )
 
-func TestDailySiteSummariesAggregateSnapshotsAndStoreSites(t *testing.T) {
-	t.Parallel()
-
-	timeZone := config.LoadTimeZone("UTC")
-	window := newTimeWindow(3, time.Date(2026, 6, 23, 14, 0, 0, 0, time.UTC), timeZone)
-	activeSiteID := uuid.New()
-	svc := NewService(dashboardStoreReturningSites(t, []store.Site{{
-		ID:       activeSiteID,
-		Name:     "Codex Primary",
-		Slug:     "codex-primary",
-		SiteType: "codex",
-		Status:   "active",
-		Enabled:  true,
-	}}), timeZone)
-	rows := []store.RequestUsageDailySummary{
-		{BucketStart: window.RangeStart.Add(-time.Nanosecond), SiteID: uuid.NullUUID{UUID: activeSiteID, Valid: true}, SiteKey: "too-old", EstimatedCost: 99, Success: true, SuccessCount: 99},
-		{BucketStart: window.RangeStart, SiteID: uuid.NullUUID{UUID: activeSiteID, Valid: true}, EstimatedCost: 1.25, Currency: "EUR", Success: true, SuccessCount: 2},
-		{BucketStart: window.RangeStart, SiteID: uuid.NullUUID{UUID: activeSiteID, Valid: true}, EstimatedCost: 0.75, Currency: "EUR", Success: true, SuccessCount: 3},
-		{BucketStart: window.RangeStart, SiteName: "Snapshot", SiteSlug: "snapshot", SiteType: "openai", EstimatedCost: 3.5, Success: true, SuccessCount: 7},
-		{BucketStart: window.TodayStart, SiteKey: summaryNoneKey, EstimatedCost: 4.5, Success: false, SuccessCount: 8},
-	}
-
-	costs, err := svc.dailySiteCostFromSummaries(context.Background(), window, rows)
-	if err != nil {
-		t.Fatalf("daily site cost: %v", err)
-	}
-	if len(costs) != 3 {
-		t.Fatalf("expected three daily site cost points, got %#v", costs)
-	}
-	if costs[0].Date != "2026-06-21" || costs[0].SiteID != nil || costs[0].SiteName != "Snapshot" || costs[0].SiteSlug != "snapshot" || costs[0].SiteKey != "Snapshot" || costs[0].Cost != 3.5 || costs[0].Currency != "USD" {
-		t.Fatalf("expected snapshot site cost aggregate first by cost, got %#v", costs[0])
-	}
-	if costs[1].Date != "2026-06-21" || costs[1].SiteID == nil || *costs[1].SiteID != activeSiteID.String() || costs[1].SiteName != "Codex Primary" || costs[1].Cost != 2 || costs[1].Currency != "EUR" {
-		t.Fatalf("expected active site cost aggregate second, got %#v", costs[1])
-	}
-	if costs[2].Date != "2026-06-23" || costs[2].SiteID != nil || costs[2].SiteKey != "unknown" || costs[2].Cost != 4.5 || costs[2].Currency != "USD" {
-		t.Fatalf("expected unknown site cost for none key today, got %#v", costs[2])
-	}
-
-	requests, err := svc.dailySiteRequestsFromSummaries(context.Background(), window, rows)
-	if err != nil {
-		t.Fatalf("daily site requests: %v", err)
-	}
-	if len(requests) != 2 {
-		t.Fatalf("expected two successful daily site request points, got %#v", requests)
-	}
-	if requests[0].SiteName != "Snapshot" || requests[0].RequestCount != 7 {
-		t.Fatalf("expected snapshot successful request aggregate first by request count, got %#v", requests[0])
-	}
-	if requests[1].SiteID == nil || *requests[1].SiteID != activeSiteID.String() || requests[1].RequestCount != 5 {
-		t.Fatalf("expected active site successful request aggregate second, got %#v", requests[1])
-	}
-}
-
 func TestSiteCostSummaryAndOverviewWindowsUseOnlyActiveStoreSites(t *testing.T) {
 	t.Parallel()
 

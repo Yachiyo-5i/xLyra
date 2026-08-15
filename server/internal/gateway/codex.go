@@ -635,6 +635,7 @@ func normalizeCodexResponsesContentParts(content []any, role string) {
 	wantType := codexContentTypeForRole(role)
 	for _, rawPart := range content {
 		part, _ := rawPart.(map[string]any)
+		delete(part, "prompt_cache_breakpoint")
 		partType := strings.TrimSpace(anyString(part["type"]))
 		if partType == "text" || partType == "input_text" || partType == "output_text" {
 			part["type"] = wantType

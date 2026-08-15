@@ -19,6 +19,12 @@ type ConfigFile struct {
 	stopCh   chan struct{}
 }
 
+type PreparedConfigReplace struct {
+	config *ConfigFile
+	data   map[string]any
+	path   string
+}
+
 func LoadConfigFile(workdir string) (*ConfigFile, error) {
 	path := ConfigFilePath(workdir)
 	cf := &ConfigFile{path: path}
@@ -99,6 +105,63 @@ func (c *ConfigFile) Replace(data map[string]any) error {
 
 	c.notify()
 	return nil
+}
+
+func (c *ConfigFile) PrepareReplace(data map[string]any) (*PreparedConfigReplace, error) {
+	preparedData := deepCopyMap(data)
+	encoded, err := json.MarshalIndent(preparedData, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal config: %w", err)
+	}
+	file, err := os.CreateTemp(filepath.Dir(c.path), ".config-restore-*")
+	if err != nil {
+		return nil, fmt.Errorf("create staged config: %w", err)
+	}
+	stagedPath := file.Name()
+	success := false
+	defer func() {
+		if !success {
+			_ = file.Close()
+			_ = os.Remove(stagedPath)
+		}
+	}()
+	if err := file.Chmod(0644); err != nil {
+		return nil, fmt.Errorf("set staged config permissions: %w", err)
+	}
+	if _, err := file.Write(encoded); err != nil {
+		return nil, fmt.Errorf("write staged config: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		return nil, fmt.Errorf("sync staged config: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return nil, fmt.Errorf("close staged config: %w", err)
+	}
+	success = true
+	return &PreparedConfigReplace{config: c, data: preparedData, path: stagedPath}, nil
+}
+
+func (p *PreparedConfigReplace) Commit() error {
+	p.config.mu.Lock()
+	defer p.config.mu.Unlock()
+	if p.path == "" {
+		return fmt.Errorf("staged config is unavailable")
+	}
+	if err := os.Rename(p.path, p.config.path); err != nil {
+		return fmt.Errorf("replace config file: %w", err)
+	}
+	p.path = ""
+	p.config.data = deepCopyMap(p.data)
+	p.config.notify()
+	return nil
+}
+
+func (p *PreparedConfigReplace) Discard() {
+	if p == nil || p.path == "" {
+		return
+	}
+	_ = os.Remove(p.path)
+	p.path = ""
 }
 
 func (c *ConfigFile) Reload() error {
