@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.2.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.1.3...v1.2.0) (2026-08-15)
+
+
+### Features
+
+* 🎸 新增用量分析独立页面与接口 ([481ac74](https://github.com/Yachiyo-5i/xLyra/commit/481ac7445aff0bc010c6a8bb96498abe2617dc45))
+
+
+### Bug Fixes
+
+* 🐛 优化前端页面交互与展示体验 ([c460b06](https://github.com/Yachiyo-5i/xLyra/commit/c460b06520da7de56c9a66209e788467b0b7fc1e))
+* 🐛 修复 Codex 上游拒绝新版提示缓存参数的问题 ([f6e99a9](https://github.com/Yachiyo-5i/xLyra/commit/f6e99a912e3bacdaaac456bbee416be606ab0822))
+* 🐛 修复 Codex 上游拒绝新版提示缓存参数的问题 ([ac4be61](https://github.com/Yachiyo-5i/xLyra/commit/ac4be61c3805232605e96a96fafcbce852a6babb))
+* 🐛 修复服务模式和推理强度识别及长上下文计费展示 ([74e0109](https://github.com/Yachiyo-5i/xLyra/commit/74e01096a1cb8ac312a239a0002262ed6d9eb0f9))
+* 🐛 修复缓存用量统计与缓存写入汇总缺失 ([c2dfa88](https://github.com/Yachiyo-5i/xLyra/commit/c2dfa88298980d2ca72b34783cc386eca28a7a83))
+* 🐛 修复缓存观测亲和在多凭据轮转时永久失效及相关问题 ([ba40d7f](https://github.com/Yachiyo-5i/xLyra/commit/ba40d7fa433929df57695241a5d7868a0ab0c639))
+* 🐛 修复缓存路由观测、凭据缓存域更新和历史缓存费用统计异常 ([a2be711](https://github.com/Yachiyo-5i/xLyra/commit/a2be71184e9825a2756242eefdc0fba9b76dd49d))
+* 🐛 修复请求切换记录不准确并优化切换过程展示 ([ad5e9d7](https://github.com/Yachiyo-5i/xLyra/commit/ad5e9d7b92583f266125428dee37ed4b6b19f3fd))
+* 🐛 修正缓存观测的亲和判定与过期边界 ([4ab1815](https://github.com/Yachiyo-5i/xLyra/commit/4ab18156a71126f70c5fca093f96edd7e56a8ce4))
+* 🐛 升级 Go 版本至 1.26.6 修复标准库安全漏洞 ([6593a94](https://github.com/Yachiyo-5i/xLyra/commit/6593a94beabb0359024060ea22f65960b9aab829))
+* 🐛 合并主分支并解决缓存统计与请求记录冲突 ([485abf3](https://github.com/Yachiyo-5i/xLyra/commit/485abf380f03bc8dc4d197e72fdd2bea74710664))
+* 🐛 增加多轮请求的缓存命中观测 ([b6245c3](https://github.com/Yachiyo-5i/xLyra/commit/b6245c3c0213c7e08b1a1d06547f6ff68ff53c86))
+* 🐛 精简 Dashboard 页面并减少首屏加载的数据量 ([a58fd3d](https://github.com/Yachiyo-5i/xLyra/commit/a58fd3ded5dfaa880fd7369b69ff3ff5a42c83cd))
+* 🐛 补齐缓存写入的结构化成本统计 ([b0fd71f](https://github.com/Yachiyo-5i/xLyra/commit/b0fd71f7591b116ab4532c5f085837531a506a97))
+* improve gateway failover diagnostics ([34a6275](https://github.com/Yachiyo-5i/xLyra/commit/34a6275bb24f7bcd76459054fb17f48368947295))
+
+
+### Performance Improvements
+
+* ⚡️ 加快大数据备份恢复并展示实时进度 ([708eea7](https://github.com/Yachiyo-5i/xLyra/commit/708eea78e0b407e63e018f5b5eb5955efe329737))
+
 ## [1.1.3](https://github.com/Yachiyo-5i/xLyra/compare/v1.1.2...v1.1.3) (2026-08-13)
 
 
