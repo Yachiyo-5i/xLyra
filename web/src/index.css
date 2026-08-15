@@ -222,6 +222,9 @@ html.light {
   --request-tpm-badge-bg: 262 92% 96%;
   --request-tpm-badge-border: 262 72% 82%;
   --request-tpm-badge-text: 262 82% 28%;
+  --request-failover-badge-bg: 218 20% 93%;
+  --request-failover-badge-border: 220 16% 78%;
+  --request-failover-badge-text: 220 18% 36%;
   --button-soft-border: 224 18% 82%;
   --button-soft-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
   --button-secondary-border: 224 18% 84%;
@@ -831,6 +834,9 @@ html.dark .auth-card {
   --request-tpm-badge-bg: 262 84% 67% / 0.15;
   --request-tpm-badge-border: 262 84% 67% / 0.3;
   --request-tpm-badge-text: 262 100% 90%;
+  --request-failover-badge-bg: 220 14% 72% / 0.1;
+  --request-failover-badge-border: 220 14% 72% / 0.18;
+  --request-failover-badge-text: 220 14% 76%;
   --button-soft-border: 0 0% 100% / 0;
   --button-soft-shadow: 0 0 #0000;
   --button-secondary-border: 220 10% 72% / 0.18;

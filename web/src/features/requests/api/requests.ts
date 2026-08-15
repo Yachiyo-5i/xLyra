@@ -7,18 +7,18 @@ type RequestLogAPIKey = {
 }
 
 export type RequestLogCredential = {
-  id?: string | null
-  name?: string | null
+	id?: string | null
+	name?: string | null
 }
 
-type RequestLogSite = {
+export type RequestLogSite = {
   id?: string | null
   name?: string | null
   slug?: string | null
   site_type?: string | null
 }
 
-type RequestLogModel = {
+export type RequestLogModel = {
   canonical_model_id?: string | null
   canonical_model?: string | null
   site_model_id?: string | null
@@ -115,6 +115,27 @@ type RequestLogRateLimit = {
   scope_results?: RequestLogRateLimitScope[] | null
 }
 
+export type RequestLogFailoverChannel = {
+  success: boolean
+  site: RequestLogSite
+  error_type?: string | null
+  status_code?: number | null
+  upstream_status_code?: number | null
+}
+
+export type RequestLogFailoverCredentialAttempt = RequestLogFailoverChannel & {
+  credential?: RequestLogCredential | null
+  credential_attempt?: number | null
+  credential_total?: number | null
+}
+
+export type RequestLogFailoverTrace = {
+  default_channel: RequestLogFailoverChannel
+  intermediate_channels?: RequestLogFailoverChannel[] | null
+  final_channel?: RequestLogFailoverChannel | null
+  credential_attempts?: RequestLogFailoverCredentialAttempt[] | null
+}
+
 export type RequestLogItem = {
   id: string
   request_id: string
@@ -129,8 +150,20 @@ export type RequestLogItem = {
   credential_attempt?: number | null
   credential_total?: number | null
   failover?: boolean | null
+  next_credential_available?: boolean | null
+  should_try_next_credential?: boolean | null
+  failover_action?: 'stop' | 'try_next_credential' | null
+  failover_trace?: RequestLogFailoverTrace | null
   stream?: boolean | null
   response_mode?: string | null
+  stream_started?: boolean | null
+  stream_completed?: boolean | null
+  stream_received_done?: boolean | null
+  stream_incomplete?: boolean | null
+  stream_end_reason?: string | null
+  stream_failure_scope?: string | null
+  pre_output_events_buffered?: number | null
+  pre_output_failure_deferred?: boolean | null
   endpoint?: string | null
   downstream_path?: string | null
   upstream_path?: string | null

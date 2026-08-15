@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -26,60 +27,66 @@ import (
 )
 
 type gatewayAttemptResult struct {
-	attempt                  int
-	statusCode               int
-	upstreamStatusCode       int
-	contentType              string
-	body                     []byte
-	failureResponse          any
-	success                  bool
-	errorType                string
-	errorMessage             string
-	latencyMS                int64
-	upstreamLatencyMS        int64
-	firstByteLatencyMS       int64
-	promptTokens             int
-	completionTokens         int
-	cachedPromptTokens       int
-	cacheWriteTokens         int
+	attempt                    int
+	statusCode                 int
+	upstreamStatusCode         int
+	contentType                string
+	body                       []byte
+	failureResponse            any
+	success                    bool
+	errorType                  string
+	errorMessage               string
+	latencyMS                  int64
+	upstreamLatencyMS          int64
+	firstByteLatencyMS         int64
+	promptTokens               int
+	completionTokens           int
+	cachedPromptTokens         int
+	cacheWriteTokens           int
 	cacheCreationInputTokens   int
 	cacheCreation5mInputTokens int
 	cacheCreation1hInputTokens int
-	imageCount               int
-	audioOutputTokens        int
-	estimatedCost            *float64
-	baseEstimatedCost        *float64
-	currency                 string
-	pricingGroup             string
-	pricing                  selectedPricing
-	serviceTier              string
-	billingMode              string
-	costMultiplier           float64
-	multiplierReason         string
-	stream                   bool
-	streamCompleted          bool
-	streamReceivedDone       bool
-	streamEndReason          string
-	responseStarted          bool
-	downstreamPath           string
-	upstreamPath             string
-	upstreamProtocol         string
-	upstreamURL              string
-	credentialID             uuid.UUID
-	credentialName           string
-	credentialMasked         string
-	credentialPriority       float64
-	credentialCostMultiplier float64
-	credentialAttempt        int
-	credentialTotal          int
-	cooldownReason           string
-	cooldownScope            string
-	cooldownDuration         time.Duration
-	cooldownMetadata         map[string]any
-	retryAfterSeconds        int64
-	rateLimit                *ratelimit.Reservation
-	diagnostic               bool
-	requestLogID             uuid.UUID
+	imageCount                 int
+	audioOutputTokens          int
+	estimatedCost              *float64
+	baseEstimatedCost          *float64
+	currency                   string
+	pricingGroup               string
+	pricing                    selectedPricing
+	serviceTier                string
+	billingMode                string
+	costMultiplier             float64
+	multiplierReason           string
+	stream                     bool
+	streamCompleted            bool
+	streamReceivedDone         bool
+	streamEndReason            string
+	responseStarted            bool
+	preOutputEventsBuffered    int
+	preOutputFailureDeferred   bool
+	downstreamPath             string
+	upstreamPath               string
+	upstreamProtocol           string
+	upstreamURL                string
+	upstreamErrorCode          string
+	streamErrorDetail          string
+	credentialID               uuid.UUID
+	credentialName             string
+	credentialMasked           string
+	credentialPriority         float64
+	credentialCostMultiplier   float64
+	credentialAttempt          int
+	credentialTotal            int
+	cooldownReason             string
+	cooldownScope              string
+	cooldownDuration           time.Duration
+	cooldownMetadata           map[string]any
+	retryAfterSeconds          int64
+	rateLimit                  *ratelimit.Reservation
+	diagnostic                 bool
+	requestLogID               uuid.UUID
+	credentialDecision         credentialFailoverDecision
+	credentialDecisionSet      bool
 }
 
 func (h Handler) forwardGatewayRequest(
@@ -177,6 +184,29 @@ func (h Handler) forwardGatewayRequest(
 			rateLimit:                rateLimit,
 			diagnostic:               request.Diagnostic,
 		}
+		nextCredentialAvailable := credentialIndex < len(credentials)-1
+		recordCredentialAttempt := func(result gatewayAttemptResult, upstreamResponse any, shouldTryNextCredential bool) gatewayAttemptResult {
+			decision := credentialFailoverDecisionForAction(nextCredentialAvailable, shouldTryNextCredential)
+			result.credentialDecision = decision
+			result.credentialDecisionSet = true
+			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, upstreamResponse)
+			h.logGatewayCredentialDecision(ctx, requestID, candidate, request, result, decision)
+			return result
+		}
+		if h.logger != nil {
+			h.logger.DebugContext(ctx, "gateway credential attempt started",
+				"scope", "gateway",
+				"request_id", requestID,
+				"attempt", attempt,
+				"site_id", candidate.Site.ID,
+				"site_name", candidate.Site.Name,
+				"model", candidate.Model.UpstreamName,
+				"downstream_path", request.DownstreamPath,
+				"upstream_protocol", protocol.ProtocolName(),
+				"credential_attempt", result.credentialAttempt,
+				"credential_total", result.credentialTotal,
+			)
+		}
 
 		selectedPricing := h.gatewayPricing(ctx, candidate, selectedCredential.GroupName.String)
 		result.currency = selectedPricing.Currency
@@ -189,9 +219,9 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "upstream_credential_decrypt_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, true)
 			lastResult = result
-			if credentialIndex < len(credentials)-1 {
+			if result.credentialDecision.ShouldTryNextCredential {
 				if releaseCredentialSelection != nil {
 					releaseCredentialSelection()
 				}
@@ -207,7 +237,7 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "codex_oauth_refresh_failed"
 				result.errorMessage = err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, false)
 				return result
 			}
 			upstreamKey = connection.AccessToken
@@ -220,7 +250,7 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "antigravity_oauth_refresh_failed"
 				result.errorMessage = err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, false)
 				return result
 			}
 			upstreamKey = connection.AccessToken
@@ -233,7 +263,7 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "claude_code_oauth_refresh_failed"
 				result.errorMessage = err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, false)
 				return result
 			}
 			upstreamKey = connection.AccessToken
@@ -249,9 +279,9 @@ func (h Handler) forwardGatewayRequest(
 				result.errorType = "grok_oauth_refresh_failed"
 				result.errorMessage = refreshErr.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+				result = recordCredentialAttempt(result, nil, true)
 				lastResult = result
-				if credentialIndex < len(credentials)-1 {
+				if result.credentialDecision.ShouldTryNextCredential {
 					if releaseCredentialSelection != nil {
 						releaseCredentialSelection()
 					}
@@ -270,7 +300,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "request_encode_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		result = applyUpstreamBillingMetadata(result, payload, candidate)
@@ -279,7 +309,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "request_param_validation_failed"
 			result.errorMessage = validationErr.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		upstreamStream := request.Stream
@@ -300,7 +330,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "upstream_client_unavailable"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		claudeCodeSessionID := applyGatewayClientImpersonationPayload(payload, siteConfig, protocol, request, candidate)
@@ -310,7 +340,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "request_encode_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 
@@ -323,7 +353,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = "upstream_request_build_failed"
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
 		req.Header.Set("Authorization", "Bearer "+upstreamKey)
@@ -380,8 +410,8 @@ func (h Handler) forwardGatewayRequest(
 			}
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
-			if errors.Is(err, errCredentialConcurrencyLimited) && credentialIndex < len(credentials)-1 {
+			result = recordCredentialAttempt(result, nil, errors.Is(err, errCredentialConcurrencyLimited))
+			if result.credentialDecision.ShouldTryNextCredential {
 				if releaseCredentialSelection != nil {
 					releaseCredentialSelection()
 				}
@@ -401,11 +431,11 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = transportErrorType(err)
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result.requestLogID = h.recordAttempt(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, nil)
+			result = recordCredentialAttempt(result, nil, isGrokSite(candidate.Site.SiteType))
 			if releaseCredentialSelection != nil {
 				releaseCredentialSelection()
 			}
-			if isGrokSite(candidate.Site.SiteType) && credentialIndex < len(credentials)-1 {
+			if result.credentialDecision.ShouldTryNextCredential {
 				lastResult = result
 				continue
 			}
@@ -428,7 +458,9 @@ func (h Handler) forwardGatewayRequest(
 			if releaseCredentialSelection != nil {
 				releaseCredentialSelection()
 			}
-			if !result.success && !result.responseStarted && credentialIndex < len(credentials)-1 && shouldTryNextCredential(result) {
+			decision := credentialFailoverDecisionForResult(result, credentialIndex < len(credentials)-1)
+			h.logGatewayCredentialDecision(ctx, requestID, candidate, request, result, decision)
+			if decision.ShouldTryNextCredential {
 				if !request.Diagnostic && result.statusCode != http.StatusNotFound {
 					h.cooldownAfterFailure(ctx, candidate, result)
 				}
@@ -450,10 +482,13 @@ func (h Handler) forwardGatewayRequest(
 			releaseCredentialSelection()
 		}
 		if result.success {
+			h.logGatewayCredentialDecision(ctx, requestID, candidate, request, result, credentialFailoverDecisionForResult(result, credentialIndex < len(credentials)-1))
 			return result
 		}
 		lastResult = result
-		if !shouldTryNextCredential(result) {
+		decision := credentialFailoverDecisionForResult(result, credentialIndex < len(credentials)-1)
+		h.logGatewayCredentialDecision(ctx, requestID, candidate, request, result, decision)
+		if !decision.ShouldTryNextCredential {
 			return result
 		}
 		if credentialIndex < len(credentials)-1 && !request.Diagnostic && result.statusCode != http.StatusNotFound {
@@ -543,9 +578,9 @@ func (h Handler) handleBufferedResponse(
 	if result.success {
 		result.promptTokens = transformed.Usage.PromptTokens
 		result.completionTokens = transformed.Usage.CompletionTokens
-		result.cachedPromptTokens         = transformed.Usage.CachedPromptTokens
-		result.cacheWriteTokens           = transformed.Usage.CacheWriteTokens
-		result.cacheCreationInputTokens   = transformed.Usage.CacheCreationInputTokens
+		result.cachedPromptTokens = transformed.Usage.CachedPromptTokens
+		result.cacheWriteTokens = transformed.Usage.CacheWriteTokens
+		result.cacheCreationInputTokens = transformed.Usage.CacheCreationInputTokens
 		result.cacheCreation5mInputTokens = transformed.Usage.CacheCreation5mInputTokens
 		result.cacheCreation1hInputTokens = transformed.Usage.CacheCreation1hInputTokens
 		result.imageCount = transformed.Usage.ImageCount
@@ -585,6 +620,7 @@ func (h Handler) finishBufferedSemanticFailure(
 	result.contentType = "application/json"
 	result.errorType = "upstream_response_failed"
 	result.errorMessage = failure.Error()
+	result.upstreamErrorCode = failure.Code
 	result.body = failure.Body
 	result.failureResponse = diagnosticFailureResponse(failure.Body)
 	result = classifyGatewayUpstreamErrorWithTimeZone(candidate, result, failure.Body, time.Now(), h.timeZone)
@@ -663,6 +699,12 @@ func (h Handler) handleStreamResponse(
 	result.streamCompleted = capture.streamCompleted
 	result.streamReceivedDone = capture.sawDone
 	result.streamEndReason = capture.endReason
+	result.preOutputEventsBuffered = capture.preOutputEventsBuffered
+	result.preOutputFailureDeferred = capture.preOutputFailureDeferred
+	result.streamErrorDetail = capture.errorDetail
+	if failure, ok := semanticFailureFromJSON([]byte(capture.errorDetail)); ok {
+		result.upstreamErrorCode = failure.Code
+	}
 	result = applyStreamUsage(result, capture.usage)
 	result.latencyMS = time.Since(startedAt).Milliseconds()
 	if !responseStarted && capture.semanticFailure != nil {
@@ -753,6 +795,43 @@ func (h Handler) finishStreamSemanticFailure(
 	return result
 }
 
+func (h Handler) logGatewayCredentialDecision(ctx context.Context, requestID string, candidate routeengine.Candidate, request gatewayRequest, result gatewayAttemptResult, decision credentialFailoverDecision) {
+	if h.logger == nil {
+		return
+	}
+	level := slog.LevelDebug
+	if !result.success {
+		level = slog.LevelInfo
+	}
+	h.logger.Log(ctx, level, "gateway credential failover decision",
+		"scope", "gateway",
+		"request_id", requestID,
+		"attempt", result.attempt,
+		"site_id", candidate.Site.ID,
+		"site_name", candidate.Site.Name,
+		"model", candidate.Model.UpstreamName,
+		"downstream_path", request.DownstreamPath,
+		"upstream_protocol", result.upstreamProtocol,
+		"credential_attempt", result.credentialAttempt,
+		"credential_total", result.credentialTotal,
+		"status_code", result.statusCode,
+		"upstream_status_code", result.upstreamStatusCode,
+		"error_type", result.errorType,
+		"upstream_error_code", result.upstreamErrorCode,
+		"response_started", result.responseStarted,
+		"first_byte_latency_ms", result.firstByteLatencyMS,
+		"stream_end_reason", result.streamEndReason,
+		"stream_error_detail_present", strings.TrimSpace(result.streamErrorDetail) != "",
+		"stream_completed", result.streamCompleted,
+		"received_done_event", result.streamReceivedDone,
+		"pre_output_events_buffered", result.preOutputEventsBuffered,
+		"pre_output_failure_deferred", result.preOutputFailureDeferred,
+		"next_credential_available", decision.NextCredentialAvailable,
+		"should_try_next_credential", decision.ShouldTryNextCredential,
+		"failover_action", decision.Action,
+	)
+}
+
 func streamCompletedAfterReadError(capture streamCaptureState, err error) bool {
 	if err == nil || capture.endReason != "upstream_stream_read_failed" {
 		return false
@@ -761,15 +840,15 @@ func streamCompletedAfterReadError(capture streamCaptureState, err error) bool {
 }
 
 func applyStreamUsage(result gatewayAttemptResult, usage gatewayUsage) gatewayAttemptResult {
-	result.promptTokens               = usage.PromptTokens
-	result.completionTokens           = usage.CompletionTokens
-	result.cachedPromptTokens         = usage.CachedPromptTokens
-	result.cacheWriteTokens           = usage.CacheWriteTokens
-	result.cacheCreationInputTokens   = usage.CacheCreationInputTokens
+	result.promptTokens = usage.PromptTokens
+	result.completionTokens = usage.CompletionTokens
+	result.cachedPromptTokens = usage.CachedPromptTokens
+	result.cacheWriteTokens = usage.CacheWriteTokens
+	result.cacheCreationInputTokens = usage.CacheCreationInputTokens
 	result.cacheCreation5mInputTokens = usage.CacheCreation5mInputTokens
 	result.cacheCreation1hInputTokens = usage.CacheCreation1hInputTokens
-	result.imageCount                 = usage.ImageCount
-	result.audioOutputTokens          = usage.AudioOutputTokens
+	result.imageCount = usage.ImageCount
+	result.audioOutputTokens = usage.AudioOutputTokens
 	result.pricing = applyLongContextPricing(usage, result.pricing)
 	result.estimatedCost = estimateCost(usage, result.pricing)
 	return applyEstimatedCostBillingAdjustment(result)
@@ -998,7 +1077,7 @@ func streamMetadataEnvelope(capture streamCaptureState) map[string]any {
 	return map[string]any{
 		"usage":               capture.usage,
 		"stream_completed":    capture.streamCompleted,
-		"stream_incomplete":   capture.endReason == "upstream_stream_incomplete" || capture.endReason == "upstream_stream_eof",
+		"stream_incomplete":   streamEndedIncomplete(capture.streamCompleted, capture.endReason),
 		"stream_end_reason":   emptyToNil(capture.endReason),
 		"stream_error_detail": emptyToNil(capture.errorDetail),
 		"first_byte_latency":  zeroInt64ToNil(capture.firstByteLatency),

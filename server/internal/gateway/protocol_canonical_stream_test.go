@@ -525,41 +525,25 @@ func TestProxyResponsesStreamPassthroughDefersPreOutputOverloadForFailover(t *te
 	}
 }
 
-func TestProxyResponsesStreamPassthroughDefersLargePreOutputOverloadForFailover(t *testing.T) {
+func TestProxyResponsesStreamPassthroughDefersOverloadAfterEmptyOutputItem(t *testing.T) {
 	t.Parallel()
 
-	instructions := strings.Repeat("x", 70<<10)
 	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t,
-		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","instructions":"`+instructions+`"}}`)+
+		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded"}}`)+
+			gatewaySSEEvent("response.output_item.added", `{"type":"response.output_item.added","output_index":0,"item":{"id":"msg_overloaded","type":"message","role":"assistant","status":"in_progress","content":[]}}`)+
 			gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
 	)
 	if err != nil {
 		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
 	}
-	if started || capture.endReason != "upstream_stream_error" || capture.firstByteLatency != 0 {
-		t.Fatalf("expected unstarted large upstream stream error, started=%v capture=%+v", started, capture)
+	if started || capture.endReason != "upstream_stream_error" || capture.semanticFailure == nil {
+		t.Fatalf("expected unstarted semantic failure, started=%v capture=%+v", started, capture)
+	}
+	if capture.preOutputEventsBuffered != 2 {
+		t.Fatalf("buffered pre-output events = %d, want 2", capture.preOutputEventsBuffered)
 	}
 	if rec.Body.Len() != 0 {
-		t.Fatalf("large pre-output overload leaked downstream: %d bytes", rec.Body.Len())
-	}
-}
-
-func TestProxyResponsesStreamPassthroughCommitsLargeLifecycleEventOnBusinessOutput(t *testing.T) {
-	t.Parallel()
-
-	instructions := strings.Repeat("x", 70<<10)
-	body := gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_started","instructions":"`+instructions+`"}}`) +
-		gatewaySSEEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_started","delta":"hello"}`) +
-		gatewaySSEEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_started","output":[]}}`)
-	rec, capture, started, err := proxyResponsesStreamPassthroughTest(t, body)
-	if err != nil {
-		t.Fatalf("proxyResponsesStreamPassthrough returned error: %v", err)
-	}
-	if !started || !capture.streamCompleted || capture.endReason != "done" {
-		t.Fatalf("expected completed large lifecycle stream, started=%v capture=%+v", started, capture)
-	}
-	if rec.Body.String() != body {
-		t.Fatalf("passthrough body length = %d, want %d", rec.Body.Len(), len(body))
+		t.Fatalf("empty output item leaked downstream: %q", rec.Body.String())
 	}
 }
 
@@ -638,15 +622,86 @@ func TestProxyResponsesStreamPassthroughKeepsFailoverAvailableAfterDownstreamHea
 func TestProxyCanonicalStreamResponsesErrorEventFails(t *testing.T) {
 	t.Parallel()
 
-	_, capture, started, err := proxyCanonicalStreamTest(t,
+	rec, capture, started, err := proxyCanonicalStreamTest(t,
 		"data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_error\",\"created_at\":1710000000,\"model\":\"gpt-5.4\"}}\n\n"+
 			"data: {\"type\":\"response.error\",\"error\":{\"code\":\"bad_request\",\"message\":\"bad stream\"}}\n\n",
 		canonicalProtocolOpenAIResponses, canonicalProtocolOpenAIChat, canonicalStreamOptions{})
-	if err == nil {
-		t.Fatal("expected responses error event to fail")
+	if err != nil {
+		t.Fatalf("proxyCanonicalStream returned error: %v", err)
 	}
-	if !started || capture.endReason != "upstream_stream_error" {
-		t.Fatalf("expected upstream_stream_error, started=%v capture=%+v err=%v", started, capture, err)
+	if started || capture.endReason != "upstream_stream_error" || capture.semanticFailure == nil {
+		t.Fatalf("expected unstarted semantic failure, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("pre-output semantic failure leaked converted response: %q", rec.Body.String())
+	}
+}
+
+func TestProxyCanonicalStreamResponsesPreOutputOverloadDefersAcrossConversion(t *testing.T) {
+	t.Parallel()
+
+	rec, capture, started, err := proxyCanonicalStreamTest(t,
+		gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded","model":"gpt-5.6-terra"}}`)+
+			gatewaySSEEvent("response.in_progress", `{"type":"response.in_progress","response":{"id":"resp_overloaded","status":"in_progress"}}`)+
+			gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+		canonicalProtocolOpenAIResponses, canonicalProtocolOpenAIChat, canonicalStreamOptions{})
+	if err != nil {
+		t.Fatalf("proxyCanonicalStream returned error: %v", err)
+	}
+	if started || capture.endReason != "upstream_stream_error" {
+		t.Fatalf("expected unstarted upstream overload, started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("pre-output overload leaked converted response: %q", rec.Body.String())
+	}
+}
+
+func TestProxyCanonicalStreamResponsesRejectsOversizedPreOutputWithoutStartingResponse(t *testing.T) {
+	t.Parallel()
+
+	identifier := strings.Repeat("x", 1<<20)
+	var body strings.Builder
+	for body.Len() <= responsesPreOutputMaxBytes {
+		body.WriteString(gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"`+identifier+`","model":"gpt-5.6-terra"}}`))
+	}
+	rec, capture, started, err := proxyCanonicalStreamTest(t, body.String(), canonicalProtocolOpenAIResponses, canonicalProtocolOpenAIChat, canonicalStreamOptions{})
+	if !errors.Is(err, errResponsesPreOutputTooLarge) {
+		t.Fatalf("error = %v, want pre-output size failure", err)
+	}
+	if started || capture.endReason != "upstream_stream_preoutput_too_large" {
+		t.Fatalf("oversized pre-output started=%v capture=%+v", started, capture)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("oversized pre-output leaked downstream: %d bytes", rec.Body.Len())
+	}
+}
+
+func TestProxyCanonicalStreamResponsesDefersEmptyFunctionCallBeforeFailure(t *testing.T) {
+	t.Parallel()
+
+	for _, target := range []canonicalProtocol{
+		canonicalProtocolOpenAIChat,
+		canonicalProtocolAnthropicMessages,
+	} {
+		target := target
+		t.Run(string(target), func(t *testing.T) {
+			t.Parallel()
+
+			rec, capture, started, err := proxyCanonicalStreamTest(t,
+				gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_empty_function","model":"gpt-5.6-terra"}}`)+
+					gatewaySSEEvent("response.output_item.added", `{"type":"response.output_item.added","item":{"id":"fc_empty","type":"function_call","call_id":"call_empty","name":"lookup","arguments":""}}`)+
+					gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_empty_function","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+				canonicalProtocolOpenAIResponses, target, canonicalStreamOptions{})
+			if err != nil {
+				t.Fatalf("proxyCanonicalStream returned error: %v", err)
+			}
+			if started || capture.endReason != "upstream_stream_error" || capture.semanticFailure == nil {
+				t.Fatalf("expected unstarted semantic failure, target=%s started=%v capture=%+v", target, started, capture)
+			}
+			if rec.Body.Len() != 0 {
+				t.Fatalf("empty function call leaked converted response for %s: %q", target, rec.Body.String())
+			}
+		})
 	}
 }
 

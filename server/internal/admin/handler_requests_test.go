@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,22 @@ func TestRequestLogFiltersRejectInvalidBooleanFilters(t *testing.T) {
 			_, ok := (Handler{}).requestLogFilters(rec, req)
 			adminAssertParserError(t, rec, ok, tc.code)
 		})
+	}
+}
+
+func TestRequestLogParentRequestIDPrefersTypedColumn(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{"parent_request_id": "legacy-parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := store.RequestLogDetail{RequestLog: store.RequestLog{
+		ParentRequestID: sql.NullString{String: "typed-parent", Valid: true},
+		Metadata:        metadata,
+	}}
+	if got := requestLogParentRequestID(item); got != "typed-parent" {
+		t.Fatalf("parent request id = %q, want typed-parent", got)
 	}
 }
 
@@ -201,6 +218,189 @@ func TestRequestLogPayloadMarksFailoverAttempt(t *testing.T) {
 	}, false)
 	if payload["attempt"] != 2 || payload["credential_total"] != 2 || payload["failover"] != true {
 		t.Fatalf("unexpected failover fields: %#v", payload)
+	}
+}
+
+func TestRequestLogPayloadProjectsFailoverDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{
+		"attempt":                     1,
+		"credential_attempt":          1,
+		"credential_total":            2,
+		"next_credential_available":   true,
+		"should_try_next_credential":  false,
+		"failover_action":             "stop",
+		"stream_started":              true,
+		"stream_completed":            false,
+		"stream_received_done":        false,
+		"stream_incomplete":           true,
+		"stream_end_reason":           "upstream_stream_read_failed",
+		"pre_output_events_buffered":  1,
+		"pre_output_failure_deferred": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := requestLogPayload(store.RequestLogDetail{
+		RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req_diagnostic", Success: false, Metadata: metadata},
+	}, false)
+
+	for key, want := range map[string]any{
+		"next_credential_available":   true,
+		"should_try_next_credential":  false,
+		"failover_action":             "stop",
+		"stream_started":              true,
+		"stream_completed":            false,
+		"stream_received_done":        false,
+		"stream_incomplete":           true,
+		"stream_end_reason":           "upstream_stream_read_failed",
+		"pre_output_events_buffered":  int64(1),
+		"pre_output_failure_deferred": false,
+	} {
+		if got := payload[key]; got != want {
+			t.Fatalf("%s = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
+func TestRequestLogFailoverTracePayloadGroupsCredentialRetriesByChannel(t *testing.T) {
+	t.Parallel()
+
+	metadata := func(attempt int, site string, success bool, status int, errorType string, credentialID string, credentialName string) store.JSON {
+		value, err := json.Marshal(map[string]any{
+			"attempt":              attempt,
+			"parent_request_id":    "req-parent",
+			"site_name":            site,
+			"site_type":            "openai",
+			"upstream_status_code": status,
+			"credential_masked":    "sk-...secret",
+			"credential_id":        credentialID,
+			"credential_name":      credentialName,
+			"credential_attempt":   attempt,
+			"credential_total":     2,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	attempts := []store.RequestLogDetail{
+		{RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req-parent:1:first", Success: false, StatusCode: http.StatusBadGateway, ErrorType: sql.NullString{String: "upstream_timeout", Valid: true}, Metadata: metadata(1, "Default", false, http.StatusGatewayTimeout, "upstream_timeout", "credential-a", "Primary")}},
+		{RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req-parent:1:second", Success: false, StatusCode: http.StatusBadGateway, ErrorType: sql.NullString{String: "upstream_credential_limited", Valid: true}, Metadata: metadata(1, "Default", false, http.StatusTooManyRequests, "upstream_credential_limited", "credential-b", "Backup")}},
+		{RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req-parent:2:middle", Success: false, StatusCode: http.StatusBadGateway, ErrorType: sql.NullString{String: "upstream_transport_error", Valid: true}, Metadata: metadata(2, "Fallback A", false, http.StatusBadGateway, "upstream_transport_error", "credential-c", "Fallback A key")}},
+		{RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req-parent:3:final", Success: true, StatusCode: http.StatusOK, Metadata: metadata(3, "Fallback B", true, http.StatusOK, "", "credential-d", "Fallback B key")}},
+	}
+
+	trace := requestLogFailoverTracePayload(attempts)
+	if trace == nil {
+		t.Fatal("expected failover trace")
+	}
+	defaultChannel, _ := trace["default_channel"].(map[string]any)
+	defaultSite, _ := defaultChannel["site"].(map[string]any)
+	if defaultChannel["success"] != false || defaultChannel["error_type"] != "upstream_credential_limited" || defaultChannel["upstream_status_code"] != http.StatusTooManyRequests {
+		t.Fatalf("unexpected default channel: %#v", defaultChannel)
+	}
+	if defaultSite["name"] != "Default" || defaultSite["site_type"] != "openai" {
+		t.Fatalf("unexpected default channel site: %#v", defaultSite)
+	}
+	if _, ok := defaultChannel["credential"]; ok {
+		t.Fatalf("channel detail must not expose credential data: %#v", defaultChannel)
+	}
+	intermediate, _ := trace["intermediate_channels"].([]map[string]any)
+	if len(intermediate) != 1 || intermediate[0]["error_type"] != "upstream_transport_error" {
+		t.Fatalf("unexpected intermediate channels: %#v", intermediate)
+	}
+	finalChannel, _ := trace["final_channel"].(map[string]any)
+	finalSite, _ := finalChannel["site"].(map[string]any)
+	if finalChannel["success"] != true || finalSite["name"] != "Fallback B" {
+		t.Fatalf("unexpected final channel: %#v", finalChannel)
+	}
+	credentialAttempts, ok := trace["credential_attempts"].([]map[string]any)
+	if !ok || len(credentialAttempts) != len(attempts) {
+		t.Fatalf("unexpected credential attempts: %#v", trace["credential_attempts"])
+	}
+	firstCredential, _ := credentialAttempts[0]["credential"].(map[string]any)
+	if firstCredential["id"] != "credential-a" || firstCredential["name"] != "Primary" || credentialAttempts[0]["success"] != false {
+		t.Fatalf("unexpected first credential attempt: %#v", credentialAttempts[0])
+	}
+	lastCredential, _ := credentialAttempts[len(credentialAttempts)-1]["credential"].(map[string]any)
+	if lastCredential["id"] != "credential-d" || lastCredential["name"] != "Fallback B key" || credentialAttempts[len(credentialAttempts)-1]["success"] != true {
+		t.Fatalf("unexpected last credential attempt: %#v", credentialAttempts[len(credentialAttempts)-1])
+	}
+	encoded, err := json.Marshal(trace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "credential_masked") || strings.Contains(string(encoded), "masked_secret") || strings.Contains(string(encoded), "sk-...secret") {
+		t.Fatalf("credential trace leaked secret material: %s", encoded)
+	}
+}
+
+func TestRequestLogFailoverTracePayloadKeepsSameChannelCredentialChain(t *testing.T) {
+	t.Parallel()
+
+	metadata := func(id, name string, success bool, attempt int) store.JSON {
+		value, err := json.Marshal(map[string]any{
+			"parent_request_id":  "req-same-channel",
+			"site_id":            "site-default",
+			"site_name":          "Default",
+			"site_type":          "openai",
+			"credential_id":      id,
+			"credential_name":    name,
+			"credential_attempt": attempt,
+			"credential_total":   2,
+			"credential_masked":  "sk-...hidden",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	trace := requestLogFailoverTracePayload([]store.RequestLogDetail{
+		{RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req-same-channel:1", Success: false, StatusCode: http.StatusBadGateway, ErrorType: sql.NullString{String: "upstream_credential_limited", Valid: true}, Metadata: metadata("credential-a", "Primary", false, 1)}},
+		{RequestLog: store.RequestLog{ID: uuid.New(), RequestID: "req-same-channel:2", Success: true, StatusCode: http.StatusOK, Metadata: metadata("credential-b", "Backup", true, 2)}},
+	})
+	if trace == nil {
+		t.Fatal("expected same-channel credential trace")
+	}
+	credentialAttempts, ok := trace["credential_attempts"].([]map[string]any)
+	if !ok || len(credentialAttempts) != 2 {
+		t.Fatalf("unexpected same-channel credential attempts: %#v", trace["credential_attempts"])
+	}
+	if credentialAttempts[0]["success"] != false || credentialAttempts[1]["success"] != true {
+		t.Fatalf("credential attempt outcomes = %#v", credentialAttempts)
+	}
+}
+
+func TestRequestLogFailoverTracePayloadOmitsTerminalChannelWhenNoSwitchOccurs(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{
+		"parent_request_id":    "req-parent",
+		"site_name":            "Default",
+		"site_type":            "openai",
+		"upstream_status_code": http.StatusTooManyRequests,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	trace := requestLogFailoverTracePayload([]store.RequestLogDetail{
+		{
+			RequestLog: store.RequestLog{
+				ID:         uuid.New(),
+				RequestID:  "req-parent:1",
+				Success:    false,
+				StatusCode: http.StatusBadGateway,
+				ErrorType:  sql.NullString{String: "upstream_credential_limited", Valid: true},
+				Metadata:   metadata,
+			},
+		},
+	})
+	if trace != nil {
+		t.Fatalf("unexpected failover trace without a switch: %#v", trace)
 	}
 }
 

@@ -55,6 +55,7 @@ type responsesOutputItem struct {
 	CallID            string                   `json:"call_id"`
 	Name              string                   `json:"name"`
 	Arguments         string                   `json:"arguments"`
+	Output            any                      `json:"output,omitempty"`
 	Result            string                   `json:"result"`
 	RevisedPrompt     string                   `json:"revised_prompt"`
 	Background        string                   `json:"background"`
@@ -76,15 +77,17 @@ type responsesResponse struct {
 }
 
 type responsesStreamEvent struct {
-	Type       string               `json:"type"`
-	Delta      string               `json:"delta,omitempty"`
-	Text       string               `json:"text,omitempty"`
-	Arguments  flexibleJSONString   `json:"arguments,omitempty"`
-	Item       *responsesOutputItem `json:"item,omitempty"`
-	ItemID     string               `json:"item_id,omitempty"`
-	Response   *responsesResponse   `json:"response,omitempty"`
-	Error      *responsesAPIError   `json:"error,omitempty"`
-	Annotation any                  `json:"annotation,omitempty"`
+	Type             string                  `json:"type"`
+	Delta            string                  `json:"delta,omitempty"`
+	Text             string                  `json:"text,omitempty"`
+	EncryptedContent string                  `json:"encrypted_content,omitempty"`
+	Arguments        flexibleJSONString      `json:"arguments,omitempty"`
+	Item             *responsesOutputItem    `json:"item,omitempty"`
+	Part             *responsesOutputContent `json:"part,omitempty"`
+	ItemID           string                  `json:"item_id,omitempty"`
+	Response         *responsesResponse      `json:"response,omitempty"`
+	Error            *responsesAPIError      `json:"error,omitempty"`
+	Annotation       any                     `json:"annotation,omitempty"`
 }
 
 type flexibleJSONString string

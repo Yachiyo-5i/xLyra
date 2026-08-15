@@ -46,6 +46,41 @@ func shouldTryNextCredential(result gatewayAttemptResult) bool {
 	}
 }
 
+type credentialFailoverDecision struct {
+	NextCredentialAvailable bool
+	ShouldTryNextCredential bool
+	Action                  string
+}
+
+func credentialFailoverDecisionForResult(result gatewayAttemptResult, nextCredentialAvailable bool) credentialFailoverDecision {
+	shouldRetry := !result.success && !result.responseStarted && nextCredentialAvailable && shouldTryNextCredential(result)
+	return credentialFailoverDecisionForAction(nextCredentialAvailable, shouldRetry)
+}
+
+func credentialFailoverDecisionForAction(nextCredentialAvailable bool, shouldRetry bool) credentialFailoverDecision {
+	shouldRetry = shouldRetry && nextCredentialAvailable
+	action := "stop"
+	if shouldRetry {
+		action = "try_next_credential"
+	}
+	return credentialFailoverDecision{
+		NextCredentialAvailable: nextCredentialAvailable,
+		ShouldTryNextCredential: shouldRetry,
+		Action:                  action,
+	}
+}
+
+func credentialFailoverDecisionForAttempt(result gatewayAttemptResult) credentialFailoverDecision {
+	if result.credentialDecisionSet {
+		return result.credentialDecision
+	}
+	return credentialFailoverDecisionForResult(result, nextCredentialAvailableForResult(result))
+}
+
+func nextCredentialAvailableForResult(result gatewayAttemptResult) bool {
+	return result.credentialAttempt > 0 && result.credentialTotal > result.credentialAttempt
+}
+
 func (h Handler) cooldownAfterFailure(ctx context.Context, candidate routeengine.Candidate, result gatewayAttemptResult) {
 	if result.success {
 		return

@@ -1,9 +1,11 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,9 +16,70 @@ import (
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/credential"
+	"xlyra/server/internal/httpclient"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/store"
 )
+
+func TestLogGatewayCredentialDecisionIncludesFailoverFields(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	handler := Handler{logger: slog.New(slog.NewJSONHandler(&output, nil))}
+	requestID := "req-log-failover"
+	siteID := uuid.New()
+	handler.logGatewayCredentialDecision(context.Background(), requestID, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{ID: siteID, Name: "primary", SiteType: "codex"},
+		Model: routeengine.CandidateModel{UpstreamName: "gpt-5.6-terra"},
+	}, gatewayRequest{DownstreamPath: gatewayEndpointChatCompletions, Stream: true}, gatewayAttemptResult{
+		attempt:                  2,
+		statusCode:               http.StatusBadGateway,
+		upstreamStatusCode:       http.StatusOK,
+		errorType:                "codex_model_capacity",
+		upstreamErrorCode:        "server_is_overloaded",
+		stream:                   true,
+		streamEndReason:          "upstream_stream_error",
+		streamErrorDetail:        `{"type":"response.failed"}`,
+		credentialAttempt:        1,
+		credentialTotal:          2,
+		credentialMasked:         "sk-...abcd",
+		preOutputEventsBuffered:  1,
+		preOutputFailureDeferred: true,
+	}, credentialFailoverDecision{
+		NextCredentialAvailable: true,
+		ShouldTryNextCredential: true,
+		Action:                  "try_next_credential",
+	})
+
+	line := output.String()
+	for _, want := range []string{
+		`"msg":"gateway credential failover decision"`,
+		`"request_id":"req-log-failover"`,
+		`"site_id":"` + siteID.String() + `"`,
+		`"model":"gpt-5.6-terra"`,
+		`"downstream_path":"/v1/chat/completions"`,
+		`"upstream_protocol":""`,
+		`"credential_attempt":1`,
+		`"credential_total":2`,
+		`"upstream_error_code":"server_is_overloaded"`,
+		`"response_started":false`,
+		`"stream_end_reason":"upstream_stream_error"`,
+		`"pre_output_events_buffered":1`,
+		`"pre_output_failure_deferred":true`,
+		`"should_try_next_credential":true`,
+		`"failover_action":"try_next_credential"`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("failover log missing %s: %s", want, line)
+		}
+	}
+	if strings.Contains(line, "response.failed") {
+		t.Fatalf("failover log should not include raw stream error detail: %s", line)
+	}
+	if strings.Contains(line, "credential_masked") || strings.Contains(line, "sk-...abcd") {
+		t.Fatalf("failover log must not include credential material: %s", line)
+	}
+}
 
 func TestForwardGatewayRequestReturnsCredentialLookupFailure(t *testing.T) {
 	t.Parallel()
@@ -229,6 +292,128 @@ func TestHandleStreamResponseUnstartedErrorKeepsFailureSemantics(t *testing.T) {
 	}
 	if result.errorType != "upstream_stream_error" || result.errorMessage != "upstream stream returned an error event" {
 		t.Fatalf("stream error = %q %q", result.errorType, result.errorMessage)
+	}
+	if result.upstreamErrorCode != "server_is_overloaded" {
+		t.Fatalf("upstream error code = %q", result.upstreamErrorCode)
+	}
+	if shouldTryNextCredential(result) {
+		t.Fatal("generic pre-output overload should keep the existing route-level failover behavior")
+	}
+}
+
+func TestForwardGatewayRequestDoesNotRetryPreOutputOverloadWithNextCredential(t *testing.T) {
+	siteID := uuid.New()
+	siteModelID := uuid.New()
+	firstCredentialID := uuid.New()
+	secondCredentialID := uuid.New()
+	credentialService := credential.NewService("test-master")
+	firstEncrypted, firstMasked, err := credentialService.Encrypt("first-secret")
+	if err != nil {
+		t.Fatalf("encrypt first credential: %v", err)
+	}
+	secondEncrypted, secondMasked, err := credentialService.Encrypt("second-secret")
+	if err != nil {
+		t.Fatalf("encrypt second credential: %v", err)
+	}
+
+	seenCredentials := make([]string, 0, 2)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenCredentials = append(seenCredentials, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/event-stream")
+		if r.Header.Get("Authorization") == "Bearer first-secret" {
+			_, _ = w.Write([]byte(
+				gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_overloaded"}}`) +
+					gatewaySSEEvent("response.output_item.added", `{"type":"response.output_item.added","output_index":0,"item":{"id":"msg_overloaded","type":"message","role":"assistant","status":"in_progress","content":[]}}`) +
+					gatewaySSEEvent("response.failed", `{"type":"response.failed","response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"try again later"}}}`),
+			))
+			return
+		}
+		_, _ = w.Write([]byte(
+			gatewaySSEEvent("response.created", `{"type":"response.created","response":{"id":"resp_ok"}}`) +
+				gatewaySSEEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_ok","delta":"recovered"}`) +
+				gatewaySSEEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_ok","output":[]}}`),
+		))
+	}))
+	defer upstream.Close()
+
+	firstCredential := store.SiteCredential{
+		ID:              firstCredentialID,
+		SiteID:          siteID,
+		CredentialType:  "api_key",
+		EncryptedSecret: firstEncrypted,
+		MaskedSecret:    firstMasked,
+		RoutingPriority: 2,
+	}
+	secondCredential := store.SiteCredential{
+		ID:              secondCredentialID,
+		SiteID:          siteID,
+		CredentialType:  "api_key",
+		EncryptedSecret: secondEncrypted,
+		MaskedSecret:    secondMasked,
+		RoutingPriority: 1,
+	}
+	db := gatewayGormWithQueryCallback(t, func(tx *gorm.DB) {
+		switch dest := tx.Statement.Dest.(type) {
+		case *[]store.SiteAPIKeyModel:
+			*dest = []store.SiteAPIKeyModel{
+				{SiteID: siteID, SiteCredentialID: firstCredentialID, SiteModelID: uuid.NullUUID{UUID: siteModelID, Valid: true}, UpstreamModelName: "test-upstream", Available: true, Enabled: true},
+				{SiteID: siteID, SiteCredentialID: secondCredentialID, SiteModelID: uuid.NullUUID{UUID: siteModelID, Valid: true}, UpstreamModelName: "test-upstream", Available: true, Enabled: true},
+			}
+			tx.Statement.RowsAffected = 2
+		case *[]store.SiteCredential:
+			*dest = []store.SiteCredential{firstCredential, secondCredential}
+			tx.Statement.RowsAffected = 2
+		case *[]store.SiteAPIKeyState:
+			*dest = []store.SiteAPIKeyState{
+				{SiteCredentialID: firstCredentialID, SiteID: siteID, Enabled: true, SyncStatus: "synced"},
+				{SiteCredentialID: secondCredentialID, SiteID: siteID, Enabled: true, SyncStatus: "synced"},
+			}
+			tx.Statement.RowsAffected = 2
+		case *[]store.RouteCooldown, *[]store.SiteModelPricing:
+			tx.Statement.RowsAffected = 0
+		case *store.Site:
+			*dest = store.Site{ID: siteID}
+			tx.Statement.RowsAffected = 1
+		default:
+			tx.AddError(gorm.ErrRecordNotFound)
+		}
+	})
+	handler := Handler{
+		logger:      gatewayDiscardLogger(),
+		db:          gatewayStoreWithGorm(t, db),
+		credentials: credentialService,
+		clients:     httpclient.NewManager(nil),
+		recorder:    Recorder{},
+	}
+	handler.httpClient, _ = handler.clients.Client(httpclient.DefaultProfile())
+	recorder := httptest.NewRecorder()
+	result := handler.forwardGatewayRequest(
+		context.Background(),
+		recorder,
+		"req-pre-output-overload",
+		1,
+		uuid.New(),
+		uuid.New(),
+		routeengine.Candidate{
+			Site:  routeengine.CandidateSite{ID: siteID, SiteType: "openai", BaseURL: upstream.URL},
+			Model: routeengine.CandidateModel{SiteModelID: siteModelID, UpstreamName: "test-upstream"},
+		},
+		gatewayRequest{DownstreamPath: gatewayEndpointResponses, Stream: true, Diagnostic: true, Payload: map[string]any{"stream": true}},
+		nil,
+		openAIResponsesProtocolAdapter{downstreamProtocol: canonicalProtocolOpenAIResponses},
+	)
+
+	if result.success || result.responseStarted {
+		t.Fatalf("result = %#v, want unstarted failure", result)
+	}
+	if result.errorType != "upstream_response_failed" || result.upstreamErrorCode != "server_is_overloaded" {
+		t.Fatalf("result = %#v, want existing semantic failure classification", result)
+	}
+	if len(seenCredentials) != 1 || seenCredentials[0] != "Bearer first-secret" {
+		t.Fatalf("upstream credentials = %v, want only first credential", seenCredentials)
+	}
+	if body := recorder.Body.String(); body != "" {
+		t.Fatalf("downstream body = %q, want empty before route failover", body)
 	}
 }
 

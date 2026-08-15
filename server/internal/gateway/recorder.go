@@ -21,6 +21,7 @@ type Recorder struct {
 
 type GatewayRequestRecord struct {
 	RequestID          string
+	ParentRequestID    string
 	APIKeyID           uuid.UUID
 	SiteID             uuid.UUID
 	CanonicalModelID   uuid.UUID
@@ -84,6 +85,7 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 
 		createdLog, err := store.NewRequestLogRepository(tx).Create(ctx, store.CreateRequestLogParams{
 			RequestID:          record.RequestID,
+			ParentRequestID:    nullableString(record.ParentRequestID),
 			APIKeyID:           nullableUUID(record.APIKeyID),
 			SiteID:             nullableUUID(record.SiteID),
 			CanonicalModelID:   nullableUUID(record.CanonicalModelID),

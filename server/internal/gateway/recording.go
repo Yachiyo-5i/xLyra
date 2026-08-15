@@ -29,6 +29,7 @@ func (h Handler) recordAttempt(
 	internal, parentLogID := bridgeRecordingFromContext(ctx)
 	requestLog, _, err := h.recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
 		RequestID:          attemptRequestID,
+		ParentRequestID:    requestID,
 		APIKeyID:           apiKeyID,
 		SiteID:             candidate.Site.ID,
 		CanonicalModelID:   canonicalModelID,
@@ -86,16 +87,17 @@ func (h Handler) recordRequestFailure(
 	metadata := requestFailureMetadata(ctx, requestID, apiKeyID, statusCode, errorType, errorMessage, requestedModel, stream, stage, endpoint)
 	failureRequestID := fmt.Sprintf("%s:gateway:%s", requestID, uuid.NewString())
 	if _, _, err := recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
-		RequestID:    failureRequestID,
-		APIKeyID:     apiKeyID,
-		Endpoint:     stringValue(&endpoint, gatewayEndpointChatCompletions),
-		StatusCode:   statusCode,
-		Success:      false,
-		ErrorType:    errorType,
-		ErrorMessage: errorMessage,
-		LatencyMS:    time.Since(startedAt).Milliseconds(),
-		Currency:     "USD",
-		Metadata:     metadata,
+		RequestID:       failureRequestID,
+		ParentRequestID: requestID,
+		APIKeyID:        apiKeyID,
+		Endpoint:        stringValue(&endpoint, gatewayEndpointChatCompletions),
+		StatusCode:      statusCode,
+		Success:         false,
+		ErrorType:       errorType,
+		ErrorMessage:    errorMessage,
+		LatencyMS:       time.Since(startedAt).Milliseconds(),
+		Currency:        "USD",
+		Metadata:        metadata,
 	}); err != nil {
 		h.logger.WarnContext(ctx, "failed to record gateway request failure", "scope", "gateway", "endpoint", endpoint, "error", err, "request_id", failureRequestID, "status_code", statusCode, "error_code", errorType)
 	}

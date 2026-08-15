@@ -126,6 +126,7 @@ func attemptMetadata(
 	if result.billingMode == "fast" && result.costMultiplier > 1 {
 		serviceTierMultiplier = result.costMultiplier
 	}
+	failoverDecision := credentialFailoverDecisionForAttempt(result)
 	costCalculation["base_estimated_cost"] = float64PtrValue(result.baseEstimatedCost)
 	costCalculation["credential_upstream_cost_multiplier"] = credentialMultiplier
 	costCalculation["service_tier_multiplier"] = serviceTierMultiplier
@@ -141,6 +142,9 @@ func attemptMetadata(
 		"attempt":                             result.attempt,
 		"credential_attempt":                  result.credentialAttempt,
 		"credential_total":                    result.credentialTotal,
+		"next_credential_available":           failoverDecision.NextCredentialAvailable,
+		"should_try_next_credential":          failoverDecision.ShouldTryNextCredential,
+		"failover_action":                     failoverDecision.Action,
 		"site_name":                           candidate.Site.Name,
 		"site_slug":                           candidate.Site.Slug,
 		"site_type":                           candidate.Site.SiteType,
@@ -156,6 +160,10 @@ func attemptMetadata(
 		"stream_completed":                    result.streamCompleted,
 		"stream_incomplete":                   streamIncomplete(result),
 		"stream_received_done":                result.streamReceivedDone,
+		"pre_output_events_buffered":          zeroIntToNil(result.preOutputEventsBuffered),
+		"pre_output_failure_deferred":         result.preOutputFailureDeferred,
+		"upstream_error_code":                 emptyToNil(result.upstreamErrorCode),
+		"stream_error_detail":                 emptyToNil(truncatedStreamErrorDetail(result.streamErrorDetail)),
 		"stream_end_reason":                   emptyToNil(result.streamEndReason),
 		"stream_failure_scope":                streamFailureScope(result.streamEndReason),
 		"protocol_conversion":                 protocolConversionMetadata(result),
