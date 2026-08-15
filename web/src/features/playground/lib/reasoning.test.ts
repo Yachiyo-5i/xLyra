@@ -2,24 +2,34 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeReasoningEffort,
   reasoningEffortsForModel,
-  supportsMaxReasoning,
+  supportsExtendedReasoning,
 } from '@/features/playground/lib/reasoning'
 
 describe('playground reasoning effort rules', () => {
-  it('offers max only for the three gpt-5.6 models', () => {
-    expect(supportsMaxReasoning('gpt-5.6-sol')).toBe(true)
-    expect(supportsMaxReasoning('gpt-5.6-terra')).toBe(true)
-    expect(supportsMaxReasoning('gpt-5.6-luna')).toBe(true)
-    expect(supportsMaxReasoning('gpt-5.6')).toBe(false)
-    expect(supportsMaxReasoning('gpt-5.5')).toBe(false)
+  it('offers max and ultra only for the gpt-5.6 family', () => {
+    expect(supportsExtendedReasoning({ id: 'gpt-5.6' })).toBe(true)
+    expect(supportsExtendedReasoning({ id: 'gpt-5.6-sol' })).toBe(true)
+    expect(supportsExtendedReasoning({ id: ' GPT-5.6-Terra ' })).toBe(true)
+    expect(supportsExtendedReasoning({ id: 'gpt-5.5' })).toBe(false)
 
-    expect(reasoningEffortsForModel('gpt-5.6-sol')).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
-    expect(reasoningEffortsForModel('gpt-5.5')).toEqual(['low', 'medium', 'high', 'xhigh'])
+    expect(reasoningEffortsForModel({ id: 'gpt-5.6-luna' })).toEqual(['light', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+    expect(reasoningEffortsForModel({ id: 'gpt-5.5' })).toEqual(['light', 'medium', 'high', 'xhigh'])
   })
 
-  it('downgrades max when switching to a model without max support', () => {
-    expect(normalizeReasoningEffort('gpt-5.5', 'max')).toBe('xhigh')
-    expect(normalizeReasoningEffort('gpt-5.6-luna', 'max')).toBe('max')
-    expect(normalizeReasoningEffort('gpt-5.5', 'high')).toBe('high')
+  it('downgrades max and ultra outside the gpt-5.6 family', () => {
+    expect(normalizeReasoningEffort({ id: 'gpt-5.5' }, 'max')).toBe('xhigh')
+    expect(normalizeReasoningEffort({ id: 'gpt-5.5' }, 'ultra')).toBe('xhigh')
+    expect(normalizeReasoningEffort({ id: 'gpt-5.6-luna' }, 'ultra')).toBe('ultra')
+    expect(normalizeReasoningEffort({ id: 'gpt-5.4' }, 'high')).toBe('high')
+  })
+
+  it('uses the mapped target when checking model aliases', () => {
+    const mappedTo56 = { id: 'codex-pro', mappedModel: 'gpt-5.6-sol' }
+    const mappedTo55 = { id: 'gpt-5.6-custom', mappedModel: 'gpt-5.5' }
+
+    expect(reasoningEffortsForModel(mappedTo56)).toEqual(['light', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+    expect(normalizeReasoningEffort(mappedTo56, 'ultra')).toBe('ultra')
+    expect(reasoningEffortsForModel(mappedTo55)).toEqual(['light', 'medium', 'high', 'xhigh'])
+    expect(normalizeReasoningEffort(mappedTo55, 'ultra')).toBe('xhigh')
   })
 })

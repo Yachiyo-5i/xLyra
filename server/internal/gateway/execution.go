@@ -303,7 +303,7 @@ func (h Handler) forwardGatewayRequest(
 			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
-		result = applyUpstreamBillingMetadata(result, payload, candidate)
+		result = applyRequestBillingMetadata(result, payload, request.Payload, candidate)
 		if validationErr := validatePayloadParams(payload, protocol.ProtocolName(), candidate); validationErr != nil {
 			result.statusCode = http.StatusBadRequest
 			result.errorType = "request_param_validation_failed"

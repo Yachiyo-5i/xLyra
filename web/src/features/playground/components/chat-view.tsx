@@ -7,8 +7,8 @@ import { Composer } from '@/features/playground/components/composer'
 import { ModelReasoningPicker } from '@/features/playground/components/model-reasoning-picker'
 import { ChatMessageItem } from '@/features/playground/components/chat-message'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
-import { newId } from '@/features/playground/lib/storage'
 import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
+import { newId } from '@/features/playground/lib/storage'
 import {
   RESPONSE_TIMER_REVEAL_MS,
   RESPONSE_TIMER_TICK_MS,
@@ -186,7 +186,7 @@ export function ChatView({
         apiKey,
         model,
         messages: buildTurns(keptMessages),
-        reasoningEffort: normalizeReasoningEffort(model, effort),
+        reasoningEffort: normalizeReasoningEffort(activeModel, effort),
         signal: controller.signal,
         onContent: (delta) => {
           if (delta) revealElapsed()

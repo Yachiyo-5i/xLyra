@@ -167,6 +167,23 @@ func TestCodexStaticModelItemsAlignOfficialCatalog(t *testing.T) {
 	if len(solEndpoints) != 2 || solEndpoints[0] != "openai" || solEndpoints[1] != "openai-response" {
 		t.Fatalf("unexpected gpt-5.6-sol endpoints: %#v", sol["supported_endpoint_types"])
 	}
+	assertLevels := func(slugs []string, wantLevels []string) {
+		for _, slug := range slugs {
+			model := codexStaticModelByID(items, slug)
+			thinking, _ := model["thinking"].(map[string]any)
+			levels, _ := thinking["levels"].([]string)
+			if len(levels) != len(wantLevels) {
+				t.Fatalf("unexpected %s reasoning levels: %#v", slug, levels)
+			}
+			for index := range wantLevels {
+				if levels[index] != wantLevels[index] {
+					t.Fatalf("unexpected %s reasoning levels: %#v", slug, levels)
+				}
+			}
+		}
+	}
+	assertLevels([]string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}, []string{"light", "medium", "high", "xhigh", "max", "ultra"})
+	assertLevels([]string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2"}, []string{"light", "medium", "high", "xhigh"})
 
 	image := codexStaticModelByID(items, "gpt-image-2")
 	if image == nil {

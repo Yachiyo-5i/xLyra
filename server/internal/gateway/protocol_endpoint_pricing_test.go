@@ -72,8 +72,17 @@ func TestUpstreamBillingMetadataUsesPayloadModelAndCandidateFallback(t *testing.
 	defaultTier := applyUpstreamBillingMetadata(gatewayAttemptResult{}, map[string]any{
 		"service_tier": "standard",
 	}, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gpt-5.5"}})
-	if defaultTier.serviceTier != "standard" || defaultTier.billingMode != "" || defaultTier.costMultiplier != 1 {
+	if defaultTier.serviceTier != "standard" || defaultTier.billingMode != "standard" || defaultTier.costMultiplier != 1 {
 		t.Fatalf("standard tier billing metadata = %#v", defaultTier)
+	}
+
+	requestedStandard := applyRequestBillingMetadata(gatewayAttemptResult{}, map[string]any{
+		"model": "gpt-5.5",
+	}, map[string]any{
+		"service_tier": "standard",
+	}, routeengine.Candidate{})
+	if requestedStandard.serviceTier != "standard" || requestedStandard.billingMode != "standard" || requestedStandard.costMultiplier != 1 {
+		t.Fatalf("requested standard billing metadata = %#v", requestedStandard)
 	}
 }
 

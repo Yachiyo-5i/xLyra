@@ -201,6 +201,59 @@ func TestRequestLogPayloadIncludesFastBillingCostCalculation(t *testing.T) {
 	}
 }
 
+func TestRequestLogPayloadPreservesFailedLongContextBilling(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(map[string]any{
+		"pricing": map[string]any{
+			"input_value":  10.0,
+			"output_value": 45.0,
+			"currency":     "USD",
+		},
+		"cost_calculation": map[string]any{
+			"long_context":                   true,
+			"long_context_threshold_tokens":  272000,
+			"long_context_input_multiplier":  2.0,
+			"long_context_output_multiplier": 1.5,
+			"prompt_tokens":                  300000,
+			"completion_tokens":              10000,
+			"estimated_cost":                 1.65,
+			"currency":                       "USD",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := requestLogPayload(store.RequestLogDetail{
+		RequestLog: store.RequestLog{
+			ID:        uuid.New(),
+			RequestID: "req_failed_long_context",
+			Endpoint:  "/v1/responses",
+			Success:   false,
+			Metadata:  metadata,
+		},
+		UsagePromptTokens:     sql.NullInt64{Int64: 300000, Valid: true},
+		UsageCompletionTokens: sql.NullInt64{Int64: 10000, Valid: true},
+		UsageTotalTokens:      sql.NullInt64{Int64: 310000, Valid: true},
+		EstimatedCost:         sql.NullFloat64{Float64: 1.65, Valid: true},
+		UsageCurrency:         sql.NullString{String: "USD", Valid: true},
+	}, false)
+
+	calculation, ok := payload["cost_calculation"].(map[string]any)
+	if !ok || calculation["long_context"] != true || calculation["long_context_threshold_tokens"] != float64(272000) {
+		t.Fatalf("failed long-context calculation = %#v", payload["cost_calculation"])
+	}
+	pricing, ok := payload["pricing"].(map[string]any)
+	if !ok || pricing["input_value"] != 10.0 || pricing["output_value"] != 45.0 {
+		t.Fatalf("failed long-context pricing = %#v", payload["pricing"])
+	}
+	usagePayload, ok := payload["usage"].(map[string]any)
+	if !ok || usagePayload["estimated_cost"] != 1.65 || payload["success"] != false {
+		t.Fatalf("failed long-context usage = %#v", payload)
+	}
+}
+
 func TestRequestLogPayloadMarksFailoverAttempt(t *testing.T) {
 	t.Parallel()
 

@@ -280,6 +280,12 @@ export function requestIsFastBilling(detail: RequestLogDetail | RequestLogItem) 
   return mode === 'fast' || mode === 'priority'
 }
 
+export function requestHasBillingDetails(detail: RequestLogDetail | RequestLogItem) {
+  if (detail.success) return true
+  if (detail.cost_calculation?.long_context === true) return true
+  return isNonNegativeFiniteNumber(detail.cost_calculation?.estimated_cost) || isNonNegativeFiniteNumber(detail.usage.estimated_cost)
+}
+
 export function requestCostFormula(detail: RequestLogDetail | RequestLogItem, t: TFunction) {
   const promptTokens = detail.cost_calculation?.prompt_tokens ?? detail.usage.prompt_tokens
   const completionTokens = detail.cost_calculation?.completion_tokens ?? detail.usage.completion_tokens

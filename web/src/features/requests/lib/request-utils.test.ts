@@ -10,6 +10,7 @@ import {
   requestFailoverRouteAttempt,
   requestFailoverTrace,
   requestHasFailover,
+  requestHasBillingDetails,
   requestFirstByteLatency,
   requestFirstByteLatencyTone,
   requestReasoningEffort,
@@ -274,6 +275,32 @@ describe('request log display helpers', () => {
     detail.usage.prompt_tokens = 10
     detail.usage.completion_tokens = 5
     expect(requestCostFormula(detail, (key) => key)).toContain('* 2')
+  })
+
+  it('shows long-context billing for a charged failed request', () => {
+    const detail = requestDetail()
+    detail.success = false
+    detail.pricing = { input_value: 10, output_value: 45, currency: 'USD' }
+    detail.cost_calculation = {
+      long_context: true,
+      long_context_threshold_tokens: 272000,
+      long_context_input_multiplier: 2,
+      long_context_output_multiplier: 1.5,
+      prompt_tokens: 300000,
+      completion_tokens: 10000,
+      estimated_cost: 3.45,
+      currency: 'USD',
+    }
+
+    expect(requestHasBillingDetails(detail)).toBe(true)
+    expect(requestCostFormula(detail, (key) => key)).toContain('3.45')
+  })
+
+  it('keeps unbilled failed requests collapsed while preserving successful details', () => {
+    const failed = requestDetail()
+    failed.success = false
+    expect(requestHasBillingDetails(failed)).toBe(false)
+    expect(requestHasBillingDetails(requestDetail())).toBe(true)
   })
 })
 

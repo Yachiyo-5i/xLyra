@@ -28,6 +28,7 @@ import {
   requestDownstreamTransportLabel,
   requestGroupName,
   requestGroupRatio,
+  requestHasBillingDetails,
   requestIsFastBilling,
   requestMappedModel,
   requestModelName,
@@ -116,7 +117,7 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
         <InlineItem label={t('detail.group')} value={groupName} tone="badge" />
       </DetailRow>
 
-      {detail.success ? (
+      {requestHasBillingDetails(detail) ? (
         <>
           <DetailRow label={t('detail.usage')}>
             <InlineItem label={t('detail.input')} value={formatTokenMetric(detail.cost_calculation?.prompt_tokens ?? detail.usage.prompt_tokens)} tone="badge" />

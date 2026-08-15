@@ -1,6 +1,20 @@
 package gateway
 
-import "testing"
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	routeengine "xlyra/server/internal/router"
+	"xlyra/server/internal/store"
+)
 
 func TestLongContextRuleForModel(t *testing.T) {
 	for _, model := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-pro", "GPT-5.5"} {
@@ -238,5 +252,107 @@ func TestLongContextDoublesCacheWritePricing(t *testing.T) {
 	tieredExpected := 260000*10.0/1_000_000 + 30000*10.0*1.25/1_000_000 + 10000*10.0*2.0/1_000_000 + 1000*45.0/1_000_000
 	if diff := *tieredCost - tieredExpected; diff > 1e-9 || diff < -1e-9 {
 		t.Fatalf("expected 5m/1h cache writes billed at doubled input price (%v), got %v", tieredExpected, *tieredCost)
+	}
+}
+
+func TestLongContextBufferedResponsesFlowPersistsTieredCost(t *testing.T) {
+	candidate := routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gpt-5.6-sol"}}
+	pricing := longContextTestPricing()
+	pricing.LongContextRule = longContextRuleForModel(candidate.Model.UpstreamName)
+	responseBody := `{"id":"resp_long","model":"gpt-5.6-sol","status":"completed","output":[],"usage":{"input_tokens":300000,"output_tokens":10000,"total_tokens":310000,"input_tokens_details":{"cached_tokens":200000}}}`
+
+	result := (Handler{logger: gatewayDiscardLogger()}).handleBufferedResponse(
+		context.Background(),
+		"req-long-buffered",
+		uuid.Nil,
+		uuid.Nil,
+		candidate,
+		openAIResponsesProtocolAdapter{downstreamProtocol: canonicalProtocolOpenAIResponses},
+		&http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(responseBody)),
+		},
+		gatewayAttemptResult{attempt: 1, currency: "USD", downstreamPath: gatewayEndpointResponses, pricing: pricing},
+		time.Now(),
+	)
+
+	if !result.success || result.promptTokens != 300000 || result.cachedPromptTokens != 200000 || result.completionTokens != 10000 {
+		t.Fatalf("buffered long-context usage = %#v", result)
+	}
+	if !result.pricing.LongContextApplied || *result.pricing.InputValue != 10 || *result.pricing.OutputValue != 45 {
+		t.Fatalf("buffered long-context pricing = %#v", result.pricing)
+	}
+	expectedCost := 1.65
+	if result.estimatedCost == nil || *result.estimatedCost != expectedCost {
+		t.Fatalf("buffered long-context cost = %v, want %v", result.estimatedCost, expectedCost)
+	}
+
+	metadata := attemptMetadata(context.Background(), "req-long-buffered:1", "req-long-buffered", uuid.Nil, uuid.Nil, candidate, result)
+	calculation, ok := metadata["cost_calculation"].(map[string]any)
+	if !ok || calculation["long_context"] != true || calculation["long_context_input_multiplier"] != 2.0 || calculation["long_context_output_multiplier"] != 1.5 {
+		t.Fatalf("buffered long-context metadata = %#v", metadata["cost_calculation"])
+	}
+
+	db := gatewayOfflineGorm(t)
+	var persisted store.UsageRecord
+	if err := db.Callback().Create().Replace("gorm:create", func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*store.UsageRecord)
+		if !ok {
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		item.ID = uuid.New()
+		persisted = *item
+		tx.Statement.RowsAffected = 1
+	}); err != nil {
+		t.Fatalf("replace usage create callback: %v", err)
+	}
+	_, err := store.NewUsageRecordRepository(db).Create(context.Background(), store.CreateUsageRecordParams{
+		RequestLogID:     uuid.New(),
+		PromptTokens:     result.promptTokens,
+		CompletionTokens: result.completionTokens,
+		TotalTokens:      result.promptTokens + result.completionTokens,
+		CachedTokens:     result.cachedPromptTokens,
+		EstimatedCost:    *result.estimatedCost,
+		Currency:         result.currency,
+	})
+	if err != nil {
+		t.Fatalf("persist long-context usage: %v", err)
+	}
+	if !persisted.EstimatedCost.Valid || persisted.EstimatedCost.Float64 != expectedCost || persisted.PromptTokens != 300000 || persisted.CachedTokens.Int64 != 200000 {
+		t.Fatalf("persisted long-context usage = %#v", persisted)
+	}
+}
+
+func TestLongContextStreamingFlowUsesTieredCost(t *testing.T) {
+	pricing := longContextTestPricing()
+	result := (Handler{logger: gatewayDiscardLogger()}).handleStreamResponse(
+		context.Background(),
+		httptest.NewRecorder(),
+		"req-long-stream",
+		uuid.Nil,
+		uuid.Nil,
+		routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gpt-5.6-sol"}},
+		&testGatewayProtocol{
+			streamCapture: streamCaptureState{
+				usage:           gatewayUsage{PromptTokens: 300001, CompletionTokens: 1000},
+				streamCompleted: true,
+				sawDone:         true,
+				endReason:       "done",
+			},
+			streamStarted: true,
+		},
+		&http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(""))},
+		gatewayAttemptResult{attempt: 1, currency: "USD", downstreamPath: gatewayEndpointResponses, pricing: pricing, stream: true},
+		time.Now(),
+	)
+
+	expectedCost := 300001*10.0/1_000_000 + 1000*45.0/1_000_000
+	if !result.success || !result.pricing.LongContextApplied || result.estimatedCost == nil {
+		t.Fatalf("streaming long-context result = %#v", result)
+	}
+	if diff := *result.estimatedCost - expectedCost; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("streaming long-context cost = %v, want %v", *result.estimatedCost, expectedCost)
 	}
 }

@@ -93,10 +93,11 @@
     "noModels": "利用可能なモデルがありません"
   },
   "effort": {
-    "low": "軽",
+    "light": "軽",
     "medium": "中",
     "high": "高",
-    "xhigh": "超高",
-    "max": "最大"
+    "xhigh": "極高",
+    "max": "最高",
+    "ultra": "超高"
   }
 }

@@ -33,6 +33,9 @@ func (responsesEndpointAdapter) DecodeRequest(r *http.Request) (gatewayRequest, 
 			stage:   "validate",
 		}
 	}
+	if failure := normalizeClientRequestOptions(payload); failure != nil {
+		return gatewayRequest{}, failure
+	}
 
 	stream, _ := payload["stream"].(bool)
 	request := gatewayRequest{

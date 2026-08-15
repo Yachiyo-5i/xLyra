@@ -49,8 +49,8 @@ func withReasoningEffort(ctx context.Context, effort string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	effort = strings.TrimSpace(effort)
-	if effort == "" {
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if !isSupportedReasoningEffort(effort) {
 		return ctx
 	}
 	return context.WithValue(ctx, reasoningEffortContextKey{}, effort)
@@ -61,20 +61,23 @@ func reasoningEffortFromContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	effort, ok := ctx.Value(reasoningEffortContextKey{}).(string)
-	effort = strings.TrimSpace(effort)
-	return effort, ok && effort != ""
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	return effort, ok && isSupportedReasoningEffort(effort)
 }
 
 func reasoningEffortFromPayload(payload map[string]any) string {
 	if reasoning, ok := payload["reasoning"].(map[string]any); ok {
 		if effort, ok := reasoning["effort"].(string); ok {
-			if effort = strings.TrimSpace(effort); effort != "" {
+			if effort = strings.ToLower(strings.TrimSpace(effort)); isSupportedReasoningEffort(effort) {
 				return effort
 			}
 		}
 	}
 	if effort, ok := payload["reasoning_effort"].(string); ok {
-		return strings.TrimSpace(effort)
+		effort = strings.ToLower(strings.TrimSpace(effort))
+		if isSupportedReasoningEffort(effort) {
+			return effort
+		}
 	}
 	return ""
 }
