@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/common/page-header'
 import type { TokenUsageBreakdown } from '@/components/common/token-usage-hover-card'
 import { PaginationControls } from '@/components/ui/pagination'
 import { listDownstreamAPIKeys, downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
+import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-utils'
 import { getRequestLogSummary, listRequestLogs, requestQueryKeys, type RequestLogItem } from '@/features/requests/api/requests'
 import { RequestsFilterBar } from '@/features/requests/components/requests-filter-bar'
 import { RequestsMobileFilterBar } from '@/features/requests/components/requests-mobile-filter-bar'
@@ -21,6 +22,7 @@ import {
 } from '@/features/requests/lib/types'
 import { readRequestsAutoRefreshPreference, writeRequestsAutoRefreshPreference } from '@/features/requests/lib/request-preferences'
 import { listSites, sitesQueryKeys } from '@/features/sites/api/sites'
+import { sortSitesForDisplay } from '@/features/sites/lib/site-utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
 
 const EMPTY_REQUESTS: RequestLogItem[] = []
@@ -71,6 +73,14 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
     queryFn: listDownstreamAPIKeys,
   })
 
+  const sites = useMemo(
+    () => sortSitesForDisplay(sitesQuery.data?.items ?? EMPTY_SITES),
+    [sitesQuery.data?.items],
+  )
+  const apiKeys = useMemo(
+    () => sortAPIKeysForDisplay(apiKeysQuery.data?.items ?? EMPTY_API_KEYS),
+    [apiKeysQuery.data?.items],
+  )
   const items = requestsQuery.data?.items ?? EMPTY_REQUESTS
   const totalItems = requestsQuery.data?.meta?.total ?? items.length
   const currentPage = page
@@ -176,8 +186,8 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
           <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
             <RequestsMobileFilterBar
               filters={filters}
-              sites={sitesQuery.data?.items ?? EMPTY_SITES}
-              apiKeys={apiKeysQuery.data?.items ?? EMPTY_API_KEYS}
+              sites={sites}
+              apiKeys={apiKeys}
               autoRefresh={autoRefresh}
               isFetching={requestsQuery.isFetching || requestSummaryQuery.isFetching}
               totalCost={totalCost}
@@ -216,8 +226,8 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
 
         <RequestsFilterBar
           filters={filters}
-          sites={sitesQuery.data?.items ?? EMPTY_SITES}
-          apiKeys={apiKeysQuery.data?.items ?? EMPTY_API_KEYS}
+          sites={sites}
+          apiKeys={apiKeys}
           autoRefresh={autoRefresh}
           isFetching={requestsQuery.isFetching || requestSummaryQuery.isFetching}
           totalCost={totalCost}

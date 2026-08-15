@@ -17,6 +17,7 @@ import { toast } from '@/lib/toast'
 import type { APIKeyUpsertInput, DownstreamAPIKey, ModelRule } from '@/features/api-keys/api/api-keys'
 import {
   dateToEndOfDayRFC3339,
+  buildMappingModelKeys,
   formValuesFromAPIKey,
   formatSiteTypeLabel,
   mergeModelKeys,
@@ -194,14 +195,14 @@ export function APIKeyFormDraw({
   const effectiveModelPolicy = values.sitePolicy === 'allow_list' ? 'allow_list' : values.modelPolicy
   const requestedSiteModelIds = useMemo(() => {
     const ids = new Set<string>()
-    if (effectiveModelPolicy === 'allow_list') {
+    if (effectiveModelPolicy === 'allow_list' || advancedExpanded) {
       for (const siteID of effectiveSiteIds) ids.add(siteID)
     }
     if (values.imageBridgeEnabled) {
       for (const site of enabledSites) ids.add(site.id)
     }
     return [...ids]
-  }, [effectiveModelPolicy, effectiveSiteIds, enabledSites, values.imageBridgeEnabled])
+  }, [advancedExpanded, effectiveModelPolicy, effectiveSiteIds, enabledSites, values.imageBridgeEnabled])
   const siteModelQueries = useQueries({
     queries: requestedSiteModelIds.map((siteID) => ({
       queryKey: sitesQueryKeys.models(siteID),
@@ -226,6 +227,7 @@ export function APIKeyFormDraw({
   ), [requestedSiteModelIds, siteModelQueries])
   const siteModelsLoading = effectiveSiteIds.some((siteID) => loadingSiteModelIds.has(siteID))
   const bridgeSiteModelsLoading = values.imageBridgeEnabled && enabledSites.some((site) => loadingSiteModelIds.has(site.id))
+  const mappingModelsLoading = advancedExpanded && (sitesLoading || canonicalModelsLoading || siteModelsLoading)
   const saveDisabled = pending || (values.sitePolicy === 'allow_list' && siteModelsLoading)
 
   const siteModelRows = useMemo(() => {
@@ -325,24 +327,12 @@ export function APIKeyFormDraw({
   }, [bridgeImageRows, enabledSites, values.imageBridgeModel])
 
   const mappingModelKeys = useMemo(() => {
-    const canonicalById = new Map(canonicalModels.map((model) => [model.id, model.model_key]))
-    const keys = new Set<string>()
-    const selected = new Set(selectedSiteModelIds)
-    for (const { model } of siteModelRows) {
-      if (selected.size > 0 && !selected.has(model.id)) continue
-      if (model.canonical_model_id) {
-        const key = canonicalById.get(model.canonical_model_id)
-        if (key) keys.add(key)
-      }
-    }
-    if (keys.size === 0) {
-      for (const model of canonicalModels) keys.add(model.model_key)
-    }
-    const sorted = [...keys].sort()
-    const currentTargets = [...new Set(mappingEntries.map((rule) => rule.target.trim()).filter(Boolean))]
-      .filter((target) => !keys.has(target))
-      .sort()
-    return [...currentTargets, ...sorted]
+    return buildMappingModelKeys(
+      canonicalModels,
+      siteModelRows.map(({ model }) => model),
+      selectedSiteModelIds,
+      mappingEntries.map((rule) => rule.target),
+    )
   }, [canonicalModels, mappingEntries, selectedSiteModelIds, siteModelRows])
 
   function selectFilteredModels() {
@@ -904,6 +894,7 @@ export function APIKeyFormDraw({
                                 />
                                 <Select
                                   value={rule.target}
+                                  disabled={mappingModelsLoading}
                                   onValueChange={(value) => {
                                     setMappingEntries((prev) => {
                                       const next = [...prev]
@@ -913,12 +904,23 @@ export function APIKeyFormDraw({
                                   }}
                                 >
                                   <SelectTrigger className="flex-1">
-                                    <SelectValue placeholder={t('form.advanced.selectModelPlaceholder')} />
+                                    {mappingModelsLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                                    <SelectValue
+                                      placeholder={t(mappingModelsLoading
+                                        ? 'form.advanced.modelMappingLoading'
+                                        : 'form.advanced.selectModelPlaceholder')}
+                                    />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {mappingModelKeys.map((modelKey) => (
-                                      <SelectItem key={modelKey} value={modelKey}>{modelKey}</SelectItem>
-                                    ))}
+                                    {mappingModelsLoading ? (
+                                      <SelectItem value="__mapping_loading" disabled>{t('form.advanced.modelMappingLoading')}</SelectItem>
+                                    ) : mappingModelKeys.length ? (
+                                      mappingModelKeys.map((modelKey) => (
+                                        <SelectItem key={modelKey} value={modelKey}>{modelKey}</SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="__mapping_empty" disabled>{t('form.advanced.modelMappingNoModels')}</SelectItem>
+                                    )}
                                   </SelectContent>
                                 </Select>
                               </div>

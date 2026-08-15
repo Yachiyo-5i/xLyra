@@ -73,7 +73,7 @@ export function brandOrderIndex(brand: string): number {
 }
 
 export function inferFallbackBrand(candidates: string[]): string {
-  if (hasBrandFamily(candidates, ['openai', 'gpt', 'o1', 'o3', 'o4', 'dall', 'sora'])) return 'OpenAI'
+  if (hasBrandFamily(candidates, ['openai', 'gpt', 'o1', 'o3', 'o4', 'dall', 'sora', 'codex'])) return 'OpenAI'
   if (hasBrandFamily(candidates, ['gemini', 'gemma', 'google', 'deep-research', 'lyria', 'nano-banana', 'veo'])) return 'Google'
   if (hasBrandFamily(candidates, ['claude', 'anthropic'])) return 'Anthropic'
   if (hasBrandFamily(candidates, ['grok', 'xai'])) return 'xAI'

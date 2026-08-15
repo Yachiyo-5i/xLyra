@@ -806,7 +806,6 @@ function MobileCostBreakdown({
   }, [rows])
 
   const total = rows.reduce((sum, item) => sum + item.cost, 0)
-  const maxValue = rows[0]?.cost ?? 0
 
   const activeKeys = dimension === 'site'
     ? activeSiteIds
@@ -890,41 +889,40 @@ function MobileCostBreakdown({
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[9px] leading-tight text-muted-soft">{t('donut.total')}</span>
-              <span className="text-[10px] font-semibold tabular-nums leading-tight text-foreground">
+              <span
+                className="leading-tight text-muted-soft"
+                style={{ fontSize: Math.round(MOBILE_ROSE_SIZE * 0.065) }}
+              >
+                {t('donut.total')}
+              </span>
+              <span
+                className="font-semibold tabular-nums leading-tight text-foreground"
+                style={{ fontSize: Math.round(MOBILE_ROSE_SIZE * 0.08) }}
+              >
                 {formatDashboardCurrency(total, currency)}
               </span>
             </div>
           </div>
 
           {/* 占比列表：限高内部滚动 */}
-          <div className="scrollbar-hidden flex max-h-[180px] flex-col gap-3 overflow-y-auto">
+          <div className="scrollbar-hidden flex max-h-[180px] flex-col divide-y divide-[hsl(var(--glass-divider))] overflow-y-auto">
             {rows.map((item, index) => {
             const pct = total > 0 ? item.cost / total : 0
-            const barWidth = maxValue > 0 ? (item.cost / maxValue) * 100 : 0
             const color = dashboardChartColors[index % dashboardChartColors.length]
             return (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => onDrillDown(dimension, { key: item.key, id: item.id })}
-                className="flex min-w-0 flex-col gap-1 text-left"
+                className="flex min-w-0 items-center gap-1.5 py-2 text-left first:pt-0 last:pb-0"
               >
-                <div className="flex items-center gap-1.5">
-                  <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={item.label}>
-                    {item.label}
-                  </span>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-soft">
-                    {`${formatDashboardCurrency(item.cost, currency, 2)} · ${formatPercent(pct, 1)}`}
-                  </span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${barWidth}%`, backgroundColor: color }}
-                  />
-                </div>
+                <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={item.label}>
+                  {item.label}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-soft">
+                  {`${formatDashboardCurrency(item.cost, currency, 2)} · ${formatPercent(pct, 1)}`}
+                </span>
               </button>
             )
           })}

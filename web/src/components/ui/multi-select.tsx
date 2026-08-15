@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { ChevronDown, CirclePlus, Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -46,7 +47,6 @@ export function MultiSelect({
   onChange: (value: string[]) => void
 }) {
   const { t } = useTranslation('common')
-  const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const selected = useMemo(() => new Set(value), [value])
@@ -62,17 +62,6 @@ export function MultiSelect({
     ))
   }, [options, search])
 
-  useEffect(() => {
-    if (!open) return
-    function handlePointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [open])
-
   function toggle(optionValue: string, checked: boolean) {
     if (checked) {
       onChange(value.includes(optionValue) ? value : [...value, optionValue])
@@ -86,8 +75,14 @@ export function MultiSelect({
   const isActive = selectedOptions.length > 0
 
   return (
-    <div ref={rootRef} className={cn('relative', className)}>
-      <button
+    <PopoverPrimitive.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen) setSearch('')
+      }}
+    >
+      <PopoverPrimitive.Trigger
         type="button"
         className={cn(
           isFilterTrigger
@@ -95,9 +90,9 @@ export function MultiSelect({
             : 'glass-field flex min-h-11 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))]',
           isFilterTrigger && isActive && 'border-[hsl(var(--primary)/0.54)] bg-[hsl(var(--primary)/0.08)] text-primary',
           disabled && 'cursor-not-allowed opacity-60',
+          className,
         )}
         disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
       >
         {isFilterTrigger ? (
           <>
@@ -143,13 +138,19 @@ export function MultiSelect({
             <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-soft transition-transform', open && 'rotate-180')} />
           </>
         )}
-      </button>
+      </PopoverPrimitive.Trigger>
 
-      {open ? (
-        <div
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="start"
+          sideOffset={8}
+          collisionPadding={16}
+          onOpenAutoFocus={(event) => event.preventDefault()}
           className={cn(
-            'glass-panel-strong absolute z-[120] mt-2 flex max-h-[min(calc(100dvh-8rem),32rem)] flex-col overflow-hidden rounded-xl shadow-xl',
-            useContentWidth ? 'w-max min-w-full max-w-[min(32rem,calc(100vw-2rem))]' : 'w-full',
+            'glass-panel-strong z-[120] flex max-h-[min(var(--radix-popover-content-available-height),32rem)] flex-col overflow-hidden rounded-xl shadow-xl',
+            useContentWidth
+              ? 'w-max min-w-[var(--radix-popover-trigger-width)] max-w-[min(32rem,calc(100vw-2rem))]'
+              : 'w-[var(--radix-popover-trigger-width)]',
           )}
         >
           <div className="p-2 pb-0">
@@ -215,8 +216,8 @@ export function MultiSelect({
               {clearText ?? t('actions.clear')}
             </Button>
           </div>
-        </div>
-      ) : null}
-    </div>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   )
 }

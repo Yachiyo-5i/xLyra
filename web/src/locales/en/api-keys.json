@@ -175,6 +175,8 @@
       "modelMappingDesc": "Map downstream model names to canonical models by rules. Three pattern forms: exact name, prefix wildcard (e.g. gpt-4*), and a single * as catch-all. Precedence is fixed: exact > longest prefix > catch-all. Exact aliases are listed in /v1/models. Hard: always rewrite to the target model. Soft: route with the original model first, falling back to the target only when the original has no available upstream (all cooling down or not deployed).",
       "downstreamPlaceholder": "Model name / prefix* / *",
       "selectModelPlaceholder": "Select model",
+      "modelMappingLoading": "Loading models available on enabled sites…",
+      "modelMappingNoModels": "No canonical models are available on enabled sites",
       "duplicateKey": "Duplicate rule pattern",
       "add": "Add",
       "rateLimit": "Rate limit",

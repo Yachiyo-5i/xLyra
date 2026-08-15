@@ -121,7 +121,7 @@ export const i18nReady = i18n
       escapeValue: false,
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       lookupLocalStorage: 'xlyra-i18n-lang',
       caches: ['localStorage'],
     },

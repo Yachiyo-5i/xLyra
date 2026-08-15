@@ -1,6 +1,6 @@
 {
   "page": {
-    "eyebrow": "Analytics",
+    "eyebrow": "Overview",
     "title": "Usage Analytics",
     "description": "Analyze usage, cost and performance trends by site, model and user.",
     "update": "Updated",
@@ -95,7 +95,7 @@
     "empty": "No cost data"
   },
   "ranking": {
-    "title": "Leaderboard",
+    "title": "User Leaderboard",
     "metrics": {
       "cost": "Cost",
       "tokens": "Tokens",

@@ -1,6 +1,6 @@
 {
   "page": {
-    "eyebrow": "分析",
+    "eyebrow": "概览",
     "title": "用量分析",
     "description": "按站点、模型和用户维度分析用量、费用与性能趋势。",
     "update": "更新",
@@ -95,7 +95,7 @@
     "empty": "暂无费用数据"
   },
   "ranking": {
-    "title": "排行榜",
+    "title": "用户排行榜",
     "metrics": {
       "cost": "费用",
       "tokens": "Tokens",
