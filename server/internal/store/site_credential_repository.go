@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -41,6 +42,15 @@ type UpsertSiteCredentialParams struct {
 
 type SiteCredentialRepository struct {
 	db *gorm.DB
+}
+
+func SiteCredentialCacheDomain(credential SiteCredential) string {
+	var metadata map[string]any
+	if len(credential.Meta) == 0 || json.Unmarshal(credential.Meta, &metadata) != nil {
+		return ""
+	}
+	value, _ := metadata["cache_domain"].(string)
+	return strings.TrimSpace(value)
 }
 
 func NewSiteCredentialRepository(db *gorm.DB) SiteCredentialRepository {

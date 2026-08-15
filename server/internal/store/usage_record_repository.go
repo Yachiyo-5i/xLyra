@@ -11,31 +11,41 @@ import (
 )
 
 type UsageRecord struct {
-	ID               uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	RequestLogID     uuid.UUID
-	APIKeyID         uuid.NullUUID
-	SiteID           uuid.NullUUID
-	CanonicalModelID uuid.NullUUID
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	CachedTokens     sql.NullInt64 `gorm:"type:bigint"`
-	EstimatedCost    sql.NullFloat64
-	Currency         string
-	CreatedAt        time.Time
+	ID                         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	RequestLogID               uuid.UUID
+	APIKeyID                   uuid.NullUUID
+	SiteID                     uuid.NullUUID
+	CanonicalModelID           uuid.NullUUID
+	PromptTokens               int
+	CompletionTokens           int
+	TotalTokens                int
+	CachedTokens               sql.NullInt64 `gorm:"type:bigint"`
+	CacheWriteTokens           sql.NullInt64 `gorm:"type:bigint"`
+	CacheCreationInputTokens   sql.NullInt64 `gorm:"type:bigint"`
+	CacheCreation5mInputTokens sql.NullInt64 `gorm:"type:bigint"`
+	CacheCreation1hInputTokens sql.NullInt64 `gorm:"type:bigint"`
+	CacheWriteCost             sql.NullFloat64
+	EstimatedCost              sql.NullFloat64
+	Currency                   string
+	CreatedAt                  time.Time
 }
 
 type CreateUsageRecordParams struct {
-	RequestLogID     uuid.UUID
-	APIKeyID         any
-	SiteID           any
-	CanonicalModelID any
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	CachedTokens     any
-	EstimatedCost    any
-	Currency         string
+	RequestLogID               uuid.UUID
+	APIKeyID                   any
+	SiteID                     any
+	CanonicalModelID           any
+	PromptTokens               int
+	CompletionTokens           int
+	TotalTokens                int
+	CachedTokens               any
+	CacheWriteTokens           any
+	CacheCreationInputTokens   any
+	CacheCreation5mInputTokens any
+	CacheCreation1hInputTokens any
+	CacheWriteCost             any
+	EstimatedCost              any
+	Currency                   string
 }
 
 type UsageRecordRepository struct {
@@ -51,16 +61,21 @@ func (r UsageRecordRepository) Create(ctx context.Context, params CreateUsageRec
 		params.Currency = "USD"
 	}
 	item := UsageRecord{
-		RequestLogID:     params.RequestLogID,
-		APIKeyID:         nullUUIDFromAny(params.APIKeyID),
-		SiteID:           nullUUIDFromAny(params.SiteID),
-		CanonicalModelID: nullUUIDFromAny(params.CanonicalModelID),
-		PromptTokens:     params.PromptTokens,
-		CompletionTokens: params.CompletionTokens,
-		TotalTokens:      params.TotalTokens,
-		CachedTokens:     nullInt64FromAny(params.CachedTokens),
-		EstimatedCost:    nullFloatFromAny(params.EstimatedCost),
-		Currency:         params.Currency,
+		RequestLogID:               params.RequestLogID,
+		APIKeyID:                   nullUUIDFromAny(params.APIKeyID),
+		SiteID:                     nullUUIDFromAny(params.SiteID),
+		CanonicalModelID:           nullUUIDFromAny(params.CanonicalModelID),
+		PromptTokens:               params.PromptTokens,
+		CompletionTokens:           params.CompletionTokens,
+		TotalTokens:                params.TotalTokens,
+		CachedTokens:               nullInt64FromAny(params.CachedTokens),
+		CacheWriteTokens:           nullInt64FromAny(params.CacheWriteTokens),
+		CacheCreationInputTokens:   nullInt64FromAny(params.CacheCreationInputTokens),
+		CacheCreation5mInputTokens: nullInt64FromAny(params.CacheCreation5mInputTokens),
+		CacheCreation1hInputTokens: nullInt64FromAny(params.CacheCreation1hInputTokens),
+		CacheWriteCost:             nullFloatFromAny(params.CacheWriteCost),
+		EstimatedCost:              nullFloatFromAny(params.EstimatedCost),
+		Currency:                   params.Currency,
 	}
 	if err := r.db.WithContext(ctx).Create(&item).Error; err != nil {
 		return UsageRecord{}, fmt.Errorf("create usage record: %w", err)

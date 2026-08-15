@@ -40,15 +40,20 @@ func TestUsageRecordRepositoryCreateBuildsRecordWithoutRealWrite(t *testing.T) {
 	siteID := uuid.New()
 	canonicalID := uuid.New()
 	item, err := NewUsageRecordRepository(db).Create(context.Background(), CreateUsageRecordParams{
-		RequestLogID:     requestID,
-		APIKeyID:         &apiKeyID,
-		SiteID:           siteID,
-		CanonicalModelID: uuid.NullUUID{UUID: canonicalID, Valid: true},
-		PromptTokens:     11,
-		CompletionTokens: 22,
-		TotalTokens:      33,
-		CachedTokens:     7,
-		EstimatedCost:    float32(0.125),
+		RequestLogID:               requestID,
+		APIKeyID:                   &apiKeyID,
+		SiteID:                     siteID,
+		CanonicalModelID:           uuid.NullUUID{UUID: canonicalID, Valid: true},
+		PromptTokens:               11,
+		CompletionTokens:           22,
+		TotalTokens:                33,
+		CachedTokens:               7,
+		CacheWriteTokens:           8,
+		CacheCreationInputTokens:   9,
+		CacheCreation5mInputTokens: 6,
+		CacheCreation1hInputTokens: 3,
+		CacheWriteCost:             0.05,
+		EstimatedCost:              float32(0.125),
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
@@ -64,6 +69,15 @@ func TestUsageRecordRepositoryCreateBuildsRecordWithoutRealWrite(t *testing.T) {
 	}
 	if captured.PromptTokens != 11 || captured.CompletionTokens != 22 || captured.TotalTokens != 33 || !captured.CachedTokens.Valid || captured.CachedTokens.Int64 != 7 {
 		t.Fatalf("captured tokens = %#v", captured)
+	}
+	if !captured.CacheWriteTokens.Valid || captured.CacheWriteTokens.Int64 != 8 ||
+		!captured.CacheCreationInputTokens.Valid || captured.CacheCreationInputTokens.Int64 != 9 ||
+		!captured.CacheCreation5mInputTokens.Valid || captured.CacheCreation5mInputTokens.Int64 != 6 ||
+		!captured.CacheCreation1hInputTokens.Valid || captured.CacheCreation1hInputTokens.Int64 != 3 {
+		t.Fatalf("captured cache write tokens = %#v", captured)
+	}
+	if !captured.CacheWriteCost.Valid || captured.CacheWriteCost.Float64 != 0.05 {
+		t.Fatalf("captured cache write cost = %#v", captured.CacheWriteCost)
 	}
 	if !captured.EstimatedCost.Valid || captured.EstimatedCost.Float64 != float64(float32(0.125)) {
 		t.Fatalf("captured cost = %#v", captured.EstimatedCost)

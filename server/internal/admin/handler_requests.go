@@ -118,22 +118,40 @@ func (h Handler) RequestLogSummary(w http.ResponseWriter, r *http.Request) {
 	var completionTokens any = result.CompletionTokens
 	var totalTokens any = result.TotalTokens
 	var cachedTokens any = result.CachedTokens
+	var cacheWriteTokens any = result.CacheWriteTokens
+	var cacheCreationInputTokens any = result.CacheCreationInputTokens
+	var cacheWrite5mTokens any = result.CacheCreation5mInputTokens
+	var cacheWrite1hTokens any = result.CacheCreation1hInputTokens
+	var cacheWriteTotalTokens any = result.CacheWriteTotalTokens
+	var cacheWriteCost any = result.CacheWriteCost
 	if !result.Supported {
 		totalCost = nil
 		promptTokens = nil
 		completionTokens = nil
 		totalTokens = nil
 		cachedTokens = nil
+		cacheWriteTokens = nil
+		cacheCreationInputTokens = nil
+		cacheWrite5mTokens = nil
+		cacheWrite1hTokens = nil
+		cacheWriteTotalTokens = nil
+		cacheWriteCost = nil
 	}
 	h.writeResource(w, http.StatusOK, "summary", map[string]any{
-		"total_cost":         totalCost,
-		"prompt_tokens":      promptTokens,
-		"completion_tokens":  completionTokens,
-		"total_tokens":       totalTokens,
-		"cached_tokens":      cachedTokens,
-		"currency":           result.Currency,
-		"supported":          result.Supported,
-		"unsupported_reason": emptyStringAsNil(result.UnsupportedReason),
+		"total_cost":                  totalCost,
+		"prompt_tokens":               promptTokens,
+		"completion_tokens":           completionTokens,
+		"total_tokens":                totalTokens,
+		"cached_tokens":               cachedTokens,
+		"cache_write_tokens":          cacheWriteTokens,
+		"cache_creation_input_tokens": cacheCreationInputTokens,
+		"cache_write_5m_tokens":       cacheWrite5mTokens,
+		"cache_write_1h_tokens":       cacheWrite1hTokens,
+		"cache_write_total_tokens":    cacheWriteTotalTokens,
+		"cache_write_cost":            cacheWriteCost,
+		"currency":                    result.Currency,
+		"supported":                   result.Supported,
+		"unsupported_reason":          emptyStringAsNil(result.UnsupportedReason),
 	})
 }
 

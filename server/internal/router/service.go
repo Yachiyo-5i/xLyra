@@ -77,11 +77,12 @@ type CandidateSite struct {
 }
 
 type CandidateModel struct {
-	SiteModelID     uuid.UUID
-	UpstreamName    string
-	DisplayName     string
-	MatchSource     string
-	MatchConfidence int
+	SiteModelID            uuid.UUID
+	UpstreamName           string
+	DisplayName            string
+	MatchSource            string
+	MatchConfidence        int
+	SupportedEndpointTypes []string
 }
 
 type CandidateHealth struct {
@@ -104,6 +105,7 @@ type CandidateCredential struct {
 	Name                   string
 	RoutingPriority        float64
 	GroupName              *string
+	CacheDomain            string
 	UpstreamCostMultiplier float64
 }
 
@@ -238,11 +240,12 @@ func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (Candida
 				DisabledResponsesTools: siteDisabledResponsesTools(row.SiteMeta),
 			},
 			Model: CandidateModel{
-				SiteModelID:     row.SiteModelID,
-				UpstreamName:    row.UpstreamModelName,
-				DisplayName:     row.SiteModelDisplayName,
-				MatchSource:     row.MatchSource,
-				MatchConfidence: row.MatchConfidence,
+				SiteModelID:            row.SiteModelID,
+				UpstreamName:           row.UpstreamModelName,
+				DisplayName:            row.SiteModelDisplayName,
+				MatchSource:            row.MatchSource,
+				MatchConfidence:        row.MatchConfidence,
+				SupportedEndpointTypes: append([]string(nil), row.SupportedEndpointTypes...),
 			},
 			Health: CandidateHealth{
 				Status:              row.SiteHealthStatus,
@@ -262,6 +265,7 @@ func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (Candida
 				Name:                   nullStringText(row.PreferredCredentialName),
 				RoutingPriority:        row.PreferredCredentialRoutingPriority,
 				GroupName:              nullableString(row.PreferredCredentialGroupName),
+				CacheDomain:            row.PreferredCredentialCacheDomain,
 				UpstreamCostMultiplier: costMultiplier,
 			},
 			Pricing: CandidatePricing{

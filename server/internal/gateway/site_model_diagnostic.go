@@ -595,6 +595,7 @@ func (h Handler) handleSiteModelTestStreamResponse(
 	result.imageCount = capture.usage.ImageCount
 	result.estimatedCost = estimateCost(capture.usage, result.pricing)
 	result = applyEstimatedCostBillingAdjustment(result)
+	result.cacheWriteCost = cacheWriteCostForAttempt(capture.usage, result)
 	result.latencyMS = time.Since(startedAt).Milliseconds()
 	if proxyErr != nil {
 		if streamSucceeded(capture) {

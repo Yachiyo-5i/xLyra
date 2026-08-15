@@ -18,10 +18,12 @@ type SummaryService struct {
 }
 
 type SummaryMaintenanceResult struct {
-	SummarizedDays               int
-	DeletedDetailRows            int64
-	BackfilledCachedUsageRecords int64
-	RebuiltCachedTokenDays       int
+	SummarizedDays                   int
+	DeletedDetailRows                int64
+	BackfilledCachedUsageRecords     int64
+	RebuiltCachedTokenDays           int
+	BackfilledCacheWriteUsageRecords int64
+	RebuiltCacheWriteTokenDays       int
 }
 
 func NewSummaryService(db *store.Store, confFile *config.ConfigFile, timeZones ...config.TimeZone) *SummaryService {
@@ -47,6 +49,12 @@ func (s *SummaryService) StartupCheck(ctx context.Context, now time.Time) (Summa
 	}
 	result.BackfilledCachedUsageRecords = backfill.UpdatedUsageRecords
 	result.RebuiltCachedTokenDays = backfill.RebuiltDays
+	cacheWriteBackfill, err := store.NewRequestUsageSummaryRepository(s.db.DB()).BackfillCacheWriteTokens(ctx, now, s.timeZone)
+	if err != nil {
+		return result, err
+	}
+	result.BackfilledCacheWriteUsageRecords = cacheWriteBackfill.UpdatedUsageRecords
+	result.RebuiltCacheWriteTokenDays = cacheWriteBackfill.RebuiltDays
 	return result, nil
 }
 

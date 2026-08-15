@@ -19,56 +19,62 @@ import (
 )
 
 const (
-	RequestUsageSummaryDayStatusComplete = "complete"
-	requestUsageSummaryNoneKey           = "none"
-	requestUsageSummaryDefaultCurrency   = "USD"
-	requestUsageCleanupBatchSize         = 5000
-	requestUsageCachedTokensBackfill     = "request_usage_cached_tokens_v1"
+	RequestUsageSummaryDayStatusComplete  = "complete"
+	requestUsageSummaryNoneKey            = "none"
+	requestUsageSummaryDefaultCurrency    = "USD"
+	requestUsageCleanupBatchSize          = 5000
+	requestUsageCachedTokensBackfill      = "request_usage_cached_tokens_v1"
+	requestUsageCacheWriteMetricsBackfill = "request_usage_cache_write_metrics_v2"
 )
 
 type RequestUsageDailySummary struct {
-	SummaryKey             string    `gorm:"primaryKey;type:text"`
-	BucketStart            time.Time `gorm:"index:request_usage_daily_summaries_bucket_idx;index:request_usage_daily_summaries_site_bucket_idx,priority:2;index:request_usage_daily_summaries_model_bucket_idx,priority:2;index:request_usage_daily_summaries_currency_bucket_idx,priority:2"`
-	TimeZone               string    `gorm:"column:timezone"`
-	SiteKey                string    `gorm:"index:request_usage_daily_summaries_site_bucket_idx,priority:1"`
-	SiteID                 uuid.NullUUID
-	SiteName               string
-	SiteSlug               string
-	SiteType               string
-	CanonicalModelKey      string `gorm:"index:request_usage_daily_summaries_model_bucket_idx,priority:1"`
-	CanonicalModelID       uuid.NullUUID
-	SiteModelKey           string
-	SiteModelID            uuid.NullUUID
-	UpstreamModelName      string
-	APIKeyKey              string
-	APIKeyID               uuid.NullUUID
-	APIKeyName             string
-	Endpoint               string
-	StatusCode             int
-	Success                bool
-	Internal               bool `gorm:"default:false;not null"`
-	ErrorType              string
-	Currency               string `gorm:"index:request_usage_daily_summaries_currency_bucket_idx,priority:1"`
-	RequestCount           int64
-	SuccessCount           int64
-	FailureCount           int64
-	PromptTokens           int64
-	CompletionTokens       int64
-	TotalTokens            int64
-	CachedTokens           int64   `gorm:"not null;default:0"`
-	EstimatedCost          float64 `gorm:"type:numeric(18,8)"`
-	LatencyCount           int64
-	LatencyTotalMS         int64
-	LatencyMinMS           sql.NullInt64
-	LatencyMaxMS           sql.NullInt64
-	UpstreamLatencyCount   int64
-	UpstreamLatencyTotalMS int64
-	UpstreamLatencyMinMS   sql.NullInt64
-	UpstreamLatencyMaxMS   sql.NullInt64
-	FirstRequestAt         sql.NullTime
-	LastRequestAt          sql.NullTime
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	SummaryKey                 string    `gorm:"primaryKey;type:text"`
+	BucketStart                time.Time `gorm:"index:request_usage_daily_summaries_bucket_idx;index:request_usage_daily_summaries_site_bucket_idx,priority:2;index:request_usage_daily_summaries_model_bucket_idx,priority:2;index:request_usage_daily_summaries_currency_bucket_idx,priority:2"`
+	TimeZone                   string    `gorm:"column:timezone"`
+	SiteKey                    string    `gorm:"index:request_usage_daily_summaries_site_bucket_idx,priority:1"`
+	SiteID                     uuid.NullUUID
+	SiteName                   string
+	SiteSlug                   string
+	SiteType                   string
+	CanonicalModelKey          string `gorm:"index:request_usage_daily_summaries_model_bucket_idx,priority:1"`
+	CanonicalModelID           uuid.NullUUID
+	SiteModelKey               string
+	SiteModelID                uuid.NullUUID
+	UpstreamModelName          string
+	APIKeyKey                  string
+	APIKeyID                   uuid.NullUUID
+	APIKeyName                 string
+	Endpoint                   string
+	StatusCode                 int
+	Success                    bool
+	Internal                   bool `gorm:"default:false;not null"`
+	ErrorType                  string
+	Currency                   string `gorm:"index:request_usage_daily_summaries_currency_bucket_idx,priority:1"`
+	RequestCount               int64
+	SuccessCount               int64
+	FailureCount               int64
+	PromptTokens               int64
+	CompletionTokens           int64
+	TotalTokens                int64
+	CachedTokens               int64   `gorm:"not null;default:0"`
+	CacheWriteTokens           int64   `gorm:"not null;default:0"`
+	CacheCreationInputTokens   int64   `gorm:"not null;default:0"`
+	CacheCreation5mInputTokens int64   `gorm:"not null;default:0"`
+	CacheCreation1hInputTokens int64   `gorm:"not null;default:0"`
+	CacheWriteCost             float64 `gorm:"type:numeric(18,8)"`
+	EstimatedCost              float64 `gorm:"type:numeric(18,8)"`
+	LatencyCount               int64
+	LatencyTotalMS             int64
+	LatencyMinMS               sql.NullInt64
+	LatencyMaxMS               sql.NullInt64
+	UpstreamLatencyCount       int64
+	UpstreamLatencyTotalMS     int64
+	UpstreamLatencyMinMS       sql.NullInt64
+	UpstreamLatencyMaxMS       sql.NullInt64
+	FirstRequestAt             sql.NullTime
+	LastRequestAt              sql.NullTime
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
 }
 
 type RequestUsageSummaryDay struct {
@@ -88,6 +94,11 @@ type RequestUsageSummaryRepository struct {
 }
 
 type RequestUsageCachedTokensBackfillResult struct {
+	UpdatedUsageRecords int64
+	RebuiltDays         int
+}
+
+type RequestUsageCacheWriteTokensBackfillResult struct {
 	UpdatedUsageRecords int64
 	RebuiltDays         int
 }
@@ -142,16 +153,23 @@ type RequestUsageCostSummaryQuery struct {
 }
 
 type RequestUsageCostSummary struct {
-	TotalCost        float64
-	PromptTokens     int64
-	CompletionTokens int64
-	TotalTokens      int64
-	CachedTokens     int64
-	Currency         string
+	TotalCost                  float64
+	PromptTokens               int64
+	CompletionTokens           int64
+	TotalTokens                int64
+	CachedTokens               int64
+	CacheWriteTokens           int64
+	CacheCreationInputTokens   int64
+	CacheCreation5mInputTokens int64
+	CacheCreation1hInputTokens int64
+	CacheWriteTotalTokens      int64
+	CacheWriteCost             float64
+	Currency                   string
 	// CostByCurrency holds the exact per-currency totals. TotalCost/Currency
 	// expose a single currency-consistent view (the summary currency) rather than
 	// summing across currencies.
-	CostByCurrency map[string]float64
+	CostByCurrency           map[string]float64
+	CacheWriteCostByCurrency map[string]float64
 }
 
 func NewRequestUsageSummaryRepository(db *gorm.DB) RequestUsageSummaryRepository {
@@ -336,6 +354,64 @@ func (r RequestUsageSummaryRepository) BackfillCachedTokens(ctx context.Context,
 	return result, nil
 }
 
+func (r RequestUsageSummaryRepository) BackfillCacheWriteTokens(ctx context.Context, through time.Time, timeZone config.TimeZone) (RequestUsageCacheWriteTokensBackfillResult, error) {
+	if r.db == nil {
+		return RequestUsageCacheWriteTokensBackfillResult{}, fmt.Errorf("request usage summary store is not initialized")
+	}
+	var marker schemaUpgradeMarker
+	err := r.db.WithContext(ctx).Where(&schemaUpgradeMarker{Name: requestUsageCacheWriteMetricsBackfill}).First(&marker).Error
+	if err == nil {
+		return RequestUsageCacheWriteTokensBackfillResult{}, nil
+	}
+	if err != gorm.ErrRecordNotFound {
+		return RequestUsageCacheWriteTokensBackfillResult{}, fmt.Errorf("check request usage cache write tokens backfill: %w", err)
+	}
+	if through.IsZero() {
+		through = time.Now()
+	}
+	timeZone = normalizeSummaryTimeZone(timeZone)
+	oldest, err := NewRequestLogRepository(r.db).OldestCreatedAt(ctx)
+	if err != nil {
+		return RequestUsageCacheWriteTokensBackfillResult{}, fmt.Errorf("find cache write tokens backfill start: %w", err)
+	}
+	result := RequestUsageCacheWriteTokensBackfillResult{}
+	if oldest != nil {
+		start := timeZone.StartOfDay(*oldest)
+		today := timeZone.StartOfDay(through)
+		for day := start; !day.After(today); day = day.AddDate(0, 0, 1) {
+			end := day.AddDate(0, 0, 1)
+			if end.After(through) {
+				end = through
+			}
+			updated, requestCount, err := r.backfillCacheWriteTokensBetween(ctx, day, end)
+			if err != nil {
+				return result, err
+			}
+			result.UpdatedUsageRecords += updated
+			if day.Before(today) && requestCount > 0 {
+				complete, err := r.dayHasCompleteDetails(ctx, day, timeZone.Name, requestCount)
+				if err != nil {
+					return result, err
+				}
+				if !complete {
+					return result, fmt.Errorf("cache write tokens backfill summary coverage incomplete for %s", day.Format("2006-01-02"))
+				}
+				if _, err := r.RebuildDay(ctx, day, timeZone, "cache_write_tokens_backfill"); err != nil {
+					return result, err
+				}
+				result.RebuiltDays++
+			}
+		}
+	}
+	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&schemaUpgradeMarker{
+		Name:        requestUsageCacheWriteMetricsBackfill,
+		CompletedAt: time.Now(),
+	}).Error; err != nil {
+		return result, fmt.Errorf("mark request usage cache write tokens backfill complete: %w", err)
+	}
+	return result, nil
+}
+
 func (r RequestUsageSummaryRepository) backfillCachedTokensBetween(ctx context.Context, start time.Time, end time.Time) (int64, int64, error) {
 	logs, err := NewRequestLogRepository(r.db).ListCreatedBetween(ctx, start, end)
 	if err != nil {
@@ -374,6 +450,65 @@ func (r RequestUsageSummaryRepository) backfillCachedTokensBetween(ctx context.C
 	})
 	if err != nil {
 		return 0, int64(len(logs)), fmt.Errorf("backfill cached tokens usage: %w", err)
+	}
+	return int64(len(updates)), int64(len(logs)), nil
+}
+
+func (r RequestUsageSummaryRepository) backfillCacheWriteTokensBetween(ctx context.Context, start time.Time, end time.Time) (int64, int64, error) {
+	logs, err := NewRequestLogRepository(r.db).ListCreatedBetween(ctx, start, end)
+	if err != nil {
+		return 0, 0, fmt.Errorf("list cache write tokens backfill details: %w", err)
+	}
+	usageByLogID, err := NewRequestLogRepository(r.db).usageByRequestLogID(ctx, requestLogIDs(logs))
+	if err != nil {
+		return 0, 0, fmt.Errorf("list cache write tokens backfill usage: %w", err)
+	}
+	updates := make([]UsageRecord, 0)
+	for _, log := range logs {
+		usage, ok := usageByLogID[log.ID]
+		if !ok {
+			continue
+		}
+		cacheWriteTokens, known := requestUsageSummaryCacheWriteTokens(log.Metadata)
+		if !known {
+			continue
+		}
+		changed := false
+		if !usage.CacheWriteTokens.Valid && cacheWriteTokens.CacheWriteTokens.Valid {
+			usage.CacheWriteTokens = cacheWriteTokens.CacheWriteTokens
+			changed = true
+		}
+		if !usage.CacheCreationInputTokens.Valid && cacheWriteTokens.CacheCreationInputTokens.Valid {
+			usage.CacheCreationInputTokens = cacheWriteTokens.CacheCreationInputTokens
+			changed = true
+		}
+		if !usage.CacheCreation5mInputTokens.Valid && cacheWriteTokens.CacheCreation5mInputTokens.Valid {
+			usage.CacheCreation5mInputTokens = cacheWriteTokens.CacheCreation5mInputTokens
+			changed = true
+		}
+		if !usage.CacheCreation1hInputTokens.Valid && cacheWriteTokens.CacheCreation1hInputTokens.Valid {
+			usage.CacheCreation1hInputTokens = cacheWriteTokens.CacheCreation1hInputTokens
+			changed = true
+		}
+		if !usage.CacheWriteCost.Valid && cacheWriteTokens.CacheWriteCost.Valid {
+			usage.CacheWriteCost = cacheWriteTokens.CacheWriteCost
+			changed = true
+		}
+		if changed {
+			updates = append(updates, usage)
+		}
+	}
+	if len(updates) == 0 {
+		return 0, int64(len(logs)), nil
+	}
+	const backfillBatchSize = 200
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.WithContext(ctx).
+			Clauses(clause.OnConflict{UpdateAll: true}).
+			CreateInBatches(&updates, backfillBatchSize).Error
+	})
+	if err != nil {
+		return 0, int64(len(logs)), fmt.Errorf("backfill cache write tokens usage: %w", err)
 	}
 	return int64(len(updates)), int64(len(logs)), nil
 }
@@ -568,7 +703,8 @@ func (r RequestUsageSummaryRepository) CostSummary(ctx context.Context, query Re
 			continue
 		}
 		result.AddFloat(row.EstimatedCost, row.Currency)
-		result.AddUsage(row.PromptTokens, row.CompletionTokens, row.TotalTokens, row.CachedTokens)
+		result.AddCacheWriteCost(sql.NullFloat64{Float64: row.CacheWriteCost, Valid: true}, row.Currency)
+		result.AddUsage(row.PromptTokens, row.CompletionTokens, row.TotalTokens, row.CachedTokens, row.CacheWriteTokens, row.CacheCreationInputTokens, row.CacheCreation5mInputTokens, row.CacheCreation1hInputTokens)
 	}
 	return result, nil
 }
@@ -742,6 +878,11 @@ func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Cont
 			row.CompletionTokens = 0
 			row.TotalTokens = 0
 			row.CachedTokens = 0
+			row.CacheWriteTokens = 0
+			row.CacheCreationInputTokens = 0
+			row.CacheCreation5mInputTokens = 0
+			row.CacheCreation1hInputTokens = 0
+			row.CacheWriteCost = 0
 			row.EstimatedCost = 0
 			row.LatencyCount = 0
 			row.LatencyTotalMS = 0
@@ -785,11 +926,34 @@ func (s *RequestUsageCostSummary) AddCost(value sql.NullFloat64, currency string
 	s.AddFloat(value.Float64, currency)
 }
 
-func (s *RequestUsageCostSummary) AddUsage(promptTokens int64, completionTokens int64, totalTokens int64, cachedTokens int64) {
+func (s *RequestUsageCostSummary) AddUsage(promptTokens int64, completionTokens int64, totalTokens int64, cachedTokens int64, cacheWriteTokens int64, cacheCreationInputTokens int64, cacheCreation5mInputTokens int64, cacheCreation1hInputTokens int64) {
 	s.PromptTokens += promptTokens
 	s.CompletionTokens += completionTokens
 	s.TotalTokens += totalTokens
 	s.CachedTokens += cachedTokens
+	s.CacheWriteTokens += cacheWriteTokens
+	s.CacheCreationInputTokens += cacheCreationInputTokens
+	s.CacheCreation5mInputTokens += cacheCreation5mInputTokens
+	s.CacheCreation1hInputTokens += cacheCreation1hInputTokens
+	s.CacheWriteTotalTokens += cacheWriteTokens + cacheCreation5mInputTokens + cacheCreation1hInputTokens
+	if cacheCreation5mInputTokens == 0 && cacheCreation1hInputTokens == 0 && cacheCreationInputTokens > 0 {
+		s.CacheWriteTotalTokens += cacheCreationInputTokens
+	}
+}
+
+func (s *RequestUsageCostSummary) AddCacheWriteCost(value sql.NullFloat64, currency string) {
+	if !value.Valid {
+		return
+	}
+	cur := stringDefault(strings.TrimSpace(currency), requestUsageSummaryDefaultCurrency)
+	if s.CacheWriteCostByCurrency == nil {
+		s.CacheWriteCostByCurrency = map[string]float64{}
+	}
+	s.CacheWriteCostByCurrency[cur] += value.Float64
+	if strings.TrimSpace(s.Currency) == "" || s.Currency == requestUsageSummaryDefaultCurrency {
+		s.Currency = cur
+	}
+	s.CacheWriteCost = s.CacheWriteCostByCurrency[s.Currency]
 }
 
 func (s *RequestUsageCostSummary) AddFloat(value float64, currency string) {
@@ -805,6 +969,16 @@ func (s *RequestUsageCostSummary) AddFloat(value float64, currency string) {
 		s.Currency = cur
 	}
 	s.TotalCost = s.CostByCurrency[s.Currency]
+	if v, ok := s.CacheWriteCostByCurrency[s.Currency]; ok {
+		s.CacheWriteCost = v
+	}
+}
+
+func cacheCreationTotalTokens(cacheCreationInputTokens int64, cacheCreation5mInputTokens int64, cacheCreation1hInputTokens int64) int64 {
+	if cacheCreation5mInputTokens > 0 || cacheCreation1hInputTokens > 0 {
+		return cacheCreation5mInputTokens + cacheCreation1hInputTokens
+	}
+	return cacheCreationInputTokens
 }
 
 func (r RequestUsageSummaryRepository) summaryFromRequestLog(ctx context.Context, log RequestLog, usage *UsageRecord, timeZone config.TimeZone) (RequestUsageDailySummary, error) {
@@ -897,6 +1071,11 @@ func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.T
 	completionTokens := int64(0)
 	totalTokens := int64(0)
 	cachedTokens := int64(0)
+	cacheWriteTokens := int64(0)
+	cacheCreationInputTokens := int64(0)
+	cacheCreation5mInputTokens := int64(0)
+	cacheCreation1hInputTokens := int64(0)
+	cacheWriteCost := float64(0)
 	estimatedCost := float64(0)
 	if usage != nil {
 		currency = stringDefault(usage.Currency, requestUsageSummaryDefaultCurrency)
@@ -905,6 +1084,21 @@ func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.T
 		totalTokens = int64(usage.TotalTokens)
 		if usage.CachedTokens.Valid {
 			cachedTokens = usage.CachedTokens.Int64
+		}
+		if usage.CacheWriteTokens.Valid {
+			cacheWriteTokens = usage.CacheWriteTokens.Int64
+		}
+		if usage.CacheCreationInputTokens.Valid {
+			cacheCreationInputTokens = usage.CacheCreationInputTokens.Int64
+		}
+		if usage.CacheCreation5mInputTokens.Valid {
+			cacheCreation5mInputTokens = usage.CacheCreation5mInputTokens.Int64
+		}
+		if usage.CacheCreation1hInputTokens.Valid {
+			cacheCreation1hInputTokens = usage.CacheCreation1hInputTokens.Int64
+		}
+		if usage.CacheWriteCost.Valid {
+			cacheWriteCost = usage.CacheWriteCost.Float64
 		}
 		if usage.EstimatedCost.Valid {
 			estimatedCost = usage.EstimatedCost.Float64
@@ -920,26 +1114,31 @@ func summaryFromRequestLog(log RequestLog, usage *UsageRecord, timeZone config.T
 	}
 
 	row := RequestUsageDailySummary{
-		BucketStart:       bucketStart,
-		TimeZone:          timeZone.Name,
-		SiteKey:           nullableUUIDSummaryKey(log.SiteID),
-		CanonicalModelKey: nullableUUIDSummaryKey(log.CanonicalModelID),
-		SiteModelKey:      nullableUUIDSummaryKey(log.SiteModelID),
-		APIKeyKey:         nullableUUIDSummaryKey(log.APIKeyID),
-		Endpoint:          stringDefault(strings.TrimSpace(log.Endpoint), requestUsageSummaryNoneKey),
-		StatusCode:        log.StatusCode,
-		Success:           log.Success,
-		Internal:          log.Internal,
-		ErrorType:         requestUsageSummaryErrorType(log),
-		Currency:          currency,
-		RequestCount:      1,
-		PromptTokens:      promptTokens,
-		CompletionTokens:  completionTokens,
-		TotalTokens:       totalTokens,
-		CachedTokens:      cachedTokens,
-		EstimatedCost:     estimatedCost,
-		FirstRequestAt:    sql.NullTime{Time: log.CreatedAt, Valid: true},
-		LastRequestAt:     sql.NullTime{Time: log.CreatedAt, Valid: true},
+		BucketStart:                bucketStart,
+		TimeZone:                   timeZone.Name,
+		SiteKey:                    nullableUUIDSummaryKey(log.SiteID),
+		CanonicalModelKey:          nullableUUIDSummaryKey(log.CanonicalModelID),
+		SiteModelKey:               nullableUUIDSummaryKey(log.SiteModelID),
+		APIKeyKey:                  nullableUUIDSummaryKey(log.APIKeyID),
+		Endpoint:                   stringDefault(strings.TrimSpace(log.Endpoint), requestUsageSummaryNoneKey),
+		StatusCode:                 log.StatusCode,
+		Success:                    log.Success,
+		Internal:                   log.Internal,
+		ErrorType:                  requestUsageSummaryErrorType(log),
+		Currency:                   currency,
+		RequestCount:               1,
+		PromptTokens:               promptTokens,
+		CompletionTokens:           completionTokens,
+		TotalTokens:                totalTokens,
+		CachedTokens:               cachedTokens,
+		CacheWriteTokens:           cacheWriteTokens,
+		CacheCreationInputTokens:   cacheCreationInputTokens,
+		CacheCreation5mInputTokens: cacheCreation5mInputTokens,
+		CacheCreation1hInputTokens: cacheCreation1hInputTokens,
+		CacheWriteCost:             cacheWriteCost,
+		EstimatedCost:              estimatedCost,
+		FirstRequestAt:             sql.NullTime{Time: log.CreatedAt, Valid: true},
+		LastRequestAt:              sql.NullTime{Time: log.CreatedAt, Valid: true},
 	}
 	if log.Success {
 		row.SuccessCount = 1
@@ -1011,6 +1210,11 @@ func addSummaryValues(existing *RequestUsageDailySummary, delta RequestUsageDail
 	existing.CompletionTokens += delta.CompletionTokens
 	existing.TotalTokens += delta.TotalTokens
 	existing.CachedTokens += delta.CachedTokens
+	existing.CacheWriteTokens += delta.CacheWriteTokens
+	existing.CacheCreationInputTokens += delta.CacheCreationInputTokens
+	existing.CacheCreation5mInputTokens += delta.CacheCreation5mInputTokens
+	existing.CacheCreation1hInputTokens += delta.CacheCreation1hInputTokens
+	existing.CacheWriteCost += delta.CacheWriteCost
 	existing.EstimatedCost += delta.EstimatedCost
 	existing.LatencyCount += delta.LatencyCount
 	existing.LatencyTotalMS += delta.LatencyTotalMS
@@ -1155,6 +1359,101 @@ func requestUsageSummaryCachedTokens(raw JSON) (int64, bool) {
 		return 0, false
 	}
 	return 0, false
+}
+
+type requestUsageCacheWriteTokens struct {
+	CacheWriteTokens           sql.NullInt64
+	CacheCreationInputTokens   sql.NullInt64
+	CacheCreation5mInputTokens sql.NullInt64
+	CacheCreation1hInputTokens sql.NullInt64
+	CacheWriteCost             sql.NullFloat64
+}
+
+func requestUsageSummaryCacheWriteTokens(raw JSON) (requestUsageCacheWriteTokens, bool) {
+	metadata := requestUsageSummaryMetadata(raw)
+	costCalculation, ok := metadata["cost_calculation"].(map[string]any)
+	if !ok {
+		return requestUsageCacheWriteTokens{}, false
+	}
+	result := requestUsageCacheWriteTokens{
+		CacheWriteTokens:           requestUsageSummaryMetadataInt64(costCalculation, "cache_write_tokens"),
+		CacheCreationInputTokens:   requestUsageSummaryMetadataInt64(costCalculation, "cache_creation_tokens"),
+		CacheCreation5mInputTokens: requestUsageSummaryMetadataInt64(costCalculation, "cache_creation_5m_tokens"),
+		CacheCreation1hInputTokens: requestUsageSummaryMetadataInt64(costCalculation, "cache_creation_1h_tokens"),
+		CacheWriteCost:             requestUsageSummaryMetadataFloat64(costCalculation, "cache_write_cost"),
+	}
+	if result.CacheWriteCost.Valid {
+		credentialMultiplier := requestUsageSummaryMetadataFloat64(costCalculation, "credential_upstream_cost_multiplier")
+		if !credentialMultiplier.Valid || credentialMultiplier.Float64 <= 0 {
+			credentialMultiplier = sql.NullFloat64{Float64: 1, Valid: true}
+		}
+		serviceTierMultiplier := requestUsageSummaryMetadataFloat64(costCalculation, "service_tier_multiplier")
+		if !serviceTierMultiplier.Valid || serviceTierMultiplier.Float64 <= 0 {
+			serviceTierMultiplier = sql.NullFloat64{Float64: 1, Valid: true}
+		}
+		result.CacheWriteCost.Float64 *= credentialMultiplier.Float64 * serviceTierMultiplier.Float64
+	}
+	return result, result.CacheWriteTokens.Valid || result.CacheCreationInputTokens.Valid || result.CacheCreation5mInputTokens.Valid || result.CacheCreation1hInputTokens.Valid || result.CacheWriteCost.Valid
+}
+
+func requestUsageSummaryMetadataInt64(values map[string]any, key string) sql.NullInt64 {
+	value, ok := values[key]
+	if !ok {
+		return sql.NullInt64{}
+	}
+	switch typed := value.(type) {
+	case float64:
+		if typed < 0 || typed != float64(int64(typed)) {
+			return sql.NullInt64{}
+		}
+		return sql.NullInt64{Int64: int64(typed), Valid: true}
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil || parsed < 0 {
+			return sql.NullInt64{}
+		}
+		return sql.NullInt64{Int64: parsed, Valid: true}
+	case int64:
+		if typed < 0 {
+			return sql.NullInt64{}
+		}
+		return sql.NullInt64{Int64: typed, Valid: true}
+	case int:
+		if typed < 0 {
+			return sql.NullInt64{}
+		}
+		return sql.NullInt64{Int64: int64(typed), Valid: true}
+	default:
+		return sql.NullInt64{}
+	}
+}
+
+func requestUsageSummaryMetadataFloat64(values map[string]any, key string) sql.NullFloat64 {
+	value, ok := values[key]
+	if !ok {
+		return sql.NullFloat64{}
+	}
+	var parsed float64
+	switch typed := value.(type) {
+	case float64:
+		parsed = typed
+	case json.Number:
+		var err error
+		parsed, err = typed.Float64()
+		if err != nil {
+			return sql.NullFloat64{}
+		}
+	case int64:
+		parsed = float64(typed)
+	case int:
+		parsed = float64(typed)
+	default:
+		return sql.NullFloat64{}
+	}
+	if parsed < 0 {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: parsed, Valid: true}
 }
 
 func requestUsageSummaryMetadataUUID(raw JSON, key string) uuid.NullUUID {

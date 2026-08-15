@@ -126,6 +126,31 @@ func TestProxyUpstreamStreamWritesEventsAndCapturesUsage(t *testing.T) {
 	assertGatewayBodyContainsAll(t, rec.Body.String(), "data: [DONE]")
 }
 
+func TestProxyUpstreamStreamCapturesDeepSeekCacheTokens(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream; charset=utf-8"}},
+		Body: io.NopCloser(strings.NewReader(
+			"data: {\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":7,\"total_tokens\":107,\"prompt_cache_hit_tokens\":60,\"prompt_cache_miss_tokens\":40}}\n\n" +
+				"data: [DONE]\n\n",
+		)),
+	}
+	rec := httptest.NewRecorder()
+
+	capture, responseStarted, err := proxyUpstreamStream(context.Background(), rec, resp, time.Now())
+	if err != nil {
+		t.Fatalf("proxyUpstreamStream returned error: %v", err)
+	}
+	if !responseStarted || !capture.streamCompleted {
+		t.Fatalf("stream state = started:%t capture:%+v", responseStarted, capture)
+	}
+	if capture.usage.CachedPromptTokens != 60 || capture.usage.uncachedPromptTokens() != 40 {
+		t.Fatalf("captured usage = %+v, want DeepSeek hit=60 miss=40", capture.usage)
+	}
+}
+
 func TestProxyUpstreamStreamTreatsLateReadErrorAfterDoneAsComplete(t *testing.T) {
 	t.Parallel()
 

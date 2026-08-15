@@ -832,6 +832,7 @@ func (h Handler) CreateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		Name                   string   `json:"name"`
 		RoutingPriority        *float64 `json:"routing_priority"`
 		UpstreamCostMultiplier *float64 `json:"upstream_cost_multiplier"`
+		CacheDomain            string   `json:"cache_domain"`
 	}
 	if !h.decodeJSON(w, r, &payload) {
 		return
@@ -857,6 +858,7 @@ func (h Handler) CreateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		DisplayName:            payload.Name,
 		RoutingPriority:        payload.RoutingPriority,
 		UpstreamCostMultiplier: payload.UpstreamCostMultiplier,
+		CacheDomain:            payload.CacheDomain,
 	})
 	if err != nil {
 		h.writeError(w, r, http.StatusBadRequest, "site_api_key_create_failed", err.Error())
@@ -885,6 +887,7 @@ func (h Handler) CreateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		"display_name":             apiKey.DisplayName,
 		"routing_priority":         apiKey.RoutingPriority,
 		"upstream_cost_multiplier": apiKey.UpstreamCostMultiplier,
+		"cache_domain":             apiKey.CacheDomain,
 		"enabled":                  apiKey.Enabled,
 	})
 	h.writeResource(w, http.StatusCreated, "api_key", h.siteAPIKeyPayloadFromState(item, apiKey, statesByCredentialID[apiKey.Credential.ID], models, h.siteAPIKeyDefaultName(r.Context(), siteID, apiKey.Credential.ID)))
@@ -1005,6 +1008,7 @@ func (h Handler) UpdateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		Name                   *string  `json:"name"`
 		RoutingPriority        *float64 `json:"routing_priority"`
 		UpstreamCostMultiplier *float64 `json:"upstream_cost_multiplier"`
+		CacheDomain            *string  `json:"cache_domain"`
 	}
 	if !h.decodeJSON(w, r, &payload) {
 		return
@@ -1022,6 +1026,7 @@ func (h Handler) UpdateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		DisplayName:            payload.Name,
 		RoutingPriority:        payload.RoutingPriority,
 		UpstreamCostMultiplier: payload.UpstreamCostMultiplier,
+		CacheDomain:            payload.CacheDomain,
 	})
 	if err != nil {
 		h.writeError(w, r, http.StatusBadRequest, "site_api_key_update_failed", err.Error())
@@ -1042,12 +1047,14 @@ func (h Handler) UpdateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 			"display_name":             existing.DisplayName,
 			"routing_priority":         existing.RoutingPriority,
 			"upstream_cost_multiplier": existing.UpstreamCostMultiplier,
+			"cache_domain":             existing.CacheDomain,
 			"enabled":                  existing.Enabled,
 		},
 		"new": map[string]any{
 			"display_name":             apiKey.DisplayName,
 			"routing_priority":         apiKey.RoutingPriority,
 			"upstream_cost_multiplier": apiKey.UpstreamCostMultiplier,
+			"cache_domain":             apiKey.CacheDomain,
 			"enabled":                  apiKey.Enabled,
 		},
 	})
@@ -1459,6 +1466,7 @@ func (h Handler) siteAPIKeyPayload(r *http.Request, item store.Site, apiKey site
 		"upstream_name":            upstreamName,
 		"routing_priority":         apiKey.RoutingPriority,
 		"upstream_cost_multiplier": apiKey.UpstreamCostMultiplier,
+		"cache_domain":             apiKey.CacheDomain,
 		"key":                      apiKey.MaskedSecret,
 		"status":                   apiKey.Meta["status"],
 		"enabled":                  apiKey.Enabled,
@@ -1566,6 +1574,7 @@ func (h Handler) siteAPIKeyPayloadFromState(item store.Site, apiKey sitepkg.APIK
 		"upstream_name":            upstreamName,
 		"routing_priority":         apiKey.RoutingPriority,
 		"upstream_cost_multiplier": apiKey.UpstreamCostMultiplier,
+		"cache_domain":             apiKey.CacheDomain,
 		"key":                      apiKey.MaskedSecret,
 		"status":                   status,
 		"enabled":                  enabled,

@@ -2,6 +2,7 @@ package usage
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sort"
@@ -40,14 +41,20 @@ type RequestQuery struct {
 }
 
 type RequestSummaryResult struct {
-	TotalCost         float64
-	PromptTokens      int64
-	CompletionTokens  int64
-	TotalTokens       int64
-	CachedTokens      int64
-	Currency          string
-	Supported         bool
-	UnsupportedReason string
+	TotalCost                  float64
+	PromptTokens               int64
+	CompletionTokens           int64
+	TotalTokens                int64
+	CachedTokens               int64
+	CacheWriteTokens           int64
+	CacheCreationInputTokens   int64
+	CacheCreation5mInputTokens int64
+	CacheCreation1hInputTokens int64
+	CacheWriteTotalTokens      int64
+	CacheWriteCost             float64
+	Currency                   string
+	Supported                  bool
+	UnsupportedReason          string
 }
 
 type ChannelSplitQuery struct {
@@ -201,7 +208,8 @@ func (s *Service) RequestSummary(ctx context.Context, query RequestQuery, now ti
 			return RequestSummaryResult{}, err
 		}
 		total.AddFloat(rows.TotalCost, rows.Currency)
-		total.AddUsage(rows.PromptTokens, rows.CompletionTokens, rows.TotalTokens, rows.CachedTokens)
+		total.AddCacheWriteCost(sql.NullFloat64{Float64: rows.CacheWriteCost, Valid: true}, rows.Currency)
+		total.AddUsage(rows.PromptTokens, rows.CompletionTokens, rows.TotalTokens, rows.CachedTokens, rows.CacheWriteTokens, rows.CacheCreationInputTokens, rows.CacheCreation5mInputTokens, rows.CacheCreation1hInputTokens)
 	}
 
 	for _, window := range s.requestSummaryDetailWindows(query.CreatedFrom, query.CreatedTo, summaryFrom, summaryTo, now) {
@@ -222,17 +230,24 @@ func (s *Service) RequestSummary(ctx context.Context, query RequestQuery, now ti
 			return RequestSummaryResult{}, err
 		}
 		total.AddFloat(rows.TotalCost, rows.Currency)
-		total.AddUsage(rows.PromptTokens, rows.CompletionTokens, rows.TotalTokens, rows.CachedTokens)
+		total.AddCacheWriteCost(sql.NullFloat64{Float64: rows.CacheWriteCost, Valid: true}, rows.Currency)
+		total.AddUsage(rows.PromptTokens, rows.CompletionTokens, rows.TotalTokens, rows.CachedTokens, rows.CacheWriteTokens, rows.CacheCreationInputTokens, rows.CacheCreation5mInputTokens, rows.CacheCreation1hInputTokens)
 	}
 
 	return RequestSummaryResult{
-		TotalCost:        total.TotalCost,
-		PromptTokens:     total.PromptTokens,
-		CompletionTokens: total.CompletionTokens,
-		TotalTokens:      total.TotalTokens,
-		CachedTokens:     total.CachedTokens,
-		Currency:         total.Currency,
-		Supported:        true,
+		TotalCost:                  total.TotalCost,
+		PromptTokens:               total.PromptTokens,
+		CompletionTokens:           total.CompletionTokens,
+		TotalTokens:                total.TotalTokens,
+		CachedTokens:               total.CachedTokens,
+		CacheWriteTokens:           total.CacheWriteTokens,
+		CacheCreationInputTokens:   total.CacheCreationInputTokens,
+		CacheCreation5mInputTokens: total.CacheCreation5mInputTokens,
+		CacheCreation1hInputTokens: total.CacheCreation1hInputTokens,
+		CacheWriteTotalTokens:      total.CacheWriteTotalTokens,
+		CacheWriteCost:             total.CacheWriteCost,
+		Currency:                   total.Currency,
+		Supported:                  true,
 	}, nil
 }
 

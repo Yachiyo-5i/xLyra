@@ -246,6 +246,9 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 	if err := ensureSchemaIndex(migrator, &RequestLog{}, "request_logs_parent_request_log_id_idx"); err != nil {
 		return err
 	}
+	if err := ensureSchemaIndex(migrator, &RequestLog{}, "request_logs_cache_observation_lookup_idx"); err != nil {
+		return err
+	}
 	if err := ensureSchemaIndex(migrator, &RequestLog{}, "request_logs_parent_request_id_idx"); err != nil {
 		return err
 	}
@@ -264,9 +267,35 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure usage_records.cached_tokens column: %w", err)
 		}
 	}
+	for _, field := range []string{"CacheWriteTokens", "CacheCreationInputTokens", "CacheCreation5mInputTokens", "CacheCreation1hInputTokens"} {
+		if migrator.HasColumn(&UsageRecord{}, field) {
+			continue
+		}
+		if err := migrator.AddColumn(&UsageRecord{}, field); err != nil {
+			return fmt.Errorf("ensure usage_records cache write column %s: %w", field, err)
+		}
+	}
+	if !migrator.HasColumn(&UsageRecord{}, "CacheWriteCost") {
+		if err := migrator.AddColumn(&UsageRecord{}, "CacheWriteCost"); err != nil {
+			return fmt.Errorf("ensure usage_records.cache_write_cost column: %w", err)
+		}
+	}
 	if !migrator.HasColumn(&RequestUsageDailySummary{}, "CachedTokens") {
 		if err := migrator.AddColumn(&RequestUsageDailySummary{}, "CachedTokens"); err != nil {
 			return fmt.Errorf("ensure request_usage_daily_summaries.cached_tokens column: %w", err)
+		}
+	}
+	for _, field := range []string{"CacheWriteTokens", "CacheCreationInputTokens", "CacheCreation5mInputTokens", "CacheCreation1hInputTokens"} {
+		if migrator.HasColumn(&RequestUsageDailySummary{}, field) {
+			continue
+		}
+		if err := migrator.AddColumn(&RequestUsageDailySummary{}, field); err != nil {
+			return fmt.Errorf("ensure request_usage_daily_summaries cache write column %s: %w", field, err)
+		}
+	}
+	if !migrator.HasColumn(&RequestUsageDailySummary{}, "CacheWriteCost") {
+		if err := migrator.AddColumn(&RequestUsageDailySummary{}, "CacheWriteCost"); err != nil {
+			return fmt.Errorf("ensure request_usage_daily_summaries.cache_write_cost column: %w", err)
 		}
 	}
 	if err := ensureAPIKeyModelRuleFormat(db); err != nil {

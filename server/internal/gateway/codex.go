@@ -453,18 +453,7 @@ func (c *codexCallIDCollisionCache) remember(scope string, originalID string, ma
 }
 
 func codexCallIDMappingScope(request gatewayRequest) string {
-	conversationID := ""
-	for _, header := range []string{"thread-id", "session-id", "x-codex-parent-thread-id"} {
-		if value := strings.TrimSpace(request.DownstreamHeaders.Get(header)); value != "" {
-			conversationID = header + ":" + value
-			break
-		}
-	}
-	if conversationID == "" {
-		if previousResponseID := strings.TrimSpace(anyString(request.Payload["previous_response_id"])); previousResponseID != "" {
-			conversationID = "previous_response_id:" + previousResponseID
-		}
-	}
+	conversationID := gatewayRequestConversationHint(request)
 	if conversationID == "" {
 		return ""
 	}

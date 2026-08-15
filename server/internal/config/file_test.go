@@ -19,7 +19,6 @@ func TestResolveWorkdir_EnvVar(t *testing.T) {
 }
 
 func TestResolveWorkdir_GitRoot(t *testing.T) {
-	// Should find the repo root with .git
 	got := ResolveWorkdir()
 	if got == "" {
 		t.Fatal("expected non-empty workdir")
@@ -29,8 +28,8 @@ func TestResolveWorkdir_GitRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolved workdir %s should contain .git: %v", got, err)
 	}
-	if !fi.IsDir() {
-		t.Fatal(".git should be a directory")
+	if !fi.IsDir() && !fi.Mode().IsRegular() {
+		t.Fatal(".git should be a directory or worktree file")
 	}
 }
 

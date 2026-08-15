@@ -531,6 +531,7 @@ func TestRequestLogRepositoryCreatesDeletesRecentAttemptsAndSearchExpressionsOff
 	siteID := uuid.New()
 	siteModelID := uuid.New()
 	canonicalID := uuid.New()
+	apiKeyID := uuid.New()
 	logID := uuid.New()
 	db := storeRepositoryOfflineGorm(t)
 	createCalls := 0
@@ -571,6 +572,10 @@ func TestRequestLogRepositoryCreatesDeletesRecentAttemptsAndSearchExpressionsOff
 	if err != nil {
 		t.Fatalf("ListRecentSiteModelAttempts returned error: %v", err)
 	}
+	recent, err := repo.ListRecentByAPIKeyAndCanonicalModel(context.Background(), apiKeyID, canonicalID, 999)
+	if err != nil {
+		t.Fatalf("ListRecentByAPIKeyAndCanonicalModel returned error: %v", err)
+	}
 	deleted, err := repo.DeleteBefore(context.Background(), time.Now(), 1)
 	if err != nil {
 		t.Fatalf("DeleteBefore returned error: %v", err)
@@ -583,8 +588,8 @@ func TestRequestLogRepositoryCreatesDeletesRecentAttemptsAndSearchExpressionsOff
 	if err != nil {
 		t.Fatalf("requestLogSearchExpression returned error: %v", err)
 	}
-	if created.RequestID != "req-search" || len(attempts) != 1 || deleted != 2 || createCalls != 1 || deleteCalls != 1 {
-		t.Fatalf("created=%#v attempts=%#v deleted=%d createCalls=%d deleteCalls=%d", created, attempts, deleted, createCalls, deleteCalls)
+	if created.RequestID != "req-search" || len(attempts) != 1 || len(recent) != 1 || deleted != 2 || createCalls != 1 || deleteCalls != 1 {
+		t.Fatalf("created=%#v attempts=%#v recent=%#v deleted=%d createCalls=%d deleteCalls=%d", created, attempts, recent, deleted, createCalls, deleteCalls)
 	}
 	if len(ids.SiteIDs) != 1 || len(ids.CanonicalModelIDs) != 1 || len(ids.SiteModelIDs) != 1 {
 		t.Fatalf("ids=%#v, want matches in all dimensions", ids)

@@ -150,6 +150,27 @@ func TestGatewayUsageReadsChatCompletionsCacheWriteTokens(t *testing.T) {
 	}
 }
 
+func TestParseCompletionUsageNormalizesDeepSeekCacheTokens(t *testing.T) {
+	t.Parallel()
+
+	usage := parseCompletionUsage([]byte(`{
+		"usage": {
+			"prompt_tokens": 100,
+			"completion_tokens": 8,
+			"total_tokens": 108,
+			"prompt_cache_hit_tokens": 60,
+			"prompt_cache_miss_tokens": 40
+		}
+	}`))
+
+	if usage.CachedPromptTokens != 60 {
+		t.Fatalf("cached prompt tokens = %d, want DeepSeek cache hit tokens", usage.CachedPromptTokens)
+	}
+	if usage.uncachedPromptTokens() != 40 {
+		t.Fatalf("uncached prompt tokens = %d, want DeepSeek cache miss tokens", usage.uncachedPromptTokens())
+	}
+}
+
 func TestEstimateCostBillsCacheWriteTokens(t *testing.T) {
 	t.Parallel()
 
@@ -177,6 +198,23 @@ func TestEstimateCostBillsCacheWriteTokens(t *testing.T) {
 	meta := costCalculationMetadata(usage, pricing, got, billingAdjustment{}, nil)
 	if meta["cache_write_tokens"] != 400_000 {
 		t.Fatalf("metadata cache_write_tokens = %#v, want 400000", meta["cache_write_tokens"])
+	}
+}
+
+func TestCacheWriteCostForAttemptAppliesBillingMultipliers(t *testing.T) {
+	t.Parallel()
+
+	cost := cacheWriteCostForAttempt(gatewayUsage{PromptTokens: 400_000, CacheWriteTokens: 400_000}, gatewayAttemptResult{
+		pricing: selectedPricing{
+			InputValue:      pricingAmount(2),
+			CacheWriteRatio: pricingAmount(1.25),
+		},
+		credentialCostMultiplier: 1.5,
+		billingMode:              "fast",
+		costMultiplier:           2,
+	})
+	if cost == nil || *cost != 3 {
+		t.Fatalf("cache write cost = %v, want 3", cost)
 	}
 }
 

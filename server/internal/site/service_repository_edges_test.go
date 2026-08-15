@@ -23,6 +23,45 @@ func TestMigrateDefaultAPIKeyCredentialSkipsAlreadyScopedCredentials(t *testing.
 	}
 }
 
+func TestUpdateAPIKeyAllowsCacheDomainWithoutEnabled(t *testing.T) {
+	t.Parallel()
+
+	siteID := uuid.New()
+	credentialID := uuid.New()
+	credential := siteEncryptedCredential(t, credentialID, siteID, scopedAPIKeyCredentialType(), "cache-domain-secret", siteJSONMeta(t, map[string]any{"enabled": true}))
+	var savedMeta store.JSON
+	db := siteTransactionPostgresGorm(t)
+	siteReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		switch dest := tx.Statement.Dest.(type) {
+		case *store.Site:
+			*dest = store.Site{ID: siteID, SiteType: "openai", Enabled: true}
+			tx.RowsAffected = 1
+		case *store.SiteCredential:
+			*dest = credential
+			tx.RowsAffected = 1
+		default:
+			tx.AddError(gorm.ErrInvalidData)
+		}
+	})
+	siteReplaceUpdateCallback(t, db, siteCaptureUpdate[store.SiteCredential](t, "site credential", func(item store.SiteCredential) {
+		savedMeta = append(store.JSON(nil), item.Meta...)
+	}))
+	service := NewService(siteStoreWithGorm(t, db), siteTestMasterKey)
+
+	cacheDomain := " shared-project "
+	got, err := service.UpdateAPIKey(t.Context(), siteID, credentialID, UpdateAPIKeyInput{CacheDomain: &cacheDomain})
+	if err != nil {
+		t.Fatalf("UpdateAPIKey() error = %v", err)
+	}
+	if got.CacheDomain != "shared-project" {
+		t.Fatalf("UpdateAPIKey() cache domain = %q, want normalized value", got.CacheDomain)
+	}
+	meta := siteMustJSONMap(t, savedMeta)
+	if meta["cache_domain"] != "shared-project" || meta["enabled"] != true {
+		t.Fatalf("saved credential meta = %s, want cache domain with enabled preserved", string(savedMeta))
+	}
+}
+
 func TestMigrateDefaultAPIKeyCredentialScopesFirstDefaultCredential(t *testing.T) {
 	t.Parallel()
 

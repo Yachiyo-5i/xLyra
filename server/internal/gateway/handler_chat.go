@@ -161,6 +161,9 @@ func (h Handler) serveEndpoint(
 		h.writeRateLimitFailure(w, r, endpoint.DownstreamPath(), requestID, apiKey.ID, startedAt, request, *limitErr)
 		return
 	}
+	ctx = h.withCacheObservation(ctx, apiKey.ID, plan.CanonicalModel.ID, request)
+	ctx = h.withCacheShadowAffinity(ctx, apiKey.ID, plan.CanonicalModel.ID, request, plan, resolver)
+	r = r.WithContext(ctx)
 	actualRateLimitTokens := int64(0)
 	if reservation != nil {
 		ctx = withRateLimitMetadata(ctx, reservation.Metadata(0))
@@ -218,6 +221,9 @@ func (h Handler) serveEndpoint(
 		imageIntent = fallbackIntent
 		access = fallbackSetup.access
 		plan = fallbackSetup.plan
+		ctx = h.withCacheObservation(ctx, apiKey.ID, plan.CanonicalModel.ID, request)
+		ctx = h.withCacheShadowAffinity(ctx, apiKey.ID, plan.CanonicalModel.ID, request, plan, resolver)
+		r = r.WithContext(ctx)
 		attempts = append([]routeengine.Candidate{plan.Selected}, plan.Failover...)
 		inflight.SetModel(requestID, plan.CanonicalModel.ModelKey, plan.CanonicalModel.Provider)
 		if h.logger != nil {
