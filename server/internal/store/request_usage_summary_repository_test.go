@@ -176,13 +176,17 @@ func TestRequestUsageSummaryCacheWriteTokensMetadata(t *testing.T) {
 			"cache_write_tokens": 3,
 			"cache_creation_tokens": 5,
 			"cache_creation_5m_tokens": 2,
-			"cache_creation_1h_tokens": 3
+			"cache_creation_1h_tokens": 3,
+			"cache_write_cost": 0.25,
+			"credential_upstream_cost_multiplier": 2,
+			"service_tier_multiplier": 2
 		}
 	}`))
 	if !known || !values.CacheWriteTokens.Valid || values.CacheWriteTokens.Int64 != 3 ||
 		!values.CacheCreationInputTokens.Valid || values.CacheCreationInputTokens.Int64 != 5 ||
 		!values.CacheCreation5mInputTokens.Valid || values.CacheCreation5mInputTokens.Int64 != 2 ||
-		!values.CacheCreation1hInputTokens.Valid || values.CacheCreation1hInputTokens.Int64 != 3 {
+		!values.CacheCreation1hInputTokens.Valid || values.CacheCreation1hInputTokens.Int64 != 3 ||
+		!values.CacheWriteCost.Valid || values.CacheWriteCost.Float64 != 1 {
 		t.Fatalf("cache write tokens = %#v known=%t, want structured metadata values", values, known)
 	}
 

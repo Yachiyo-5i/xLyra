@@ -402,6 +402,63 @@ func TestCacheObservationConfiguredDomainIsProtocolIndependent(t *testing.T) {
 	}
 }
 
+func TestCacheObservationInfersProtocolFromCandidateCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		request   gatewayRequest
+		candidate routeengine.Candidate
+		want      string
+	}{
+		{
+			name:    "responses through chat completions",
+			request: gatewayRequest{DownstreamPath: gatewayEndpointResponses},
+			candidate: routeengine.Candidate{
+				Site:  routeengine.CandidateSite{SiteType: "newapi"},
+				Model: routeengine.CandidateModel{UpstreamName: "gpt-test", SupportedEndpointTypes: []string{"openai"}},
+			},
+			want: "openai_chat_completions_to_responses",
+		},
+		{
+			name:    "responses through responses",
+			request: gatewayRequest{DownstreamPath: gatewayEndpointResponses},
+			candidate: routeengine.Candidate{
+				Site:  routeengine.CandidateSite{SiteType: "newapi"},
+				Model: routeengine.CandidateModel{UpstreamName: "gpt-test", SupportedEndpointTypes: []string{"openai", "openai-response"}},
+			},
+			want: "openai_responses",
+		},
+		{
+			name:    "messages through chat completions",
+			request: gatewayRequest{DownstreamPath: gatewayEndpointMessages},
+			candidate: routeengine.Candidate{
+				Site:  routeengine.CandidateSite{SiteType: "newapi"},
+				Model: routeengine.CandidateModel{UpstreamName: "gpt-test", SupportedEndpointTypes: []string{"openai"}},
+			},
+			want: "openai_chat_completions_to_messages",
+		},
+		{
+			name:    "provider anthropic alternate",
+			request: gatewayRequest{DownstreamPath: gatewayEndpointResponses},
+			candidate: routeengine.Candidate{
+				Site:  routeengine.CandidateSite{SiteType: "deepseek"},
+				Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro", SupportedEndpointTypes: []string{"anthropic-messages"}},
+			},
+			want: "deepseek_anthropic_messages_to_responses",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := cacheObservationInferUpstreamProtocol(tt.candidate, tt.request); got != tt.want {
+				t.Fatalf("cacheObservationInferUpstreamProtocol() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func cacheObservationChatRequest(t *testing.T, body string) gatewayRequest {
 	t.Helper()
 

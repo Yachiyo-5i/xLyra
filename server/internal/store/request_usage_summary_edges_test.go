@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"xlyra/server/internal/config"
 )
@@ -324,7 +325,7 @@ func TestRequestUsageCacheWriteTokensBackfillDoesNotMarkIncompleteCoverage(t *te
 			*dest = []RequestLog{{
 				ID:        requestLogID,
 				CreatedAt: day.Add(time.Hour),
-				Metadata:  JSON(`{"cost_calculation":{"cache_write_tokens":3}}`),
+				Metadata:  JSON(`{"cost_calculation":{"cache_write_tokens":3,"cache_write_cost":0.25,"credential_upstream_cost_multiplier":2,"service_tier_multiplier":2}}`),
 			}}
 			tx.Statement.RowsAffected = 1
 		case *[]UsageRecord:
@@ -350,7 +351,7 @@ func TestRequestUsageCacheWriteTokensBackfillDoesNotMarkIncompleteCoverage(t *te
 	})
 	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
 		item, ok := tx.Statement.Dest.(*UsageRecord)
-		if !ok || !item.CacheWriteTokens.Valid || item.CacheWriteTokens.Int64 != 3 {
+		if !ok || !item.CacheWriteTokens.Valid || item.CacheWriteTokens.Int64 != 3 || !item.CacheWriteCost.Valid || item.CacheWriteCost.Float64 != 1 {
 			tx.AddError(errors.New("unexpected cache write tokens backfill update"))
 			return
 		}
@@ -366,6 +367,72 @@ func TestRequestUsageCacheWriteTokensBackfillDoesNotMarkIncompleteCoverage(t *te
 	}
 	if markerQueries != 2 || markerCreates != 0 {
 		t.Fatalf("marker queries=%d creates=%d, want retry without completion marker", markerQueries, markerCreates)
+	}
+}
+
+func TestRequestUsageCacheWriteTokensBackfillRerunsAfterLegacyMarker(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	db := storeTransactionGorm(t, "request_usage_cache_write_metrics_backfill")
+	existingMarkers := map[string]bool{"request_usage_cache_write_tokens_v1": true}
+	queriedMarker := ""
+	createdMarker := ""
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		switch dest := tx.Statement.Dest.(type) {
+		case *schemaUpgradeMarker:
+			whereClause, ok := tx.Statement.Clauses["WHERE"]
+			if !ok {
+				tx.AddError(errors.New("missing schema upgrade marker condition"))
+				return
+			}
+			where, ok := whereClause.Expression.(clause.Where)
+			if !ok || len(where.Exprs) != 1 {
+				tx.AddError(errors.New("unexpected schema upgrade marker condition"))
+				return
+			}
+			eq, ok := where.Exprs[0].(clause.Eq)
+			if !ok {
+				tx.AddError(errors.New("unexpected schema upgrade marker predicate"))
+				return
+			}
+			queriedMarker, ok = eq.Value.(string)
+			if !ok {
+				tx.AddError(errors.New("unexpected schema upgrade marker value"))
+				return
+			}
+			if existingMarkers[queriedMarker] {
+				*dest = schemaUpgradeMarker{Name: queriedMarker}
+				tx.Statement.RowsAffected = 1
+				return
+			}
+			tx.AddError(gorm.ErrRecordNotFound)
+		case *[]RequestLog:
+			*dest = nil
+		default:
+			tx.AddError(errors.New("unexpected cache write metrics backfill query destination"))
+		}
+	})
+	storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
+		marker, ok := tx.Statement.Dest.(*schemaUpgradeMarker)
+		if !ok {
+			tx.AddError(errors.New("unexpected cache write metrics backfill create destination"))
+			return
+		}
+		createdMarker = marker.Name
+		existingMarkers[marker.Name] = true
+		tx.Statement.RowsAffected = 1
+	})
+
+	result, err := NewRequestUsageSummaryRepository(db).BackfillCacheWriteTokens(ctx, time.Now(), config.LoadTimeZone("UTC"))
+	if err != nil {
+		t.Fatalf("BackfillCacheWriteTokens returned error: %v", err)
+	}
+	if result != (RequestUsageCacheWriteTokensBackfillResult{}) {
+		t.Fatalf("result = %+v, want empty result", result)
+	}
+	if queriedMarker != requestUsageCacheWriteMetricsBackfill || createdMarker != requestUsageCacheWriteMetricsBackfill {
+		t.Fatalf("queried marker=%q created marker=%q, want %q", queriedMarker, createdMarker, requestUsageCacheWriteMetricsBackfill)
 	}
 }
 

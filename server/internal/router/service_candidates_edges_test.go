@@ -100,6 +100,9 @@ func TestCandidatesFilterSortAndLimit(t *testing.T) {
 	if got.Site.RoutingPriority != 3.0 {
 		t.Fatalf("selected routing priority = %v, want 3.0", got.Site.RoutingPriority)
 	}
+	if !reflect.DeepEqual(got.Model.SupportedEndpointTypes, []string{"openai"}) {
+		t.Fatalf("selected endpoint types = %#v, want propagated model capabilities", got.Model.SupportedEndpointTypes)
+	}
 	if got.ScoreBreakdown == nil {
 		t.Fatalf("score breakdown = nil, want populated breakdown in debug mode")
 	}

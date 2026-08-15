@@ -147,7 +147,7 @@ func (h Handler) cacheShadowCandidates(_ context.Context, request gatewayRequest
 		if candidate.Cooling {
 			continue
 		}
-		upstreamProtocol := cacheObservationInferUpstreamProtocol(candidate.Site.SiteType, request)
+		upstreamProtocol := cacheObservationInferUpstreamProtocol(candidate, request)
 		result = append(result, cacheShadowCandidate{
 			Candidate:        candidate,
 			UpstreamProtocol: upstreamProtocol,
@@ -157,7 +157,8 @@ func (h Handler) cacheShadowCandidates(_ context.Context, request gatewayRequest
 	return result
 }
 
-func cacheObservationInferUpstreamProtocol(siteType string, request gatewayRequest) string {
+func cacheObservationInferUpstreamProtocol(candidate routeengine.Candidate, request gatewayRequest) string {
+	siteType := candidate.Site.SiteType
 	switch {
 	case isCodexSite(siteType):
 		return "codex_responses"
@@ -180,20 +181,23 @@ func cacheObservationInferUpstreamProtocol(siteType string, request gatewayReque
 		}
 		return "anthropic_messages"
 	case isGrokSite(siteType):
-		switch downstreamCanonicalProtocol(request.DownstreamPath) {
-		case canonicalProtocolOpenAIResponses:
-			return "openai_responses"
-		}
 		return "openai_responses"
-	default:
-		switch downstreamCanonicalProtocol(request.DownstreamPath) {
-		case canonicalProtocolOpenAIResponses:
-			return "openai_responses"
-		case canonicalProtocolAnthropicMessages:
-			return "openai_responses_to_messages"
-		}
-		return "openai_chat_completions"
 	}
+	downstream := downstreamCanonicalProtocol(request.DownstreamPath)
+	if alt, ok := alternateProtocolForCandidate(downstream, candidate); ok && canonicalProtocol(normalizeSpecKey(alt.Protocol)) == canonicalProtocolAnthropicMessages {
+		return newProviderAnthropicMessagesProtocolAdapter(providerNameForCandidate(candidate), alt, downstream).ProtocolName()
+	}
+	endpointTypes := candidate.Model.SupportedEndpointTypes
+	if containsEndpointType(endpointTypes, upstreamEndpointTypeGoogleGemini) {
+		return newGoogleProtocolAdapter(request).ProtocolName()
+	}
+	if containsEndpointType(endpointTypes, upstreamEndpointTypeAnthropicMessages) {
+		return anthropicMessagesProtocolForCandidate(request, candidate).ProtocolName()
+	}
+	if shouldUseOpenAIResponses(request, candidate, endpointTypes) {
+		return newOpenAIResponsesProtocolAdapter(request).ProtocolName()
+	}
+	return newOpenAIChatProtocolAdapter(request, candidate).ProtocolName()
 }
 
 func cacheObservationFromRequest(key []byte, apiKeyID uuid.UUID, canonicalModelID uuid.UUID, request gatewayRequest) cacheObservation {

@@ -1784,9 +1784,11 @@ func (s *Service) UpdateAPIKey(ctx context.Context, siteID uuid.UUID, credential
 		if err != nil {
 			return err
 		}
-		_, stateErr := store.NewSiteAPIKeyStateRepository(tx).UpdateEnabled(ctx, credential.ID, *input.Enabled)
-		if stateErr != nil && !errors.Is(stateErr, gorm.ErrRecordNotFound) {
-			return stateErr
+		if input.Enabled != nil {
+			_, stateErr := store.NewSiteAPIKeyStateRepository(tx).UpdateEnabled(ctx, credential.ID, *input.Enabled)
+			if stateErr != nil && !errors.Is(stateErr, gorm.ErrRecordNotFound) {
+				return stateErr
+			}
 		}
 		return nil
 	})

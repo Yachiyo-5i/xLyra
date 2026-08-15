@@ -77,11 +77,12 @@ type CandidateSite struct {
 }
 
 type CandidateModel struct {
-	SiteModelID     uuid.UUID
-	UpstreamName    string
-	DisplayName     string
-	MatchSource     string
-	MatchConfidence int
+	SiteModelID            uuid.UUID
+	UpstreamName           string
+	DisplayName            string
+	MatchSource            string
+	MatchConfidence        int
+	SupportedEndpointTypes []string
 }
 
 type CandidateHealth struct {
@@ -239,11 +240,12 @@ func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (Candida
 				DisabledResponsesTools: siteDisabledResponsesTools(row.SiteMeta),
 			},
 			Model: CandidateModel{
-				SiteModelID:     row.SiteModelID,
-				UpstreamName:    row.UpstreamModelName,
-				DisplayName:     row.SiteModelDisplayName,
-				MatchSource:     row.MatchSource,
-				MatchConfidence: row.MatchConfidence,
+				SiteModelID:            row.SiteModelID,
+				UpstreamName:           row.UpstreamModelName,
+				DisplayName:            row.SiteModelDisplayName,
+				MatchSource:            row.MatchSource,
+				MatchConfidence:        row.MatchConfidence,
+				SupportedEndpointTypes: append([]string(nil), row.SupportedEndpointTypes...),
 			},
 			Health: CandidateHealth{
 				Status:              row.SiteHealthStatus,

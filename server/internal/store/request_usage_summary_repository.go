@@ -19,12 +19,12 @@ import (
 )
 
 const (
-	RequestUsageSummaryDayStatusComplete = "complete"
-	requestUsageSummaryNoneKey           = "none"
-	requestUsageSummaryDefaultCurrency   = "USD"
-	requestUsageCleanupBatchSize         = 5000
-	requestUsageCachedTokensBackfill     = "request_usage_cached_tokens_v1"
-	requestUsageCacheWriteTokensBackfill = "request_usage_cache_write_tokens_v1"
+	RequestUsageSummaryDayStatusComplete  = "complete"
+	requestUsageSummaryNoneKey            = "none"
+	requestUsageSummaryDefaultCurrency    = "USD"
+	requestUsageCleanupBatchSize          = 5000
+	requestUsageCachedTokensBackfill      = "request_usage_cached_tokens_v1"
+	requestUsageCacheWriteMetricsBackfill = "request_usage_cache_write_metrics_v2"
 )
 
 type RequestUsageDailySummary struct {
@@ -355,7 +355,7 @@ func (r RequestUsageSummaryRepository) BackfillCacheWriteTokens(ctx context.Cont
 		return RequestUsageCacheWriteTokensBackfillResult{}, fmt.Errorf("request usage summary store is not initialized")
 	}
 	var marker schemaUpgradeMarker
-	err := r.db.WithContext(ctx).Where(&schemaUpgradeMarker{Name: requestUsageCacheWriteTokensBackfill}).First(&marker).Error
+	err := r.db.WithContext(ctx).Where(&schemaUpgradeMarker{Name: requestUsageCacheWriteMetricsBackfill}).First(&marker).Error
 	if err == nil {
 		return RequestUsageCacheWriteTokensBackfillResult{}, nil
 	}
@@ -400,7 +400,7 @@ func (r RequestUsageSummaryRepository) BackfillCacheWriteTokens(ctx context.Cont
 		}
 	}
 	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&schemaUpgradeMarker{
-		Name:        requestUsageCacheWriteTokensBackfill,
+		Name:        requestUsageCacheWriteMetricsBackfill,
 		CompletedAt: time.Now(),
 	}).Error; err != nil {
 		return result, fmt.Errorf("mark request usage cache write tokens backfill complete: %w", err)
@@ -484,6 +484,10 @@ func (r RequestUsageSummaryRepository) backfillCacheWriteTokensBetween(ctx conte
 		}
 		if !usage.CacheCreation1hInputTokens.Valid && cacheWriteTokens.CacheCreation1hInputTokens.Valid {
 			usage.CacheCreation1hInputTokens = cacheWriteTokens.CacheCreation1hInputTokens
+			changed = true
+		}
+		if !usage.CacheWriteCost.Valid && cacheWriteTokens.CacheWriteCost.Valid {
+			usage.CacheWriteCost = cacheWriteTokens.CacheWriteCost
 			changed = true
 		}
 		if changed {
@@ -1315,6 +1319,7 @@ type requestUsageCacheWriteTokens struct {
 	CacheCreationInputTokens   sql.NullInt64
 	CacheCreation5mInputTokens sql.NullInt64
 	CacheCreation1hInputTokens sql.NullInt64
+	CacheWriteCost             sql.NullFloat64
 }
 
 func requestUsageSummaryCacheWriteTokens(raw JSON) (requestUsageCacheWriteTokens, bool) {
@@ -1328,8 +1333,20 @@ func requestUsageSummaryCacheWriteTokens(raw JSON) (requestUsageCacheWriteTokens
 		CacheCreationInputTokens:   requestUsageSummaryMetadataInt64(costCalculation, "cache_creation_tokens"),
 		CacheCreation5mInputTokens: requestUsageSummaryMetadataInt64(costCalculation, "cache_creation_5m_tokens"),
 		CacheCreation1hInputTokens: requestUsageSummaryMetadataInt64(costCalculation, "cache_creation_1h_tokens"),
+		CacheWriteCost:             requestUsageSummaryMetadataFloat64(costCalculation, "cache_write_cost"),
 	}
-	return result, result.CacheWriteTokens.Valid || result.CacheCreationInputTokens.Valid || result.CacheCreation5mInputTokens.Valid || result.CacheCreation1hInputTokens.Valid
+	if result.CacheWriteCost.Valid {
+		credentialMultiplier := requestUsageSummaryMetadataFloat64(costCalculation, "credential_upstream_cost_multiplier")
+		if !credentialMultiplier.Valid || credentialMultiplier.Float64 <= 0 {
+			credentialMultiplier = sql.NullFloat64{Float64: 1, Valid: true}
+		}
+		serviceTierMultiplier := requestUsageSummaryMetadataFloat64(costCalculation, "service_tier_multiplier")
+		if !serviceTierMultiplier.Valid || serviceTierMultiplier.Float64 <= 0 {
+			serviceTierMultiplier = sql.NullFloat64{Float64: 1, Valid: true}
+		}
+		result.CacheWriteCost.Float64 *= credentialMultiplier.Float64 * serviceTierMultiplier.Float64
+	}
+	return result, result.CacheWriteTokens.Valid || result.CacheCreationInputTokens.Valid || result.CacheCreation5mInputTokens.Valid || result.CacheCreation1hInputTokens.Valid || result.CacheWriteCost.Valid
 }
 
 func requestUsageSummaryMetadataInt64(values map[string]any, key string) sql.NullInt64 {
@@ -1362,6 +1379,34 @@ func requestUsageSummaryMetadataInt64(values map[string]any, key string) sql.Nul
 	default:
 		return sql.NullInt64{}
 	}
+}
+
+func requestUsageSummaryMetadataFloat64(values map[string]any, key string) sql.NullFloat64 {
+	value, ok := values[key]
+	if !ok {
+		return sql.NullFloat64{}
+	}
+	var parsed float64
+	switch typed := value.(type) {
+	case float64:
+		parsed = typed
+	case json.Number:
+		var err error
+		parsed, err = typed.Float64()
+		if err != nil {
+			return sql.NullFloat64{}
+		}
+	case int64:
+		parsed = float64(typed)
+	case int:
+		parsed = float64(typed)
+	default:
+		return sql.NullFloat64{}
+	}
+	if parsed < 0 {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: parsed, Valid: true}
 }
 
 func requestUsageSummaryMetadataUUID(raw JSON, key string) uuid.NullUUID {
