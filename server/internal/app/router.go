@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/cors"
 
 	"xlyra/server/internal/admin"
+	"xlyra/server/internal/analytics"
 	"xlyra/server/internal/auth"
 	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
@@ -54,6 +55,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	var siteService *site.Service
 	var catalogService *catalog.Service
 	var dashboardService *dashboard.Service
+	var analyticsService *analytics.Service
 	var routerService *routeengine.Service
 	var usageService *usage.Service
 	if db != nil {
@@ -61,6 +63,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 		siteService = site.NewServiceWithTimeZone(db, masterKey, appTimeZone, confFile)
 		catalogService = catalog.NewService(db, confFile)
 		dashboardService = dashboard.NewService(db, appTimeZone)
+		analyticsService = analytics.NewService(db, appTimeZone)
 		routerService = routeengine.NewService(db)
 		usageService = usage.NewService(db, appTimeZone)
 	}
@@ -75,7 +78,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 			gatewayHandler.PrewarmModelsCache(ctx)
 		}()
 	}
-	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db)
+	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db).WithAnalyticsService(analyticsService)
 	healthHandler := health.NewHandler(cfg, db)
 	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, appTimeZone)
 
@@ -149,6 +152,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 				protected.Get("/dashboard/insights", adminHandler.DashboardInsights)
 				protected.Get("/dashboard/epaper-summary", adminHandler.DashboardEpaperSummary)
 				protected.Get("/dashboard/resources/stream", adminHandler.DashboardResourceStream)
+				protected.Get("/analytics/usage", adminHandler.AnalyticsUsage)
 				protected.Get("/traffic-flow/topology", adminHandler.TrafficFlowTopology)
 				protected.Get("/traffic-flow/stream", adminHandler.TrafficFlowStream)
 				protected.Get("/settings/site-groups", adminHandler.ListSiteGroups)

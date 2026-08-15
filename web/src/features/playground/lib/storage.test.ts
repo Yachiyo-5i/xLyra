@@ -39,6 +39,30 @@ describe('loadSettings', () => {
     expect(loadSettings().reasoningEffort).toBe('max')
   })
 
+  it('migrates the old low reasoning effort to light', () => {
+    values.set('xlyra-playground-settings', JSON.stringify({ reasoningEffort: 'low' }))
+
+    expect(loadSettings().reasoningEffort).toBe('light')
+  })
+
+  it('keeps ultra reasoning effort from stored settings', () => {
+    values.set('xlyra-playground-settings', JSON.stringify({
+      chatModel: 'gpt-5.6-terra',
+      reasoningEffort: 'ultra',
+    }))
+
+    expect(loadSettings().reasoningEffort).toBe('ultra')
+  })
+
+  it('preserves extended reasoning until model metadata is available', () => {
+    values.set('xlyra-playground-settings', JSON.stringify({
+      chatModel: 'gpt-5.5',
+      reasoningEffort: 'ultra',
+    }))
+
+    expect(loadSettings().reasoningEffort).toBe('ultra')
+  })
+
   it('persists the selected downstream key', () => {
     saveSettings({
       apiKeyId: 'key-2',

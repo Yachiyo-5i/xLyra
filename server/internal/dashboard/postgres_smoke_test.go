@@ -118,23 +118,11 @@ func assertDashboardUsageStable(t *testing.T, usage UsageOverview) {
 	if usage.Meta.Days != overviewDays || usage.Meta.Timezone == "" || usage.Meta.GeneratedAt == "" || usage.Meta.TodayStart == "" || usage.Meta.RangeStart == "" || usage.Meta.RangeEnd == "" {
 		t.Fatalf("usage meta is incomplete: %#v", usage.Meta)
 	}
-	if len(usage.Meta.AvailableDays) != len(overviewWindowDays) {
-		t.Fatalf("available days = %#v, want %d entries", usage.Meta.AvailableDays, len(overviewWindowDays))
-	}
 	if usage.KPIs.Cost.Today < 0 || usage.KPIs.Cost.Yesterday < 0 || usage.KPIs.Cost.Total < 0 {
 		t.Fatalf("cost KPIs should be non-negative: %#v", usage.KPIs.Cost)
 	}
 	if usage.KPIs.Requests.Today < 0 || usage.KPIs.Requests.Yesterday < 0 || usage.KPIs.Requests.Total < 0 || usage.KPIs.Requests.TotalTokens < 0 {
 		t.Fatalf("request KPIs should be non-negative: %#v", usage.KPIs.Requests)
-	}
-	assertDashboardSiteCostSummaryStable(t, usage.Charts.SiteCostSummary)
-	for key, window := range usage.Windows {
-		if window.Days <= 0 || window.RangeStart == "" || window.RangeEnd == "" {
-			t.Fatalf("overview window %q is incomplete: %#v", key, window)
-		}
-		assertDashboardSiteCostSummaryStable(t, window.SiteCostSummary)
-		assertDashboardFailureReasonsStable(t, window.FailureReasons)
-		assertDashboardHighLatencyStable(t, window.HighLatency)
 	}
 }
 

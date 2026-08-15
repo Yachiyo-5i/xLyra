@@ -33,6 +33,19 @@ func TestChatCompletionsEndpointAdapterRejectsInvalidJSONAndMissingModel(t *test
 	adapter := chatCompletionsEndpointAdapter{}
 	assertEndpointDecodeFailure(t, "invalid JSON", adapter, `{`, "invalid_json", "decode")
 	assertEndpointDecodeFailure(t, "missing model", adapter, `{"messages":[]}`, "invalid_model", "validate")
+	assertEndpointDecodeFailure(t, "invalid reasoning effort", adapter, `{"model":"gpt-5.6","messages":[],"reasoning_effort":"low"}`, "invalid_reasoning_effort", "validate")
+}
+
+func TestChatCompletionsEndpointAdapterNormalizesClientOptions(t *testing.T) {
+	t.Parallel()
+
+	request := requireDecodedEndpointRequest(t, chatCompletionsEndpointAdapter{}, `{"model":"gpt-5.6","messages":[],"reasoning_effort":" ULTRA ","service_tier":" STANDARD "}`, gatewayEndpointChatCompletions, "gpt-5.6")
+	if request.Payload["reasoning_effort"] != "ultra" || request.Payload["service_tier"] != "standard" {
+		t.Fatalf("normalized payload = %#v", request.Payload)
+	}
+	if request.Canonical == nil || request.Canonical.Params["reasoning_effort"] != "ultra" || request.Canonical.Params["service_tier"] != "standard" {
+		t.Fatalf("normalized canonical request = %#v", request.Canonical)
+	}
 }
 
 func TestUpstreamClientConfigForRequestDisablesTotalTimeoutForStreaming(t *testing.T) {

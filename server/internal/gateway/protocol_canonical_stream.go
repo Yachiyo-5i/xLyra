@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -155,19 +156,96 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 
 	decoder := source.NewDecoder()
 	encoder := target.NewEncoder(options, w, &capture)
+	deferResponsesPreOutput := from == canonicalProtocolOpenAIResponses || from == canonicalProtocolCodexResponses
+	var preOutputEvents []canonicalStreamEvent
+	preOutputBytes := 0
+	responsesPreOutputCommitted := false
+	flushPreOutput := func() error {
+		for _, event := range preOutputEvents {
+			writeHeaders()
+			if encodeErr := encoder.EncodeEvent(event); encodeErr != nil {
+				if capture.endReason == "" {
+					capture.endReason = "downstream_stream_write_failed"
+				}
+				return encodeErr
+			}
+		}
+		preOutputEvents = nil
+		preOutputBytes = 0
+		return nil
+	}
+	bufferPreOutputEvents := func(events []canonicalStreamEvent, sourceBytes int) error {
+		if len(events) == 0 {
+			return nil
+		}
+		if preOutputBytes+sourceBytes > responsesPreOutputMaxBytes {
+			capture.endReason = "upstream_stream_preoutput_too_large"
+			return errResponsesPreOutputTooLarge
+		}
+		preOutputEvents = append(preOutputEvents, events...)
+		preOutputBytes += sourceBytes
+		capture.preOutputEventsBuffered += len(events)
+		return nil
+	}
+	encodeEvents := func(events []canonicalStreamEvent) error {
+		for _, event := range events {
+			if flushErr := flushPreOutput(); flushErr != nil {
+				return flushErr
+			}
+			writeHeaders()
+			if encodeErr := encoder.EncodeEvent(event); encodeErr != nil {
+				if capture.endReason == "" {
+					capture.endReason = "downstream_stream_write_failed"
+				}
+				return encodeErr
+			}
+		}
+		return nil
+	}
 	reader := bufio.NewReader(resp.Body)
 	for {
 		if err := ctx.Err(); err != nil {
 			capture.endReason = "downstream_client_cancelled"
+			if flushErr := flushPreOutput(); flushErr != nil {
+				return capture, headersWritten, flushErr
+			}
 			return capture, headersWritten, err
 		}
-		line, err := reader.ReadBytes('\n')
+		var line []byte
+		var err error
+		if deferResponsesPreOutput && !headersWritten {
+			line, err = readResponsesPreOutputLine(reader)
+			if errors.Is(err, errResponsesPreOutputTooLarge) {
+				capture.endReason = "upstream_stream_preoutput_too_large"
+				return capture, false, err
+			}
+		} else {
+			line, err = reader.ReadBytes('\n')
+		}
 		if len(line) > 0 {
 			if options.UpstreamLineInspect != nil {
 				options.UpstreamLineInspect(line, &capture)
 			}
+			preOutputDisposition := responsesPreOutputCommit
+			if deferResponsesPreOutput && !headersWritten {
+				disposition, failure := responsesStreamPreOutputDispositionForLine(line)
+				preOutputDisposition = disposition
+				if disposition == responsesPreOutputFail {
+					inspectResponsesStreamLine(line, &capture)
+					if capture.endReason == "" {
+						capture.endReason = "upstream_stream_error"
+						capture.errorDetail = truncatedStreamErrorDetail(string(failure.Body))
+					}
+					capture.preOutputFailureDeferred = true
+					capture.semanticFailure = failure
+					return capture, false, nil
+				}
+			}
 			events, decodeErr := decoder.DecodeLine(line)
 			if decodeErr != nil {
+				if flushErr := flushPreOutput(); flushErr != nil {
+					return capture, headersWritten, flushErr
+				}
 				// Once content is in flight, a single malformed or truncated line
 				// (e.g. a half-line JSON on upstream EOF) must not abort the whole
 				// stream and discard everything already sent. Skip it and let the
@@ -178,15 +256,19 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 					return capture, headersWritten, decodeErr
 				}
 				capture.malformedLines++
+			} else if deferResponsesPreOutput && !headersWritten && !responsesPreOutputCommitted && preOutputDisposition == responsesPreOutputDefer {
+				if bufferErr := bufferPreOutputEvents(events, len(line)); bufferErr != nil {
+					return capture, false, bufferErr
+				}
 			} else {
-				for _, event := range events {
-					writeHeaders()
-					if encodeErr := encoder.EncodeEvent(event); encodeErr != nil {
-						if capture.endReason == "" {
-							capture.endReason = "downstream_stream_write_failed"
-						}
-						return capture, headersWritten, encodeErr
+				if deferResponsesPreOutput && !headersWritten && !responsesPreOutputCommitted && preOutputDisposition == responsesPreOutputCommit {
+					responsesPreOutputCommitted = true
+					if flushErr := flushPreOutput(); flushErr != nil {
+						return capture, headersWritten, flushErr
 					}
+				}
+				if encodeErr := encodeEvents(events); encodeErr != nil {
+					return capture, headersWritten, encodeErr
 				}
 			}
 		}
@@ -195,15 +277,12 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 		}
 		if err == io.EOF {
 			if flusher, ok := decoder.(canonicalStreamDecoderFlusher); ok {
-				for _, event := range flusher.Flush() {
-					writeHeaders()
-					if encodeErr := encoder.EncodeEvent(event); encodeErr != nil {
-						if capture.endReason == "" {
-							capture.endReason = "downstream_stream_write_failed"
-						}
-						return capture, headersWritten, encodeErr
-					}
+				if encodeErr := encodeEvents(flusher.Flush()); encodeErr != nil {
+					return capture, headersWritten, encodeErr
 				}
+			}
+			if flushErr := flushPreOutput(); flushErr != nil {
+				return capture, headersWritten, flushErr
 			}
 			if headersWritten && !capture.streamCompleted && !capture.sawDone && capture.endReason == "" {
 				if shouldSynthesizeEOFCompletion(from) {
@@ -237,6 +316,9 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 		}
 		if capture.endReason == "" {
 			capture.endReason = "upstream_stream_read_failed"
+		}
+		if flushErr := flushPreOutput(); flushErr != nil {
+			return capture, headersWritten, flushErr
 		}
 		return capture, headersWritten, err
 	}

@@ -8,6 +8,7 @@ import type { RequestLogItem } from '@/features/requests/api/requests'
 import { RequestDetailContent } from '@/features/requests/components/request-detail-row'
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
 import { RequestTiming } from '@/features/requests/components/request-timing'
+import { requestFailoverBadgeClassName } from '@/features/requests/lib/request-badge-styles'
 import {
   formatCurrency,
   formatDateTime,
@@ -16,6 +17,7 @@ import {
   requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
+  requestHasFailover,
   requestResponseModeLabel,
   requestResponseModeVariant,
 } from '@/features/requests/lib/request-utils'
@@ -77,7 +79,15 @@ export function RequestsMobileList({
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
+                    {requestHasFailover(item) ? (
+                      <Badge
+                        variant="neutral"
+                        className={cn(requestFailoverBadgeClassName, 'px-2.5 py-1 text-xs tracking-normal')}
+                      >
+                        {t('table.failover')}
+                      </Badge>
+                    ) : null}
                     <StatusBadge status={item.success ? 'healthy' : 'error'}>
                       {item.success ? t('table.success') : t('table.failure')}
                     </StatusBadge>

@@ -40,6 +40,7 @@ export type Conversation = {
 
 export type GatewayModel = {
   id: string
+  mappedModel?: string
   displayName: string
   category: string
   ownedBy?: string
@@ -48,7 +49,7 @@ export type GatewayModel = {
 
 export type ChatProtocol = 'chat' | 'responses' | 'messages'
 
-export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+export type ReasoningEffort = 'light' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
 
 export type ImageResultItem = {
   id: string

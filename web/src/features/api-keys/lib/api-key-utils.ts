@@ -2,7 +2,7 @@ import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { getProviderCatalogEntry } from '@/lib/brands'
 import { localeFromLanguage } from '@/lib/locale'
 import { revealDownstreamAPIKey, type APIKeyUpsertInput, type DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
-import type { CanonicalModelItem } from '@/features/sites/api/sites'
+import type { CanonicalModelItem, SiteModel } from '@/features/sites/api/sites'
 import type { APIKeyFormValues, TimeDisplayMode } from '@/features/api-keys/lib/types'
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string
@@ -97,6 +97,30 @@ export function sortAPIKeysForDisplay(apiKeys: DownstreamAPIKey[]) {
 
     return a.id.localeCompare(b.id)
   })
+}
+
+export function buildMappingModelKeys(
+  canonicalModels: CanonicalModelItem[],
+  siteModels: SiteModel[],
+  selectedSiteModelIds: string[],
+  currentTargets: string[],
+) {
+  const canonicalById = new Map(canonicalModels.map((model) => [model.id, model.model_key]))
+  const selected = new Set(selectedSiteModelIds)
+  const keys = new Set<string>()
+
+  for (const model of siteModels) {
+    if (selected.size > 0 && !selected.has(model.id)) continue
+    if (!model.canonical_model_id) continue
+    const key = canonicalById.get(model.canonical_model_id)
+    if (key) keys.add(key)
+  }
+
+  const available = [...keys].sort()
+  const retained = [...new Set(currentTargets.map((target) => target.trim()).filter(Boolean))]
+    .filter((target) => !keys.has(target))
+    .sort()
+  return [...retained, ...available]
 }
 
 function enabledModelKeys(apiKey: DownstreamAPIKey | null) {

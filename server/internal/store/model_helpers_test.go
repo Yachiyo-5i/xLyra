@@ -270,6 +270,23 @@ func TestGormSchemaMetadataForStoreModels(t *testing.T) {
 	}
 }
 
+func TestRequestLogSchemaIncludesParentRequestIndex(t *testing.T) {
+	t.Parallel()
+
+	requestLogSchema := parseStoreSchema(t, &RequestLog{})
+	field := requestLogSchema.LookUpField("ParentRequestID")
+	if field == nil || field.DBName != "parent_request_id" {
+		t.Fatalf("request log parent request field = %#v", field)
+	}
+	index := requestLogSchema.LookIndex("request_logs_parent_request_id_idx")
+	if index == nil || len(index.Fields) != 1 {
+		t.Fatalf("request log parent request index = %#v, want one field", index)
+	}
+	if index.Fields[0].Field == nil || index.Fields[0].Field.DBName != "parent_request_id" || index.Fields[0].Expression != "" {
+		t.Fatalf("request log parent request index field = %#v", index.Fields[0])
+	}
+}
+
 func parseStoreSchema(t *testing.T, model any) *schema.Schema {
 	t.Helper()
 

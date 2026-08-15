@@ -2,7 +2,9 @@ package backup
 
 import (
 	"archive/zip"
+	"bytes"
 	"compress/flate"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +12,10 @@ import (
 	"time"
 )
 
-const backupPayload = "zip-jsonl"
+const (
+	backupPayload        = "zip-jsonl"
+	archiveRowCountsFile = "row_counts.json"
+)
 
 type manifest struct {
 	FormatVersion int       `json:"format_version"`
@@ -25,7 +30,7 @@ type archivePayload struct {
 	Config   map[string]any
 }
 
-func writeArchive(payload archivePayload, writeDatabase func(*zip.Writer) error, dst io.Writer) error {
+func writeArchive(payload archivePayload, writeDatabase func(*zip.Writer) (map[string]int, error), dst io.Writer) error {
 	zw := zip.NewWriter(dst)
 	zw.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
 		return flate.NewWriter(out, flate.BestSpeed)
@@ -37,7 +42,12 @@ func writeArchive(payload archivePayload, writeDatabase func(*zip.Writer) error,
 	if err := writeArchiveJSONFile(zw, "config.json", payload.Config); err != nil {
 		return err
 	}
-	if err := writeDatabase(zw); err != nil {
+	rowCounts, err := writeDatabase(zw)
+	if err != nil {
+		_ = zw.Close()
+		return err
+	}
+	if err := writeArchiveJSONFile(zw, archiveRowCountsFile, rowCounts); err != nil {
 		_ = zw.Close()
 		return err
 	}
@@ -48,6 +58,10 @@ func writeArchive(payload archivePayload, writeDatabase func(*zip.Writer) error,
 }
 
 func parseArchive(filename string) (archivePayload, databaseDump, error) {
+	return parseArchiveContext(context.Background(), filename)
+}
+
+func parseArchiveContext(ctx context.Context, filename string) (archivePayload, databaseDump, error) {
 	zr, err := zip.OpenReader(filename)
 	if err != nil {
 		return archivePayload{}, databaseDump{}, fmt.Errorf("open backup archive: %w", err)
@@ -78,7 +92,84 @@ func parseArchive(filename string) (archivePayload, databaseDump, error) {
 		}
 		dump.Tables[table.Name] = rows
 	}
+	totalRows, err := archiveTotalRows(ctx, zr.File, dump.Tables)
+	if err != nil {
+		return archivePayload{}, databaseDump{}, err
+	}
+	dump.TotalRows = totalRows
 	return payload, dump, nil
+}
+
+func archiveTotalRows(ctx context.Context, files []*zip.File, loaded map[string][]map[string]any) (int, error) {
+	if archiveFile(files, archiveRowCountsFile) != nil {
+		rowCounts := map[string]int{}
+		if err := decodeArchiveJSON(files, archiveRowCountsFile, &rowCounts); err != nil {
+			return 0, err
+		}
+		total := 0
+		for _, table := range backupTables {
+			rows, ok := rowCounts[table.Name]
+			if !ok || rows < 0 {
+				return 0, fmt.Errorf("invalid row count for %s", table.Name)
+			}
+			total += rows
+		}
+		return total, nil
+	}
+	total := 0
+	for _, table := range backupTables {
+		if _, streamed := streamedImportTables[table.Name]; !streamed {
+			total += len(loaded[table.Name])
+			continue
+		}
+		name := path.Join("database", table.Name+".jsonl")
+		file := archiveFile(files, name)
+		rows, err := countArchiveRowsContext(ctx, file)
+		if err != nil {
+			return 0, fmt.Errorf("count %s: %w", name, err)
+		}
+		total += rows
+	}
+	return total, nil
+}
+
+func countArchiveRows(file *zip.File) (int, error) {
+	return countArchiveRowsContext(context.Background(), file)
+}
+
+func countArchiveRowsContext(ctx context.Context, file *zip.File) (int, error) {
+	reader, err := file.Open()
+	if err != nil {
+		return 0, err
+	}
+	defer reader.Close()
+
+	buffer := make([]byte, 128<<10)
+	newline := []byte{'\n'}
+	rows := 0
+	readAny := false
+	last := byte('\n')
+	for {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		n, readErr := reader.Read(buffer)
+		if n > 0 {
+			readAny = true
+			last = buffer[n-1]
+			rows += bytes.Count(buffer[:n], newline)
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return 0, readErr
+		}
+	}
+	if readAny && last != '\n' {
+		rows++
+	}
+	return rows, nil
 }
 
 func writeArchiveJSONFile(zw *zip.Writer, name string, value any) error {

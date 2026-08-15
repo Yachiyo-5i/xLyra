@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site } from '@/features/sites/api/sites'
-import { formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails } from '@/features/sites/lib/site-utils'
+import { formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails, sortSitesForDisplay } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -31,6 +31,18 @@ describe('isSiteAbnormal', () => {
 
   it('marks a confirmed invalid API key as abnormal', () => {
     expect(isSiteAbnormal(siteWithSyncState('credential_invalid'))).toBe(true)
+  })
+})
+
+describe('sortSitesForDisplay', () => {
+  it('sorts enabled sites by routing priority and keeps disabled sites last', () => {
+    const sites = [
+      { ...siteWithSyncState('unknown'), id: 'low', name: 'Low', slug: 'low', routing_priority: 1 },
+      { ...siteWithSyncState('unknown'), id: 'disabled', name: 'Disabled', slug: 'disabled', routing_priority: 100, enabled: false },
+      { ...siteWithSyncState('unknown'), id: 'high', name: 'High', slug: 'high', routing_priority: 10 },
+    ]
+
+    expect(sortSitesForDisplay(sites).map((site) => site.id)).toEqual(['high', 'low', 'disabled'])
   })
 })
 

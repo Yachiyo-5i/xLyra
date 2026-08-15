@@ -41,9 +41,9 @@ func TestWriteArchiveRejectsUnencodableConfig(t *testing.T) {
 		Config: map[string]any{"bad": func() {}},
 	}
 
-	err := writeArchive(payload, func(*zip.Writer) error {
+	err := writeArchive(payload, func(*zip.Writer) (map[string]int, error) {
 		calledDatabaseWriter = true
-		return nil
+		return nil, nil
 	}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "encode config.json") {
 		t.Fatalf("writeArchive error = %v, want config encode context", err)

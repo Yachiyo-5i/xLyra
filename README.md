@@ -1,14 +1,20 @@
-# xLyra
-
-> A unified control plane and gateway for multiple upstream AI providers, relay stations, and OAuth-backed accounts.
-
-English · [简体中文](./README_zh.md)
-
-![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Backend](https://img.shields.io/badge/backend-Go%201.26+-00ADD8.svg)
-![Frontend](https://img.shields.io/badge/frontend-React%2019-61DAFB.svg)
-![Database](https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg)
-[![Docker Pulls](https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg)](https://hub.docker.com/r/yachiiiiyo/xlyra)
+<div align="center">
+  <img src="./web/public/logo.png" alt="xLyra Logo" width="180" />
+  <h1>xLyra</h1>
+  <p>A unified control plane and gateway for multiple upstream AI providers, relay stations, and OAuth-backed accounts.</p>
+  <p>
+    <a href="https://xlyra.yachiyo.im">Product Website</a> ·
+    <a href="#quick-start">Quick Start</a> ·
+    <a href="./README_zh.md">简体中文</a>
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License" />
+    <img src="https://img.shields.io/badge/backend-Go%201.26.5+-00ADD8.svg" alt="Backend" />
+    <img src="https://img.shields.io/badge/frontend-React%2019-61DAFB.svg" alt="Frontend" />
+    <img src="https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg" alt="Database" />
+    <a href="https://hub.docker.com/r/yachiiiiyo/xlyra"><img src="https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg" alt="Docker Pulls" /></a>
+  </p>
+</div>
 
 xLyra brings scattered relay stations, official model APIs, OAuth accounts, and compatible endpoints into one console, then exposes a unified OpenAI-style API gateway to downstream applications. It is not a single-site reverse proxy; it is a multi-site orchestration layer for onboarding, syncing, authorization, routing, failover, usage records, and cost estimation.
 
@@ -45,7 +51,7 @@ postgres  # PostgreSQL database
 
 ## Gateway Endpoints
 
-All gateway endpoints are under `/v1` and require a downstream API key via `Authorization: Bearer <key>`.
+The inference endpoints below are under `/v1` and require a downstream API key via `Authorization: Bearer <key>`.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -65,18 +71,18 @@ xLyra translates between downstream and upstream protocol formats transparently.
 
 | Downstream → | Upstream targets |
 | --- | --- |
-| Chat Completions | Chat / Responses / Anthropic Messages / Antigravity |
-| Responses | Responses / Chat / Anthropic Messages / Antigravity |
-| Messages | Anthropic Messages / Responses / Codex / Chat / Antigravity |
-| Images generations | OpenAI Images / Codex image generation tool / Antigravity image generation |
-| Images edits | OpenAI multipart / Codex multipart |
+| Chat Completions | OpenAI Chat / Responses / Anthropic Messages / Google Gemini / Antigravity / Grok |
+| Responses | Responses / OpenAI Chat / Anthropic Messages / Google Gemini / Antigravity / Grok |
+| Messages | Anthropic Messages / Responses / OpenAI Chat / Google Gemini / Antigravity / Codex / Grok |
+| Images generations | OpenAI Images / Codex image generation tool / Google Gemini / Antigravity / Grok |
+| Images edits | OpenAI multipart / Codex multipart / Grok |
 | Embeddings | OpenAI-compatible embeddings |
 | Audio speech | OpenAI TTS |
 
 Additional gateway behaviors:
 
 - **Image generation bridge**: when an upstream cannot natively execute `image_generation` tool calls inside Responses, the gateway intercepts and executes the image request itself, then injects the result back into the stream.
-- **Long-context tiered pricing**: OpenAI models with inputs over 272K tokens are billed at the official higher-rate tier automatically.
+- **Long-context tiered pricing**: supported GPT-5.4, GPT-5.5, and GPT-5.6 base-series models automatically use the higher-rate tier above 272K input tokens; Codex, mini, nano, image, audio, and realtime variants are excluded.
 - **Model mapping**: downstream API keys can define hard or soft (wildcard fallback) model name mappings. Soft mappings apply only when no direct route is found.
 - **SSE keepalive**: streaming responses emit periodic SSE comments to keep long-running connections alive through intermediate proxies.
 
@@ -102,7 +108,7 @@ Transient model cooldowns (gateway-source, recoverable failures) use a half-open
 | 429 with Retry-After | Follows Retry-After (5 s – 2 min clamp) | Defaults to 30 s without header |
 | Upstream stream failure | Cooldown after 3 consecutive stream failures | Mirrors no-response streak gate |
 
-Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a cooldown. The gateway also supports per-model RPM limits with in-memory queuing and upstream 429 wait-and-retry.
+Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a cooldown. The gateway supports global and downstream API-key RPM/TPM limits with an in-memory wait queue. Eligible upstream 429 responses with Retry-After can be retried after waiting, while upstream concurrency can be limited per site, model, or credential.
 
 ## Supported Site Types
 
@@ -113,7 +119,7 @@ Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a
 | Grok | OAuth CLI channel, multi-account management, image generation, tier-based model availability |
 | OpenCode Go | Subscription plan models and quota-based routing |
 | DeepSeek / Minimax / Moonshot / Kimi Code / Xiaomi MiMo / Google Gemini | Credential, model sync, or compatible protocol forwarding depending on site type |
-| GLM (Zhipu) | Credential validation, model sync, and compatible protocol forwarding |
+| GLM / GLM Code (Zhipu) | General API and Coding Plan credential validation, model sync, and compatible protocol forwarding |
 | xLyra | Cascade relay: model sync with ETag caching, downstream API key list and summary, admin user summary |
 | NewAPI | Site detection, user summary, API key list, key summary, check-in, model sync, and price sync |
 | Codex | OAuth, ChatGPT account quota, model sync, Responses protocol, and image generation tool conversion |
@@ -126,8 +132,10 @@ Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a
 
 - Create, edit, enable, disable, delete, validate, and refresh upstream sites
 - Per-site API key management: add, update, rotate, and per-key refresh with error isolation
-- Codex / Antigravity / Grok / Claude Code OAuth authorization, refresh, import, model sync, and quota sync
-- OAuth reset-credit management and redemption
+- Codex / Antigravity / Claude Code OAuth authorization and refresh, plus provider-supported model and quota sync
+- Grok OAuth device login, multi-account management, model permissions, and quota refresh
+- Codex / Antigravity OAuth account import
+- Codex reset-credit lookup and redemption
 - Site upstream balance probing: balance and usage displayed per-credential
 
 ### Models and Pricing
@@ -143,7 +151,7 @@ Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a
 - Key management, quotas, expiration, model permissions, site permissions, and site group authorization
 - Model name mapping rules (hard and soft / wildcard)
 - Daily and weekly quota periods with automatic reset
-- Per-key usage portal page (public, no authentication required)
+- Public per-key usage portal page (no admin login required; the corresponding downstream API key is required to access usage data)
 
 ### Routing and Health
 
@@ -175,13 +183,13 @@ Prerequisites:
 Start:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 Default console:
 
 ```text
-http://localhost:5800
+http://localhost:5801
 ```
 
 Create the first admin account on the initial console visit. Later logins use server-side session cookies.
@@ -192,11 +200,7 @@ Stop:
 docker compose down
 ```
 
-Remove persisted data:
-
-```bash
-docker compose down -v
-```
+`docker compose down -v` does not remove this project's bind-mounted `./postgres` and `./data` directories. To clear persisted data, stop the services first, then back up and explicitly remove those directories yourself. The `./data/conf/master.key` file is required to decrypt stored credentials.
 
 Before public or shared deployment, at minimum change the default PostgreSQL password in `docker-compose.yml`, then configure HTTPS, reverse proxy, allowed CORS origins, and IP allowlists. The application encryption key is generated automatically on first startup and persisted at `./data/conf/master.key`.
 
@@ -221,40 +225,38 @@ Common environment variables:
 
 ## Local Development
 
-Backend:
+Local development requires Go 1.26.5, Node.js 24, and a running PostgreSQL 17 instance. The example below connects to `127.0.0.1:5432` with database `xlyra`, user `postgres`, and password `postgres`; environment variables can override these values.
 
-```bash
-cd server
-go run ./cmd/server
-```
-
-Frontend:
+Install frontend dependencies:
 
 ```bash
 cd web
-pnpm install
-pnpm dev
+npm ci
 ```
 
-Common commands:
+Start the backend. You must first set `POSTGRES_DSN` or provide `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`:
 
 ```bash
-make web-install
-make web-dev
-make web-build
-make server-run
-make server-build
-make docker-up
-make docker-down
+cd server
+DB_HOST=127.0.0.1 DB_NAME=xlyra DB_USER=postgres DB_PASSWORD=postgres go run ./cmd/server
 ```
+
+Start the frontend in another terminal:
+
+```bash
+cd web
+npm run dev
+```
+
+The frontend defaults to `http://localhost:5173`, and the backend defaults to `http://localhost:5801`.
 
 Verification:
 
 ```bash
 cd web
-pnpm lint
-pnpm typecheck
-pnpm build
+npm run typecheck
+npm run lint
+npm run build
 ```
 
 ```bash
@@ -269,7 +271,7 @@ go build ./cmd/server
 | --- | --- |
 | Backend | Go, net/http, chi, GORM, PostgreSQL, goose, robfig/cron, slog |
 | Frontend | TypeScript, React, Vite, React Router, Tailwind CSS, TanStack Query, TanStack Table, Zustand, Recharts, i18next |
-| Deployment | Docker, Docker Compose, nginx |
+| Deployment | Docker, Docker Compose, built-in Go HTTP server |
 
 ## License
 

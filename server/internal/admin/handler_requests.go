@@ -214,7 +214,17 @@ func (h Handler) GetRequestLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeResource(w, http.StatusOK, "request", requestLogPayload(item, true))
+	payload := requestLogPayload(item, true)
+	if parentRequestID := requestLogParentRequestID(item); parentRequestID != "" {
+		attempts, err := h.usage.ListRequestAttempts(r.Context(), parentRequestID)
+		if err != nil {
+			h.logWarn("failed to load request failover trace", "request_log_id", item.ID, "parent_request_id", parentRequestID, "error", err)
+		} else if trace := requestLogFailoverTracePayload(attempts); trace != nil {
+			payload["failover_trace"] = trace
+		}
+	}
+
+	h.writeResource(w, http.StatusOK, "request", payload)
 }
 
 func (h Handler) requestLogFilters(w http.ResponseWriter, r *http.Request) (usage.RequestQuery, bool) {
@@ -276,63 +286,57 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 	credentialAttempt := intFromAny(metadata["credential_attempt"])
 	credential := requestLogCredentialProjection(metadata)
 	payload := map[string]any{
-		"id":                    item.ID.String(),
-		"request_id":            item.RequestID,
-		"parent_request_id":     metadataString(metadata, "parent_request_id"),
-		"scope":                 metadataString(metadata, "scope"),
-		"is_test":               metadata["test"] == true,
-		"stream":                metadata["stream"],
-		"response_mode":         metadata["response_mode"],
-		"stream_started":        metadata["stream_started"],
-		"stream_completed":      metadata["stream_completed"],
-		"stream_received_done":  metadata["stream_received_done"],
-		"stream_incomplete":     metadata["stream_incomplete"],
-		"stream_end_reason":     metadata["stream_end_reason"],
-		"stream_failure_scope":  metadata["stream_failure_scope"],
-		"protocol_conversion":   metadata["protocol_conversion"],
-		"stage":                 metadataString(metadata, "stage"),
-		"requested_model":       metadataString(metadata, "requested_model"),
-		"original_model":        metadataString(metadata, "original_model"),
-		"mapped_model":          metadataString(metadata, "mapped_model"),
-		"mapping_mode":          metadataString(metadata, "mapping_mode"),
-		"attempt":               attempt,
-		"credential_attempt":    credentialAttempt,
-		"credential_total":      intFromAny(metadata["credential_total"]),
-		"failover":              attempt > 1 || credentialAttempt > 1,
-		"endpoint":              item.Endpoint,
-		"downstream_path":       valueOrFallback(metadata["downstream_path"], item.Endpoint),
-		"upstream_path":         metadata["upstream_path"],
-		"upstream_url":          metadata["upstream_url"],
-		"status_code":           item.StatusCode,
-		"upstream_status_code":  metadata["upstream_status_code"],
-		"success":               item.Success,
-		"error_type":            nullStringValue(item.ErrorType),
-		"latency_ms":            nullInt64Value(item.LatencyMS),
-		"first_byte_latency_ms": requestMetadataInt64(metadata, "first_byte_latency"),
-		"reasoning_effort":      metadataString(metadata, "reasoning_effort"),
-		"upstream_latency_ms":   nullInt64Value(item.UpstreamLatencyMS),
-		"request_tokens":        nullInt64Value(item.RequestTokens),
-		"response_tokens":       nullInt64Value(item.ResponseTokens),
-		"pricing_group":         metadata["pricing_group"],
+		"id":                          item.ID.String(),
+		"request_id":                  item.RequestID,
+		"parent_request_id":           emptyStringAsNil(requestLogParentRequestID(item)),
+		"scope":                       metadataString(metadata, "scope"),
+		"is_test":                     metadata["test"] == true,
+		"stream":                      metadata["stream"],
+		"response_mode":               metadata["response_mode"],
+		"stream_started":              requestMetadataBool(metadata, "stream_started"),
+		"stream_completed":            requestMetadataBool(metadata, "stream_completed"),
+		"stream_received_done":        requestMetadataBool(metadata, "stream_received_done"),
+		"stream_incomplete":           requestMetadataBool(metadata, "stream_incomplete"),
+		"stream_end_reason":           metadataString(metadata, "stream_end_reason"),
+		"stream_failure_scope":        metadata["stream_failure_scope"],
+		"pre_output_events_buffered":  requestMetadataInt64(metadata, "pre_output_events_buffered"),
+		"pre_output_failure_deferred": requestMetadataBool(metadata, "pre_output_failure_deferred"),
+		"protocol_conversion":         metadata["protocol_conversion"],
+		"stage":                       metadataString(metadata, "stage"),
+		"requested_model":             metadataString(metadata, "requested_model"),
+		"original_model":              metadataString(metadata, "original_model"),
+		"mapped_model":                metadataString(metadata, "mapped_model"),
+		"mapping_mode":                metadataString(metadata, "mapping_mode"),
+		"attempt":                     attempt,
+		"credential_attempt":          credentialAttempt,
+		"credential_total":            intFromAny(metadata["credential_total"]),
+		"failover":                    attempt > 1 || credentialAttempt > 1,
+		"next_credential_available":   requestMetadataBool(metadata, "next_credential_available"),
+		"should_try_next_credential":  requestMetadataBool(metadata, "should_try_next_credential"),
+		"failover_action":             metadataString(metadata, "failover_action"),
+		"endpoint":                    item.Endpoint,
+		"downstream_path":             valueOrFallback(metadata["downstream_path"], item.Endpoint),
+		"upstream_path":               metadata["upstream_path"],
+		"upstream_url":                metadata["upstream_url"],
+		"status_code":                 item.StatusCode,
+		"upstream_status_code":        metadata["upstream_status_code"],
+		"success":                     item.Success,
+		"error_type":                  nullStringValue(item.ErrorType),
+		"latency_ms":                  nullInt64Value(item.LatencyMS),
+		"first_byte_latency_ms":       requestMetadataInt64(metadata, "first_byte_latency"),
+		"reasoning_effort":            metadataString(metadata, "reasoning_effort"),
+		"upstream_latency_ms":         nullInt64Value(item.UpstreamLatencyMS),
+		"request_tokens":              nullInt64Value(item.RequestTokens),
+		"response_tokens":             nullInt64Value(item.ResponseTokens),
+		"pricing_group":               metadata["pricing_group"],
 		"api_key": map[string]any{
 			"id":         nullUUIDValue(item.APIKeyID),
 			"name":       nullStringValue(item.APIKeyName),
 			"masked_key": nullStringValue(item.APIKeyMaskedKey),
 		},
 		"credential": credential,
-		"site": map[string]any{
-			"id":        valueOrFallback(metadata["site_id"], nullUUIDValue(item.SiteID)),
-			"name":      valueOrFallback(metadata["site_name"], nullStringValue(item.SiteName)),
-			"slug":      valueOrFallback(metadata["site_slug"], nullStringValue(item.SiteSlug)),
-			"site_type": valueOrFallback(metadata["site_type"], nullStringValue(item.SiteType)),
-		},
-		"model": map[string]any{
-			"canonical_model_id": nullUUIDValue(item.CanonicalModelID),
-			"canonical_model":    nullStringValue(item.CanonicalModelKey),
-			"site_model_id":      valueOrFallback(metadata["site_model_id"], nullUUIDValue(item.SiteModelID)),
-			"upstream_model":     valueOrFallback(metadata["upstream_model"], nullStringValue(item.SiteModelUpstreamName)),
-			"display_name":       valueOrFallback(metadata["site_model_display_name"], nullStringValue(item.SiteModelDisplayName)),
-		},
+		"site":       requestLogSiteProjection(item, metadata),
+		"model":      requestLogModelProjection(item, metadata),
 		"usage": map[string]any{
 			"prompt_tokens":     nullInt64Value(item.UsagePromptTokens),
 			"completion_tokens": nullInt64Value(item.UsageCompletionTokens),
@@ -354,6 +358,147 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 	}
 
 	return payload
+}
+
+func requestLogParentRequestID(item store.RequestLogDetail) string {
+	if value := strings.TrimSpace(item.ParentRequestID.String); item.ParentRequestID.Valid && value != "" {
+		return value
+	}
+	value, _ := metadataString(requestLogMetadata(item.Metadata), "parent_request_id").(string)
+	return strings.TrimSpace(value)
+}
+
+type requestLogFailoverChannel struct {
+	key  string
+	item store.RequestLogDetail
+}
+
+func requestLogFailoverTracePayload(attempts []store.RequestLogDetail) map[string]any {
+	channels := requestLogFailoverChannels(attempts)
+	credentialAttempts := requestLogCredentialAttemptsPayload(attempts)
+	if len(channels) == 0 || (len(channels) == 1 && len(credentialAttempts) <= 1) {
+		return nil
+	}
+
+	defaultChannel := requestLogFailoverChannelPayload(channels[0].item)
+	if defaultChannel == nil {
+		return nil
+	}
+	intermediateChannels := make([]map[string]any, 0, max(len(channels)-2, 0))
+	for _, channel := range channels[1:max(len(channels)-1, 1)] {
+		if payload := requestLogFailoverChannelPayload(channel.item); payload != nil {
+			intermediateChannels = append(intermediateChannels, payload)
+		}
+	}
+
+	finalChannel := requestLogFailoverChannelPayload(channels[len(channels)-1].item)
+	if finalChannel == nil {
+		return nil
+	}
+	trace := map[string]any{
+		"default_channel":       defaultChannel,
+		"intermediate_channels": intermediateChannels,
+		"final_channel":         finalChannel,
+	}
+	if len(credentialAttempts) > 0 {
+		trace["credential_attempts"] = credentialAttempts
+	}
+	return trace
+}
+
+func requestLogFailoverChannels(attempts []store.RequestLogDetail) []requestLogFailoverChannel {
+	channels := make([]requestLogFailoverChannel, 0, len(attempts))
+	for _, item := range attempts {
+		if requestLogFailoverChannelPayload(item) == nil {
+			continue
+		}
+		key := requestLogFailoverChannelKey(item)
+		if len(channels) > 0 && channels[len(channels)-1].key == key {
+			channels[len(channels)-1].item = item
+			continue
+		}
+		channels = append(channels, requestLogFailoverChannel{key: key, item: item})
+	}
+	return channels
+}
+
+func requestLogFailoverChannelKey(item store.RequestLogDetail) string {
+	metadata := requestLogMetadata(item.Metadata)
+	if siteModelID, ok := metadataString(metadata, "site_model_id").(string); ok {
+		return "site_model:" + siteModelID
+	}
+	if siteID, ok := metadataString(metadata, "site_id").(string); ok {
+		return "site:" + siteID
+	}
+	site := requestLogSiteProjection(item, metadata)
+	siteName, _ := site["name"].(string)
+	upstreamModel, _ := requestLogModelProjection(item, metadata)["upstream_model"].(string)
+	return strings.TrimSpace(siteName) + "\x00" + strings.TrimSpace(upstreamModel)
+}
+
+func requestLogFailoverChannelPayload(item store.RequestLogDetail) map[string]any {
+	metadata := requestLogMetadata(item.Metadata)
+	site := requestLogSiteProjection(item, metadata)
+	if site["id"] == nil && site["name"] == nil {
+		return nil
+	}
+	return map[string]any{
+		"success":              item.Success,
+		"site":                 site,
+		"error_type":           valueOrFallback(nullStringValue(item.ErrorType), metadataString(metadata, "error_type")),
+		"status_code":          requestLogStatusCode(item.StatusCode),
+		"upstream_status_code": requestLogStatusCode(intFromAny(metadata["upstream_status_code"])),
+	}
+}
+
+func requestLogCredentialAttemptsPayload(attempts []store.RequestLogDetail) []map[string]any {
+	result := make([]map[string]any, 0, len(attempts))
+	for _, item := range attempts {
+		metadata := requestLogMetadata(item.Metadata)
+		credentialAttempt := intFromAny(metadata["credential_attempt"])
+		credential := requestLogCredentialProjection(metadata)
+		if credentialAttempt <= 0 && credential == nil {
+			continue
+		}
+		payload := map[string]any{
+			"success":              item.Success,
+			"site":                 requestLogSiteProjection(item, metadata),
+			"credential":           credential,
+			"credential_attempt":   credentialAttempt,
+			"credential_total":     intFromAny(metadata["credential_total"]),
+			"error_type":           valueOrFallback(nullStringValue(item.ErrorType), metadataString(metadata, "error_type")),
+			"status_code":          requestLogStatusCode(item.StatusCode),
+			"upstream_status_code": requestLogStatusCode(intFromAny(metadata["upstream_status_code"])),
+		}
+		result = append(result, payload)
+	}
+	return result
+}
+
+func requestLogStatusCode(value int) any {
+	if value < http.StatusContinue || value > 599 {
+		return nil
+	}
+	return value
+}
+
+func requestLogSiteProjection(item store.RequestLogDetail, metadata map[string]any) map[string]any {
+	return map[string]any{
+		"id":        valueOrFallback(metadata["site_id"], nullUUIDValue(item.SiteID)),
+		"name":      valueOrFallback(metadata["site_name"], nullStringValue(item.SiteName)),
+		"slug":      valueOrFallback(metadata["site_slug"], nullStringValue(item.SiteSlug)),
+		"site_type": valueOrFallback(metadata["site_type"], nullStringValue(item.SiteType)),
+	}
+}
+
+func requestLogModelProjection(item store.RequestLogDetail, metadata map[string]any) map[string]any {
+	return map[string]any{
+		"canonical_model_id": nullUUIDValue(item.CanonicalModelID),
+		"canonical_model":    nullStringValue(item.CanonicalModelKey),
+		"site_model_id":      valueOrFallback(metadata["site_model_id"], nullUUIDValue(item.SiteModelID)),
+		"upstream_model":     valueOrFallback(metadata["upstream_model"], nullStringValue(item.SiteModelUpstreamName)),
+		"display_name":       valueOrFallback(metadata["site_model_display_name"], nullStringValue(item.SiteModelDisplayName)),
+	}
 }
 
 func requestLogCredentialProjection(metadata map[string]any) any {
@@ -413,6 +558,14 @@ func requestMetadataInt64(metadata map[string]any, key string) any {
 		return nil
 	}
 	if value <= 0 {
+		return nil
+	}
+	return value
+}
+
+func requestMetadataBool(metadata map[string]any, key string) any {
+	value, ok := metadata[key].(bool)
+	if !ok {
 		return nil
 	}
 	return value

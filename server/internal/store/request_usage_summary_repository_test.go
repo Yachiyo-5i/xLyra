@@ -67,7 +67,7 @@ func TestSummaryFromRequestLogUsesUsageRecordAndContextDimensions(t *testing.T) 
 		APIKeys: map[uuid.UUID]APIKey{
 			apiKeyID: {ID: apiKeyID, Name: "prod-key"},
 		},
-	})
+	}, timeZone.StartOfDay)
 
 	wantBucketStart := timeZone.StartOfDay(createdAt)
 	if !row.BucketStart.Equal(wantBucketStart) || row.TimeZone != "Asia/Shanghai" {
@@ -329,7 +329,7 @@ func TestSummaryFromRequestLogFallsBackToMetadataForPreRouteFailure(t *testing.T
 			"error_code":"rate_limited"
 		}`),
 		CreatedAt: createdAt,
-	}, nil, config.LoadTimeZone("UTC"), requestUsageSummaryContext{})
+	}, nil, config.LoadTimeZone("UTC"), requestUsageSummaryContext{}, config.LoadTimeZone("UTC").StartOfDay)
 
 	if row.SiteID.UUID != siteID || row.SiteKey != siteID.String() {
 		t.Fatalf("expected metadata site id to become summary dimension, got %#v", row)
@@ -366,7 +366,7 @@ func TestSummaryFromRequestLogUsesMetadataSiteNameAsKeyWithoutSiteID(t *testing.
 			"site_type":" codex "
 		}`),
 		CreatedAt: time.Date(2026, 6, 22, 3, 15, 0, 0, time.UTC),
-	}, nil, config.LoadTimeZone("UTC"), requestUsageSummaryContext{})
+	}, nil, config.LoadTimeZone("UTC"), requestUsageSummaryContext{}, config.LoadTimeZone("UTC").StartOfDay)
 
 	if row.SiteID.Valid {
 		t.Fatalf("expected missing metadata site_id to keep SiteID invalid, got %#v", row.SiteID)
@@ -539,7 +539,7 @@ func TestSummariesFromRequestLogsGroupsSameDimensionsAndSplitsStatus(t *testing.
 			RequestLogID: failedLogID,
 			Currency:     "EUR",
 		},
-	}, config.LoadTimeZone("UTC"))
+	}, config.LoadTimeZone("UTC"), config.LoadTimeZone("UTC").StartOfDay)
 	if err != nil {
 		t.Fatalf("summaries from request logs: %v", err)
 	}

@@ -186,7 +186,6 @@ export function PlaygroundWorkspace() {
       ...current,
       apiKeyId: id,
       chatModel: null,
-      reasoningEffort: normalizeReasoningEffort(null, current.reasoningEffort),
       imageModel: null,
     }))
   }
@@ -256,10 +255,11 @@ export function PlaygroundWorkspace() {
   const setMode = (mode: PlaygroundMode) => setSettings((current) => ({ ...current, mode }))
 
   const setChatModel = (id: string) => {
+    const selectedModel = chatModels.find((model) => model.id === id)
     setSettings((current) => ({
       ...current,
       chatModel: id,
-      reasoningEffort: normalizeReasoningEffort(id, current.reasoningEffort),
+      reasoningEffort: normalizeReasoningEffort(selectedModel, current.reasoningEffort),
     }))
   }
 

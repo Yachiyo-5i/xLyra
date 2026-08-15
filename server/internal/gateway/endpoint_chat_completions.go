@@ -33,6 +33,9 @@ func (chatCompletionsEndpointAdapter) DecodeRequest(r *http.Request) (gatewayReq
 			stage:   "validate",
 		}
 	}
+	if failure := normalizeClientRequestOptions(payload); failure != nil {
+		return gatewayRequest{}, failure
+	}
 
 	stream, _ := payload["stream"].(bool)
 	request := gatewayRequest{

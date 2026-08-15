@@ -166,6 +166,10 @@ func (s *Service) GetRequest(ctx context.Context, requestLogID uuid.UUID) (store
 	return store.NewRequestLogRepository(s.db.DB()).GetDetailed(ctx, requestLogID)
 }
 
+func (s *Service) ListRequestAttempts(ctx context.Context, parentRequestID string) ([]store.RequestLogDetail, error) {
+	return store.NewRequestLogRepository(s.db.DB()).ListAttemptsForParentRequest(ctx, parentRequestID)
+}
+
 func (s *Service) RecentRateUsage(ctx context.Context, now time.Time) (store.RecentRateUsageSummary, error) {
 	if now.IsZero() {
 		now = time.Now()

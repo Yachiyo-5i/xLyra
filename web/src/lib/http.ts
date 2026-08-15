@@ -24,7 +24,7 @@ export class APIError extends Error {
   }
 }
 
-type RequestOptions = Omit<RequestInit, 'body'> & {
+export type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: BodyInit | Record<string, unknown> | null
   auth?: 'none' | 'session'
   csrf?: false
@@ -196,6 +196,10 @@ async function sendRequest(path: string, options: RequestOptions, retryOnCSRFErr
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await sendRequest(path, options, true)
   return parseResponse<T>(response)
+}
+
+export async function apiFetchResponse(path: string, options: RequestOptions = {}) {
+  return sendRequest(path, options, true)
 }
 
 export async function apiFetchBlob(path: string, options: RequestOptions = {}) {

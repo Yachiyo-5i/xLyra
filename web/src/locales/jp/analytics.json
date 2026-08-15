@@ -1,0 +1,108 @@
+{
+  "page": {
+    "eyebrow": "概要",
+    "title": "使用量分析",
+    "description": "サイト・モデル・ユーザー別に使用量、コスト、パフォーマンスの傾向を分析します。",
+    "update": "更新",
+    "refresh": "更新",
+    "retry": "再試行",
+    "loadFailed": "使用量分析の読み込みに失敗しました",
+    "noData": "データなし",
+    "noDataDesc": "現在のフィルター条件では使用量データがありません"
+  },
+  "filters": {
+    "ranges": {
+      "label": "期間",
+      "today": "今日",
+      "7d": "7 日間",
+      "30d": "30 日間",
+      "90d": "90 日間",
+      "all": "すべて",
+      "custom": "カスタム"
+    },
+    "from": "開始日",
+    "to": "終了日",
+    "site": "サイト",
+    "model": "モデル",
+    "apiKey": "ユーザー",
+    "siteAll": "すべてのサイト",
+    "modelAll": "すべてのモデル",
+    "apiKeyAll": "すべてのユーザー",
+    "search": "検索...",
+    "noOptions": "選択肢がありません",
+    "statusAll": "すべての状態",
+    "statusSuccess": "成功",
+    "statusFailure": "失敗",
+    "currency": "通貨",
+    "open": "フィルター",
+    "clear": "クリア",
+    "done": "完了"
+  },
+  "kpis": {
+    "cost": "コスト",
+    "tokens": "トークン",
+    "requests": "リクエスト数",
+    "avgLatency": "平均レイテンシ",
+    "multiCurrency": "{{count}} 通貨を含む",
+    "cacheHitRate": "キャッシュヒット率 {{value}}",
+    "successRate": "成功率 {{value}}",
+    "maxLatency": "最大レイテンシ {{value}}",
+    "vsPrevious": "前期比"
+  },
+  "tokens": {
+    "total": "合計トークン",
+    "input": "入力トークン",
+    "output": "出力トークン",
+    "cached": "キャッシュトークン",
+    "hitRate": "キャッシュヒット率"
+  },
+  "trend": {
+    "description": "{{from}} 〜 {{to}} の傾向",
+    "hourDescription": "{{date}} 時間別トレンド",
+    "metrics": {
+      "cost": "コスト",
+      "tokens": "トークン",
+      "requests": "リクエスト数",
+      "successRate": "成功率",
+      "latency": "平均レイテンシ"
+    },
+    "dimensions": {
+      "none": "合計",
+      "site": "サイト別",
+      "model": "モデル別",
+      "apiKey": "ユーザー別"
+    },
+    "chartTypes": {
+      "stackedArea": "積み上げ面",
+      "percentArea": "パーセント面",
+      "stackedBar": "積み上げ棒",
+      "line": "折れ線"
+    },
+    "empty": "この期間のトレンドデータがありません"
+  },
+  "dimensions": {
+    "site": "サイト",
+    "model": "モデル",
+    "apiKey": "ユーザー"
+  },
+  "donut": {
+    "title": "コスト構成",
+    "description": "スライスをクリックしてドリルダウン",
+    "total": "合計コスト",
+    "other": "その他",
+    "clear": "クリア",
+    "clearFilter": "フィルターをクリア",
+    "empty": "コストデータがありません"
+  },
+  "ranking": {
+    "title": "ユーザーランキング",
+    "metrics": {
+      "cost": "コスト",
+      "tokens": "トークン",
+      "requests": "リクエスト数",
+      "failures": "失敗数",
+      "latency": "平均レイテンシ"
+    },
+    "empty": "ランキングデータがありません"
+  }
+}

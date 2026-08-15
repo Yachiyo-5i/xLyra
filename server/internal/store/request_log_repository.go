@@ -18,7 +18,8 @@ import (
 type RequestLog struct {
 	ID                 uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	RequestID          string
-	APIKeyID           uuid.NullUUID `gorm:"index:request_logs_cache_observation_lookup_idx,priority:1"`
+	ParentRequestID    sql.NullString `gorm:"index:request_logs_parent_request_id_idx"`
+	APIKeyID           uuid.NullUUID  `gorm:"index:request_logs_cache_observation_lookup_idx,priority:1"`
 	SiteID             uuid.NullUUID
 	CanonicalModelID   uuid.NullUUID `gorm:"index:request_logs_cache_observation_lookup_idx,priority:2"`
 	SiteModelID        uuid.NullUUID
@@ -38,6 +39,7 @@ type RequestLog struct {
 
 type CreateRequestLogParams struct {
 	RequestID          string
+	ParentRequestID    any
 	APIKeyID           any
 	SiteID             any
 	CanonicalModelID   any
@@ -121,6 +123,7 @@ func NewRequestLogRepository(db *gorm.DB) RequestLogRepository {
 func (r RequestLogRepository) Create(ctx context.Context, params CreateRequestLogParams) (RequestLog, error) {
 	item := RequestLog{
 		RequestID:          params.RequestID,
+		ParentRequestID:    nullStringFromAny(params.ParentRequestID),
 		APIKeyID:           nullUUIDFromAny(params.APIKeyID),
 		SiteID:             nullUUIDFromAny(params.SiteID),
 		CanonicalModelID:   nullUUIDFromAny(params.CanonicalModelID),
@@ -543,6 +546,13 @@ func requestLogDefaultOrderClause() clause.OrderBy {
 	}}
 }
 
+func requestLogAttemptOrderClause() clause.OrderBy {
+	return clause.OrderBy{Columns: []clause.OrderByColumn{
+		{Column: clause.Column{Name: "created_at"}},
+		{Column: clause.Column{Name: "id"}},
+	}}
+}
+
 func (r RequestLogRepository) GetDetailed(ctx context.Context, requestLogID uuid.UUID) (RequestLogDetail, error) {
 	var log RequestLog
 	if err := r.db.WithContext(ctx).Where(&RequestLog{ID: requestLogID}).First(&log).Error; err != nil {
@@ -556,6 +566,50 @@ func (r RequestLogRepository) GetDetailed(ctx context.Context, requestLogID uuid
 		return RequestLogDetail{}, fmt.Errorf("get request log detail: %w", gorm.ErrRecordNotFound)
 	}
 	return details[0], nil
+}
+
+func (r RequestLogRepository) ListAttemptsForParentRequest(ctx context.Context, parentRequestID string) ([]RequestLogDetail, error) {
+	parentRequestID = strings.TrimSpace(parentRequestID)
+	if parentRequestID == "" {
+		return []RequestLogDetail{}, nil
+	}
+
+	var logs []RequestLog
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.Where{Exprs: []clause.Expression{
+			clause.Eq{Column: clause.Column{Name: "parent_request_id"}, Value: parentRequestID},
+		}}).
+		Clauses(requestLogAttemptOrderClause()).
+		Find(&logs).Error; err != nil {
+		return nil, fmt.Errorf("list request attempts: %w", err)
+	}
+	if len(logs) == 0 {
+		legacyPrefix := parentRequestID + ":"
+		if err := r.db.WithContext(ctx).
+			Clauses(clause.Where{Exprs: []clause.Expression{
+				clause.Like{Column: clause.Column{Name: "request_id"}, Value: requestLogLegacyPrefixPattern(parentRequestID)},
+			}}).
+			Clauses(requestLogAttemptOrderClause()).
+			Find(&logs).Error; err != nil {
+			return nil, fmt.Errorf("list legacy request attempts: %w", err)
+		}
+		filtered := logs[:0]
+		for _, log := range logs {
+			if strings.HasPrefix(log.RequestID, legacyPrefix) {
+				filtered = append(filtered, log)
+			}
+		}
+		logs = filtered
+	}
+	if len(logs) == 0 {
+		return []RequestLogDetail{}, nil
+	}
+
+	details, err := r.detailsForLogs(ctx, logs)
+	if err != nil {
+		return nil, fmt.Errorf("list request attempt details: %w", err)
+	}
+	return details, nil
 }
 
 func (r RequestLogRepository) detailsForLogs(ctx context.Context, logs []RequestLog) ([]RequestLogDetail, error) {
@@ -843,6 +897,11 @@ func requestLogTextMatches(needle string, values ...string) bool {
 
 func requestLogLikePattern(value string) string {
 	return "%" + strings.TrimSpace(value) + "%"
+}
+
+func requestLogLegacyPrefixPattern(value string) string {
+	value = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.TrimSpace(value))
+	return value + ":%"
 }
 
 func requestLogUUIDInExpression(column string, values []uuid.UUID) clause.Expression {

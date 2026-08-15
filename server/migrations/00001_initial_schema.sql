@@ -473,6 +473,7 @@ CREATE INDEX route_cooldowns_active_idx ON route_cooldowns (active_until DESC) W
 CREATE TABLE request_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   request_id TEXT NOT NULL UNIQUE,
+  parent_request_id TEXT,
   api_key_id UUID REFERENCES api_keys(id) ON DELETE SET NULL,
   site_id UUID REFERENCES sites(id) ON DELETE SET NULL,
   canonical_model_id UUID REFERENCES canonical_models(id) ON DELETE SET NULL,
@@ -494,6 +495,7 @@ CREATE INDEX request_logs_created_success_idx ON request_logs (created_at DESC, 
 CREATE INDEX request_logs_canonical_model_created_idx ON request_logs (canonical_model_id, created_at DESC);
 CREATE INDEX request_logs_error_type_created_idx ON request_logs (error_type, created_at DESC);
 CREATE INDEX request_logs_site_id_idx ON request_logs (site_id);
+CREATE INDEX request_logs_parent_request_id_idx ON request_logs (parent_request_id);
 
 CREATE TABLE usage_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

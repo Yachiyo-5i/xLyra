@@ -156,6 +156,69 @@ func TestAttemptMetadataMarksReadFailedStartedStreamIncomplete(t *testing.T) {
 	}
 }
 
+func TestAttemptMetadataRecordsStoppedDecisionAfterStreamStart(t *testing.T) {
+	t.Parallel()
+
+	metadata := attemptMetadata(
+		context.Background(),
+		"req-attempt",
+		"req-parent",
+		uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+		routeengine.Candidate{},
+		gatewayAttemptResult{
+			statusCode:        429,
+			errorType:         "upstream_credential_limited",
+			stream:            true,
+			responseStarted:   true,
+			credentialAttempt: 1,
+			credentialTotal:   2,
+			streamEndReason:   "upstream_stream_read_failed",
+		},
+	)
+
+	if got := metadata["next_credential_available"]; got != true {
+		t.Fatalf("next credential availability = %#v, want true", got)
+	}
+	if got := metadata["should_try_next_credential"]; got != false {
+		t.Fatalf("retry eligibility = %#v, want false after stream start", got)
+	}
+	if got := metadata["failover_action"]; got != "stop" {
+		t.Fatalf("failover action = %#v, want stop", got)
+	}
+}
+
+func TestAttemptMetadataRecordsExecutedCredentialDecision(t *testing.T) {
+	t.Parallel()
+
+	metadata := attemptMetadata(
+		context.Background(),
+		"req-attempt",
+		"req-parent",
+		uuid.Nil,
+		uuid.Nil,
+		routeengine.Candidate{},
+		gatewayAttemptResult{
+			statusCode:            502,
+			errorType:             "grok_oauth_refresh_failed",
+			credentialAttempt:     1,
+			credentialTotal:       2,
+			credentialDecision:    credentialFailoverDecisionForAction(true, true),
+			credentialDecisionSet: true,
+		},
+	)
+
+	if got := metadata["next_credential_available"]; got != true {
+		t.Fatalf("next credential availability = %#v, want true", got)
+	}
+	if got := metadata["should_try_next_credential"]; got != true {
+		t.Fatalf("retry decision = %#v, want true", got)
+	}
+	if got := metadata["failover_action"]; got != "try_next_credential" {
+		t.Fatalf("failover action = %#v, want try_next_credential", got)
+	}
+}
+
 func TestAttemptMetadataDoesNotMarkResponsesIncompleteAsTransportFailure(t *testing.T) {
 	t.Parallel()
 
@@ -534,8 +597,8 @@ func TestReasoningEffortFromPayloadAcceptsOnlyExplicitScalar(t *testing.T) {
 	}{
 		{name: "nested effort", payload: map[string]any{"reasoning": map[string]any{"effort": " high "}}, want: "high"},
 		{name: "scalar fallback", payload: map[string]any{"reasoning_effort": "medium"}, want: "medium"},
-		{name: "nested wins", payload: map[string]any{"reasoning": map[string]any{"effort": "high"}, "reasoning_effort": "low"}, want: "high"},
-		{name: "blank nested falls back", payload: map[string]any{"reasoning": map[string]any{"effort": "  "}, "reasoning_effort": "low"}, want: "low"},
+		{name: "nested wins", payload: map[string]any{"reasoning": map[string]any{"effort": "high"}, "reasoning_effort": "light"}, want: "high"},
+		{name: "blank nested falls back", payload: map[string]any{"reasoning": map[string]any{"effort": "  "}, "reasoning_effort": "light"}, want: "light"},
 		{name: "invalid nested and scalar", payload: map[string]any{"reasoning": map[string]any{"effort": 3}, "reasoning_effort": true}},
 		{name: "missing", payload: map[string]any{"model": "gpt-5"}},
 	}

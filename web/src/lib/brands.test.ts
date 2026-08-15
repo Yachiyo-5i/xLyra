@@ -5,6 +5,7 @@ import { resolveThemedIconPath } from '@/components/common/brand-utils'
 describe('inferFallbackBrand', () => {
   it.each([
     ['sora-2-official', 'OpenAI'],
+    ['codex-auto-review', 'OpenAI'],
     ['veo3.1-fast', 'Google'],
     ['nano_banana_2', 'Google'],
     ['qwen3.7-max', 'Qwen'],

@@ -105,6 +105,9 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 	writeLine := func(line []byte) error {
 		if !headersWritten {
 			_, err := preOutput.Write(line)
+			if responsesStreamPreOutputBufferedEvent(line) {
+				capture.preOutputEventsBuffered++
+			}
 			return err
 		}
 		if _, err := w.Write(line); err != nil {
@@ -142,6 +145,7 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 						capture.endReason = "upstream_stream_error"
 						capture.errorDetail = truncatedStreamErrorDetail(string(failure.Body))
 					}
+					capture.preOutputFailureDeferred = true
 					capture.semanticFailure = failure
 					return capture, false, nil
 				case responsesPreOutputCommit:
@@ -328,6 +332,40 @@ func responsesBusinessValuePresent(value any) bool {
 	default:
 		return value != nil
 	}
+}
+
+func responsesOutputItemHasContent(item *responsesOutputItem) bool {
+	if item == nil {
+		return false
+	}
+	if item.Arguments != "" || item.Result != "" || item.Output != nil || item.ReasoningContent != "" || item.Thinking != "" || item.ThinkingSignature != "" {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(item.Type), "function_call") || strings.EqualFold(strings.TrimSpace(item.Type), "custom_tool_call") {
+		return item.Name != "" || item.CallID != ""
+	}
+	for _, content := range item.Content {
+		if responsesOutputContentHasText(&content) {
+			return true
+		}
+	}
+	return false
+}
+
+func responsesOutputContentHasText(content *responsesOutputContent) bool {
+	return content != nil && content.Text != ""
+}
+
+func responsesStreamPreOutputBufferedEvent(line []byte) bool {
+	data, done, ok := sseDataFromLine(line)
+	if !ok || done || strings.TrimSpace(data) == "" {
+		return false
+	}
+	var event responsesStreamEvent
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
+		return false
+	}
+	return strings.TrimSpace(event.Type) != ""
 }
 
 func inspectResponsesStreamLine(line []byte, capture *streamCaptureState) {

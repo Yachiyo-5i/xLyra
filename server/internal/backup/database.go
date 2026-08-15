@@ -24,7 +24,8 @@ import (
 )
 
 type databaseDump struct {
-	Tables map[string][]map[string]any `json:"tables"`
+	Tables    map[string][]map[string]any `json:"tables"`
+	TotalRows int
 	// archivePath, when set, points at the on-disk archive so the large detail
 	// tables (streamedImportTables) can be streamed from it during import instead
 	// of being held in Tables. Empty means everything lives in Tables (tests).
@@ -33,8 +34,9 @@ type databaseDump struct {
 
 const (
 	exportBatchSize       = 1000
-	importBatchSize       = 1000
-	importStreamChunkSize = 5000
+	importBatchSize       = 2000
+	importStreamChunkSize = 20000
+	importParameterBudget = 60000
 )
 
 // streamedImportTables are the large detail tables imported by streaming from
@@ -131,33 +133,55 @@ var textSecretColumns = map[string][]string{
 	"oauth_connections": {"encrypted_access_token", "encrypted_refresh_token", "encrypted_id_token"},
 }
 
-func exportDatabase(ctx context.Context, db *gorm.DB, masterKey string, zw *zip.Writer) error {
+func exportDatabase(ctx context.Context, db *gorm.DB, masterKey string, zw *zip.Writer) (map[string]int, error) {
+	var rowCounts map[string]int
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return exportDatabaseSnapshot(ctx, tx, masterKey, zw)
+		var err error
+		rowCounts, err = exportDatabaseSnapshot(ctx, tx, masterKey, zw)
+		return err
 	}, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return rowCounts, nil
 }
 
-func exportDatabaseSnapshot(ctx context.Context, db *gorm.DB, masterKey string, zw *zip.Writer) error {
+func exportDatabaseSnapshot(ctx context.Context, db *gorm.DB, masterKey string, zw *zip.Writer) (map[string]int, error) {
+	rowCounts := make(map[string]int, len(backupTables))
 	for _, table := range backupTables {
-		if err := exportTable(ctx, db, table, masterKey, zw); err != nil {
-			return err
+		rows, err := exportTable(ctx, db, table, masterKey, zw)
+		if err != nil {
+			return nil, err
 		}
+		rowCounts[table.Name] = rows
 	}
-	return nil
+	return rowCounts, nil
 }
 
-func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump databaseDump) (int, error) {
+func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump databaseDump, progress ...ProgressFunc) (int, int, error) {
 	if err := validateDumpTables(dump); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	streaming := dump.archivePath != ""
 	if !streaming {
-		// In-memory path (tests): normalize the detail tables up front, as before.
 		dump = normalizeImportDump(dump)
+	}
+	progressTotal := dump.TotalRows
+	if !streaming {
+		progressTotal = 0
+		for _, table := range backupTables {
+			progressTotal += len(dump.Tables[table.Name])
+		}
+	}
+
+	var prog ProgressFunc
+	if len(progress) > 0 {
+		prog = progress[0]
+	}
+	emit := func(ev ProgressEvent) {
+		if prog != nil {
+			prog(ev)
+		}
 	}
 
 	// Reference sets for the streamed detail tables' integrity filtering. The
@@ -191,6 +215,7 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 	}
 
 	total := 0
+	skippedTotal := 0
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Clear every backup table before reloading. A single TRUNCATE (vs a
 		// per-table DELETE) reclaims storage immediately instead of leaving dead
@@ -212,18 +237,20 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 		}
 		for _, table := range backupTables {
 			switch table.Name {
-			case "request_logs":
-				n, err := importStreamedTable(ctx, tx, dump, table, requestLogTransform)
+			case "request_logs", "usage_records":
+				transform := requestLogTransform
+				if table.Name == "usage_records" {
+					transform = usageRecordTransform
+				}
+				baseSkipped := skippedTotal
+				n, skipped, err := importStreamedTable(ctx, tx, dump, table, transform, func(rows int, skipped int) {
+					emit(ProgressEvent{Step: "import", Status: "in_progress", Rows: total + rows, TotalRows: progressTotal - baseSkipped - skipped, Table: table.Name})
+				})
 				if err != nil {
 					return err
 				}
 				total += n
-			case "usage_records":
-				n, err := importStreamedTable(ctx, tx, dump, table, usageRecordTransform)
-				if err != nil {
-					return err
-				}
-				total += n
+				skippedTotal += skipped
 			default:
 				rows := cloneRows(dump.Tables[table.Name])
 				if err := encryptTableSecrets(table.Name, rows, masterKey); err != nil {
@@ -234,7 +261,9 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 						row["created_by_admin_id"] = nil
 					}
 				}
-				if err := importTable(ctx, tx, table, rows); err != nil {
+				if err := importTable(ctx, tx, table, rows, func(imported int) {
+					emit(ProgressEvent{Step: "import", Status: "in_progress", Rows: total + imported, TotalRows: progressTotal - skippedTotal, Table: table.Name})
+				}); err != nil {
 					return err
 				}
 				if table.Name == "api_keys" {
@@ -247,7 +276,7 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 		}
 		return nil
 	})
-	return total, err
+	return total, progressTotal - skippedTotal, err
 }
 
 // importStreamedTable imports a large detail table. With an archive path it
@@ -255,34 +284,50 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 // memory ~one chunk plus the reference sets) instead of materializing every row;
 // without one it falls back to the in-memory dump (already normalized). The
 // transform applies referential-integrity filtering per chunk.
-func importStreamedTable(ctx context.Context, tx *gorm.DB, dump databaseDump, table backupTable, transform func([]map[string]any) []map[string]any) (int, error) {
+func importStreamedTable(ctx context.Context, tx *gorm.DB, dump databaseDump, table backupTable, transform func([]map[string]any) []map[string]any, progress func(int, int)) (int, int, error) {
 	if dump.archivePath == "" {
 		rows := dump.Tables[table.Name]
 		if len(rows) == 0 {
-			return 0, nil
+			return 0, 0, nil
 		}
-		if err := importTable(ctx, tx, table, rows); err != nil {
-			return 0, err
+		if err := importTable(ctx, tx, table, rows, func(imported int) {
+			if progress != nil {
+				progress(imported, 0)
+			}
+		}); err != nil {
+			return 0, 0, err
 		}
-		return len(rows), nil
+		return len(rows), 0, nil
 	}
 
 	total := 0
+	skipped := 0
 	err := forEachArchiveTableChunk(dump.archivePath, table.Name, importStreamChunkSize, func(chunk []map[string]any) error {
 		rows := chunk
 		if transform != nil {
 			rows = transform(rows)
 		}
-		if err := importTable(ctx, tx, table, rows); err != nil {
+		skipped += len(chunk) - len(rows)
+		if len(rows) == 0 {
+			if progress != nil {
+				progress(total, skipped)
+			}
+			return nil
+		}
+		if err := importTable(ctx, tx, table, rows, func(imported int) {
+			if progress != nil {
+				progress(total+imported, skipped)
+			}
+		}); err != nil {
 			return err
 		}
 		total += len(rows)
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return total, nil
+	return total, skipped, nil
 }
 
 // forEachArchiveTableChunk decodes a table's JSONL entry from the archive and
@@ -332,35 +377,37 @@ func forEachArchiveTableChunk(archivePath string, tableName string, chunkSize in
 	return nil
 }
 
-func exportTable(ctx context.Context, db *gorm.DB, table backupTable, masterKey string, zw *zip.Writer) error {
+func exportTable(ctx context.Context, db *gorm.DB, table backupTable, masterKey string, zw *zip.Writer) (int, error) {
 	w, err := zw.CreateHeader(&zip.FileHeader{
 		Name:     path.Join("database", table.Name+".jsonl"),
 		Method:   zip.Deflate,
 		Modified: time.Now().UTC(),
 	})
 	if err != nil {
-		return fmt.Errorf("write zip header %s: %w", table.Name, err)
+		return 0, fmt.Errorf("write zip header %s: %w", table.Name, err)
 	}
 	encoder := json.NewEncoder(w)
-	if err := exportTableRows(ctx, db, table, masterKey, encoder); err != nil {
-		return fmt.Errorf("export %s: %w", table.Name, err)
+	rows, err := exportTableRows(ctx, db, table, masterKey, encoder)
+	if err != nil {
+		return 0, fmt.Errorf("export %s: %w", table.Name, err)
 	}
-	return nil
+	return rows, nil
 }
 
-func exportTableRows(ctx context.Context, db *gorm.DB, table backupTable, masterKey string, encoder *json.Encoder) error {
+func exportTableRows(ctx context.Context, db *gorm.DB, table backupTable, masterKey string, encoder *json.Encoder) (int, error) {
 	slice := table.NewSlice()
 	query := db.WithContext(ctx).Model(table.Model)
 	parsed, err := schema.Parse(table.Model, &sync.Map{}, db.NamingStrategy)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if order, err := primaryOrderClause(db, table.Model); err != nil {
-		return err
+		return 0, err
 	} else if len(order.Columns) > 0 {
 		query = query.Clauses(order)
 	}
-	return query.FindInBatches(slice, exportBatchSize, func(_ *gorm.DB, _ int) error {
+	total := 0
+	err = query.FindInBatches(slice, exportBatchSize, func(_ *gorm.DB, _ int) error {
 		rows, err := modelRows(ctx, parsed, slice)
 		if err != nil {
 			return err
@@ -373,11 +420,13 @@ func exportTableRows(ctx context.Context, db *gorm.DB, table backupTable, master
 				return err
 			}
 		}
+		total += len(rows)
 		return nil
 	}).Error
+	return total, err
 }
 
-func importTable(ctx context.Context, db *gorm.DB, table backupTable, rows []map[string]any) error {
+func importTable(ctx context.Context, db *gorm.DB, table backupTable, rows []map[string]any, progress ...func(int)) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -405,10 +454,29 @@ func importTable(ctx context.Context, db *gorm.DB, table backupTable, rows []map
 	if sliceValue.Len() == 0 {
 		return nil
 	}
-	if err := db.WithContext(ctx).CreateInBatches(items, importBatchSize).Error; err != nil {
-		return fmt.Errorf("insert %s: %w", table.Name, err)
+	var report func(int)
+	if len(progress) > 0 {
+		report = progress[0]
+	}
+	batchSize := importBatchSizeForSchema(parsed)
+	for start := 0; start < sliceValue.Len(); start += batchSize {
+		end := min(start+batchSize, sliceValue.Len())
+		if err := db.WithContext(ctx).Create(sliceValue.Slice(start, end).Interface()).Error; err != nil {
+			return fmt.Errorf("insert %s: %w", table.Name, err)
+		}
+		if report != nil {
+			report(end)
+		}
 	}
 	return nil
+}
+
+func importBatchSizeForSchema(parsed *schema.Schema) int {
+	columns := len(parsed.DBNames)
+	if columns == 0 {
+		return importBatchSize
+	}
+	return max(1, min(importBatchSize, importParameterBudget/columns))
 }
 
 func restoreAPIKeyPeriodicQuotaFlags(ctx context.Context, db *gorm.DB, rows []map[string]any) error {

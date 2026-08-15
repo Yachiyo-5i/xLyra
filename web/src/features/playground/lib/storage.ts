@@ -1,4 +1,3 @@
-import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
 import type { Conversation, PlaygroundSettings } from '@/features/playground/lib/types'
 
 const CONVERSATIONS_KEY = 'xlyra-playground-conversations'
@@ -60,12 +59,12 @@ export function loadSettings(): PlaygroundSettings {
     imageModel: null,
   }
   const stored = read<Partial<PlaygroundSettings>>(SETTINGS_KEY, {})
-  const storedReasoningEffort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(stored.reasoningEffort ?? '')
-    ? stored.reasoningEffort as PlaygroundSettings['reasoningEffort']
+  const rawReasoningEffort = stored.reasoningEffort as string | undefined
+  const migratedReasoningEffort = rawReasoningEffort === 'low' ? 'light' : rawReasoningEffort
+  const storedReasoningEffort = ['light', 'medium', 'high', 'xhigh', 'max', 'ultra'].includes(migratedReasoningEffort ?? '')
+    ? migratedReasoningEffort as PlaygroundSettings['reasoningEffort']
     : defaults.reasoningEffort
-  const reasoningEffort = normalizeReasoningEffort(stored.chatModel ?? null, storedReasoningEffort)
-
-  return { ...defaults, ...stored, reasoningEffort }
+  return { ...defaults, ...stored, reasoningEffort: storedReasoningEffort }
 }
 
 export function saveSettings(settings: PlaygroundSettings) {

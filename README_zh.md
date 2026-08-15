@@ -1,14 +1,20 @@
-# xLyra
-
-> 面向多上游 AI 服务、AI 中转站和 OAuth 账号的统一控制面与网关。
-
-[English](./README.md) · 简体中文
-
-![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Backend](https://img.shields.io/badge/backend-Go%201.26+-00ADD8.svg)
-![Frontend](https://img.shields.io/badge/frontend-React%2019-61DAFB.svg)
-![Database](https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg)
-[![Docker Pulls](https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg)](https://hub.docker.com/r/yachiiiiyo/xlyra)
+<div align="center">
+  <img src="./web/public/logo.png" alt="xLyra Logo" width="180" />
+  <h1>xLyra</h1>
+  <p>面向多上游 AI 服务、AI 中转站和 OAuth 账号的统一控制面与网关。</p>
+  <p>
+    <a href="https://xlyra.yachiyo.im">产品主页</a> ·
+    <a href="#快速开始">快速开始</a> ·
+    <a href="./README.md">English</a>
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License" />
+    <img src="https://img.shields.io/badge/backend-Go%201.26.5+-00ADD8.svg" alt="Backend" />
+    <img src="https://img.shields.io/badge/frontend-React%2019-61DAFB.svg" alt="Frontend" />
+    <img src="https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg" alt="Database" />
+    <a href="https://hub.docker.com/r/yachiiiiyo/xlyra"><img src="https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg" alt="Docker Pulls" /></a>
+  </p>
+</div>
 
 xLyra 把分散的中转站、官方模型接口、OAuth 账号和兼容接口收敛到一个控制台中，并向下游应用暴露统一的 OpenAI-style API 入口。它不是单站点反代，而是一个多站点编排层：负责接入、同步、授权、路由、失败转移、用量记录和成本估算。
 
@@ -45,7 +51,7 @@ postgres  # PostgreSQL 数据库
 
 ## 网关端点
 
-所有网关端点均在 `/v1` 路径下，需通过 `Authorization: Bearer <key>` 携带下游 API Key。
+下列推理端点均位于 `/v1` 路径下，需通过 `Authorization: Bearer <key>` 携带下游 API Key。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -65,18 +71,18 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 
 | 下游请求 → | 可路由的上游协议 |
 | --- | --- |
-| Chat Completions | Chat / Responses / Anthropic Messages / Antigravity |
-| Responses | Responses / Chat / Anthropic Messages / Antigravity |
-| Messages | Anthropic Messages / Responses / Codex / Chat / Antigravity |
-| Images generations | OpenAI Images / Codex 图片生成工具 / Antigravity 图片生成 |
-| Images edits | OpenAI multipart / Codex multipart |
+| Chat Completions | OpenAI Chat / Responses / Anthropic Messages / Google Gemini / Antigravity / Grok |
+| Responses | Responses / OpenAI Chat / Anthropic Messages / Google Gemini / Antigravity / Grok |
+| Messages | Anthropic Messages / Responses / OpenAI Chat / Google Gemini / Antigravity / Codex / Grok |
+| Images generations | OpenAI Images / Codex 图片生成工具 / Google Gemini / Antigravity / Grok |
+| Images edits | OpenAI multipart / Codex multipart / Grok |
 | Embeddings | OpenAI-compatible embeddings |
 | Audio speech | OpenAI TTS |
 
 其他网关行为：
 
 - **生图工具桥接**：当上游在 Responses 流中无法原生执行 `image_generation` 工具调用时，网关代为发起图片请求，并将结果注入回流式响应。
-- **长上下文阶梯计价**：OpenAI 模型输入超 272K tokens 时，自动按官方高档费率计费。
+- **长上下文阶梯计价**：受支持的 GPT-5.4、GPT-5.5 和 GPT-5.6 基础系列模型输入超 272K tokens 时，自动应用高档费率；Codex、mini、nano、图片、音频和实时模型等变体不适用。
 - **模型映射**：下游 API Key 可配置硬映射或软映射（通配兜底）。软映射仅在找不到直接路由时生效。
 - **SSE 心跳保活**：流式响应定期发送 SSE 注释，防止长连接被中间代理断开。
 
@@ -102,7 +108,7 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 | 429 带 Retry-After | 跟随 Retry-After（5 秒–2 分钟区间限制） | 无头部时默认 30 秒 |
 | 上游流式中断 | 连续 3 次流式失败后触发冷却 | 与无响应连续失败门限一致 |
 
-并发队列超时（`upstream_concurrency_wait_timeout`）不触发冷却。网关还支持按模型配置 RPM 上限，具备内存队列和上游 429 等待重试能力。
+并发队列超时（`upstream_concurrency_wait_timeout`）不触发冷却。网关支持全局和下游 API Key 级 RPM/TPM 限流及内存等待队列；对符合条件且返回 Retry-After 的上游 429，可等待后重试。上游并发限制可按站点、模型和凭证配置。
 
 ## 支持的站点类型
 
@@ -113,7 +119,7 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 | Grok | OAuth CLI 通道、多账号管理、图片生成、按 tier 分档模型可用性 |
 | OpenCode Go | 订阅套餐模型与额度路由 |
 | DeepSeek / Minimax / Moonshot / Kimi Code / 小米 MiMo / Google Gemini | 按站型适配凭证、模型同步或兼容协议转发 |
-| GLM（智谱） | 凭证校验、模型同步、兼容协议转发 |
+| GLM / GLM Code（智谱） | 通用 API 与 Coding Plan 凭证校验、模型同步、兼容协议转发 |
 | xLyra | 级联中转：带 ETag 缓存的模型同步、下游 API Key 清单与摘要、管理员用户摘要 |
 | NewAPI | 站点探测、用户摘要、API Key 清单、Key 摘要、签到、模型和价格同步 |
 | Codex | OAuth、ChatGPT 账号额度、模型同步、Responses 协议和图片生成工具转换 |
@@ -126,8 +132,10 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 
 - 站点创建、编辑、启停、删除、校验和刷新
 - 站点 API Key 管理：新增、更新、轮换和单 Key 刷新（含错误隔离）
-- Codex / Antigravity / Grok / Claude Code OAuth 授权、刷新、导入、模型同步和额度同步
-- OAuth 重置卡管理与兑换
+- Codex / Antigravity / Claude Code OAuth 授权与刷新，以及各提供商支持的模型和额度同步
+- Grok OAuth 设备登录、多账号管理、模型权限和额度刷新
+- Codex / Antigravity OAuth 账号导入
+- Codex 重置额度查询与兑换
 - 上游凭证余额探测：按凭证展示余额与已用量
 
 ### 模型与价格
@@ -143,7 +151,7 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 - Key 管理、额度、过期时间、模型权限、站点权限和站点组授权
 - 模型名映射规则（硬映射和软映射/通配兜底）
 - 日/周额度周期与自动重置
-- 每个 Key 的用量门户页（无需鉴权，可公开访问）
+- 每个 Key 的公开用量门户页（无需管理员登录，访问数据时需输入对应的下游 API Key）
 
 ### 路由与健康
 
@@ -175,13 +183,13 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 启动：
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 默认控制台：
 
 ```text
-http://localhost:5800
+http://localhost:5801
 ```
 
 首次访问控制台时创建第一个管理员账号。后续登录使用服务端 Session Cookie。
@@ -192,11 +200,7 @@ http://localhost:5800
 docker compose down
 ```
 
-删除持久化数据：
-
-```bash
-docker compose down -v
-```
+`docker compose down -v` 不会删除本项目通过目录绑定挂载的 `./postgres` 和 `./data`。如需清理持久化数据，请先停止服务，再自行备份并明确删除这两个目录；其中 `./data/conf/master.key` 用于解密已保存的凭证。
 
 公网或多人共享部署前，请至少修改 `docker-compose.yml` 中的默认 PostgreSQL 密码，并配置 HTTPS、反向代理、CORS 来源和 IP 白名单。应用加密密钥会在首次启动时自动生成，并持久化到 `./data/conf/master.key`。
 
@@ -221,40 +225,38 @@ Docker 默认数据挂载：
 
 ## 本地开发
 
-后端：
+本地开发需要 Go 1.26.5、Node.js 24 和可用的 PostgreSQL 17 实例。以下示例连接 `127.0.0.1:5432`，数据库名、用户和密码分别为 `xlyra`、`postgres` 和 `postgres`，可通过环境变量覆盖。
 
-```bash
-cd server
-go run ./cmd/server
-```
-
-前端：
+安装前端依赖：
 
 ```bash
 cd web
-pnpm install
-pnpm dev
+npm ci
 ```
 
-常用命令：
+启动后端。必须先配置 `POSTGRES_DSN`，或提供 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER` 和 `DB_PASSWORD`：
 
 ```bash
-make web-install
-make web-dev
-make web-build
-make server-run
-make server-build
-make docker-up
-make docker-down
+cd server
+DB_HOST=127.0.0.1 DB_NAME=xlyra DB_USER=postgres DB_PASSWORD=postgres go run ./cmd/server
 ```
+
+在另一个终端启动前端：
+
+```bash
+cd web
+npm run dev
+```
+
+默认前端地址为 `http://localhost:5173`，后端地址为 `http://localhost:5801`。
 
 验证：
 
 ```bash
 cd web
-pnpm lint
-pnpm typecheck
-pnpm build
+npm run typecheck
+npm run lint
+npm run build
 ```
 
 ```bash
@@ -269,7 +271,7 @@ go build ./cmd/server
 | --- | --- |
 | 后端 | Go、net/http、chi、GORM、PostgreSQL、goose、robfig/cron、slog |
 | 前端 | TypeScript、React、Vite、React Router、Tailwind CSS、TanStack Query、TanStack Table、Zustand、Recharts、i18next |
-| 部署 | Docker、Docker Compose、nginx |
+| 部署 | Docker、Docker Compose、内置 Go HTTP Server |
 
 ## License
 

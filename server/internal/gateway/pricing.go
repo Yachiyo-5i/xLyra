@@ -234,9 +234,25 @@ func applyUpstreamBillingMetadata(result gatewayAttemptResult, payload map[strin
 	return result
 }
 
+func applyRequestBillingMetadata(result gatewayAttemptResult, upstreamPayload, requestPayload map[string]any, candidate routeengine.Candidate) gatewayAttemptResult {
+	result = applyUpstreamBillingMetadata(result, upstreamPayload, candidate)
+	requested := billingAdjustmentFromPayload(requestPayload, candidate)
+	if result.billingMode == "" && requested.Mode == "standard" {
+		result.serviceTier = requested.ServiceTier
+		result.billingMode = requested.Mode
+		result.costMultiplier = requested.Multiplier
+		result.multiplierReason = requested.Reason
+	}
+	return result
+}
+
 func billingAdjustmentFromPayload(payload map[string]any, candidate routeengine.Candidate) billingAdjustment {
 	serviceTier := strings.TrimSpace(strings.ToLower(anyString(payload["service_tier"])))
 	adjustment := billingAdjustment{ServiceTier: serviceTier, Multiplier: 1}
+	if serviceTier == "standard" {
+		adjustment.Mode = "standard"
+		return adjustment
+	}
 	if !isFastServiceTier(serviceTier) {
 		return adjustment
 	}

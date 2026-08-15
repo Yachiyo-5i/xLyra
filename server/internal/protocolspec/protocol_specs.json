@@ -59,6 +59,10 @@
         {
           "canonical": "user",
           "upstream": "user"
+        },
+        {
+          "canonical": "service_tier",
+          "upstream": "service_tier"
         }
       ],
       "request_params": {
@@ -77,7 +81,8 @@
           "response_format",
           "metadata",
           "user",
-          "stop"
+          "stop",
+          "service_tier"
         ],
         "validation": {
           "temperature": {"type": "number", "min": 0, "max": 2},

@@ -49,8 +49,8 @@ func withReasoningEffort(ctx context.Context, effort string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	effort = strings.TrimSpace(effort)
-	if effort == "" {
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if !isSupportedReasoningEffort(effort) {
 		return ctx
 	}
 	return context.WithValue(ctx, reasoningEffortContextKey{}, effort)
@@ -61,20 +61,23 @@ func reasoningEffortFromContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	effort, ok := ctx.Value(reasoningEffortContextKey{}).(string)
-	effort = strings.TrimSpace(effort)
-	return effort, ok && effort != ""
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	return effort, ok && isSupportedReasoningEffort(effort)
 }
 
 func reasoningEffortFromPayload(payload map[string]any) string {
 	if reasoning, ok := payload["reasoning"].(map[string]any); ok {
 		if effort, ok := reasoning["effort"].(string); ok {
-			if effort = strings.TrimSpace(effort); effort != "" {
+			if effort = strings.ToLower(strings.TrimSpace(effort)); isSupportedReasoningEffort(effort) {
 				return effort
 			}
 		}
 	}
 	if effort, ok := payload["reasoning_effort"].(string); ok {
-		return strings.TrimSpace(effort)
+		effort = strings.ToLower(strings.TrimSpace(effort))
+		if isSupportedReasoningEffort(effort) {
+			return effort
+		}
 	}
 	return ""
 }
@@ -126,6 +129,7 @@ func attemptMetadata(
 	if result.billingMode == "fast" && result.costMultiplier > 1 {
 		serviceTierMultiplier = result.costMultiplier
 	}
+	failoverDecision := credentialFailoverDecisionForAttempt(result)
 	costCalculation["base_estimated_cost"] = float64PtrValue(result.baseEstimatedCost)
 	costCalculation["credential_upstream_cost_multiplier"] = credentialMultiplier
 	costCalculation["service_tier_multiplier"] = serviceTierMultiplier
@@ -141,6 +145,9 @@ func attemptMetadata(
 		"attempt":                             result.attempt,
 		"credential_attempt":                  result.credentialAttempt,
 		"credential_total":                    result.credentialTotal,
+		"next_credential_available":           failoverDecision.NextCredentialAvailable,
+		"should_try_next_credential":          failoverDecision.ShouldTryNextCredential,
+		"failover_action":                     failoverDecision.Action,
 		"site_name":                           candidate.Site.Name,
 		"site_slug":                           candidate.Site.Slug,
 		"site_type":                           candidate.Site.SiteType,
@@ -156,6 +163,10 @@ func attemptMetadata(
 		"stream_completed":                    result.streamCompleted,
 		"stream_incomplete":                   streamIncomplete(result),
 		"stream_received_done":                result.streamReceivedDone,
+		"pre_output_events_buffered":          zeroIntToNil(result.preOutputEventsBuffered),
+		"pre_output_failure_deferred":         result.preOutputFailureDeferred,
+		"upstream_error_code":                 emptyToNil(result.upstreamErrorCode),
+		"stream_error_detail":                 emptyToNil(truncatedStreamErrorDetail(result.streamErrorDetail)),
 		"stream_end_reason":                   emptyToNil(result.streamEndReason),
 		"stream_failure_scope":                streamFailureScope(result.streamEndReason),
 		"protocol_conversion":                 protocolConversionMetadata(result),

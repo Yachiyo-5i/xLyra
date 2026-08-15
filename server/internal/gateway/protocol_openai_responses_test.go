@@ -1449,6 +1449,7 @@ func TestResponsesToChatCompletionsPayloadMapsCoreFields(t *testing.T) {
 		"stream":            true,
 		"max_output_tokens": 128.0,
 		"reasoning":         map[string]any{"effort": "medium"},
+		"service_tier":      "fast",
 		"tools": []any{
 			map[string]any{
 				"type":        "function",
@@ -1471,6 +1472,9 @@ func TestResponsesToChatCompletionsPayloadMapsCoreFields(t *testing.T) {
 	}
 	if payload["reasoning_effort"] != "medium" {
 		t.Fatalf("reasoning_effort = %#v, want medium", payload["reasoning_effort"])
+	}
+	if payload["service_tier"] != "fast" {
+		t.Fatalf("service_tier = %#v, want fast", payload["service_tier"])
 	}
 	messages, ok := payload["messages"].([]any)
 	if !ok || len(messages) != 2 {
@@ -1506,6 +1510,7 @@ func TestChatCompletionsToResponsesPayloadMapsCoreFields(t *testing.T) {
 		"tool_choice":      map[string]any{"type": "function", "function": map[string]any{"name": "lookup_weather"}},
 		"response_format":  map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "foo", "schema": map[string]any{"type": "object"}}},
 		"reasoning_effort": "medium",
+		"service_tier":     "standard",
 	}, "alias", routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gpt-5.4"}})
 	if err != nil {
 		t.Fatalf("convertRequestBetweenProtocols returned error: %v", err)
@@ -1516,6 +1521,9 @@ func TestChatCompletionsToResponsesPayloadMapsCoreFields(t *testing.T) {
 	}
 	if got := payload["max_output_tokens"]; got != 128 {
 		t.Fatalf("expected max_output_tokens 128, got %#v", got)
+	}
+	if got := payload["service_tier"]; got != "standard" {
+		t.Fatalf("expected service_tier standard, got %#v", got)
 	}
 	if got := payload["instructions"]; got != "You are helpful." {
 		t.Fatalf("expected instructions to contain system prompt, got %#v", got)

@@ -26,6 +26,24 @@ func TestResponsesEndpointAdapterRejectsInvalidJSONAndMissingModel(t *testing.T)
 	adapter := responsesEndpointAdapter{}
 	assertEndpointDecodeFailure(t, "invalid JSON", adapter, `{`, "invalid_json", "decode")
 	assertEndpointDecodeFailure(t, "missing model", adapter, `{"input":"hi"}`, "invalid_model", "validate")
+	assertEndpointDecodeFailure(t, "invalid reasoning effort", adapter, `{"model":"gpt-5.6","input":"hi","reasoning":{"effort":"low"}}`, "invalid_reasoning_effort", "validate")
+}
+
+func TestResponsesEndpointAdapterNormalizesClientOptions(t *testing.T) {
+	t.Parallel()
+
+	request := requireDecodedEndpointRequest(t, responsesEndpointAdapter{}, `{"model":"gpt-5.6","input":"hi","reasoning":{"effort":" ULTRA "},"service_tier":" FAST "}`, gatewayEndpointResponses, "gpt-5.6")
+	reasoning, _ := request.Payload["reasoning"].(map[string]any)
+	if reasoning["effort"] != "ultra" || request.Payload["service_tier"] != "fast" {
+		t.Fatalf("normalized payload = %#v", request.Payload)
+	}
+	if request.Canonical == nil || request.Canonical.Params["service_tier"] != "fast" {
+		t.Fatalf("normalized canonical request = %#v", request.Canonical)
+	}
+	canonicalReasoning, _ := request.Canonical.Params["reasoning"].(map[string]any)
+	if canonicalReasoning["effort"] != "ultra" {
+		t.Fatalf("normalized canonical reasoning = %#v", canonicalReasoning)
+	}
 }
 
 func TestResponsesEndpointAdapterDecodesZstdRequest(t *testing.T) {

@@ -430,6 +430,74 @@ func TestPathReplaceAndDeepCopySliceBoundaries(t *testing.T) {
 	}
 }
 
+func TestPreparedConfigReplaceStagesBeforeCommit(t *testing.T) {
+	dir := t.TempDir()
+	cf, err := LoadConfigFile(dir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if err := cf.Set("global.app_name", "before"); err != nil {
+		t.Fatalf("set initial config: %v", err)
+	}
+
+	prepared, err := cf.PrepareReplace(map[string]any{
+		"global": map[string]any{"app_name": "after"},
+	})
+	if err != nil {
+		t.Fatalf("prepare replace: %v", err)
+	}
+	stagedPath := prepared.path
+	if _, err := os.Stat(stagedPath); err != nil {
+		t.Fatalf("staged config: %v", err)
+	}
+	if value, _ := cf.Get("global.app_name"); value != "before" {
+		t.Fatalf("config changed before commit: %v", value)
+	}
+	if err := prepared.Commit(); err != nil {
+		t.Fatalf("commit prepared config: %v", err)
+	}
+	if value, _ := cf.Get("global.app_name"); value != "after" {
+		t.Fatalf("config after commit = %v", value)
+	}
+	if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
+		t.Fatalf("staged path still exists after commit: %v", err)
+	}
+
+	loaded, err := LoadConfigFile(dir)
+	if err != nil {
+		t.Fatalf("reload committed config: %v", err)
+	}
+	if value, _ := loaded.Get("global.app_name"); value != "after" {
+		t.Fatalf("persisted config = %v", value)
+	}
+}
+
+func TestPreparedConfigReplaceDiscardKeepsExistingConfig(t *testing.T) {
+	dir := t.TempDir()
+	cf, err := LoadConfigFile(dir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if err := cf.Set("global.app_name", "before"); err != nil {
+		t.Fatalf("set initial config: %v", err)
+	}
+
+	prepared, err := cf.PrepareReplace(map[string]any{
+		"global": map[string]any{"app_name": "after"},
+	})
+	if err != nil {
+		t.Fatalf("prepare replace: %v", err)
+	}
+	stagedPath := prepared.path
+	prepared.Discard()
+	if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
+		t.Fatalf("staged path still exists after discard: %v", err)
+	}
+	if value, _ := cf.Get("global.app_name"); value != "before" {
+		t.Fatalf("discard changed config: %v", value)
+	}
+}
+
 func TestStartWatcherReloadsAndStopWatcherIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	cf, err := LoadConfigFile(dir)

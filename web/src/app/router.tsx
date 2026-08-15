@@ -13,6 +13,7 @@ function lazyNamed<T extends ComponentType>(
 }
 
 const APIKeysPage = lazyNamed(() => import('@/routes/api-keys'), 'APIKeysPage')
+const AnalyticsPage = lazyNamed(() => import('@/routes/analytics'), 'AnalyticsPage')
 const AuditLogsPage = lazyNamed(() => import('@/routes/audit-logs-page'), 'AuditLogsPage')
 const BackupSettingsPage = lazyNamed(() => import('@/routes/settings/backup-settings-page'), 'BackupSettingsPage')
 const DashboardPage = lazyNamed(() => import('@/routes/dashboard'), 'DashboardPage')
@@ -59,6 +60,7 @@ export const appRouter = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'playground', element: lazyElement(<PlaygroundPage />) },
       { path: 'dashboard', element: lazyElement(<DashboardPage />) },
+      { path: 'analytics', element: lazyElement(<AnalyticsPage />) },
       { path: 'sites', element: lazyElement(<SitesPage />) },
       { path: 'models', element: lazyElement(<ModelsPage />) },
       { path: 'oauth', element: lazyElement(<OAuthPage />) },

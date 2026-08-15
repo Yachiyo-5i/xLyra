@@ -71,7 +71,7 @@ type GatewayModelPayload = {
   data?: Array<{
     id?: string
     owned_by?: string
-    metadata?: { display_name?: string; category?: string; supported_endpoint_types?: unknown }
+    metadata?: { display_name?: string; category?: string; mapped_model?: string; supported_endpoint_types?: unknown }
   }>
 }
 
@@ -97,6 +97,7 @@ export async function listGatewayModels(apiKey: string): Promise<GatewayModel[]>
     .filter((item): item is { id: string } & typeof item => typeof item.id === 'string' && item.id.length > 0)
     .map((item) => ({
       id: item.id,
+      mappedModel: item.metadata?.mapped_model?.trim() || undefined,
       displayName: item.metadata?.display_name?.trim() || item.id,
       category: item.metadata?.category?.trim().toLowerCase() || 'chat',
       ownedBy: item.owned_by,

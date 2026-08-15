@@ -78,6 +78,9 @@ func TestArchiveRoundTripUsesZipJSONLPayload(t *testing.T) {
 	if len(dump.Tables["sites"]) != 1 {
 		t.Fatal("database payload was not preserved")
 	}
+	if dump.TotalRows != 1 {
+		t.Fatalf("total rows = %d, want 1", dump.TotalRows)
+	}
 }
 
 func TestApplyRowToModelRestoresTypedFields(t *testing.T) {
@@ -166,21 +169,24 @@ func TestBackupTablesIncludeRequestUsageSummaries(t *testing.T) {
 	}
 }
 
-func writeTestDatabaseArchive(zw *zip.Writer) error {
+func writeTestDatabaseArchive(zw *zip.Writer) (map[string]int, error) {
+	rowCounts := make(map[string]int, len(backupTables))
 	for _, table := range backupTables {
 		w, err := zw.Create("database/" + table.Name + ".jsonl")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if table.Name != "sites" {
+			rowCounts[table.Name] = 0
 			continue
 		}
 		encoder := json.NewEncoder(w)
 		if err := encoder.Encode(map[string]any{"id": "site-1", "name": "Site"}); err != nil {
-			return err
+			return nil, err
 		}
+		rowCounts[table.Name] = 1
 	}
-	return nil
+	return rowCounts, nil
 }
 
 func TestNormalizeImportDumpDropsUsageRecordsWithoutRequestLogs(t *testing.T) {

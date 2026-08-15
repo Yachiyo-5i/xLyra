@@ -10,6 +10,9 @@ CLAUDE.md
 # Local environment overrides
 dev*
 
+# Test
+k6-test/
+
 # Runtime data
 data/
 conf/

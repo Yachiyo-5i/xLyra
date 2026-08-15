@@ -49,6 +49,24 @@ describe('listGatewayModels', () => {
     expect(models.map((model) => model.id)).toEqual(['alpha-model', 'Beta-model', 'zeta-model'])
   })
 
+  it('preserves the mapped target for model aliases', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        data: [{
+          id: 'codex-pro',
+          metadata: { mapped_model: ' gpt-5.6-sol ' },
+        }],
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ))
+
+    const models = await listGatewayModels('sk-test')
+
+    expect(models[0].mappedModel).toBe('gpt-5.6-sol')
+  })
+
   it('reports a clear error when the development server returns the SPA document', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response('<!doctype html><html></html>', {

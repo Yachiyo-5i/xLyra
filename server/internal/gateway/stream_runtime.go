@@ -12,15 +12,17 @@ import (
 )
 
 type streamCaptureState struct {
-	usage            completionUsage
-	sawDone          bool
-	streamCompleted  bool
-	endReason        string
-	errorDetail      string
-	semanticFailure  *upstreamSemanticFailure
-	firstByteLatency int64
-	malformedLines   int
-	annotations      []any
+	usage                    completionUsage
+	sawDone                  bool
+	streamCompleted          bool
+	endReason                string
+	errorDetail              string
+	semanticFailure          *upstreamSemanticFailure
+	firstByteLatency         int64
+	malformedLines           int
+	annotations              []any
+	preOutputEventsBuffered  int
+	preOutputFailureDeferred bool
 }
 
 func proxyUpstreamStream(

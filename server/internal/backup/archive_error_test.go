@@ -24,8 +24,8 @@ func TestWriteArchiveReturnsDatabaseWriterError(t *testing.T) {
 		Config: map[string]any{"general": map[string]any{"log": map[string]any{"level": "info"}}},
 	}
 
-	err := writeArchive(payload, func(*zip.Writer) error {
-		return wantErr
+	err := writeArchive(payload, func(*zip.Writer) (map[string]int, error) {
+		return nil, wantErr
 	}, &bytes.Buffer{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("writeArchive error = %v, want %v", err, wantErr)
