@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.0...v1.2.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* 🐛 修复推理强度选择错误及失败请求无法显示模型的问题 ([e8f097b](https://github.com/Yachiyo-5i/xLyra/commit/e8f097b937f6773c26459c0b838e93c1cd93f212))
+
 ## [1.2.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.1.3...v1.2.0) (2026-08-15)
 
 
