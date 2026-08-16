@@ -33,11 +33,13 @@ func (responsesEndpointAdapter) DecodeRequest(r *http.Request) (gatewayRequest, 
 			stage:   "validate",
 		}
 	}
+	stream, _ := payload["stream"].(bool)
 	if failure := normalizeClientRequestOptions(payload); failure != nil {
+		failure.requestedModel = model
+		failure.stream = stream
 		return gatewayRequest{}, failure
 	}
 
-	stream, _ := payload["stream"].(bool)
 	request := gatewayRequest{
 		DownstreamPath:    gatewayEndpointResponses,
 		DownstreamHeaders: r.Header.Clone(),

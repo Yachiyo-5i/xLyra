@@ -597,8 +597,8 @@ func TestReasoningEffortFromPayloadAcceptsOnlyExplicitScalar(t *testing.T) {
 	}{
 		{name: "nested effort", payload: map[string]any{"reasoning": map[string]any{"effort": " high "}}, want: "high"},
 		{name: "scalar fallback", payload: map[string]any{"reasoning_effort": "medium"}, want: "medium"},
-		{name: "nested wins", payload: map[string]any{"reasoning": map[string]any{"effort": "high"}, "reasoning_effort": "light"}, want: "high"},
-		{name: "blank nested falls back", payload: map[string]any{"reasoning": map[string]any{"effort": "  "}, "reasoning_effort": "light"}, want: "light"},
+		{name: "nested wins", payload: map[string]any{"reasoning": map[string]any{"effort": "high"}, "reasoning_effort": "low"}, want: "high"},
+		{name: "blank nested falls back", payload: map[string]any{"reasoning": map[string]any{"effort": "  "}, "reasoning_effort": "low"}, want: "low"},
 		{name: "invalid nested and scalar", payload: map[string]any{"reasoning": map[string]any{"effort": 3}, "reasoning_effort": true}},
 		{name: "missing", payload: map[string]any{"model": "gpt-5"}},
 	}

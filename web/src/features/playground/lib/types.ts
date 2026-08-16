@@ -49,7 +49,7 @@ export type GatewayModel = {
 
 export type ChatProtocol = 'chat' | 'responses' | 'messages'
 
-export type ReasoningEffort = 'light' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
 
 export type ImageResultItem = {
   id: string

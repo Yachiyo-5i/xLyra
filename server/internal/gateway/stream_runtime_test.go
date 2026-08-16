@@ -33,17 +33,21 @@ func TestChatCompletionsEndpointAdapterRejectsInvalidJSONAndMissingModel(t *test
 	adapter := chatCompletionsEndpointAdapter{}
 	assertEndpointDecodeFailure(t, "invalid JSON", adapter, `{`, "invalid_json", "decode")
 	assertEndpointDecodeFailure(t, "missing model", adapter, `{"messages":[]}`, "invalid_model", "validate")
-	assertEndpointDecodeFailure(t, "invalid reasoning effort", adapter, `{"model":"gpt-5.6","messages":[],"reasoning_effort":"low"}`, "invalid_reasoning_effort", "validate")
+	_, failure := decodeEndpointRequest(t, adapter, `{"model":"gpt-5.6","messages":[],"reasoning_effort":"light","stream":true}`)
+	assertEndpointFailure(t, "invalid reasoning effort", failure, "invalid_reasoning_effort", "validate")
+	if failure.requestedModel != "gpt-5.6" || !failure.stream {
+		t.Fatalf("failure request metadata = %+v", failure)
+	}
 }
 
 func TestChatCompletionsEndpointAdapterNormalizesClientOptions(t *testing.T) {
 	t.Parallel()
 
-	request := requireDecodedEndpointRequest(t, chatCompletionsEndpointAdapter{}, `{"model":"gpt-5.6","messages":[],"reasoning_effort":" ULTRA ","service_tier":" STANDARD "}`, gatewayEndpointChatCompletions, "gpt-5.6")
-	if request.Payload["reasoning_effort"] != "ultra" || request.Payload["service_tier"] != "standard" {
+	request := requireDecodedEndpointRequest(t, chatCompletionsEndpointAdapter{}, `{"model":"gpt-5.6","messages":[],"reasoning_effort":" LOW ","service_tier":" STANDARD "}`, gatewayEndpointChatCompletions, "gpt-5.6")
+	if request.Payload["reasoning_effort"] != "low" || request.Payload["service_tier"] != "standard" {
 		t.Fatalf("normalized payload = %#v", request.Payload)
 	}
-	if request.Canonical == nil || request.Canonical.Params["reasoning_effort"] != "ultra" || request.Canonical.Params["service_tier"] != "standard" {
+	if request.Canonical == nil || request.Canonical.Params["reasoning_effort"] != "low" || request.Canonical.Params["service_tier"] != "standard" {
 		t.Fatalf("normalized canonical request = %#v", request.Canonical)
 	}
 }

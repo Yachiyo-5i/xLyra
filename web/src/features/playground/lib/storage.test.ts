@@ -39,10 +39,10 @@ describe('loadSettings', () => {
     expect(loadSettings().reasoningEffort).toBe('max')
   })
 
-  it('migrates the old low reasoning effort to light', () => {
-    values.set('xlyra-playground-settings', JSON.stringify({ reasoningEffort: 'low' }))
+  it('migrates the obsolete light reasoning effort to low', () => {
+    values.set('xlyra-playground-settings', JSON.stringify({ reasoningEffort: 'light' }))
 
-    expect(loadSettings().reasoningEffort).toBe('light')
+    expect(loadSettings().reasoningEffort).toBe('low')
   })
 
   it('keeps ultra reasoning effort from stored settings', () => {

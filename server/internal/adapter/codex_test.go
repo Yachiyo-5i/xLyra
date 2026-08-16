@@ -182,8 +182,9 @@ func TestCodexStaticModelItemsAlignOfficialCatalog(t *testing.T) {
 			}
 		}
 	}
-	assertLevels([]string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}, []string{"light", "medium", "high", "xhigh", "max", "ultra"})
-	assertLevels([]string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2"}, []string{"light", "medium", "high", "xhigh"})
+	assertLevels([]string{"gpt-5.6-sol", "gpt-5.6-terra"}, []string{"low", "medium", "high", "xhigh", "max", "ultra"})
+	assertLevels([]string{"gpt-5.6-luna"}, []string{"low", "medium", "high", "xhigh", "max"})
+	assertLevels([]string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2"}, []string{"low", "medium", "high", "xhigh"})
 
 	image := codexStaticModelByID(items, "gpt-image-2")
 	if image == nil {

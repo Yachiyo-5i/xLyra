@@ -48,7 +48,7 @@ func normalizeReasoningEffortField(payload map[string]any, key string) (string, 
 	}
 	effort, ok := raw.(string)
 	if !ok {
-		return "", false, fmt.Errorf("%s must be one of light, medium, high, xhigh, max, ultra", key)
+		return "", false, fmt.Errorf("%s must be one of low, medium, high, xhigh, max, ultra", key)
 	}
 	effort = strings.ToLower(strings.TrimSpace(effort))
 	if effort == "" {
@@ -56,7 +56,7 @@ func normalizeReasoningEffortField(payload map[string]any, key string) (string, 
 		return "", false, nil
 	}
 	if !isSupportedReasoningEffort(effort) {
-		return "", false, fmt.Errorf("%s must be one of light, medium, high, xhigh, max, ultra", key)
+		return "", false, fmt.Errorf("%s must be one of low, medium, high, xhigh, max, ultra", key)
 	}
 	payload[key] = effort
 	return effort, true, nil
@@ -64,7 +64,7 @@ func normalizeReasoningEffortField(payload map[string]any, key string) (string, 
 
 func isSupportedReasoningEffort(effort string) bool {
 	switch effort {
-	case "light", "medium", "high", "xhigh", "max", "ultra":
+	case "low", "medium", "high", "xhigh", "max", "ultra":
 		return true
 	default:
 		return false

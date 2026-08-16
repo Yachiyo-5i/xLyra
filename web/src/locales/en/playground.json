@@ -93,7 +93,7 @@
     "noModels": "No models available"
   },
   "effort": {
-    "light": "Light",
+    "low": "Low",
     "medium": "Medium",
     "high": "High",
     "xhigh": "Extra high",

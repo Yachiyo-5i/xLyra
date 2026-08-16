@@ -714,13 +714,13 @@ func extractCodexModelItems(payload map[string]any) []map[string]any {
 
 func codexStaticModelItems() []map[string]any {
 	models := []map[string]any{
-		codexStaticModel("gpt-5.6-sol", "GPT-5.6-Sol", 1, 372000, 128000, []string{"light", "medium", "high", "xhigh", "max", "ultra"}),
-		codexStaticModel("gpt-5.6-terra", "GPT-5.6-Terra", 2, 372000, 128000, []string{"light", "medium", "high", "xhigh", "max", "ultra"}),
-		codexStaticModel("gpt-5.6-luna", "GPT-5.6-Luna", 3, 372000, 128000, []string{"light", "medium", "high", "xhigh", "max", "ultra"}),
-		codexStaticModel("gpt-5.5", "GPT-5.5", 7, 272000, 128000, []string{"light", "medium", "high", "xhigh"}),
-		codexStaticModel("gpt-5.4", "GPT-5.4", 16, 272000, 128000, []string{"light", "medium", "high", "xhigh"}),
-		codexStaticModel("gpt-5.4-mini", "GPT-5.4-Mini", 23, 272000, 128000, []string{"light", "medium", "high", "xhigh"}),
-		codexStaticModel("gpt-5.2", "GPT-5.2", 29, 272000, 128000, []string{"light", "medium", "high", "xhigh"}),
+		codexStaticModel("gpt-5.6-sol", "GPT-5.6-Sol", 1, 372000, 128000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}),
+		codexStaticModel("gpt-5.6-terra", "GPT-5.6-Terra", 2, 372000, 128000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}),
+		codexStaticModel("gpt-5.6-luna", "GPT-5.6-Luna", 3, 372000, 128000, []string{"low", "medium", "high", "xhigh", "max"}),
+		codexStaticModel("gpt-5.5", "GPT-5.5", 7, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
+		codexStaticModel("gpt-5.4", "GPT-5.4", 16, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
+		codexStaticModel("gpt-5.4-mini", "GPT-5.4-Mini", 23, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
+		codexStaticModel("gpt-5.2", "GPT-5.2", 29, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
 	}
 	models = append(models, map[string]any{
 		"slug":                     "gpt-image-2",

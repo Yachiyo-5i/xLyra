@@ -1,19 +1,32 @@
 import type { GatewayModel, ReasoningEffort } from '@/features/playground/lib/types'
 
-const BASE_REASONING_EFFORTS: ReasoningEffort[] = ['light', 'medium', 'high', 'xhigh']
+const BASE_REASONING_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh']
 type ReasoningModel = Pick<GatewayModel, 'id' | 'mappedModel'>
 
-export function supportsExtendedReasoning(model: ReasoningModel | null | undefined): boolean {
-  const normalized = (model?.mappedModel || model?.id || '').trim().toLowerCase()
+function normalizedReasoningModel(model: ReasoningModel | null | undefined): string {
+  return (model?.mappedModel || model?.id || '').trim().toLowerCase()
+}
+
+export function supportsMaxReasoning(model: ReasoningModel | null | undefined): boolean {
+  const normalized = normalizedReasoningModel(model)
   return normalized === 'gpt-5.6' || normalized.startsWith('gpt-5.6-')
 }
 
+export function supportsUltraReasoning(model: ReasoningModel | null | undefined): boolean {
+  const normalized = normalizedReasoningModel(model)
+  return normalized === 'gpt-5.6-sol' || normalized === 'gpt-5.6-terra'
+}
+
 export function reasoningEffortsForModel(model: ReasoningModel | null | undefined): ReasoningEffort[] {
-  return supportsExtendedReasoning(model)
-    ? [...BASE_REASONING_EFFORTS, 'max', 'ultra']
-    : [...BASE_REASONING_EFFORTS]
+  const efforts = [...BASE_REASONING_EFFORTS]
+  if (supportsMaxReasoning(model)) efforts.push('max')
+  if (supportsUltraReasoning(model)) efforts.push('ultra')
+  return efforts
 }
 
 export function normalizeReasoningEffort(model: ReasoningModel | null | undefined, effort: ReasoningEffort): ReasoningEffort {
-  return (effort === 'max' || effort === 'ultra') && !supportsExtendedReasoning(model) ? 'xhigh' : effort
+  if (effort === 'ultra' && !supportsUltraReasoning(model)) {
+    return supportsMaxReasoning(model) ? 'max' : 'xhigh'
+  }
+  return effort === 'max' && !supportsMaxReasoning(model) ? 'xhigh' : effort
 }

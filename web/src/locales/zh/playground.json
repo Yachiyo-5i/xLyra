@@ -93,7 +93,7 @@
     "noModels": "暂无可用模型"
   },
   "effort": {
-    "light": "轻度",
+    "low": "低",
     "medium": "中",
     "high": "高",
     "xhigh": "极高",
