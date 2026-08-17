@@ -26,6 +26,8 @@
     "todayTotalRequests": "今日 / 合計リクエスト",
     "todayTokens": "今日のトークン",
     "todayTotalTokens": "今日 / 合計トークン",
+    "requests": "リクエスト",
+    "tokens": "トークン",
     "successRate": "成功率",
     "performance": "性能",
     "completedRpm": "直近1分の完了"

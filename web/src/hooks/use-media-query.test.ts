@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectMobileDevice } from './use-media-query'
+import { detectMobileDevice, shouldUseTabletDashboardLayout } from './use-media-query'
 
 describe('detectMobileDevice', () => {
   it('detects user agent client hints', () => {
@@ -23,5 +23,14 @@ describe('detectMobileDevice', () => {
 
   it('does not classify a narrow desktop user agent as a mobile device', () => {
     expect(detectMobileDevice({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', platform: 'MacIntel', maxTouchPoints: 0 })).toBe(false)
+  })
+})
+
+describe('shouldUseTabletDashboardLayout', () => {
+  it('enables the tablet dashboard only when device and viewport signals both match', () => {
+    expect(shouldUseTabletDashboardLayout(true, true)).toBe(true)
+    expect(shouldUseTabletDashboardLayout(true, false)).toBe(false)
+    expect(shouldUseTabletDashboardLayout(false, true)).toBe(false)
+    expect(shouldUseTabletDashboardLayout(false, false)).toBe(false)
   })
 })

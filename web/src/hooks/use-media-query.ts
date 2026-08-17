@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 const MOBILE_LAYOUT_MAX_WIDTH = 1023
 const MOBILE_LAYOUT_QUERY = `(max-width: ${MOBILE_LAYOUT_MAX_WIDTH}px)`
+const TABLET_DASHBOARD_LAYOUT_QUERY = '(min-width: 1024px) and (max-width: 1366px)'
 const MOBILE_DEVICE_PATTERN = /Android|Mobi|iPhone|iPad|iPod|IEMobile|Opera Mini/i
 
 export type MobileDeviceSignals = {
@@ -45,6 +46,17 @@ function useMediaQuery(query: string) {
 
 export function useMobileLayout() {
   return useMediaQuery(MOBILE_LAYOUT_QUERY)
+}
+
+export function shouldUseTabletDashboardLayout(mobileDevice: boolean, tabletViewport: boolean) {
+  return mobileDevice && tabletViewport
+}
+
+export function useTabletDashboardLayout() {
+  const mobileDevice = useMobileDevice()
+  const tabletViewport = useMediaQuery(TABLET_DASHBOARD_LAYOUT_QUERY)
+
+  return shouldUseTabletDashboardLayout(mobileDevice, tabletViewport)
 }
 
 export function useMobileDevice() {
