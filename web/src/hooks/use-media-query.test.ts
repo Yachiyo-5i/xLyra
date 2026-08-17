@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectMobileDevice, shouldUseCompactDashboardLayout } from './use-media-query'
+import { detectMobileDevice } from './use-media-query'
 
 describe('detectMobileDevice', () => {
   it('detects user agent client hints', () => {
@@ -23,12 +23,5 @@ describe('detectMobileDevice', () => {
 
   it('does not classify a narrow desktop user agent as a mobile device', () => {
     expect(detectMobileDevice({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', platform: 'MacIntel', maxTouchPoints: 0 })).toBe(false)
-  })
-})
-
-describe('shouldUseCompactDashboardLayout', () => {
-  it('follows the compact dashboard viewport range regardless of device UA', () => {
-    expect(shouldUseCompactDashboardLayout(true)).toBe(true)
-    expect(shouldUseCompactDashboardLayout(false)).toBe(false)
   })
 })

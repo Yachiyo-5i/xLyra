@@ -48,12 +48,8 @@ export function useMobileLayout() {
   return useMediaQuery(MOBILE_LAYOUT_QUERY)
 }
 
-export function shouldUseCompactDashboardLayout(compactViewport: boolean) {
-  return compactViewport
-}
-
 export function useCompactDashboardLayout() {
-  return shouldUseCompactDashboardLayout(useMediaQuery(COMPACT_DASHBOARD_LAYOUT_QUERY))
+  return useMediaQuery(COMPACT_DASHBOARD_LAYOUT_QUERY)
 }
 
 export function useMobileDevice() {
