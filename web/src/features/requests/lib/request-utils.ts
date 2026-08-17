@@ -101,6 +101,32 @@ export function requestResponseModeVariant(item: RequestLogItem): 'accent' | 'se
   return 'secondary'
 }
 
+export function requestIsInProgress(item: Pick<RequestLogItem, 'state' | 'is_live'>) {
+  return item.is_live === true || item.state === 'in_progress'
+}
+
+export function requestElapsedMs(
+  item: Pick<RequestLogItem, 'state' | 'is_live' | 'started_at'>,
+  now = Date.now(),
+) {
+  if (!requestIsInProgress(item) || !item.started_at) return null
+  const startedAt = Date.parse(item.started_at)
+  if (!Number.isFinite(startedAt) || !Number.isFinite(now)) return null
+  return Math.max(0, now - startedAt)
+}
+
+export function requestPhaseLabel(item: Pick<RequestLogItem, 'phase'>, t: TFunction) {
+  const phaseKey = {
+    accepted: 'table.phases.accepted',
+    routed: 'table.phases.routed',
+    responding: 'table.phases.responding',
+    completed: 'table.phases.completed',
+    failed: 'table.phases.failed',
+    cancelled: 'table.phases.cancelled',
+  }[item.phase ?? '']
+  return phaseKey ? t(phaseKey) : item.phase || t('table.phases.accepted')
+}
+
 export function requestHasFailover(item: Pick<RequestLogItem, 'failover'>): boolean {
   return item.failover === true
 }

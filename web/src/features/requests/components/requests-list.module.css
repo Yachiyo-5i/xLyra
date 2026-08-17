@@ -1,0 +1,21 @@
+.enter {
+  animation: request-list-item-enter 260ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes request-list-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
+  }
+}

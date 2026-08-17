@@ -1,15 +1,15 @@
-import { Fragment, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from 'react'
+import { Fragment, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { RequestLogItem } from '@/features/requests/api/requests'
 import { RequestDetailRow } from '@/features/requests/components/request-detail-row'
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
 import { RequestTiming } from '@/features/requests/components/request-timing'
 import { requestFailoverBadgeClassName } from '@/features/requests/lib/request-badge-styles'
+import styles from '@/features/requests/components/requests-list.module.css'
 import {
   readRequestsTableColumnWidthsPreference,
   writeRequestsTableColumnWidthsPreference,
@@ -28,12 +28,16 @@ import {
   requestCacheTokens,
   requestCacheWriteTokens,
   requestHasFailover,
+  requestIsInProgress,
+  requestPhaseLabel,
   requestResponseModeLabel,
   requestResponseModeVariant,
 } from '@/features/requests/lib/request-utils'
+import { requestLogDisplayKey, type RequestLogDisplayItem } from '@/features/requests/lib/request-live'
+import { useRequestListAnimation } from '@/hooks/use-request-list-animation'
 
 type RequestsTableProps = {
-  items: RequestLogItem[]
+  items: RequestLogDisplayItem[]
   expandedId: string | null
   onExpandedIdChange: (id: string | null) => void
   scrollContainerRef?: RefObject<HTMLDivElement | null>
@@ -73,6 +77,8 @@ export function RequestsTable({
   const columnWidthsRef = useRef(columnWidths)
   const resizeStateRef = useRef<ColumnResizeState | null>(null)
   const tableRef = useRef<HTMLTableElement>(null)
+  const itemKeys = useMemo(() => items.map(requestLogDisplayKey), [items])
+  useRequestListAnimation(tableRef, itemKeys)
 
   function updateColumnWidths(widths: RequestTableColumnWidths) {
     columnWidthsRef.current = widths
@@ -194,18 +200,27 @@ export function RequestsTable({
         </thead>
         <tbody>
           {items.map((item) => {
-            const expanded = expandedId === item.id
+            const rowKey = requestLogDisplayKey(item)
+            const expanded = expandedId === rowKey
             const cacheTokens = requestCacheTokens(item)
             const cacheWriteTokens = requestCacheWriteTokens(item)
             const reasoningEffort = requestReasoningEffort(item)
+            const inProgress = requestIsInProgress(item)
             const hasCacheRead = typeof cacheTokens === 'number' && cacheTokens > 0
             const hasCacheWrite = typeof cacheWriteTokens === 'number' && cacheWriteTokens > 0
 
             return (
-              <Fragment key={item.id}>
+              <Fragment key={rowKey}>
                 <tr
-                  className="cursor-pointer border-t border-[hsl(var(--glass-divider))] [&>td]:transition-colors hover:[&>td]:bg-[hsl(var(--surface-subtle))] hover:[&>td:first-child]:rounded-l-md hover:[&>td:last-child]:rounded-r-md"
-                  onClick={() => onExpandedIdChange(expanded ? null : item.id)}
+                  data-request-list-item={rowKey}
+                  data-request-list-parent={item.parent_request_id ?? item.request_id}
+                  data-request-list-live={item.is_live === true ? 'true' : 'false'}
+                  data-request-list-handoff={item.display_key ? 'true' : 'false'}
+                  className={cn(
+                    'cursor-pointer border-t border-[hsl(var(--glass-divider))] [&>td]:transition-colors hover:[&>td]:bg-[hsl(var(--surface-subtle))] hover:[&>td:first-child]:rounded-l-md hover:[&>td:last-child]:rounded-r-md',
+                    item.is_live === true && styles.enter,
+                  )}
+                  onClick={() => onExpandedIdChange(expanded ? null : rowKey)}
                 >
                       <td className="px-4 py-4 align-middle">
                         {expanded ? (
@@ -248,9 +263,14 @@ export function RequestsTable({
                       <td className="overflow-hidden px-1 py-4 align-middle text-center">
                         <div className="flex flex-col items-center gap-1 text-xs leading-4">
                           <div className="flex flex-wrap items-center justify-center gap-1.5">
-                            <StatusBadge status={item.success ? 'healthy' : 'error'} className="shrink-0 px-2 py-0.5 text-xs leading-4">
-                              {item.success ? t('table.success') : t('table.failure')}
+                            <StatusBadge status={inProgress ? 'syncing' : item.success ? 'healthy' : 'error'} className="shrink-0 px-2 py-0.5 text-xs leading-4">
+                              {inProgress ? t('table.inProgress') : item.success ? t('table.success') : t('table.failure')}
                             </StatusBadge>
+                            {inProgress ? (
+                              <Badge variant="accent" className="shrink-0 px-2 py-0.5 text-xs leading-4">
+                                {requestPhaseLabel(item, t)}
+                              </Badge>
+                            ) : null}
                             <Badge
                               variant={requestResponseModeVariant(item)}
                               className="shrink-0 px-2 py-0.5 text-xs font-medium tracking-wide"
