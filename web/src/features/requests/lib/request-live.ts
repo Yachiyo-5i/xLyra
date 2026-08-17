@@ -6,6 +6,7 @@ import type {
   RequestLogItem,
   RequestLogListFilters,
 } from '@/features/requests/api/requests'
+import { requestLogDisplayTimestamp } from '@/features/requests/lib/request-utils'
 
 export type RequestActivityState = {
   sequence: number
@@ -226,9 +227,7 @@ function compareRequestLogItems(left: RequestLogDisplayItem, right: RequestLogDi
 }
 
 function requestLogTimestamp(item: RequestLogDisplayItem) {
-  return requestTimestamp(item.display_started_at)
-    ?? requestTimestamp(item.started_at)
-    ?? requestTimestamp(item.created_at)
+  return requestTimestamp(requestLogDisplayTimestamp(item))
     ?? 0
 }
 

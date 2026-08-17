@@ -61,6 +61,8 @@ func (h Handler) serveEndpoint(
 		requestID = uuid.NewString()
 	}
 	startedAt := time.Now()
+	ctx := withRequestStartedAt(r.Context(), startedAt)
+	r = r.WithContext(ctx)
 
 	if h.auth == nil || h.router == nil || h.db == nil {
 		h.writeChatFailure(w, r, endpoint.DownstreamPath(), requestID, uuid.Nil, startedAt, chatFailure{
@@ -89,7 +91,7 @@ func (h Handler) serveEndpoint(
 		return
 	}
 
-	ctx := withReasoningEffort(r.Context(), reasoningEffortFromPayload(request.Payload))
+	ctx = withReasoningEffort(ctx, reasoningEffortFromPayload(request.Payload))
 	r = r.WithContext(ctx)
 	originalModel := request.RequestedModel
 	mappingRule, hasMapping := h.resolveModelMapping(apiKey, request.RequestedModel)
@@ -189,6 +191,7 @@ func (h Handler) serveEndpoint(
 		ModelKey:      plan.CanonicalModel.ModelKey,
 		ModelProvider: plan.CanonicalModel.Provider,
 		Stream:        request.Stream,
+		StartedAt:     startedAt,
 	})
 	flowPhase := inflight.PhaseFailed
 	defer func() {

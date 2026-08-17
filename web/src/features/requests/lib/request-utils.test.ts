@@ -15,6 +15,7 @@ import {
   requestFirstByteLatencyTone,
   requestElapsedMs,
   requestIsInProgress,
+  requestLogDisplayTimestamp,
   requestReasoningEffort,
   requestTotalLatencyTone,
 } from '@/features/requests/lib/request-utils'
@@ -48,6 +49,19 @@ describe('request log display helpers', () => {
     item.is_live = true
     item.started_at = 'invalid'
     expect(requestElapsedMs(item, now)).toBeNull()
+  })
+
+  it('uses the effective request start timestamp for display', () => {
+    const item = { ...requestDetail(), display_started_at: null as string | null }
+    item.started_at = '2026-08-17T08:00:00.000Z'
+    expect(requestLogDisplayTimestamp(item)).toBe(item.started_at)
+
+    item.display_started_at = '2026-08-17T08:00:01.000Z'
+    expect(requestLogDisplayTimestamp(item)).toBe(item.display_started_at)
+
+    item.display_started_at = null
+    item.started_at = null
+    expect(requestLogDisplayTimestamp(item)).toBe(item.created_at)
   })
 
   it('projects route and credential failover details', () => {

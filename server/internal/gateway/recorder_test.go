@@ -2,7 +2,9 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -44,6 +46,7 @@ func TestRecorderLocksAndUpdatesAPIKeyBeforeCreatingRequestDetail(t *testing.T) 
 	apiKeyID := uuid.New()
 	createErr := errors.New("stop after request log create")
 	steps := make([]string, 0, 3)
+	startedAt := time.Date(2026, 8, 17, 8, 0, 0, 123456789, time.UTC)
 
 	if err := db.Callback().Query().Replace("gorm:query", func(tx *gorm.DB) {
 		apiKey, ok := tx.Statement.Dest.(*store.APIKey)
@@ -85,8 +88,18 @@ func TestRecorderLocksAndUpdatesAPIKeyBeforeCreatingRequestDetail(t *testing.T) 
 		t.Fatalf("replace recorder update callback: %v", err)
 	}
 	if err := db.Callback().Create().Replace("gorm:create", func(tx *gorm.DB) {
-		if _, ok := tx.Statement.Dest.(*store.RequestLog); !ok {
+		item, ok := tx.Statement.Dest.(*store.RequestLog)
+		if !ok {
 			tx.AddError(errors.New("unexpected recorder create destination"))
+			return
+		}
+		var metadata map[string]any
+		if err := json.Unmarshal(item.Metadata, &metadata); err != nil {
+			tx.AddError(fmt.Errorf("decode request log metadata: %w", err))
+			return
+		}
+		if metadata["started_at"] != startedAt.UTC().Format(time.RFC3339Nano) {
+			tx.AddError(errors.New("request log metadata is missing started_at"))
 			return
 		}
 		steps = append(steps, "request_log")
@@ -98,6 +111,7 @@ func TestRecorderLocksAndUpdatesAPIKeyBeforeCreatingRequestDetail(t *testing.T) 
 	cost := 1.25
 	_, _, err := NewRecorder(gatewayStoreWithGorm(t, db), nil, config.LoadTimeZone("UTC")).RecordGatewayRequest(t.Context(), GatewayRequestRecord{
 		RequestID:     "req-lock-order",
+		StartedAt:     startedAt,
 		APIKeyID:      apiKeyID,
 		EstimatedCost: &cost,
 	})

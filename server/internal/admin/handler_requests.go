@@ -347,6 +347,7 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 		"pricing":          metadataMap(metadata, "pricing"),
 		"cost_calculation": metadataMap(metadata, "cost_calculation"),
 		"rate_limit":       metadataMap(metadata, "rate_limit"),
+		"started_at":       requestLogStartedAt(metadata),
 		"created_at":       timeString(item.CreatedAt),
 	}
 
@@ -516,6 +517,18 @@ func requestLogCredentialProjection(metadata map[string]any) any {
 		"id":   id,
 		"name": name,
 	}
+}
+
+func requestLogStartedAt(metadata map[string]any) any {
+	raw, ok := metadata["started_at"].(string)
+	if !ok {
+		return nil
+	}
+	startedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(raw))
+	if err != nil || startedAt.IsZero() {
+		return nil
+	}
+	return adminTimeZone().Format(startedAt, time.RFC3339Nano)
 }
 
 func requestMetadataInt64(metadata map[string]any, key string) any {

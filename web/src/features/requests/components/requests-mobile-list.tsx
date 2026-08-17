@@ -18,6 +18,7 @@ import {
   requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
+  requestLogDisplayTimestamp,
   requestHasFailover,
   requestIsInProgress,
   requestPhaseLabel,
@@ -88,11 +89,11 @@ export function RequestsMobileList({
                     {reasoningEffort ? (
                       <div className="flex min-w-0 items-center gap-2 text-xs">
                         <span className="truncate text-foreground" title={reasoningEffort}>{reasoningEffort}</span>
-                        <span className="shrink-0 text-muted-soft">{formatDateTime(item.created_at, i18n.language)}</span>
+                        <span className="shrink-0 text-muted-soft">{formatDateTime(requestLogDisplayTimestamp(item), i18n.language)}</span>
                       </div>
                     ) : (
                       <div className="text-muted-soft text-xs">
-                        {formatDateTime(item.created_at, i18n.language)}
+                        {formatDateTime(requestLogDisplayTimestamp(item), i18n.language)}
                       </div>
                     )}
                   </div>

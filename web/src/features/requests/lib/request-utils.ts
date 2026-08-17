@@ -112,7 +112,13 @@ export function requestElapsedMs(
   if (!requestIsInProgress(item) || !item.started_at) return null
   const startedAt = Date.parse(item.started_at)
   if (!Number.isFinite(startedAt) || !Number.isFinite(now)) return null
-  return Math.max(0, now - startedAt)
+	return Math.max(0, now - startedAt)
+}
+
+export function requestLogDisplayTimestamp(
+	item: Pick<RequestLogItem, 'created_at' | 'started_at'> & { display_started_at?: string | null },
+) {
+	return item.display_started_at ?? item.started_at ?? item.created_at
 }
 
 export function requestPhaseLabel(item: Pick<RequestLogItem, 'phase'>, t: TFunction) {

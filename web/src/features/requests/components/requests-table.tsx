@@ -27,6 +27,7 @@ import {
   requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
+  requestLogDisplayTimestamp,
   requestHasFailover,
   requestIsInProgress,
   requestPhaseLabel,
@@ -230,7 +231,7 @@ export function RequestsTable({
                         )}
                       </td>
                       <td className="px-4 py-4 align-middle text-sm text-foreground">
-                        {formatDateTime(item.created_at, i18n.language)}
+                        {formatDateTime(requestLogDisplayTimestamp(item), i18n.language)}
                       </td>
                       <td className="px-4 py-4 align-middle">
                         <div className="min-w-0 space-y-1">
