@@ -139,6 +139,9 @@ func (UsageRecord) TableName() string         { return "usage_records" }
 func (RequestUsageDailySummary) TableName() string {
 	return "request_usage_daily_summaries"
 }
+func (RequestUsageHourlySummary) TableName() string {
+	return "request_usage_hourly_summaries"
+}
 func (RequestUsageSummaryDay) TableName() string {
 	return "request_usage_summary_days"
 }

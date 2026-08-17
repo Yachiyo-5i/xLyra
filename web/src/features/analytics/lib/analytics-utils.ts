@@ -4,7 +4,7 @@ import type {
 } from '@/features/analytics/api/analytics'
 import { formatCompactNumber, formatDashboardCurrency } from '@/features/dashboard/lib/dashboard-utils'
 
-export type AnalyticsRangePreset = 'today' | '7d' | '30d' | '90d' | 'all' | 'custom'
+export type AnalyticsRangePreset = 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'all' | 'custom'
 
 export type AnalyticsTrendMetric = 'cost' | 'tokens' | 'requests' | 'latency'
 
@@ -45,8 +45,9 @@ export function presetRange(preset: Exclude<AnalyticsRangePreset, 'custom'>) {
     // 远端会 clamp 到支持的最大范围，这里给一个足够早的起点即可。
     return { from: '1970-01-01', to: formatDateInput(to) }
   }
-  const from = new Date()
-  const offset = preset === 'today' ? 0 : preset === '7d' ? 6 : preset === '30d' ? 29 : 89
+  if (preset === 'yesterday') to.setDate(to.getDate() - 1)
+  const from = new Date(to)
+  const offset = preset === 'today' || preset === 'yesterday' ? 0 : preset === '7d' ? 6 : preset === '30d' ? 29 : 89
   from.setDate(from.getDate() - offset)
   return { from: formatDateInput(from), to: formatDateInput(to) }
 }
@@ -169,4 +170,3 @@ export function buildTrendChart(
   })
   return { data, series }
 }
-

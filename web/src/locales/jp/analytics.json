@@ -7,6 +7,8 @@
     "refresh": "更新",
     "retry": "再試行",
     "loadFailed": "使用量分析の読み込みに失敗しました",
+    "optionsLoadFailed": "フィルター候補の読み込みに失敗しました",
+    "contributionsLoadFailed": "ユーザー貢献データの読み込みに失敗しました",
     "noData": "データなし",
     "noDataDesc": "現在のフィルター条件では使用量データがありません"
   },
@@ -14,6 +16,7 @@
     "ranges": {
       "label": "期間",
       "today": "今日",
+      "yesterday": "昨日",
       "7d": "7 日間",
       "30d": "30 日間",
       "90d": "90 日間",

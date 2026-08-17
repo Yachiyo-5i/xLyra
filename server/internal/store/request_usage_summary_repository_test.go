@@ -2,11 +2,13 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"xlyra/server/internal/config"
 )
@@ -158,6 +160,15 @@ func TestRequestUsageSummaryRepositoryNilStoreGuards(t *testing.T) {
 	_, err = repo.List(t.Context(), RequestUsageSummaryQuery{TimeZone: "UTC"})
 	assertRequestUsageSummaryStoreNotInitialized(t, "List", err)
 
+	_, err = repo.DetailsCleanedForDay(t.Context(), day, timeZone)
+	assertRequestUsageSummaryStoreNotInitialized(t, "DetailsCleanedForDay", err)
+
+	_, err = repo.ListHourly(t.Context(), RequestUsageSummaryQuery{TimeZone: "UTC"})
+	assertRequestUsageSummaryStoreNotInitialized(t, "ListHourly", err)
+
+	_, err = repo.DeleteHourlyBefore(t.Context(), day, timeZone)
+	assertRequestUsageSummaryStoreNotInitialized(t, "DeleteHourlyBefore", err)
+
 	_, err = repo.SummarizeBySite(t.Context(), RequestUsageSummaryQuery{TimeZone: "UTC"})
 	assertRequestUsageSummaryStoreNotInitialized(t, "SummarizeBySite", err)
 
@@ -166,6 +177,30 @@ func TestRequestUsageSummaryRepositoryNilStoreGuards(t *testing.T) {
 
 	_, err = repo.DeleteDetailsBefore(t.Context(), day)
 	assertRequestUsageSummaryStoreNotInitialized(t, "DeleteDetailsBefore", err)
+}
+
+func TestRequestUsageSummaryDetailsCleanedForDay(t *testing.T) {
+	t.Parallel()
+
+	db := storeRepositoryOfflineGorm(t)
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		day, ok := tx.Statement.Dest.(*RequestUsageSummaryDay)
+		if !ok {
+			tx.AddError(errors.New("unexpected detail cleanup query destination"))
+			return
+		}
+		day.LastCleanedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		tx.Statement.RowsAffected = 1
+	})
+
+	cleaned, err := NewRequestUsageSummaryRepository(db).DetailsCleanedForDay(
+		t.Context(),
+		time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC),
+		config.LoadTimeZone("UTC"),
+	)
+	if err != nil || !cleaned {
+		t.Fatalf("DetailsCleanedForDay = %t, %v", cleaned, err)
+	}
 }
 
 func TestRequestUsageSummaryCacheWriteTokensMetadata(t *testing.T) {

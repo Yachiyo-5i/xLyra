@@ -7,6 +7,8 @@
     "refresh": "Refresh",
     "retry": "Retry",
     "loadFailed": "Failed to load usage analytics",
+    "optionsLoadFailed": "Failed to load filter options",
+    "contributionsLoadFailed": "Failed to load user contributions",
     "noData": "No data",
     "noDataDesc": "No usage data under the current filters"
   },
@@ -14,6 +16,7 @@
     "ranges": {
       "label": "Time Range",
       "today": "Today",
+      "yesterday": "Yesterday",
       "7d": "7 days",
       "30d": "30 days",
       "90d": "90 days",

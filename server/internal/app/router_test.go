@@ -259,6 +259,28 @@ func TestContentEncodingMiddlewareDoesNotReachPlaygroundOrResponsesWebSocket(t *
 	}
 }
 
+func TestAnalyticsRoutesHaveResponseCompressionMiddleware(t *testing.T) {
+	t.Parallel()
+
+	router := NewRouter(testConfig(), slog.Default(), nil, nil, "test-master-key")
+	routes, ok := router.(chi.Routes)
+	if !ok {
+		t.Fatal("router does not expose chi routes")
+	}
+	middlewareCounts := map[string]int{}
+	if err := chi.Walk(routes, func(method string, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet && (route == "/api/v1/analytics/dataset" || route == "/api/v1/traffic-flow/topology") {
+			middlewareCounts[route] = len(middlewares)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk routes: %v", err)
+	}
+	if middlewareCounts["/api/v1/analytics/dataset"] != middlewareCounts["/api/v1/traffic-flow/topology"]+1 {
+		t.Fatalf("analytics middleware count = %d, regular protected route count = %d", middlewareCounts["/api/v1/analytics/dataset"], middlewareCounts["/api/v1/traffic-flow/topology"])
+	}
+}
+
 func TestPlaygroundGatewayRoutesAreRegisteredAndProtected(t *testing.T) {
 	t.Parallel()
 

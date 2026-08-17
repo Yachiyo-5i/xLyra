@@ -7,6 +7,8 @@
     "refresh": "刷新",
     "retry": "重试",
     "loadFailed": "用量分析加载失败",
+    "optionsLoadFailed": "筛选项加载失败",
+    "contributionsLoadFailed": "用户贡献数据加载失败",
     "noData": "暂无数据",
     "noDataDesc": "当前筛选条件下没有用量数据"
   },
@@ -14,6 +16,7 @@
     "ranges": {
       "label": "时间范围",
       "today": "今天",
+      "yesterday": "昨天",
       "7d": "7 天",
       "30d": "30 天",
       "90d": "90 天",

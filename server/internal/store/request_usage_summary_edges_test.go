@@ -22,41 +22,48 @@ func TestRequestUsageSummaryIncrementBranchesOffline(t *testing.T) {
 	db := storeTransactionGorm(t, "request_usage_summary")
 	queryCalls := 0
 	var created []RequestUsageDailySummary
+	var hourlyCreated []RequestUsageHourlySummary
 	var saved []RequestUsageDailySummary
 	existingStart := time.Date(2026, 6, 20, 8, 0, 0, 0, time.UTC)
 	existingEnd := time.Date(2026, 6, 20, 9, 0, 0, 0, time.UTC)
 	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
-		item, ok := tx.Statement.Dest.(*RequestUsageDailySummary)
-		if !ok {
-			tx.AddError(errors.New("unexpected request usage summary query destination"))
-			return
-		}
 		queryCalls++
-		if queryCalls == 1 {
+		switch item := tx.Statement.Dest.(type) {
+		case *RequestUsageHourlySummary:
 			tx.AddError(gorm.ErrRecordNotFound)
 			return
+		case *RequestUsageDailySummary:
+			if queryCalls == 1 {
+				tx.AddError(gorm.ErrRecordNotFound)
+				return
+			}
+			*item = RequestUsageDailySummary{
+				SummaryKey:       "existing-summary",
+				RequestCount:     2,
+				SuccessCount:     1,
+				FailureCount:     1,
+				PromptTokens:     3,
+				CompletionTokens: 4,
+				TotalTokens:      7,
+				EstimatedCost:    0.5,
+				FirstRequestAt:   sql.NullTime{Time: existingStart, Valid: true},
+				LastRequestAt:    sql.NullTime{Time: existingEnd, Valid: true},
+			}
+			tx.Statement.RowsAffected = 1
+		default:
+			tx.AddError(errors.New("unexpected request usage summary query destination"))
 		}
-		*item = RequestUsageDailySummary{
-			SummaryKey:       "existing-summary",
-			RequestCount:     2,
-			SuccessCount:     1,
-			FailureCount:     1,
-			PromptTokens:     3,
-			CompletionTokens: 4,
-			TotalTokens:      7,
-			EstimatedCost:    0.5,
-			FirstRequestAt:   sql.NullTime{Time: existingStart, Valid: true},
-			LastRequestAt:    sql.NullTime{Time: existingEnd, Valid: true},
-		}
-		tx.Statement.RowsAffected = 1
 	})
 	storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
-		item, ok := tx.Statement.Dest.(*RequestUsageDailySummary)
-		if !ok {
+		switch item := tx.Statement.Dest.(type) {
+		case *RequestUsageDailySummary:
+			created = append(created, *item)
+		case *RequestUsageHourlySummary:
+			hourlyCreated = append(hourlyCreated, *item)
+		default:
 			tx.AddError(errors.New("unexpected request usage summary create destination"))
 			return
 		}
-		created = append(created, *item)
 		tx.Statement.RowsAffected = 1
 	})
 	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
@@ -116,6 +123,9 @@ func TestRequestUsageSummaryIncrementBranchesOffline(t *testing.T) {
 		created[0].TotalTokens != 15 || created[0].Currency != "EUR" ||
 		!created[0].FirstRequestAt.Time.Equal(requestAt) {
 		t.Fatalf("created summary = %#v, want usage-backed increment row", created)
+	}
+	if len(hourlyCreated) != 1 || !hourlyCreated[0].BucketStart.Equal(requestAt.Truncate(time.Hour)) {
+		t.Fatalf("created hourly summary = %#v, want hourly usage-backed increment row", hourlyCreated)
 	}
 	if len(saved) != 1 || saved[0].RequestCount != 3 || saved[0].SuccessCount != 2 ||
 		saved[0].FailureCount != 1 || saved[0].TotalTokens != 20 ||

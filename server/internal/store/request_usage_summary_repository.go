@@ -77,6 +77,56 @@ type RequestUsageDailySummary struct {
 	UpdatedAt                  time.Time
 }
 
+type RequestUsageHourlySummary struct {
+	SummaryKey                 string    `gorm:"primaryKey;type:text"`
+	BucketStart                time.Time `gorm:"index:request_usage_hourly_summaries_bucket_idx;index:request_usage_hourly_summaries_site_bucket_idx,priority:2;index:request_usage_hourly_summaries_model_bucket_idx,priority:2;index:request_usage_hourly_summaries_currency_bucket_idx,priority:2"`
+	TimeZone                   string    `gorm:"column:timezone"`
+	SiteKey                    string    `gorm:"index:request_usage_hourly_summaries_site_bucket_idx,priority:1"`
+	SiteID                     uuid.NullUUID
+	SiteName                   string
+	SiteSlug                   string
+	SiteType                   string
+	CanonicalModelKey          string `gorm:"index:request_usage_hourly_summaries_model_bucket_idx,priority:1"`
+	CanonicalModelID           uuid.NullUUID
+	SiteModelKey               string
+	SiteModelID                uuid.NullUUID
+	UpstreamModelName          string
+	APIKeyKey                  string
+	APIKeyID                   uuid.NullUUID
+	APIKeyName                 string
+	Endpoint                   string
+	StatusCode                 int
+	Success                    bool
+	Internal                   bool `gorm:"default:false;not null"`
+	ErrorType                  string
+	Currency                   string `gorm:"index:request_usage_hourly_summaries_currency_bucket_idx,priority:1"`
+	RequestCount               int64
+	SuccessCount               int64
+	FailureCount               int64
+	PromptTokens               int64
+	CompletionTokens           int64
+	TotalTokens                int64
+	CachedTokens               int64   `gorm:"not null;default:0"`
+	CacheWriteTokens           int64   `gorm:"not null;default:0"`
+	CacheCreationInputTokens   int64   `gorm:"not null;default:0"`
+	CacheCreation5mInputTokens int64   `gorm:"not null;default:0"`
+	CacheCreation1hInputTokens int64   `gorm:"not null;default:0"`
+	CacheWriteCost             float64 `gorm:"type:numeric(18,8)"`
+	EstimatedCost              float64 `gorm:"type:numeric(18,8)"`
+	LatencyCount               int64
+	LatencyTotalMS             int64
+	LatencyMinMS               sql.NullInt64
+	LatencyMaxMS               sql.NullInt64
+	UpstreamLatencyCount       int64
+	UpstreamLatencyTotalMS     int64
+	UpstreamLatencyMinMS       sql.NullInt64
+	UpstreamLatencyMaxMS       sql.NullInt64
+	FirstRequestAt             sql.NullTime
+	LastRequestAt              sql.NullTime
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+}
+
 type RequestUsageSummaryDay struct {
 	BucketStart      time.Time `gorm:"primaryKey;index:request_usage_summary_days_status_idx,priority:2"`
 	TimeZone         string    `gorm:"primaryKey;column:timezone"`
@@ -180,11 +230,19 @@ func (r RequestUsageSummaryRepository) Increment(ctx context.Context, params Req
 	if r.db == nil {
 		return fmt.Errorf("request usage summary store is not initialized")
 	}
-	row, err := r.summaryFromRequestLog(ctx, params.RequestLog, params.UsageRecord, params.TimeZone)
+	summaryContext, err := r.summaryContext(ctx, []RequestLog{params.RequestLog})
 	if err != nil {
 		return fmt.Errorf("increment request usage summary: %w", err)
 	}
-	if err := r.incrementSummary(ctx, row); err != nil {
+	daily := summaryFromRequestLog(params.RequestLog, params.UsageRecord, params.TimeZone, summaryContext, params.TimeZone.StartOfDay)
+	hourly := RequestUsageHourlySummary(summaryFromRequestLog(params.RequestLog, params.UsageRecord, params.TimeZone, summaryContext, params.TimeZone.StartOfHour))
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := NewRequestUsageSummaryRepository(tx)
+		if err := repo.incrementSummaryRow(ctx, daily); err != nil {
+			return err
+		}
+		return repo.incrementHourlySummaryRow(ctx, hourly)
+	}); err != nil {
 		return fmt.Errorf("increment request usage summary: %w", err)
 	}
 	return nil
@@ -529,7 +587,59 @@ func (r RequestUsageSummaryRepository) List(ctx context.Context, query RequestUs
 	if r.db == nil {
 		return nil, fmt.Errorf("request usage summary store is not initialized")
 	}
-	exprs := make([]clause.Expression, 0, 4)
+	exprs := requestUsageSummaryExpressions(query)
+
+	db := r.db.WithContext(ctx)
+	if len(exprs) > 0 {
+		db = db.Clauses(clause.Where{Exprs: exprs})
+	}
+	var rows []RequestUsageDailySummary
+	if err := db.Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list request usage summaries: %w", err)
+	}
+	return rows, nil
+}
+
+func (r RequestUsageSummaryRepository) DetailsCleanedForDay(ctx context.Context, day time.Time, timeZone config.TimeZone) (bool, error) {
+	if r.db == nil {
+		return false, fmt.Errorf("request usage summary store is not initialized")
+	}
+	timeZone = normalizeSummaryTimeZone(timeZone)
+	var summaryDay RequestUsageSummaryDay
+	err := r.db.WithContext(ctx).
+		Where(&RequestUsageSummaryDay{BucketStart: timeZone.StartOfDay(day), TimeZone: timeZone.Name}).
+		First(&summaryDay).Error
+	if err == gorm.ErrRecordNotFound {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("load request usage detail cleanup state: %w", err)
+	}
+	return summaryDay.LastCleanedAt.Valid, nil
+}
+
+func (r RequestUsageSummaryRepository) ListHourly(ctx context.Context, query RequestUsageSummaryQuery) ([]RequestUsageDailySummary, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("request usage summary store is not initialized")
+	}
+	db := r.db.WithContext(ctx)
+	exprs := requestUsageSummaryExpressions(query)
+	if len(exprs) > 0 {
+		db = db.Clauses(clause.Where{Exprs: exprs})
+	}
+	var stored []RequestUsageHourlySummary
+	if err := db.Find(&stored).Error; err != nil {
+		return nil, fmt.Errorf("list hourly request usage summaries: %w", err)
+	}
+	rows := make([]RequestUsageDailySummary, 0, len(stored))
+	for _, row := range stored {
+		rows = append(rows, RequestUsageDailySummary(row))
+	}
+	return rows, nil
+}
+
+func requestUsageSummaryExpressions(query RequestUsageSummaryQuery) []clause.Expression {
+	exprs := make([]clause.Expression, 0, 8)
 	if strings.TrimSpace(query.TimeZone) != "" {
 		exprs = append(exprs, clause.Eq{Column: clause.Column{Name: "timezone"}, Value: strings.TrimSpace(query.TimeZone)})
 	}
@@ -573,15 +683,7 @@ func (r RequestUsageSummaryRepository) List(ctx context.Context, query RequestUs
 		exprs = append(exprs, clause.Eq{Column: clause.Column{Name: "currency"}, Value: value})
 	}
 
-	db := r.db.WithContext(ctx)
-	if len(exprs) > 0 {
-		db = db.Clauses(clause.Where{Exprs: exprs})
-	}
-	var rows []RequestUsageDailySummary
-	if err := db.Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list request usage summaries: %w", err)
-	}
-	return rows, nil
+	return exprs
 }
 
 func (r RequestUsageSummaryRepository) SummarizeBySite(ctx context.Context, query RequestUsageSummaryQuery) ([]SiteUsageSummaryRow, error) {
@@ -744,17 +846,102 @@ func (r RequestUsageSummaryRepository) MarkDetailsCleaned(ctx context.Context, c
 
 func (r RequestUsageSummaryRepository) incrementSummary(ctx context.Context, row RequestUsageDailySummary) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		repo := NewRequestUsageSummaryRepository(tx)
-		if err := repo.incrementExistingSummary(ctx, row); err == nil {
-			return nil
-		} else if err != gorm.ErrRecordNotFound {
+		return NewRequestUsageSummaryRepository(tx).incrementSummaryRow(ctx, row)
+	})
+}
+
+func (r RequestUsageSummaryRepository) incrementSummaryRow(ctx context.Context, row RequestUsageDailySummary) error {
+	if err := r.incrementExistingSummary(ctx, row); err == nil {
+		return nil
+	} else if err != gorm.ErrRecordNotFound {
+		return err
+	}
+	if err := r.db.WithContext(ctx).Create(&row).Error; err == nil {
+		return nil
+	}
+	return r.incrementExistingSummary(ctx, row)
+}
+
+func (r RequestUsageSummaryRepository) incrementHourlySummaryRow(ctx context.Context, row RequestUsageHourlySummary) error {
+	var existing RequestUsageHourlySummary
+	err := r.db.WithContext(ctx).
+		Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		Where(&RequestUsageHourlySummary{SummaryKey: row.SummaryKey}).
+		First(&existing).Error
+	if err == nil {
+		daily := RequestUsageDailySummary(existing)
+		addSummaryValues(&daily, RequestUsageDailySummary(row))
+		updated := RequestUsageHourlySummary(daily)
+		return r.db.WithContext(ctx).Save(&updated).Error
+	}
+	if err != gorm.ErrRecordNotFound {
+		return err
+	}
+	if err := r.db.WithContext(ctx).Create(&row).Error; err == nil {
+		return nil
+	}
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		Where(&RequestUsageHourlySummary{SummaryKey: row.SummaryKey}).
+		First(&existing).Error; err != nil {
+		return err
+	}
+	daily := RequestUsageDailySummary(existing)
+	addSummaryValues(&daily, RequestUsageDailySummary(row))
+	updated := RequestUsageHourlySummary(daily)
+	return r.db.WithContext(ctx).Save(&updated).Error
+}
+
+func (r RequestUsageSummaryRepository) RebuildHourlyRange(ctx context.Context, start time.Time, end time.Time, timeZone config.TimeZone) (int, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("request usage summary store is not initialized")
+	}
+	if !end.After(start) {
+		return 0, nil
+	}
+	rows, err := r.ListFromDetailsByHour(ctx, start, end, timeZone)
+	if err != nil {
+		return 0, fmt.Errorf("rebuild hourly request usage summaries: %w", err)
+	}
+	hourly := make([]RequestUsageHourlySummary, 0, len(rows))
+	for _, row := range rows {
+		hourly = append(hourly, RequestUsageHourlySummary(row))
+	}
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.WithContext(ctx).
+			Clauses(clause.Where{Exprs: []clause.Expression{
+				clause.Gte{Column: clause.Column{Name: "bucket_start"}, Value: start},
+				clause.Lt{Column: clause.Column{Name: "bucket_start"}, Value: end},
+				clause.Eq{Column: clause.Column{Name: "timezone"}, Value: timeZone.Name},
+			}}).
+			Delete(&RequestUsageHourlySummary{}).Error; err != nil {
 			return err
 		}
-		if err := tx.WithContext(ctx).Create(&row).Error; err == nil {
+		if len(hourly) == 0 {
 			return nil
 		}
-		return repo.incrementExistingSummary(ctx, row)
+		return tx.WithContext(ctx).CreateInBatches(&hourly, 500).Error
 	})
+	if err != nil {
+		return 0, fmt.Errorf("rebuild hourly request usage summaries: %w", err)
+	}
+	return len(hourly), nil
+}
+
+func (r RequestUsageSummaryRepository) DeleteHourlyBefore(ctx context.Context, cutoff time.Time, timeZone config.TimeZone) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("request usage summary store is not initialized")
+	}
+	result := r.db.WithContext(ctx).
+		Clauses(clause.Where{Exprs: []clause.Expression{
+			clause.Lt{Column: clause.Column{Name: "bucket_start"}, Value: cutoff},
+			clause.Eq{Column: clause.Column{Name: "timezone"}, Value: timeZone.Name},
+		}}).
+		Delete(&RequestUsageHourlySummary{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("delete old hourly request usage summaries: %w", result.Error)
+	}
+	return result.RowsAffected, nil
 }
 
 func (r RequestUsageSummaryRepository) incrementExistingSummary(ctx context.Context, row RequestUsageDailySummary) error {
@@ -868,9 +1055,10 @@ func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Cont
 		if usage.ID != uuid.Nil {
 			usagePtr = &usage
 		}
-		row := summaryFromRequestLog(log, usagePtr, timeZone, summaryContext, bucketFn)
-		existing := byKey[row.SummaryKey]
+		full := summaryFromRequestLog(log, usagePtr, timeZone, summaryContext, bucketFn)
+		existing := byKey[full.SummaryKey]
 		if existing == nil {
+			row := full
 			row.RequestCount = 0
 			row.SuccessCount = 0
 			row.FailureCount = 0
@@ -894,11 +1082,10 @@ func (r RequestUsageSummaryRepository) summariesFromRequestLogs(ctx context.Cont
 			row.UpstreamLatencyMaxMS = sql.NullInt64{}
 			row.FirstRequestAt = sql.NullTime{}
 			row.LastRequestAt = sql.NullTime{}
-			byKey[row.SummaryKey] = &row
+			byKey[full.SummaryKey] = &row
 			existing = &row
 		}
-		addSummaryValues(existing, summaryFromRequestLog(log, usagePtr, timeZone, summaryContext, bucketFn))
-		byKey[row.SummaryKey] = existing
+		addSummaryValues(existing, full)
 	}
 	rows := make([]RequestUsageDailySummary, 0, len(byKey))
 	for _, row := range byKey {

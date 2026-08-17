@@ -56,6 +56,19 @@ type SiteRepository struct {
 	db *gorm.DB
 }
 
+type SiteListOption struct {
+	ID              uuid.UUID
+	Name            string
+	Status          string
+	Enabled         bool
+	RoutingPriority float64
+	CreatedAt       time.Time
+}
+
+func (SiteListOption) TableName() string {
+	return "sites"
+}
+
 func NewSiteRepository(db *gorm.DB) SiteRepository {
 	return SiteRepository{db: db}
 }
@@ -162,6 +175,20 @@ func (r SiteRepository) List(ctx context.Context) ([]Site, error) {
 		return nil, err
 	}
 	return filterActiveSites(sites), nil
+}
+
+func (r SiteRepository) ListOptions(ctx context.Context) ([]SiteListOption, error) {
+	var items []SiteListOption
+	if err := r.db.WithContext(ctx).Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list site options: %w", err)
+	}
+	result := make([]SiteListOption, 0, len(items))
+	for _, item := range items {
+		if item.Status != SiteStatusDeleted {
+			result = append(result, item)
+		}
+	}
+	return result, nil
 }
 
 func (r SiteRepository) ListIncludingDeleted(ctx context.Context) ([]Site, error) {

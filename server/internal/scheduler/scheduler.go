@@ -321,6 +321,7 @@ func (s *Scheduler) runUsageSummaryMaintenance() {
 		"usage summary maintenance finished",
 		"summarized_days", result.SummarizedDays,
 		"deleted_detail_rows", result.DeletedDetailRows,
+		"deleted_hourly_rows", result.DeletedHourlyRows,
 		"duration", time.Since(start),
 	)
 }

@@ -143,6 +143,11 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure request_usage_summary_days table: %w", err)
 		}
 	}
+	if !migrator.HasTable(&RequestUsageHourlySummary{}) {
+		if err := migrator.CreateTable(&RequestUsageHourlySummary{}); err != nil {
+			return fmt.Errorf("ensure request_usage_hourly_summaries table: %w", err)
+		}
+	}
 	if err := ensureSchemaIndex(migrator, &RequestUsageDailySummary{}, "request_usage_daily_summaries_bucket_idx"); err != nil {
 		return err
 	}
@@ -153,6 +158,18 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	if err := ensureSchemaIndex(migrator, &RequestUsageDailySummary{}, "request_usage_daily_summaries_currency_bucket_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &RequestUsageHourlySummary{}, "request_usage_hourly_summaries_bucket_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &RequestUsageHourlySummary{}, "request_usage_hourly_summaries_site_bucket_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &RequestUsageHourlySummary{}, "request_usage_hourly_summaries_model_bucket_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &RequestUsageHourlySummary{}, "request_usage_hourly_summaries_currency_bucket_idx"); err != nil {
 		return err
 	}
 	if err := ensureSchemaIndex(migrator, &RequestUsageSummaryDay{}, "request_usage_summary_days_status_idx"); err != nil {
@@ -610,6 +627,7 @@ func bootstrapModels() []any {
 		&RequestLog{},
 		&UsageRecord{},
 		&RequestUsageDailySummary{},
+		&RequestUsageHourlySummary{},
 		&RequestUsageSummaryDay{},
 		&GatewayRateLimit{},
 		&GatewayRateLimitWindow{},

@@ -172,7 +172,7 @@ func run() int {
 			logger.Warn("startup usage summary check failed", "error", err, "duration", time.Since(start))
 			return
 		}
-		logger.Info("startup usage summary check completed", "summarized_days", result.SummarizedDays, "backfilled_cached_usage_records", result.BackfilledCachedUsageRecords, "rebuilt_cached_token_days", result.RebuiltCachedTokenDays, "duration", time.Since(start))
+		logger.Info("startup usage summary check completed", "summarized_days", result.SummarizedDays, "backfilled_cached_usage_records", result.BackfilledCachedUsageRecords, "rebuilt_cached_token_days", result.RebuiltCachedTokenDays, "rebuilt_hourly_rows", result.RebuiltHourlyRows, "deleted_hourly_rows", result.DeletedHourlyRows, "duration", time.Since(start))
 	}()
 
 	server := &http.Server{

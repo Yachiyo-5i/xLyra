@@ -24,6 +24,8 @@ type SummaryMaintenanceResult struct {
 	RebuiltCachedTokenDays           int
 	BackfilledCacheWriteUsageRecords int64
 	RebuiltCacheWriteTokenDays       int
+	RebuiltHourlyRows                int
+	DeletedHourlyRows                int64
 }
 
 func NewSummaryService(db *store.Store, confFile *config.ConfigFile, timeZones ...config.TimeZone) *SummaryService {
@@ -55,6 +57,19 @@ func (s *SummaryService) StartupCheck(ctx context.Context, now time.Time) (Summa
 	}
 	result.BackfilledCacheWriteUsageRecords = cacheWriteBackfill.UpdatedUsageRecords
 	result.RebuiltCacheWriteTokenDays = cacheWriteBackfill.RebuiltDays
+	timeZone := config.TimeZoneOrDefault(s.timeZone)
+	currentHour := timeZone.StartOfHour(now)
+	dayStart := timeZone.StartOfDay(now)
+	deleted, err := store.NewRequestUsageSummaryRepository(s.db.DB()).DeleteHourlyBefore(ctx, dayStart, timeZone)
+	if err != nil {
+		return result, err
+	}
+	result.DeletedHourlyRows = deleted
+	rows, err := store.NewRequestUsageSummaryRepository(s.db.DB()).RebuildHourlyRange(ctx, dayStart, currentHour, timeZone)
+	if err != nil {
+		return result, err
+	}
+	result.RebuiltHourlyRows = rows
 	return result, nil
 }
 
@@ -68,6 +83,11 @@ func (s *SummaryService) DailyMaintenance(ctx context.Context, now time.Time) (S
 		now = time.Now()
 	}
 	repo := store.NewRequestUsageSummaryRepository(s.db.DB())
+	dayStart := s.timeZone.StartOfDay(now)
+	deletedHourly, err := repo.DeleteHourlyBefore(ctx, dayStart, s.timeZone)
+	if err != nil {
+		return SummaryMaintenanceResult{}, err
+	}
 	yesterday := s.timeZone.StartOfDay(now).AddDate(0, 0, -1)
 	if _, err := repo.RebuildDay(ctx, yesterday, s.timeZone, "daily"); err != nil {
 		return SummaryMaintenanceResult{}, err
@@ -77,6 +97,7 @@ func (s *SummaryService) DailyMaintenance(ctx context.Context, now time.Time) (S
 		return SummaryMaintenanceResult{}, err
 	}
 	result.SummarizedDays++
+	result.DeletedHourlyRows = deletedHourly
 
 	general := config.ReadGeneralConfig(s.confFile)
 	if !general.Data.RequestDetailCleanupEnabled {

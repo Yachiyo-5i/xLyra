@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -28,11 +27,13 @@ import {
 } from 'recharts'
 import { useTranslation } from 'react-i18next'
 import { TokenUsageHoverCard, type TokenUsageLabels } from '@/components/common/token-usage-hover-card'
+import { ErrorState } from '@/components/common/error-state'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { AnalyticsUsage } from '@/features/analytics/api/analytics'
 import type { AnalyticsFiltersState } from '@/features/analytics/components/analytics-filter-bar'
 import { AnalyticsSlashTabs } from '@/features/analytics/components/analytics-panel'
@@ -53,8 +54,6 @@ import {
   type AnalyticsTrendMetric,
   type AnalyticsTrendSeries,
 } from '@/features/analytics/lib/analytics-utils'
-import { downstreamAPIKeyQueryKeys, listDownstreamAPIKeys } from '@/features/api-keys/api/api-keys'
-import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-utils'
 import { ApiKeyContributionsPanel } from '@/features/dashboard/components'
 import {
   dashboardChartColors,
@@ -66,11 +65,9 @@ import {
   formatCompactNumber,
   formatDashboardCurrency,
   formatDashboardRefreshTime,
+  formatDashboardTokens,
   formatPercent,
 } from '@/features/dashboard/lib/dashboard-utils'
-import { listSites, sitesQueryKeys } from '@/features/sites/api/sites'
-import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
-import { sortSitesForDisplay } from '@/features/sites/lib/site-utils'
 import { cn } from '@/lib/utils'
 
 type MobileAnalyticsProps = {
@@ -78,12 +75,19 @@ type MobileAnalyticsProps = {
   filters: AnalyticsFiltersState
   onFiltersChange: (next: AnalyticsFiltersState) => void
   availableCurrencies: string[]
-  availableModelKeys: string[]
+  selectedCurrency: string
+  siteOptions: MultiSelectOption[]
+  modelOptions: MultiSelectOption[]
+  apiKeyOptions: MultiSelectOption[]
+  optionsError?: string
+  onRetryOptions?: () => void
   trendMetric: AnalyticsTrendMetric
   trendDimension: AnalyticsTrendDimension
   onTrendMetricChange: (metric: AnalyticsTrendMetric) => void
   onTrendDimensionChange: (dimension: AnalyticsTrendDimension) => void
   apiKeyContributions: ApiKeyContributions | undefined
+  contributionsError?: string
+  onRetryContributions?: () => void
   contributionKeyId: string
   onContributionKeyChange: (keyId: string) => void
   onDrillDown: (dimension: AnalyticsBreakdownDimension, item: { key: string; id?: string | null }) => void
@@ -98,12 +102,19 @@ export function MobileAnalytics({
   filters,
   onFiltersChange,
   availableCurrencies,
-  availableModelKeys,
+  selectedCurrency,
+  siteOptions,
+  modelOptions,
+  apiKeyOptions,
+  optionsError,
+  onRetryOptions,
   trendMetric,
   trendDimension,
   onTrendMetricChange,
   onTrendDimensionChange,
   apiKeyContributions,
+  contributionsError,
+  onRetryContributions,
   contributionKeyId,
   onContributionKeyChange,
   onDrillDown,
@@ -138,7 +149,12 @@ export function MobileAnalytics({
         filters={filters}
         onFiltersChange={onFiltersChange}
         availableCurrencies={availableCurrencies}
-        availableModelKeys={availableModelKeys}
+        selectedCurrency={selectedCurrency}
+        siteOptions={siteOptions}
+        modelOptions={modelOptions}
+        apiKeyOptions={apiKeyOptions}
+        optionsError={optionsError}
+        onRetryOptions={onRetryOptions}
         dataFrom={usage.meta.data_from}
       />
 
@@ -163,14 +179,22 @@ export function MobileAnalytics({
         activeApiKeyIds={filters.apiKeyIds}
       />
 
-      {apiKeyContributions ? (
+      {contributionsError ? (
+        <ErrorState
+          title={t('page.contributionsLoadFailed')}
+          description={contributionsError}
+          action={onRetryContributions ? <Button variant="outline" onClick={onRetryContributions}>{t('page.retry')}</Button> : undefined}
+        />
+      ) : apiKeyContributions ? (
         <ApiKeyContributionsPanel
           className="h-[400px] rounded-2xl"
           contributions={apiKeyContributions}
           selectedKeyId={contributionKeyId}
           onSelectedKeyChange={onContributionKeyChange}
         />
-      ) : null}
+      ) : (
+        <Card className="h-[400px] rounded-2xl p-5"><Skeleton className="h-full w-full" /></Card>
+      )}
     </div>
   )
 }
@@ -181,7 +205,12 @@ type MobileFiltersProps = {
   filters: AnalyticsFiltersState
   onFiltersChange: (next: AnalyticsFiltersState) => void
   availableCurrencies: string[]
-  availableModelKeys: string[]
+  selectedCurrency: string
+  siteOptions: MultiSelectOption[]
+  modelOptions: MultiSelectOption[]
+  apiKeyOptions: MultiSelectOption[]
+  optionsError?: string
+  onRetryOptions?: () => void
   dataFrom?: string | null
 }
 
@@ -189,37 +218,19 @@ function MobileFilters({
   filters,
   onFiltersChange,
   availableCurrencies,
-  availableModelKeys,
+  selectedCurrency,
+  siteOptions,
+  modelOptions,
+  apiKeyOptions,
+  optionsError,
+  onRetryOptions,
   dataFrom,
 }: MobileFiltersProps) {
   const { t } = useTranslation('analytics')
 
-  const sitesQuery = useQuery({
-    queryKey: sitesQueryKeys.list(),
-    queryFn: () => listSites(),
-    staleTime: 60_000,
-  })
-  const apiKeysQuery = useQuery({
-    queryKey: downstreamAPIKeyQueryKeys.list(),
-    queryFn: listDownstreamAPIKeys,
-    staleTime: 60_000,
-  })
-
-  const siteOptions: MultiSelectOption[] = sortSitesForDisplay(sitesQuery.data?.items ?? [])
-    .map((site) => ({ value: site.id, label: site.name }))
-
-  const modelOptions: MultiSelectOption[] = [...availableModelKeys]
-    .sort((a, b) => a.localeCompare(b))
-    .map((key) => {
-      const info = modelNameIconInfo(key)
-      return { value: key, label: key, icon: info.iconPath }
-    })
-
-  const apiKeyOptions: MultiSelectOption[] = sortAPIKeysForDisplay(apiKeysQuery.data?.items ?? [])
-    .map((key) => ({ value: key.id, label: key.name }))
-
   const presetSelectItems: Array<{ label: string; value: AnalyticsRangePreset }> = [
     { label: t('filters.ranges.today'), value: 'today' },
+    { label: t('filters.ranges.yesterday'), value: 'yesterday' },
     { label: t('filters.ranges.7d'), value: '7d' },
     { label: t('filters.ranges.30d'), value: '30d' },
     { label: t('filters.ranges.90d'), value: '90d' },
@@ -304,7 +315,7 @@ function MobileFilters({
 
         {availableCurrencies.length > 1 ? (
           <Select
-            value={filters.currency || availableCurrencies[0]}
+            value={selectedCurrency}
             onValueChange={(currency) => onFiltersChange({ ...filters, currency })}
           >
             <SelectTrigger variant="filter" filterLabel={t('filters.currency')} active className="h-10 shrink-0">
@@ -348,6 +359,13 @@ function MobileFilters({
             clearable={false}
             triggerClassName="h-10"
           />
+        </div>
+      ) : null}
+
+      {optionsError ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">
+          <span>{t('page.optionsLoadFailed')}: {optionsError}</span>
+          {onRetryOptions ? <Button variant="outline" size="sm" onClick={onRetryOptions}>{t('page.retry')}</Button> : null}
         </div>
       ) : null}
     </section>
@@ -760,6 +778,7 @@ type MobileRoseSlice = {
   id?: string | null
   name: string
   value: number
+  tokens: number
   color: string
   outerRadius: number
 }
@@ -800,6 +819,7 @@ function MobileCostBreakdown({
       id: item.id,
       name: item.label,
       value: item.cost,
+      tokens: item.total_tokens,
       color: dashboardChartColors[index % dashboardChartColors.length],
       outerRadius: mobileRoseOuterRadius(item.cost, minVal, maxVal),
     }))
@@ -921,7 +941,7 @@ function MobileCostBreakdown({
                   {item.label}
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-muted-soft">
-                  {`${formatDashboardCurrency(item.cost, currency, 2)} · ${formatPercent(pct, 1)}`}
+                  {`${formatDashboardCurrency(item.cost, currency, 2)} · ${formatDashboardTokens(item.total_tokens)} · ${formatPercent(pct, 1)}`}
                 </span>
               </button>
             )
@@ -941,6 +961,7 @@ function MobileRoseTooltip({ active, payload, currency, total }: TooltipContentP
   if (!active || !payload?.length) return null
   const item = payload[0]
   const value = Number(item.value ?? 0)
+  const tokens = Number((item.payload as MobileRoseSlice | undefined)?.tokens ?? 0)
   return (
     <div style={dashboardTooltipStyle} className="min-w-[150px] text-xs">
       <div className="mb-1 flex items-center gap-1.5 text-foreground">
@@ -949,6 +970,7 @@ function MobileRoseTooltip({ active, payload, currency, total }: TooltipContentP
       </div>
       <div className="tabular-nums text-muted-soft">
         {formatDashboardCurrency(value, currency, 4)}
+        {` · ${formatDashboardTokens(tokens)}`}
         {total > 0 ? ` · ${((value / total) * 100).toFixed(1)}%` : ''}
       </div>
     </div>
