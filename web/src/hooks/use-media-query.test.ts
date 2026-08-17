@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectMobileDevice, shouldUseTabletDashboardLayout } from './use-media-query'
+import { detectMobileDevice, shouldUseCompactDashboardLayout } from './use-media-query'
 
 describe('detectMobileDevice', () => {
   it('detects user agent client hints', () => {
@@ -26,11 +26,9 @@ describe('detectMobileDevice', () => {
   })
 })
 
-describe('shouldUseTabletDashboardLayout', () => {
-  it('enables the tablet dashboard only when device and viewport signals both match', () => {
-    expect(shouldUseTabletDashboardLayout(true, true)).toBe(true)
-    expect(shouldUseTabletDashboardLayout(true, false)).toBe(false)
-    expect(shouldUseTabletDashboardLayout(false, true)).toBe(false)
-    expect(shouldUseTabletDashboardLayout(false, false)).toBe(false)
+describe('shouldUseCompactDashboardLayout', () => {
+  it('follows the compact dashboard viewport range regardless of device UA', () => {
+    expect(shouldUseCompactDashboardLayout(true)).toBe(true)
+    expect(shouldUseCompactDashboardLayout(false)).toBe(false)
   })
 })

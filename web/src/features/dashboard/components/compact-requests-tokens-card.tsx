@@ -3,7 +3,7 @@ import { TokenUsageHoverCard, type TokenUsageColumn, type TokenUsageLabels } fro
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-type TabletRequestsTokensCardProps = {
+type CompactRequestsTokensCardProps = {
   title: string
   todayLabel: string
   totalLabel: string
@@ -24,7 +24,7 @@ type TabletRequestsTokensCardProps = {
   className?: string
 }
 
-export function TabletRequestsTokensCard({
+export function CompactRequestsTokensCard({
   title,
   todayLabel,
   totalLabel,
@@ -43,7 +43,7 @@ export function TabletRequestsTokensCard({
   tokenUsage,
   tokenUsageLabels,
   className,
-}: TabletRequestsTokensCardProps) {
+}: CompactRequestsTokensCardProps) {
   return (
     <Card className={cn('rounded-lg p-4', className)} role="group" aria-label={title}>
       <div className="flex h-full flex-col gap-3">

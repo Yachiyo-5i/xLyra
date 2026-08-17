@@ -16,7 +16,7 @@ import {
   DashboardRiskList,
   SiteUptimeStrip,
   SystemResourcePanel,
-  TabletRequestsTokensCard,
+  CompactRequestsTokensCard,
 } from '@/features/dashboard/components'
 import { MobileDashboard, MobileDashboardSkeleton } from '@/features/dashboard/components/mobile-dashboard'
 import {
@@ -38,7 +38,7 @@ import {
   formatPercent,
 } from '@/features/dashboard/lib/dashboard-utils'
 import { clearRouteCooldown, routeQueryKeys } from '@/features/routes/api/routes'
-import { useMobileLayout, useTabletDashboardLayout } from '@/hooks/use-media-query'
+import { useCompactDashboardLayout, useMobileLayout } from '@/hooks/use-media-query'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -47,7 +47,7 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isMobile = useMobileLayout()
-  const isTabletDashboard = useTabletDashboardLayout()
+  const isCompactDashboard = useCompactDashboardLayout()
 
   const usageQuery = useQuery({
     queryKey: dashboardQueryKeys.usage(),
@@ -157,7 +157,7 @@ export function DashboardPage() {
   })
 
   if (usageQuery.isLoading) {
-    return isMobile ? <MobileDashboardSkeleton /> : <DashboardSkeleton tablet={isTabletDashboard} />
+    return isMobile ? <MobileDashboardSkeleton /> : <DashboardSkeleton compact={isCompactDashboard} />
   }
 
   if (usageQuery.isError) {
@@ -284,7 +284,7 @@ export function DashboardPage() {
       />
 
       <div className="space-y-4">
-        <div className={cn('grid gap-4 lg:grid-cols-3', isTabletDashboard && 'lg:grid-cols-2')}>
+        <div className={cn('grid gap-4 lg:grid-cols-3', isCompactDashboard && 'lg:grid-cols-2')}>
           <DashboardMetricCard
             title={t('kpis.cost')}
             primaryLabel={t('kpis.today')}
@@ -297,8 +297,8 @@ export function DashboardPage() {
             secondaryIcon={<Sigma />}
             note={`${t('kpis.yesterdayCost')} ${costYesterday}`}
           />
-          {isTabletDashboard ? (
-            <TabletRequestsTokensCard
+          {isCompactDashboard ? (
+            <CompactRequestsTokensCard
               title={t('kpis.requestsTokens')}
               todayLabel={t('kpis.today')}
               totalLabel={t('kpis.total')}
@@ -334,7 +334,7 @@ export function DashboardPage() {
             />
           )}
           <DashboardMetricCard
-            className={cn(isTabletDashboard && 'lg:col-span-2')}
+            className={cn(isCompactDashboard && 'lg:col-span-2')}
             title={t('kpis.performance')}
             primaryLabel="RPM"
             primaryValue={formatLimitValue(overview.kpis.rate_limit.rpm.used, overview.kpis.rate_limit.rpm.limit)}
@@ -395,7 +395,7 @@ export function DashboardPage() {
   )
 }
 
-function DashboardSkeleton({ tablet = false }: { tablet?: boolean }) {
+function DashboardSkeleton({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -412,7 +412,7 @@ function DashboardSkeleton({ tablet = false }: { tablet?: boolean }) {
         </div>
       </div>
       <div className="space-y-4">
-        <div className={cn('grid gap-4 lg:grid-cols-3', tablet && 'lg:grid-cols-2')}>
+        <div className={cn('grid gap-4 lg:grid-cols-3', compact && 'lg:grid-cols-2')}>
           <DashboardMetricSkeleton>
             <div className="mb-4 flex items-center gap-2">
               <Skeleton className="size-4 rounded" />
@@ -424,8 +424,8 @@ function DashboardSkeleton({ tablet = false }: { tablet?: boolean }) {
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
-          {tablet ? (
-            <TabletRequestsTokensSkeleton />
+          {compact ? (
+            <CompactRequestsTokensSkeleton />
           ) : (
             <DashboardMetricSkeleton>
               <div className="mb-4 flex items-center gap-2">
@@ -439,7 +439,7 @@ function DashboardSkeleton({ tablet = false }: { tablet?: boolean }) {
               </div>
             </DashboardMetricSkeleton>
           )}
-          <DashboardMetricSkeleton className={cn(tablet && 'lg:col-span-2')}>
+          <DashboardMetricSkeleton className={cn(compact && 'lg:col-span-2')}>
             <div className="mb-4 flex items-center gap-2">
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
@@ -465,7 +465,7 @@ function DashboardSkeleton({ tablet = false }: { tablet?: boolean }) {
   )
 }
 
-function TabletRequestsTokensSkeleton() {
+function CompactRequestsTokensSkeleton() {
   return (
     <DashboardMetricSkeleton>
       <div className="mb-3 flex items-center gap-2">

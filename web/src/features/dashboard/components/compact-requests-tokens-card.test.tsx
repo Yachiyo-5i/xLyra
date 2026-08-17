@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { TabletRequestsTokensCard } from './tablet-requests-tokens-card'
+import { CompactRequestsTokensCard } from './compact-requests-tokens-card'
 
-describe('TabletRequestsTokensCard', () => {
+describe('CompactRequestsTokensCard', () => {
   it('keeps request and token values in a readable today/total matrix', () => {
     const markup = renderToStaticMarkup(
-      <TabletRequestsTokensCard
+      <CompactRequestsTokensCard
         title="请求与 Tokens"
         todayLabel="今日"
         totalLabel="累计"
