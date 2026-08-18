@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.1...v1.2.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* 🐛 修复 Grok 请求在不同协议间的参数兼容问题 ([3d91bb2](https://github.com/Yachiyo-5i/xLyra/commit/3d91bb293d2d0c83dd7c013111add8cba388afff))
+* 🐛 修复中等屏幕下仪表盘指标卡布局不一致和内容换行的问题 ([f882361](https://github.com/Yachiyo-5i/xLyra/commit/f882361b8be73d9f29d240c724a62ab653ff1f88))
+* 🐛 修复费用构成浮层层级及移动端无法关闭的问题 ([fabf448](https://github.com/Yachiyo-5i/xLyra/commit/fabf4481878f713b8636f6029cff13e1bb6c724d))
+* 🐛 完善上游站点套餐额度详情与移动端查看体验 ([f5b622f](https://github.com/Yachiyo-5i/xLyra/commit/f5b622f810fb76a0357decc449601c1418be9ddf))
+* 🐛 用量分析新增昨天时间范围与单日按小时查看，筛选切换即时生效 ([aa70a7b](https://github.com/Yachiyo-5i/xLyra/commit/aa70a7b7381b425986163fb1bce9ab1b7f5c4c8e))
+* 🐛 用量分析新增昨天时间范围与单日按小时查看，筛选切换即时生效 ([a2684b5](https://github.com/Yachiyo-5i/xLyra/commit/a2684b536d441dd72c541f3bda6196d20a4c345c))
+* 修复 Grok Responses 跨协议参数兼容问题 ([d55a605](https://github.com/Yachiyo-5i/xLyra/commit/d55a605fa66377125074b56c9acd4405a5184b49))
+
 ## [1.2.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.0...v1.2.1) (2026-08-16)
 
 
