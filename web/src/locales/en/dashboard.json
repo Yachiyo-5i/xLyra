@@ -27,8 +27,6 @@
     "todayTotalRequests": "Today's / Total Requests",
     "todayTokens": "Today's Tokens",
     "todayTotalTokens": "Today's / Total Tokens",
-    "requests": "Requests",
-    "tokens": "Tokens",
     "yesterdayRequests": "Yesterday's Requests",
     "yesterdayTokens": "Yesterday's Tokens",
     "successRate": "Success Rate",

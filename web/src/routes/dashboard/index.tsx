@@ -16,7 +16,6 @@ import {
   DashboardRiskList,
   SiteUptimeStrip,
   SystemResourcePanel,
-  CompactRequestsTokensCard,
 } from '@/features/dashboard/components'
 import { MobileDashboard, MobileDashboardSkeleton } from '@/features/dashboard/components/mobile-dashboard'
 import {
@@ -38,7 +37,7 @@ import {
   formatPercent,
 } from '@/features/dashboard/lib/dashboard-utils'
 import { clearRouteCooldown, routeQueryKeys } from '@/features/routes/api/routes'
-import { useCompactDashboardLayout, useMobileLayout } from '@/hooks/use-media-query'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -47,7 +46,6 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isMobile = useMobileLayout()
-  const isCompactDashboard = useCompactDashboardLayout()
 
   const usageQuery = useQuery({
     queryKey: dashboardQueryKeys.usage(),
@@ -157,7 +155,7 @@ export function DashboardPage() {
   })
 
   if (usageQuery.isLoading) {
-    return isMobile ? <MobileDashboardSkeleton /> : <DashboardSkeleton compact={isCompactDashboard} />
+    return isMobile ? <MobileDashboardSkeleton /> : <DashboardSkeleton />
   }
 
   if (usageQuery.isError) {
@@ -284,7 +282,7 @@ export function DashboardPage() {
       />
 
       <div className="space-y-4">
-        <div className={cn('grid gap-4 lg:grid-cols-3', isCompactDashboard && 'lg:grid-cols-2')}>
+        <div className="grid gap-4 lg:grid-cols-3">
           <DashboardMetricCard
             title={t('kpis.cost')}
             primaryLabel={t('kpis.today')}
@@ -297,44 +295,21 @@ export function DashboardPage() {
             secondaryIcon={<Sigma />}
             note={`${t('kpis.yesterdayCost')} ${costYesterday}`}
           />
-          {isCompactDashboard ? (
-            <CompactRequestsTokensCard
-              title={t('kpis.requestsTokens')}
-              todayLabel={t('kpis.today')}
-              totalLabel={t('kpis.total')}
-              requestsLabel={t('kpis.requests')}
-              tokensLabel={t('kpis.tokens')}
-              requestsToday={requestsToday}
-              requestsTotal={requestsTotal}
-              tokensToday={tokensToday}
-              tokensTotal={tokensTotal}
-              successRateLabel={t('kpis.successRate')}
-              successRate={successRate}
-              yesterdayRequestsLabel={t('kpis.yesterdayRequests')}
-              requestsYesterday={requestsYesterday}
-              yesterdayTokensLabel={t('kpis.yesterdayTokens')}
-              tokensYesterday={tokensYesterday}
-              tokenUsage={tokenUsage}
-              tokenUsageLabels={tokenUsageLabels}
-            />
-          ) : (
-            <DashboardMetricCard
-              title={t('kpis.requestsTokens')}
-              primaryLabel={t('kpis.todayTotalRequests')}
-              primaryValue={`${requestsToday} / ${requestsTotal}`}
-              secondaryLabel={t('kpis.todayTotalTokens')}
-              secondaryValue={`${tokensToday} / ${tokensTotal}`}
-              accent="traffic"
-              icon={<Activity />}
-              primaryIcon={<Hash />}
-              secondaryIcon={<Sigma />}
-              secondaryTokenUsage={tokenUsage}
-              tokenUsageLabels={tokenUsageLabels}
-              note={requestsNote}
-            />
-          )}
           <DashboardMetricCard
-            className={cn(isCompactDashboard && 'lg:col-span-2')}
+            title={t('kpis.requestsTokens')}
+            primaryLabel={t('kpis.todayTotalRequests')}
+            primaryValue={`${requestsToday} / ${requestsTotal}`}
+            secondaryLabel={t('kpis.todayTotalTokens')}
+            secondaryValue={`${tokensToday} / ${tokensTotal}`}
+            accent="traffic"
+            icon={<Activity />}
+            primaryIcon={<Hash />}
+            secondaryIcon={<Sigma />}
+            secondaryTokenUsage={tokenUsage}
+            tokenUsageLabels={tokenUsageLabels}
+            note={requestsNote}
+          />
+          <DashboardMetricCard
             title={t('kpis.performance')}
             primaryLabel="RPM"
             primaryValue={formatLimitValue(overview.kpis.rate_limit.rpm.used, overview.kpis.rate_limit.rpm.limit)}
@@ -395,7 +370,7 @@ export function DashboardPage() {
   )
 }
 
-function DashboardSkeleton({ compact = false }: { compact?: boolean }) {
+function DashboardSkeleton() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -412,41 +387,37 @@ function DashboardSkeleton({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
       <div className="space-y-4">
-        <div className={cn('grid gap-4 lg:grid-cols-3', compact && 'lg:grid-cols-2')}>
+        <div className="grid gap-4 lg:grid-cols-3">
           <DashboardMetricSkeleton>
             <div className="mb-4 flex items-center gap-2">
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="w-px bg-[hsl(var(--glass-divider))]" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
-          {compact ? (
-            <CompactRequestsTokensSkeleton />
-          ) : (
-            <DashboardMetricSkeleton>
-              <div className="mb-4 flex items-center gap-2">
-                <Skeleton className="size-4 rounded" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
-                <Skeleton className="h-12 rounded-lg" />
-                <div className="w-px bg-[hsl(var(--glass-divider))]" />
-                <Skeleton className="h-12 rounded-lg" />
-              </div>
-            </DashboardMetricSkeleton>
-          )}
-          <DashboardMetricSkeleton className={cn(compact && 'lg:col-span-2')}>
+          <DashboardMetricSkeleton>
+            <div className="mb-4 flex items-center gap-2">
+              <Skeleton className="size-4 rounded" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
+              <Skeleton className="h-12 rounded-lg" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <Skeleton className="h-12 rounded-lg" />
+            </div>
+          </DashboardMetricSkeleton>
+          <DashboardMetricSkeleton>
             <div className="mb-4 flex items-center gap-2">
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="w-px bg-[hsl(var(--glass-divider))]" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -465,36 +436,9 @@ function DashboardSkeleton({ compact = false }: { compact?: boolean }) {
   )
 }
 
-function CompactRequestsTokensSkeleton() {
+function DashboardMetricSkeleton({ children }: { children: ReactNode }) {
   return (
-    <DashboardMetricSkeleton>
-      <div className="mb-3 flex items-center gap-2">
-        <Skeleton className="size-4 rounded" />
-        <Skeleton className="h-4 w-24" />
-      </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(4.5rem,0.8fr)_minmax(4.5rem,0.8fr)] items-center gap-x-3 gap-y-2">
-        <span />
-        <Skeleton className="h-3 w-8 justify-self-end" />
-        <Skeleton className="h-3 w-8 justify-self-end" />
-        <Skeleton className="h-3 w-14" />
-        <Skeleton className="h-5 w-10 justify-self-end" />
-        <Skeleton className="h-5 w-14 justify-self-end" />
-        <Skeleton className="h-3 w-14" />
-        <Skeleton className="h-5 w-14 justify-self-end" />
-        <Skeleton className="h-5 w-12 justify-self-end" />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Skeleton className="h-3 w-20" />
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-3 w-24" />
-      </div>
-    </DashboardMetricSkeleton>
-  )
-}
-
-function DashboardMetricSkeleton({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <Card className={cn('min-h-[132px] rounded-lg p-4', className)}>
+    <Card className="@container/metric min-h-[132px] rounded-lg p-4">
       {children}
     </Card>
   )

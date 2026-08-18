@@ -27,8 +27,6 @@
     "todayTotalRequests": "今日请求 / 总请求",
     "todayTokens": "今日 Tokens",
     "todayTotalTokens": "今日 Tokens / 总 Tokens",
-    "requests": "请求",
-    "tokens": "Tokens",
     "yesterdayRequests": "昨日请求",
     "yesterdayTokens": "昨日 Tokens",
     "successRate": "成功率",
