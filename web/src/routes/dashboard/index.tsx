@@ -393,9 +393,9 @@ function DashboardSkeleton() {
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="w-px bg-[hsl(var(--glass-divider))]" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -404,9 +404,9 @@ function DashboardSkeleton() {
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-24" />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="w-px bg-[hsl(var(--glass-divider))]" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -415,9 +415,9 @@ function DashboardSkeleton() {
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="w-px bg-[hsl(var(--glass-divider))]" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -438,7 +438,7 @@ function DashboardSkeleton() {
 
 function DashboardMetricSkeleton({ children }: { children: ReactNode }) {
   return (
-    <Card className="min-h-[132px] rounded-lg p-4">
+    <Card className="@container/metric min-h-[132px] rounded-lg p-4">
       {children}
     </Card>
   )

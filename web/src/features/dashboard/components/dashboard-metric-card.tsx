@@ -41,7 +41,7 @@ export function DashboardMetricCard({
   className,
 }: DashboardMetricCardProps) {
   return (
-    <Card className={cn('rounded-lg p-4', className)}>
+    <Card className={cn('@container/metric rounded-lg p-4', className)}>
       <div className="relative space-y-3">
         <div className="flex items-center gap-2">
           {icon ? (
@@ -51,9 +51,9 @@ export function DashboardMetricCard({
           ) : null}
           <p className="text-sm font-medium text-muted-soft">{title}</p>
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] items-stretch gap-3">
+        <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] @[21rem]/metric:items-stretch">
           <MetricValue label={primaryLabel} value={primaryValue} icon={primaryIcon} />
-          <div className="my-1 w-px bg-[hsl(var(--glass-divider))]" />
+          <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:my-1 @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
           <MetricValue label={secondaryLabel} value={secondaryValue} icon={secondaryIcon} tokenUsage={secondaryTokenUsage} tokenUsageLabels={tokenUsageLabels} />
         </div>
         {note ? <div className="text-xs text-muted-soft">{note}</div> : null}
@@ -69,7 +69,7 @@ function MetricValue({ label, value, icon, tokenUsage, tokenUsageLabels }: { lab
         {icon ? <span className="flex size-4 items-center justify-center [&>svg]:size-3.5">{icon}</span> : null}
         <p className="min-w-0 break-words text-xs font-medium leading-4">{label}</p>
       </div>
-      <p className="mt-auto break-words text-lg font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-auto whitespace-nowrap text-lg font-semibold tracking-tight text-foreground">{value}</p>
     </div>
   )
   if (!tokenUsage || !tokenUsageLabels) return content
