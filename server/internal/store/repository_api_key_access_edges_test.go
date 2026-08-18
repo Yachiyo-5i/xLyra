@@ -219,15 +219,6 @@ func TestAdminSessionRepositoryDeleteAndTouchOffline(t *testing.T) {
 	sessionID := uuid.New()
 	adminID := uuid.New()
 	db := storeRepositoryOfflineGorm(t)
-	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
-		item, ok := tx.Statement.Dest.(*AdminSession)
-		if !ok {
-			tx.AddError(errors.New("unexpected admin session query destination"))
-			return
-		}
-		*item = AdminSession{ID: sessionID, AdminID: adminID}
-		tx.Statement.RowsAffected = 1
-	})
 	deleteCalls := 0
 	storeReplaceDeleteCallback(t, db, func(tx *gorm.DB) {
 		deleteCalls++
@@ -743,32 +734,29 @@ func TestRouteCooldownRepositoryActivateAndClearActiveOffline(t *testing.T) {
 	}
 }
 
-func TestAdminSessionRepositoryTouchSkipsRecentLastSeenOffline(t *testing.T) {
+func TestAdminSessionRepositoryTouchUsesConditionalUpdateOffline(t *testing.T) {
 	t.Parallel()
 
 	sessionID := uuid.New()
 	now := time.Date(2026, 6, 23, 16, 0, 0, 0, time.UTC)
 	db := storeRepositoryOfflineGorm(t)
 	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
-		item, ok := tx.Statement.Dest.(*AdminSession)
-		if !ok {
-			tx.AddError(errors.New("unexpected admin session query destination"))
+		tx.AddError(errors.New("touch should not query before updating"))
+	})
+	updateCount := 0
+	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		updateCount++
+		if _, ok := tx.Statement.Clauses["WHERE"]; !ok {
+			tx.AddError(errors.New("touch update should include a condition"))
 			return
 		}
-		*item = AdminSession{
-			ID: sessionID,
-			LastSeenAt: sql.NullTime{
-				Time:  now.Add(-time.Second),
-				Valid: true,
-			},
-		}
 		tx.Statement.RowsAffected = 1
-	})
-	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
-		tx.AddError(errors.New("update callback should not run for recent last seen"))
 	})
 
 	if err := NewAdminSessionRepository(db).TouchLastSeen(context.Background(), sessionID, now, time.Minute); err != nil {
 		t.Fatalf("TouchLastSeen returned error: %v", err)
+	}
+	if updateCount != 1 {
+		t.Fatalf("update count = %d, want one conditional update", updateCount)
 	}
 }

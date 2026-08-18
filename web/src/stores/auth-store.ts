@@ -2,8 +2,7 @@ import { create } from 'zustand'
 import i18n from '@/locales/i18n'
 import {
   deleteCurrentAdminSession,
-  fetchBootstrapStatus,
-  fetchCurrentAdminSession,
+  fetchAuthState,
   type AdminAuthSession,
   type AdminRecord,
   type CurrentAdminSession,
@@ -99,9 +98,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }))
 
       try {
-        const bootstrap = await fetchBootstrapStatus()
+        const authState = await fetchAuthState()
 
-        if (!bootstrap.initialized) {
+        if (!authState.initialized) {
           set({
             status: 'registration-required',
             initialized: false,
@@ -114,23 +113,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return
         }
 
-        try {
-          const currentSession = await fetchCurrentAdminSession()
-
+        if (authState.authenticated && authState.session) {
           set({
             status: 'authenticated',
             initialized: true,
-            user: buildUserFromCurrentSession(currentSession),
-            expiresAt: currentSession.expiresAt,
-            csrfToken: syncCSRFToken(currentSession.csrfToken),
+            user: buildUserFromCurrentSession(authState.session),
+            expiresAt: authState.session.expiresAt,
+            csrfToken: syncCSRFToken(authState.session.csrfToken),
             errorMessage: null,
             errorStatus: null,
           })
           return
-        } catch (error) {
-          if (!(error instanceof APIError) || error.status !== 401) {
-            throw error
-          }
         }
 
         set({

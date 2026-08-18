@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type AdminSession struct {
@@ -119,14 +120,14 @@ func (r AdminSessionRepository) ListByAdmin(ctx context.Context, adminID uuid.UU
 }
 
 func (r AdminSessionRepository) TouchLastSeen(ctx context.Context, sessionID uuid.UUID, now time.Time, throttle time.Duration) error {
-	var session AdminSession
-	if err := r.db.WithContext(ctx).Where(&AdminSession{ID: sessionID}).First(&session).Error; err != nil {
-		return fmt.Errorf("touch admin session: %w", err)
-	}
-	if session.LastSeenAt.Valid && session.LastSeenAt.Time.After(now.Add(-throttle)) {
-		return nil
-	}
-	if err := r.db.WithContext(ctx).Model(&AdminSession{}).Where(&AdminSession{ID: sessionID}).Update("last_seen_at", now).Error; err != nil {
+	where := clause.Where{Exprs: []clause.Expression{
+		clause.Eq{Column: clause.Column{Name: "id"}, Value: sessionID},
+		clause.Or(
+			clause.Eq{Column: clause.Column{Name: "last_seen_at"}, Value: nil},
+			clause.Lte{Column: clause.Column{Name: "last_seen_at"}, Value: now.Add(-throttle)},
+		),
+	}}
+	if err := r.db.WithContext(ctx).Model(&AdminSession{}).Clauses(where).Update("last_seen_at", now).Error; err != nil {
 		return fmt.Errorf("touch admin session: %w", err)
 	}
 	return nil

@@ -33,6 +33,71 @@ func (h Handler) BootstrapStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h Handler) AuthState(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Add("Vary", "Cookie")
+	w.Header().Add("Vary", "X-Access-Token")
+
+	if h.auth == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "auth_unavailable", "auth service is not available")
+		return
+	}
+
+	if token := auth.AdminSessionTokenFromRequest(r); token != "" {
+		if session, err := h.auth.ValidateAdminSession(r.Context(), token); err == nil {
+			h.writeAuthenticatedState(w, r, auth.AdminActor{Type: "session", AdminID: session.AdminID, SessionID: session.ID}, &session)
+			return
+		}
+	}
+
+	if token := strings.TrimSpace(r.Header.Get("X-Access-Token")); token != "" {
+		if accessToken, err := h.auth.ValidateAdminAccessToken(r.Context(), token, r.UserAgent(), r.RemoteAddr); err == nil {
+			actor := auth.AdminActor{Type: "access_token", AdminID: accessToken.AdminID, AccessTokenID: accessToken.ID}
+			h.recordAudit(r, actor, "admin_api.access", "", "", true, "", map[string]any{"method": r.Method, "path": r.URL.Path})
+			h.writeAuthenticatedState(w, r, actor, nil)
+			return
+		}
+	}
+
+	status, err := h.auth.BootstrapStatus(r.Context())
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "auth_state_failed", "failed to load authentication state")
+		return
+	}
+
+	h.writePayload(w, http.StatusOK, map[string]any{
+		"initialized":   status.Initialized,
+		"can_register":  !status.Initialized,
+		"authenticated": false,
+		"admin_count":   status.AdminCount,
+	})
+}
+
+func (h Handler) writeAuthenticatedState(w http.ResponseWriter, r *http.Request, actor auth.AdminActor, session *store.AdminSession) {
+	admin, err := h.auth.GetAdminByID(r.Context(), actor.AdminID)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "auth_state_failed", "failed to load authentication state")
+		return
+	}
+
+	payload := map[string]any{
+		"initialized":   true,
+		"can_register":  false,
+		"authenticated": true,
+		"auth_type":     actor.Type,
+		"admin":         adminPayload(admin),
+		"expires_at":    nil,
+		"csrf_token":    nil,
+	}
+	if session != nil {
+		payload["expires_at"] = timePtrValue(session.ExpiresAt)
+		if token := auth.AdminSessionTokenFromRequest(r); token != "" {
+			payload["csrf_token"] = h.auth.CSRFTokenForSession(token)
+		}
+	}
+	h.writePayload(w, http.StatusOK, payload)
+}
+
 func (h Handler) BootstrapRegister(w http.ResponseWriter, r *http.Request) {
 	if h.auth == nil {
 		h.writeError(w, r, http.StatusServiceUnavailable, "auth_unavailable", "auth service is not available")

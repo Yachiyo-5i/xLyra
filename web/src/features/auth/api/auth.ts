@@ -1,11 +1,5 @@
 import { apiFetch } from '@/lib/http'
 
-type BootstrapStatus = {
-  initialized: boolean
-  canRegister: boolean
-  adminCount: number
-}
-
 export type AdminRecord = {
   id: string
   username: string
@@ -31,10 +25,10 @@ export type CurrentAdminSession = {
   admin: AdminRecord
 }
 
-type BootstrapStatusResponse = {
+export type CurrentAuthState = {
   initialized: boolean
-  can_register: boolean
-  admin_count: number
+  authenticated: boolean
+  session: CurrentAdminSession | null
 }
 
 type AdminAuthSessionResponse = {
@@ -43,11 +37,13 @@ type AdminAuthSessionResponse = {
   admin: AdminResponse
 }
 
-type CurrentAdminSessionResponse = {
+type CurrentAuthStateResponse = {
+  initialized: boolean
+  authenticated: boolean
   expires_at?: string | null
   csrf_token?: string | null
   auth_type?: string
-  admin: AdminResponse
+  admin?: AdminResponse
 }
 
 export type AdminResponse = {
@@ -95,16 +91,29 @@ function normalizeAuthSession(response: AdminAuthSessionResponse): AdminAuthSess
   }
 }
 
-export async function fetchBootstrapStatus() {
-  const response = await apiFetch<BootstrapStatusResponse>('/api/v1/bootstrap/status', {
+export async function fetchAuthState() {
+  const response = await apiFetch<CurrentAuthStateResponse>('/api/v1/auth/state', {
     auth: 'none',
+    cache: 'no-store',
   })
+
+  if (!response.authenticated || !response.admin) {
+    return {
+      initialized: response.initialized,
+      authenticated: false,
+      session: null,
+    } satisfies CurrentAuthState
+  }
 
   return {
     initialized: response.initialized,
-    canRegister: response.can_register,
-    adminCount: response.admin_count,
-  } satisfies BootstrapStatus
+    authenticated: true,
+    session: {
+      expiresAt: response.expires_at ?? null,
+      csrfToken: response.csrf_token ?? null,
+      admin: normalizeAdmin(response.admin),
+    },
+  } satisfies CurrentAuthState
 }
 
 export async function registerBootstrapAdmin(input: RegisterBootstrapInput) {
@@ -131,17 +140,6 @@ export async function createAdminSession(input: SessionCredentials) {
   return normalizeAuthSession(response)
 }
 
-export async function fetchCurrentAdminSession() {
-  const response = await apiFetch<CurrentAdminSessionResponse>('/api/v1/auth/session', {
-    auth: 'none',
-  })
-
-  return {
-    expiresAt: response.expires_at ?? null,
-    csrfToken: response.csrf_token ?? null,
-    admin: normalizeAdmin(response.admin),
-  } satisfies CurrentAdminSession
-}
 export async function deleteCurrentAdminSession() {
   return apiFetch<void>('/api/v1/auth/session', {
     method: 'DELETE',

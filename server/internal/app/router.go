@@ -115,6 +115,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	r.Route("/api", func(api chi.Router) {
 		api.Route("/v1", func(v1 chi.Router) {
 			v1.Get("/bootstrap/status", adminHandler.BootstrapStatus)
+			v1.Get("/auth/state", adminHandler.AuthState)
 			v1.Post("/bootstrap/register", adminHandler.BootstrapRegister)
 			v1.Post("/auth/session", adminHandler.CreateSession)
 			v1.Get("/system/version", func(w http.ResponseWriter, _ *http.Request) {

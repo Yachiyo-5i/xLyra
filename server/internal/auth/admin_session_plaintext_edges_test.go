@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -63,36 +62,28 @@ func TestIssueAdminSessionPropagatesCreateErrorOffline(t *testing.T) {
 	}
 }
 
-func TestTouchAdminSessionSkipsFreshSessionAndUpdatesStaleSessionOffline(t *testing.T) {
+func TestTouchAdminSessionUsesOneConditionalUpdatePerTouchOffline(t *testing.T) {
 	t.Parallel()
 
 	sessionID := uuid.New()
-	querySession := store.AdminSession{ID: sessionID, LastSeenAt: sql.NullTime{Time: time.Now(), Valid: true}}
 	queryCount := 0
 	updateCount := 0
 	service := authServiceWithGormCallbacks(t, func(tx *gorm.DB) {
-		session, ok := tx.Statement.Dest.(*store.AdminSession)
-		if !ok {
-			tx.AddError(errors.New("unexpected touch query destination"))
-			return
-		}
 		queryCount++
-		*session = querySession
-		tx.Statement.RowsAffected = 1
+		tx.AddError(errors.New("touch should not query before updating"))
 	}, nil, func(tx *gorm.DB) {
 		updateCount++
 		tx.Statement.RowsAffected = 1
 	})
 
 	service.TouchAdminSession(context.Background(), sessionID)
-	querySession.LastSeenAt = sql.NullTime{Time: time.Now().Add(-10 * time.Minute), Valid: true}
 	service.TouchAdminSession(context.Background(), sessionID)
 
-	if queryCount != 2 {
-		t.Fatalf("query count = %d, want both touch lookups", queryCount)
+	if queryCount != 0 {
+		t.Fatalf("query count = %d, want no touch lookups", queryCount)
 	}
-	if updateCount != 1 {
-		t.Fatalf("update count = %d, want only stale session update", updateCount)
+	if updateCount != 2 {
+		t.Fatalf("update count = %d, want one conditional update per touch", updateCount)
 	}
 }
 
