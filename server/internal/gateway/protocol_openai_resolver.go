@@ -70,7 +70,7 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		return newAnthropicMessagesProtocolAdapter(downstreamCanonicalProtocol(request.DownstreamPath)), nil
 	}
 	if isGrokSite(candidate.Site.SiteType) {
-		return newGrokResponsesProtocolAdapter(request, r.grokModelSupportsReasoningEffort(ctx, candidate.Model.SiteModelID)), nil
+		return newGrokResponsesProtocolAdapterWithReasoningEfforts(request, r.grokModelReasoningEfforts(ctx, candidate.Model.SiteModelID)), nil
 	}
 	if isMiMoV25TTSModel(candidate.Model.UpstreamName) && request.DownstreamPath == gatewayEndpointChatCompletions {
 		return newOpenAIChatProtocolAdapter(request, candidate), nil
@@ -142,24 +142,42 @@ func (r openAIProtocolResolver) supportedEndpointTypes(ctx context.Context, site
 	return result, nil
 }
 
-func (r openAIProtocolResolver) grokModelSupportsReasoningEffort(ctx context.Context, siteModelID uuid.UUID) bool {
+func (r openAIProtocolResolver) grokModelReasoningEfforts(ctx context.Context, siteModelID uuid.UUID) []string {
 	if r.db == nil || siteModelID == uuid.Nil {
-		return false
+		return nil
 	}
 	model, err := store.NewSiteModelRepository(r.db.DB()).GetByID(ctx, siteModelID)
 	if err != nil || len(model.Capabilities) == 0 {
-		return false
+		return nil
 	}
 	capabilities := map[string]any{}
 	if err := json.Unmarshal(model.Capabilities, &capabilities); err != nil {
-		return false
+		return nil
 	}
 	raw, ok := capabilities["raw"].(map[string]any)
 	if !ok {
-		return false
+		return nil
 	}
 	supported, _ := raw["supports_reasoning_effort"].(bool)
-	return supported
+	if !supported {
+		return nil
+	}
+	result := make([]string, 0)
+	if efforts, ok := raw["reasoning_efforts"].([]any); ok {
+		for _, rawEffort := range efforts {
+			value := anyString(rawEffort)
+			if effort, ok := rawEffort.(map[string]any); ok {
+				value = firstNonEmptyGatewayString(anyString(effort["value"]), anyString(effort["id"]))
+			}
+			if value != "" {
+				result = append(result, value)
+			}
+		}
+	}
+	if len(result) == 0 {
+		return []string{"low", "medium", "high"}
+	}
+	return result
 }
 
 func (r openAIProtocolResolver) supportedEndpointTypesFromCapabilities(ctx context.Context, siteModelID uuid.UUID) ([]string, error) {
