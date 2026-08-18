@@ -39,6 +39,7 @@ type canonicalStreamEvent struct {
 	Delta                  string
 	Usage                  completionUsage
 	FinishReason           string
+	StopSequence           string
 	ErrorMessage           string
 	Annotation             any
 	Refusal                bool
@@ -62,6 +63,7 @@ type canonicalStreamOptions struct {
 	UpstreamLineInspect func([]byte, *streamCaptureState)
 	CustomTools         map[string]struct{}
 	ResponseTools       map[string]responsesToolIdentity
+	StopSequences       []string
 }
 
 type canonicalStreamDecoder interface {
@@ -156,12 +158,13 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 
 	decoder := source.NewDecoder()
 	encoder := target.NewEncoder(options, w, &capture)
+	stopFilter := newCanonicalStopSequenceFilter(options.StopSequences)
 	deferResponsesPreOutput := from == canonicalProtocolOpenAIResponses || from == canonicalProtocolCodexResponses
 	var preOutputEvents []canonicalStreamEvent
 	preOutputBytes := 0
 	responsesPreOutputCommitted := false
-	flushPreOutput := func() error {
-		for _, event := range preOutputEvents {
+	encodeRaw := func(events []canonicalStreamEvent) error {
+		for _, event := range events {
 			writeHeaders()
 			if encodeErr := encoder.EncodeEvent(event); encodeErr != nil {
 				if capture.endReason == "" {
@@ -169,6 +172,18 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 				}
 				return encodeErr
 			}
+		}
+		return nil
+	}
+	encodeFiltered := func(events []canonicalStreamEvent) error {
+		if stopFilter != nil {
+			events = stopFilter.Apply(events)
+		}
+		return encodeRaw(events)
+	}
+	flushPreOutput := func() error {
+		if err := encodeFiltered(preOutputEvents); err != nil {
+			return err
 		}
 		preOutputEvents = nil
 		preOutputBytes = 0
@@ -188,19 +203,10 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 		return nil
 	}
 	encodeEvents := func(events []canonicalStreamEvent) error {
-		for _, event := range events {
-			if flushErr := flushPreOutput(); flushErr != nil {
-				return flushErr
-			}
-			writeHeaders()
-			if encodeErr := encoder.EncodeEvent(event); encodeErr != nil {
-				if capture.endReason == "" {
-					capture.endReason = "downstream_stream_write_failed"
-				}
-				return encodeErr
-			}
+		if flushErr := flushPreOutput(); flushErr != nil {
+			return flushErr
 		}
-		return nil
+		return encodeFiltered(events)
 	}
 	reader := bufio.NewReader(resp.Body)
 	for {
@@ -286,13 +292,18 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 			}
 			if headersWritten && !capture.streamCompleted && !capture.sawDone && capture.endReason == "" {
 				if shouldSynthesizeEOFCompletion(from) {
-					if encodeErr := encoder.EncodeEvent(canonicalStreamEvent{Type: canonicalStreamEventCompleted}); encodeErr != nil {
+					if encodeErr := encodeEvents([]canonicalStreamEvent{{Type: canonicalStreamEventCompleted}}); encodeErr != nil {
 						capture.endReason = "downstream_stream_write_failed"
 						return capture, headersWritten, encodeErr
 					}
 				} else {
 					capture.endReason = "upstream_stream_incomplete"
 					return capture, headersWritten, nil
+				}
+			}
+			if stopFilter != nil {
+				if encodeErr := encodeRaw(stopFilter.Flush()); encodeErr != nil {
+					return capture, headersWritten, encodeErr
 				}
 			}
 			if capture.streamCompleted {
@@ -1823,9 +1834,13 @@ func (e *anthropicMessagesStreamEncoder) EncodeEvent(event canonicalStreamEvent)
 		}
 		return nil
 	case canonicalStreamEventCompleted:
-		return e.sendFinish("end_turn", true, "done")
+		stopReason := "end_turn"
+		if event.StopSequence != "" {
+			stopReason = "stop_sequence"
+		}
+		return e.sendFinish(stopReason, event.StopSequence, true, "done")
 	case canonicalStreamEventIncomplete:
-		return e.sendFinish("max_tokens", false, "response_incomplete")
+		return e.sendFinish("max_tokens", "", false, "response_incomplete")
 	case canonicalStreamEventError:
 		e.capture.endReason = "upstream_stream_error"
 		return fmt.Errorf("upstream stream failed: %s", nonEmptyString(event.ErrorMessage, "unknown error"))
@@ -2018,7 +2033,7 @@ func (e *anthropicMessagesStreamEncoder) sendToolCallDelta(event canonicalStream
 	})
 }
 
-func (e *anthropicMessagesStreamEncoder) sendFinish(stopReason string, completed bool, endReason string) error {
+func (e *anthropicMessagesStreamEncoder) sendFinish(stopReason string, stopSequence string, completed bool, endReason string) error {
 	if e.completed {
 		return nil
 	}
@@ -2052,7 +2067,7 @@ func (e *anthropicMessagesStreamEncoder) sendFinish(stopReason string, completed
 	}
 	if err := e.writeEvent("message_delta", map[string]any{
 		"type":  "message_delta",
-		"delta": map[string]any{"stop_reason": stopReason, "stop_sequence": nil},
+		"delta": map[string]any{"stop_reason": stopReason, "stop_sequence": emptyToNil(stopSequence)},
 		"usage": map[string]any{"output_tokens": e.capture.usage.CompletionTokens},
 	}); err != nil {
 		return err

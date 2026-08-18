@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -235,13 +236,27 @@ func (h Handler) serveEndpoint(
 	var lastFailure *gatewayAttemptResult
 	var retainedRateLimitFailure *gatewayAttemptResult
 	skippedImageUnsupported := false
+	var skippedGrokIncompatible []string
 	for {
 		lastFailure = nil
 		skippedImageUnsupported = false
+		skippedGrokIncompatible = nil
 		waitableRateLimit := true
 		for index, candidate := range attempts {
+			if isGrokSite(candidate.Site.SiteType) {
+				if incompatible := grokIncompatibleRequestParams(request); len(incompatible) > 0 {
+					skippedGrokIncompatible = appendUniqueStrings(skippedGrokIncompatible, incompatible...)
+					continue
+				}
+			}
 			if bridge != nil {
 				bridgeProtocol, bridgeResolveErr := resolver.Resolve(ctx, request, candidate)
+				if grokProtocol, ok := bridgeProtocol.(*grokResponsesProtocolAdapter); bridgeResolveErr == nil && ok {
+					if incompatible := grokProtocol.incompatibleRequestParams(request); len(incompatible) > 0 {
+						skippedGrokIncompatible = appendUniqueStrings(skippedGrokIncompatible, incompatible...)
+						continue
+					}
+				}
 				if bridgeResolveErr == nil && candidateRequiresImageBridge(candidate, bridgeProtocol) {
 					result := h.forwardBridgedResponses(ctx, w, requestID, index+1, apiKey.ID, plan.CanonicalModel.ID, candidate, request, reservation, resolver, bridge)
 					if result.success {
@@ -273,7 +288,6 @@ func (h Handler) serveEndpoint(
 				skippedImageUnsupported = true
 				continue
 			}
-
 			protocol, resolveErr := resolver.Resolve(ctx, attemptRequest, candidate)
 			if resolveErr != nil {
 				h.writeChatFailure(w, r, endpoint.DownstreamPath(), requestID, apiKey.ID, startedAt, chatFailure{
@@ -285,6 +299,12 @@ func (h Handler) serveEndpoint(
 					stage:          "protocol_resolve",
 				})
 				return
+			}
+			if grokProtocol, ok := protocol.(*grokResponsesProtocolAdapter); ok {
+				if incompatible := grokProtocol.incompatibleRequestParams(attemptRequest); len(incompatible) > 0 {
+					skippedGrokIncompatible = appendUniqueStrings(skippedGrokIncompatible, incompatible...)
+					continue
+				}
 			}
 
 			result := h.forwardGatewayRequest(ctx, w, requestID, index+1, apiKey.ID, plan.CanonicalModel.ID, candidate, attemptRequest, reservation, protocol)
@@ -333,7 +353,7 @@ func (h Handler) serveEndpoint(
 		}
 
 		if lastFailure == nil || !waitableRateLimit {
-			if (lastFailure != nil || skippedImageUnsupported) && engageSoftFallback() {
+			if (lastFailure != nil || skippedImageUnsupported || len(skippedGrokIncompatible) > 0) && engageSoftFallback() {
 				continue
 			}
 			break
@@ -353,6 +373,21 @@ func (h Handler) serveEndpoint(
 	}
 
 	lastFailure = preferredFinalGatewayFailure(lastFailure, retainedRateLimitFailure)
+	if lastFailure == nil && len(skippedGrokIncompatible) > 0 {
+		message := "no available upstream route candidate can preserve parameters: " + strings.Join(skippedGrokIncompatible, ", ")
+		if bridge != nil && bridge.FailAll("upstream_parameter_not_supported", message) {
+			return
+		}
+		h.writeChatFailure(w, r, endpoint.DownstreamPath(), requestID, apiKey.ID, startedAt, chatFailure{
+			status:         http.StatusUnprocessableEntity,
+			code:           "upstream_parameter_not_supported",
+			message:        message,
+			requestedModel: access.ModelKey,
+			stream:         request.Stream,
+			stage:          "route_plan",
+		})
+		return
+	}
 	if bridge != nil && bridge.FailAll("upstream_failed", "all upstream route candidates failed") {
 		return
 	}
@@ -368,7 +403,6 @@ func (h Handler) serveEndpoint(
 		})
 		return
 	}
-
 	if lastFailure != nil && len(lastFailure.body) > 0 && lastFailure.statusCode >= 400 {
 		writeUpstreamFailure(w, *lastFailure, requestID)
 		return

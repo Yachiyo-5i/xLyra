@@ -1,7 +1,10 @@
 package gateway
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -65,6 +68,457 @@ func TestGrokResponsesProtocolUsesOfficialCLIHost(t *testing.T) {
 	protocol := newGrokResponsesProtocolAdapter(gatewayRequest{DownstreamPath: gatewayEndpointResponses}, false)
 	if got := protocol.UpstreamPath("https://untrusted.example"); got != adapter.GrokChatBaseURL+gatewayEndpointResponses {
 		t.Fatalf("responses path = %q", got)
+	}
+}
+
+func TestGrokResponsesProtocolStripsMetadataFromMessagesRequest(t *testing.T) {
+	payload := map[string]any{
+		"model":      "grok-4.5",
+		"max_tokens": 128,
+		"metadata":   map[string]any{"user_id": "user-1"},
+		"messages":   []any{map[string]any{"role": "user", "content": "hello"}},
+	}
+	canonical, err := canonicalRequestFromAnthropicMessagesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatalf("canonicalRequestFromAnthropicMessagesPayload returned error: %v", err)
+	}
+	request := gatewayRequest{
+		DownstreamPath: gatewayEndpointMessages,
+		Payload:        payload,
+		Canonical:      &canonical,
+	}
+	upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{
+		Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if _, ok := upstream["metadata"]; ok {
+		t.Fatalf("metadata not stripped: %#v", upstream["metadata"])
+	}
+	if upstream["safety_identifier"] != "user-1" {
+		t.Fatalf("safety_identifier = %#v, want user-1", upstream["safety_identifier"])
+	}
+	if upstream["model"] != "grok-4.5" || upstream["max_output_tokens"] != 128 {
+		t.Fatalf("unexpected converted payload: %#v", upstream)
+	}
+}
+
+func TestGrokResponsesProtocolMapsOpenAIUserIdentity(t *testing.T) {
+	payload := map[string]any{
+		"model":            "grok-4.5",
+		"user":             "user-2",
+		"input":            "hello",
+		"reasoning_effort": "medium",
+	}
+	canonical, err := canonicalRequestFromOpenAIResponsesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatalf("canonicalRequestFromOpenAIResponsesPayload returned error: %v", err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointResponses, Payload: payload, Canonical: &canonical}
+	upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{
+		Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if _, ok := upstream["user"]; ok {
+		t.Fatalf("user not converted: %#v", upstream["user"])
+	}
+	if upstream["safety_identifier"] != "user-2" {
+		t.Fatalf("safety_identifier = %#v, want user-2", upstream["safety_identifier"])
+	}
+	if _, ok := upstream["reasoning_effort"]; ok {
+		t.Fatalf("reasoning_effort scalar not converted: %#v", upstream["reasoning_effort"])
+	}
+	if reasoning, ok := upstream["reasoning"].(map[string]any); !ok || reasoning["effort"] != "medium" {
+		t.Fatalf("reasoning = %#v, want medium effort", upstream["reasoning"])
+	}
+}
+
+func TestGrokResponsesProtocolMapsOpenAIChatStructuredOutput(t *testing.T) {
+	payload := map[string]any{
+		"model":            "grok-4.5",
+		"reasoning_effort": "medium",
+		"messages": []any{map[string]any{
+			"role":    "user",
+			"content": "hello",
+		}},
+		"response_format": map[string]any{
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"name":   "answer",
+				"schema": map[string]any{"type": "object"},
+			},
+		},
+	}
+	canonical, err := canonicalRequestFromOpenAIChatPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatalf("canonicalRequestFromOpenAIChatPayload returned error: %v", err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointChatCompletions, Payload: payload, Canonical: &canonical}
+	upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{
+		Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	text, ok := upstream["text"].(map[string]any)
+	if !ok {
+		t.Fatalf("text = %#v", upstream["text"])
+	}
+	format, ok := text["format"].(map[string]any)
+	if !ok || format["type"] != "json_schema" || format["name"] != "answer" || format["schema"] == nil {
+		t.Fatalf("text.format = %#v", text["format"])
+	}
+	reasoning, ok := upstream["reasoning"].(map[string]any)
+	if !ok || reasoning["effort"] != "medium" {
+		t.Fatalf("reasoning = %#v, want medium effort", upstream["reasoning"])
+	}
+}
+
+func TestGrokResponsesProtocolMapsAnthropicToolChoice(t *testing.T) {
+	tests := []struct {
+		name            string
+		choice          map[string]any
+		wantChoice      any
+		wantParallel    any
+		wantParallelSet bool
+	}{
+		{name: "auto", choice: map[string]any{"type": "auto", "disable_parallel_tool_use": false}, wantChoice: "auto", wantParallel: true, wantParallelSet: true},
+		{name: "any", choice: map[string]any{"type": "any", "disable_parallel_tool_use": true}, wantChoice: "required", wantParallel: false, wantParallelSet: true},
+		{name: "none", choice: map[string]any{"type": "none"}, wantChoice: "none"},
+		{name: "tool", choice: map[string]any{"type": "tool", "name": "lookup", "disable_parallel_tool_use": true}, wantChoice: map[string]any{"type": "function", "name": "lookup"}, wantParallel: false, wantParallelSet: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := map[string]any{
+				"model":      "grok-4.5",
+				"max_tokens": 128,
+				"messages":   []any{map[string]any{"role": "user", "content": "hello"}},
+				"tools": []any{map[string]any{
+					"name":         "lookup",
+					"description":  "Lookup a value",
+					"input_schema": map[string]any{"type": "object"},
+				}},
+				"tool_choice": tc.choice,
+			}
+			canonical, err := canonicalRequestFromAnthropicMessagesPayload(payload, "grok-4.5")
+			if err != nil {
+				t.Fatalf("canonicalRequestFromAnthropicMessagesPayload returned error: %v", err)
+			}
+			request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload, Canonical: &canonical}
+			upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{
+				Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"},
+			})
+			if err != nil {
+				t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+			}
+			if got := upstream["tool_choice"]; !reflect.DeepEqual(got, tc.wantChoice) {
+				t.Fatalf("tool_choice = %#v, want %#v", got, tc.wantChoice)
+			}
+			parallel, exists := upstream["parallel_tool_calls"]
+			if exists != tc.wantParallelSet || !reflect.DeepEqual(parallel, tc.wantParallel) {
+				t.Fatalf("parallel_tool_calls = %#v, exists %v, want %#v, exists %v", parallel, exists, tc.wantParallel, tc.wantParallelSet)
+			}
+		})
+	}
+}
+
+func TestGrokResponsesProtocolPreservesAnthropicCapabilities(t *testing.T) {
+	payload := map[string]any{
+		"model":        "grok-4.5",
+		"max_tokens":   256,
+		"service_tier": "auto",
+		"thinking":     map[string]any{"type": "adaptive"},
+		"output_config": map[string]any{
+			"effort": "max",
+			"format": map[string]any{
+				"type":   "json_schema",
+				"schema": map[string]any{"type": "object", "properties": map[string]any{"answer": map[string]any{"type": "string"}}},
+			},
+		},
+		"messages": []any{
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "text", "text": "previous answer"},
+			}},
+			map[string]any{"role": "user", "content": "continue"},
+		},
+	}
+	canonical, err := canonicalRequestFromAnthropicMessagesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatalf("canonicalRequestFromAnthropicMessagesPayload returned error: %v", err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload, Canonical: &canonical}
+	upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{
+		Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if upstream["service_tier"] != "priority" {
+		t.Fatalf("service_tier = %#v, want priority", upstream["service_tier"])
+	}
+	reasoning, ok := upstream["reasoning"].(map[string]any)
+	if !ok || reasoning["effort"] != "high" || reasoning["summary"] != "detailed" {
+		t.Fatalf("reasoning = %#v, want clamped high effort", upstream["reasoning"])
+	}
+	text, ok := upstream["text"].(map[string]any)
+	if !ok {
+		t.Fatalf("text = %#v", upstream["text"])
+	}
+	format, ok := text["format"].(map[string]any)
+	if !ok || format["type"] != "json_schema" || format["name"] != "response" || format["schema"] == nil {
+		t.Fatalf("text.format = %#v", text["format"])
+	}
+}
+
+func TestGrokResponsesProtocolRejectsHistoricalThinkingWithoutRecasting(t *testing.T) {
+	payload := map[string]any{
+		"model":      "grok-4.5",
+		"max_tokens": 128,
+		"messages": []any{map[string]any{"role": "assistant", "content": []any{
+			map[string]any{"type": "thinking", "thinking": "private context", "signature": "sig_1"},
+			map[string]any{"type": "text", "text": "previous answer"},
+		}}, map[string]any{"role": "user", "content": "continue"}},
+	}
+	canonical, err := canonicalRequestFromAnthropicMessagesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload, Canonical: &canonical}
+	params := grokIncompatibleRequestParams(request)
+	if !reflect.DeepEqual(params, []string{"thinking_history"}) {
+		t.Fatalf("incompatible parameters = %#v", params)
+	}
+	if _, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"}}); err == nil {
+		t.Fatal("expected historical thinking to make the Grok route incompatible")
+	}
+}
+
+func TestGrokResponsesProtocolPreservesDirectReasoningObject(t *testing.T) {
+	payload := map[string]any{
+		"model": "grok-4.5",
+		"input": "hello",
+		"reasoning": map[string]any{
+			"effort":  "high",
+			"summary": "auto",
+		},
+	}
+	canonical, err := canonicalRequestFromOpenAIResponsesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointResponses, Payload: payload, Canonical: &canonical}
+	upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reasoning, _ := upstream["reasoning"].(map[string]any)
+	if reasoning["effort"] != "high" || reasoning["summary"] != "auto" {
+		t.Fatalf("reasoning = %#v", reasoning)
+	}
+}
+
+func TestGrokResponsesProtocolRejectsParametersWithoutEquivalent(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload map[string]any
+		want    string
+	}{
+		{name: "top k", payload: map[string]any{"top_k": 20}, want: "top_k"},
+		{name: "inference geo", payload: map[string]any{"inference_geo": "us"}, want: "inference_geo"},
+		{name: "flex tier", payload: map[string]any{"service_tier": "flex"}, want: "service_tier"},
+		{name: "arbitrary metadata", payload: map[string]any{"metadata": map[string]any{"trace": "abc"}}, want: "metadata.trace"},
+		{name: "reasoning context", payload: map[string]any{"reasoning": map[string]any{"effort": "high", "context": "opaque"}}, want: "reasoning.context"},
+		{name: "public API cache key", payload: map[string]any{"prompt_cache_key": "cache-1"}, want: "prompt_cache_key"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := map[string]any{"model": "grok-4.5", "input": "hello"}
+			for key, value := range tc.payload {
+				payload[key] = value
+			}
+			canonical, err := canonicalRequestFromOpenAIResponsesPayload(payload, "grok-4.5")
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := gatewayRequest{DownstreamPath: gatewayEndpointResponses, Payload: payload, Canonical: &canonical}
+			if got := grokIncompatibleRequestParams(request); !reflect.DeepEqual(got, []string{tc.want}) {
+				t.Fatalf("incompatible parameters = %#v, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGrokResponsesCompatibilityDoesNotAffectImageRequests(t *testing.T) {
+	canonical := canonicalRequest{
+		SourceProtocol: canonicalProtocolOpenAIImages,
+		Params:         map[string]any{"size": "1024x1024", "quality": "hd"},
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointImagesGenerations, Canonical: &canonical}
+	if params := grokIncompatibleRequestParams(request); len(params) != 0 {
+		t.Fatalf("image parameters were classified as Responses incompatibilities: %#v", params)
+	}
+}
+
+func TestFilterGrokResponsesRequestFieldsUsesAllowlist(t *testing.T) {
+	payload := map[string]any{
+		"model":            "grok-4.5",
+		"input":            "hello",
+		"max_tool_calls":   3,
+		"metadata":         map[string]any{"user_id": "user-1"},
+		"prompt_cache_key": "unsupported",
+	}
+	filterGrokResponsesRequestFields(payload)
+	if _, ok := payload["metadata"]; ok {
+		t.Fatal("metadata remained after allowlist filtering")
+	}
+	if _, ok := payload["prompt_cache_key"]; ok {
+		t.Fatal("unknown request field remained after allowlist filtering")
+	}
+	if payload["max_tool_calls"] != 3 {
+		t.Fatalf("supported request field was removed: %#v", payload)
+	}
+}
+
+func TestGrokBufferedStopSequencesPreserveAnthropicSemantics(t *testing.T) {
+	adapter := &grokResponsesProtocolAdapter{
+		inner:         openAIResponsesProtocolAdapter{downstreamProtocol: canonicalProtocolAnthropicMessages},
+		stopSequences: []string{"<END>"},
+	}
+	body := []byte(`{"id":"resp_1","object":"response","created_at":1,"model":"grok-4.5","status":"completed","output":[{"id":"msg_1","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"visible<END>hidden","annotations":[]}]}],"usage":{"input_tokens":2,"output_tokens":3,"total_tokens":5}}`)
+	response, err := adapter.TransformBufferedResponse(http.StatusOK, http.Header{"Content-Type": []string{"application/json"}}, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	content := payload["content"].([]any)
+	text := content[0].(map[string]any)["text"]
+	if text != "visible" || payload["stop_reason"] != "stop_sequence" || payload["stop_sequence"] != "<END>" {
+		t.Fatalf("truncated response = %#v", payload)
+	}
+}
+
+func TestGrokResponsesProtocolCompensatesStopSequencesOutsideUpstreamPayload(t *testing.T) {
+	payload := map[string]any{
+		"model":          "grok-4.5",
+		"max_tokens":     64,
+		"stop_sequences": []any{"<END>"},
+		"messages":       []any{map[string]any{"role": "user", "content": "hello"}},
+	}
+	canonical, err := canonicalRequestFromAnthropicMessagesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload, Canonical: &canonical}
+	protocol := newGrokResponsesProtocolAdapter(request, true)
+	upstream, err := protocol.BuildUpstreamPayload(request, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := upstream["stop_sequences"]; ok {
+		t.Fatalf("unsupported stop_sequences reached Grok: %#v", upstream)
+	}
+	if !reflect.DeepEqual(protocol.stopSequences, []string{"<END>"}) {
+		t.Fatalf("compensated stop sequences = %#v", protocol.stopSequences)
+	}
+}
+
+func TestGrokStreamingStopSequenceMatchesAcrossDeltas(t *testing.T) {
+	filter := newCanonicalStopSequenceFilter([]string{"<END>"})
+	events := filter.Apply([]canonicalStreamEvent{
+		{Type: canonicalStreamEventTextDelta, Delta: "visible<EN"},
+		{Type: canonicalStreamEventTextDelta, Delta: "D>hidden"},
+		{Type: canonicalStreamEventCompleted},
+	})
+	var visible strings.Builder
+	for _, event := range events {
+		if event.Type == canonicalStreamEventTextDelta {
+			visible.WriteString(event.Delta)
+		}
+	}
+	if visible.String() != "visible" {
+		t.Fatalf("filtered events = %#v", events)
+	}
+	terminal := events[len(events)-1]
+	if terminal.Type != canonicalStreamEventCompleted || terminal.StopSequence != "<END>" {
+		t.Fatalf("terminal event = %#v", terminal)
+	}
+	recorder := httptest.NewRecorder()
+	capture := &streamCaptureState{}
+	encoder := newAnthropicMessagesStreamEncoder(canonicalStreamOptions{}, recorder, capture)
+	for _, event := range events {
+		if err := encoder.EncodeEvent(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stream := recorder.Body.String()
+	if !strings.Contains(stream, `"stop_reason":"stop_sequence"`) || !strings.Contains(stream, `"stop_sequence":"\u003cEND\u003e"`) {
+		t.Fatalf("Anthropic terminal stream = %s", stream)
+	}
+}
+
+func TestGrokResponsesProtocolMapsAnthropicStandardTier(t *testing.T) {
+	payload := map[string]any{
+		"model":        "grok-4.5",
+		"max_tokens":   64,
+		"service_tier": "standard_only",
+		"messages":     []any{map[string]any{"role": "user", "content": "hello"}},
+	}
+	canonical, err := canonicalRequestFromAnthropicMessagesPayload(payload, "grok-4.5")
+	if err != nil {
+		t.Fatalf("canonicalRequestFromAnthropicMessagesPayload returned error: %v", err)
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload, Canonical: &canonical}
+	upstream, err := newGrokResponsesProtocolAdapter(request, true).BuildUpstreamPayload(request, routeengine.Candidate{
+		Model: routeengine.CandidateModel{UpstreamName: "grok-4.5"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if upstream["service_tier"] != "default" {
+		t.Fatalf("service_tier = %#v, want default", upstream["service_tier"])
+	}
+}
+
+func TestNormalizeGrokServiceTierCoversOpenAIModes(t *testing.T) {
+	tests := map[string]string{
+		"auto":     "default",
+		"standard": "default",
+		"fast":     "priority",
+		"default":  "default",
+		"priority": "priority",
+	}
+	for input, want := range tests {
+		payload := map[string]any{"service_tier": input}
+		normalizeGrokServiceTier(payload, canonicalProtocolOpenAIResponses)
+		if payload["service_tier"] != want {
+			t.Fatalf("service_tier %q = %#v, want %q", input, payload["service_tier"], want)
+		}
+	}
+}
+
+func TestNearestGrokReasoningEffortUsesModelCapabilities(t *testing.T) {
+	tests := []struct {
+		name      string
+		requested string
+		supported []string
+		want      string
+	}{
+		{name: "exact", requested: "xhigh", supported: []string{"low", "high", "xhigh"}, want: "xhigh"},
+		{name: "closest lower", requested: "max", supported: []string{"low", "medium", "high", "xhigh"}, want: "xhigh"},
+		{name: "closest higher", requested: "low", supported: []string{"medium", "high"}, want: "medium"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := nearestGrokReasoningEffort(tc.requested, grokReasoningEffortSet(tc.supported)); got != tc.want {
+				t.Fatalf("nearestGrokReasoningEffort = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
