@@ -170,7 +170,7 @@ export function SitesTable({
     {
       id: 'balance',
       header: t('table.headers.balance'),
-      cell: ({ row }) => <SiteBalanceCell site={row.original} />,
+      cell: ({ row }) => <SiteBalanceCell site={row.original} apiKeys={apiKeysMap[row.original.id] ?? EMPTY_API_KEYS} />,
       meta: { className: 'w-[8%]', align: 'center' as const },
     },
     {

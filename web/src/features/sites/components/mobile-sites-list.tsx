@@ -1,9 +1,12 @@
 import { ChevronDown, FlaskConical, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react'
+import { forwardRef, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Draw, DrawBody, DrawContent, DrawDescription, DrawHeader, DrawTitle, DrawTrigger } from '@/components/ui/draw'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import { SiteBalanceDetailsContent } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
@@ -15,6 +18,7 @@ import {
   formatSiteBalance,
   formatSiteTypeLabel,
   isOAuthSite,
+  isSub2APIQuotaSite,
   isSiteEnableBlockedByAbnormalState,
   siteAccountEmail,
   siteDisplayUpdatedAt,
@@ -227,11 +231,11 @@ function MobileSiteCard({
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-        <MobileMetric label={t('table.headers.balance')} value={formatSiteBalance(site)} />
+        <MobileSiteBalance site={site} apiKeys={apiKeys} />
         <MobileMetric label={t('table.headers.priority')} value={formatRoutingPriority(site.routing_priority)} />
         <MobileMetricButton
           label={t('table.headers.usage')}
-          value={usage ? `${formatCompactTokens(totalTokens)} / ${costPrefix}${cost.toFixed(2)}` : '-'}
+          value={usage ? `${formatCompactTokens(totalTokens, false)} / ${costPrefix}${cost.toFixed(2)}` : '-'}
           onClick={() => onOpenUsageSplit(site)}
         />
         <MobileMetricButton
@@ -284,6 +288,32 @@ function MobileSiteCard({
   )
 }
 
+function MobileSiteBalance({ site, apiKeys }: { site: Site; apiKeys: SiteAPIKey[] }) {
+  const { t } = useTranslation('sites')
+  const value = formatSiteBalance(site)
+
+  if (!isSub2APIQuotaSite(site) || apiKeys.length === 0) {
+    return <MobileMetric label={t('table.headers.balance')} value={value} />
+  }
+
+  return (
+    <Draw>
+      <DrawTrigger asChild>
+        <MobileMetricButton label={t('table.headers.balance')} value={value} />
+      </DrawTrigger>
+      <DrawContent side="bottom">
+        <DrawHeader>
+          <DrawTitle>{site.name} · {t('table.headers.balance')}</DrawTitle>
+          <DrawDescription className="sr-only">{site.name}</DrawDescription>
+        </DrawHeader>
+        <DrawBody className="text-sm leading-6">
+          <SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />
+        </DrawBody>
+      </DrawContent>
+    </Draw>
+  )
+}
+
 function MobileMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 px-2 py-2">
@@ -293,25 +323,15 @@ function MobileMetric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function MobileMetricButton({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="min-w-0 px-2 py-2"
-      onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onClick()
-        }
-      }}
-    >
+const MobileMetricButton = forwardRef<HTMLButtonElement, Omit<ComponentPropsWithoutRef<'button'>, 'children'> & { label: string; value: string }>(
+  ({ label, value, className, ...props }, ref) => (
+    <button ref={ref} type="button" className={cn('min-w-0 px-2 py-2 text-left transition-colors hover:text-primary', className)} {...props}>
       <span className="block text-[11px] text-muted-soft">{label}</span>
       <span className="mt-1 block truncate font-medium text-foreground tabular-nums" title={value}>{value}</span>
-    </div>
-  )
-}
+    </button>
+  ),
+)
+MobileMetricButton.displayName = 'MobileMetricButton'
 
 function MobileAbnormalToggle({ count, collapsed, onToggle }: { count: number; collapsed: boolean; onToggle: () => void }) {
   const { t } = useTranslation('sites')

@@ -64,7 +64,14 @@
       "remaining": "残り",
       "unlimited": "無制限",
       "fiveHourQuota": "5時間枠",
-      "weeklyQuota": "週間枠"
+      "weeklyQuota": "週間枠",
+      "dailyQuota": "日次枠",
+      "monthlyQuota": "月間枠",
+      "plan": "プラン",
+      "expiresAt": "有効期限",
+      "probeFailed": "残高プローブ失敗",
+      "probeFailedAt": "残高プローブ失敗、前回データ：{{time}}",
+      "noQuota": "残高情報なし"
     },
     "ariaLabels": {
       "refresh": "{{name}} を更新",

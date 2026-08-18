@@ -1595,6 +1595,9 @@ func (h Handler) siteAPIKeyPayloadFromState(item store.Site, apiKey sitepkg.APIK
 	if hasState && state.SyncMessage.Valid {
 		keyItem["message"] = state.SyncMessage.String
 	}
+	if probe, ok := apiKey.Meta[sitepkg.QuotaProbeCredentialMetaKey]; ok {
+		keyItem["quota_probe"] = probe
+	}
 
 	return keyItem
 }

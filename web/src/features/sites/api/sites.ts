@@ -80,6 +80,7 @@ export type SiteQuotaProbeSummary = {
   credential_count?: number
   fetched_at?: string
   plan?: string
+  expires_at?: string
   entries?: SiteQuotaProbeEntry[]
 }
 
@@ -98,6 +99,7 @@ export type SiteQuotaProbeResult = {
   error?: string
   kind?: string
   plan?: string
+  expires_at?: string
   entries?: SiteQuotaProbeEntry[]
   fetched_at?: string
 }

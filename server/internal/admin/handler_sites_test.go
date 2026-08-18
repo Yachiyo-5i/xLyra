@@ -452,6 +452,7 @@ func TestSiteAPIKeyPayloadFromStatePrefersStateAndAvailableModels(t *testing.T) 
 			Meta: map[string]any{
 				"status":          "stale",
 				"group":           "meta-group",
+				"quota_probe":     map[string]any{"status": "ok", "plan": "待宵计划"},
 				"remain_quota":    float64(20),
 				"used_quota":      json.Number("5"),
 				"disabled_models": []string{"gpt-disabled"},
@@ -500,6 +501,10 @@ func TestSiteAPIKeyPayloadFromStatePrefersStateAndAvailableModels(t *testing.T) 
 	usage := payload["usage"].(map[string]any)
 	if usage["source"] != "state" {
 		t.Fatalf("state usage should win over credential metadata: %#v", usage)
+	}
+	probe, ok := payload["quota_probe"].(map[string]any)
+	if !ok || probe["plan"] != "待宵计划" {
+		t.Fatalf("quota probe = %#v", payload["quota_probe"])
 	}
 }
 

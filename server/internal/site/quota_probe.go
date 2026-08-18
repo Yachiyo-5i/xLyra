@@ -37,6 +37,7 @@ type QuotaProbeResult struct {
 	Error     string            `json:"error,omitempty"`
 	Kind      string            `json:"kind,omitempty"`
 	Plan      string            `json:"plan,omitempty"`
+	ExpiresAt *string           `json:"expires_at,omitempty"`
 	Entries   []QuotaProbeEntry `json:"entries,omitempty"`
 	FetchedAt time.Time         `json:"fetched_at"`
 }
@@ -68,6 +69,7 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	var minEntry *QuotaProbeEntry
 	var summaryEntries []QuotaProbeEntry
 	plan := ""
+	var expiresAt *string
 
 	for _, credential := range credentials {
 		if !quotaProbeCredentialEligible(credential.CredentialType) {
@@ -94,10 +96,13 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 			if result.Plan != "" && plan == "" {
 				plan = result.Plan
 			}
+			if result.ExpiresAt != nil && expiresAt == nil {
+				expiresAt = result.ExpiresAt
+			}
 			if len(result.Entries) > 0 && summaryEntries == nil {
 				summaryEntries = result.Entries
 			}
-			if entry, ok := quotaProbePrimaryEntry(result); ok {
+			if entry, ok := quotaProbeSummaryEntry(probeType, result); ok {
 				if minEntry == nil || *entry.Remaining < *minEntry.Remaining {
 					copied := entry
 					minEntry = &copied
@@ -154,6 +159,9 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	}
 	if plan != "" {
 		summary["plan"] = plan
+	}
+	if expiresAt != nil {
+		summary["expires_at"] = *expiresAt
 	}
 
 	meta := siteMetaMap(item)
@@ -257,6 +265,7 @@ func preserveQuotaProbeResult(credentialMeta store.JSON, result QuotaProbeResult
 	}
 	result.Kind = previous.Kind
 	result.Plan = previous.Plan
+	result.ExpiresAt = previous.ExpiresAt
 	result.Entries = previous.Entries
 	result.FetchedAt = previous.FetchedAt
 	return result
@@ -267,7 +276,7 @@ func preserveQuotaSummaryValues(siteMeta map[string]any, summary map[string]any)
 	if !ok {
 		return
 	}
-	for _, key := range []string{"remaining_min", "unit", "limit", "used", "unlimited", "used_total", "entries", "plan"} {
+	for _, key := range []string{"remaining_min", "unit", "limit", "used", "unlimited", "used_total", "entries", "plan", "expires_at"} {
 		if value, exists := previous[key]; exists {
 			if _, taken := summary[key]; !taken {
 				summary[key] = value
@@ -319,6 +328,18 @@ func quotaProbePrimaryEntry(result QuotaProbeResult) (QuotaProbeEntry, bool) {
 	return QuotaProbeEntry{}, false
 }
 
+func quotaProbeSummaryEntry(probeType string, result QuotaProbeResult) (QuotaProbeEntry, bool) {
+	if probeType == QuotaProbeTypeSub2API {
+		for _, entry := range result.Entries {
+			if entry.Label == "balance" && !entry.Unlimited && entry.Remaining != nil {
+				return entry, true
+			}
+		}
+		return QuotaProbeEntry{}, false
+	}
+	return quotaProbePrimaryEntry(result)
+}
+
 func probeQuota(ctx context.Context, client *http.Client, probeType string, baseURL string, secret string) QuotaProbeResult {
 	result := QuotaProbeResult{Status: "error", FetchedAt: time.Now().UTC()}
 	var entries []QuotaProbeEntry
@@ -327,7 +348,7 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 
 	switch probeType {
 	case QuotaProbeTypeSub2API:
-		kind, entries, err = probeSub2APIQuota(ctx, client, baseURL, secret)
+		kind, entries, result.Plan, result.ExpiresAt, err = probeSub2APIQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeNewAPI:
 		kind, entries, err = probeNewAPIQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeXLyra:
@@ -351,13 +372,19 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 	return result
 }
 
-func probeSub2APIQuota(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, error) {
+func probeSub2APIQuota(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, string, *string, error) {
 	payload, err := quotaProbeGetJSON(ctx, client, quotaProbeURL(baseURL, "/v1/usage"), secret)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", nil, err
+	}
+	if valid, ok := payload["isValid"].(bool); ok && !valid {
+		return "", nil, "", nil, fmt.Errorf("usage endpoint reported invalid API key")
 	}
 
 	entries := make([]QuotaProbeEntry, 0, 4)
+	plan := strings.TrimSpace(anyString(payload["planName"]))
+	var expiresAt *string
+	planWindows := false
 	if quota, ok := payload["quota"].(map[string]any); ok {
 		entry := QuotaProbeEntry{Label: "balance", Unit: quotaProbeUnit(anyString(quota["unit"]), "usd")}
 		entry.Limit = quotaProbeFloat(quota["limit"])
@@ -371,6 +398,9 @@ func probeSub2APIQuota(ctx context.Context, client *http.Client, baseURL string,
 	}
 
 	if subscription, ok := payload["subscription"].(map[string]any); ok {
+		if value := strings.TrimSpace(anyString(subscription["expires_at"])); value != "" {
+			expiresAt = &value
+		}
 		for _, window := range []struct {
 			label string
 			used  string
@@ -380,6 +410,29 @@ func probeSub2APIQuota(ctx context.Context, client *http.Client, baseURL string,
 			{label: "weekly", used: "weekly_usage_usd", limit: "weekly_limit_usd"},
 			{label: "monthly", used: "monthly_usage_usd", limit: "monthly_limit_usd"},
 		} {
+			if quota, ok := subscription[window.label].(map[string]any); ok {
+				used := quotaProbeFloat(quota["percentage"])
+				if used != nil {
+					limit := 100.0
+					remaining := limit - *used
+					if remaining < 0 {
+						remaining = 0
+					}
+					entry := QuotaProbeEntry{
+						Label:     window.label,
+						Unit:      "percent",
+						Limit:     &limit,
+						Used:      used,
+						Remaining: &remaining,
+					}
+					if resetAt := strings.TrimSpace(anyString(quota["resets_at"])); resetAt != "" {
+						entry.ResetAt = &resetAt
+					}
+					entries = append(entries, entry)
+					planWindows = true
+					continue
+				}
+			}
 			limit := quotaProbeFloat(subscription[window.limit])
 			used := quotaProbeFloat(subscription[window.used])
 			if limit == nil || *limit <= 0 || used == nil {
@@ -414,10 +467,12 @@ func probeSub2APIQuota(ctx context.Context, client *http.Client, baseURL string,
 	}
 
 	kind := "balance"
-	if len(entries) > 1 {
+	if planWindows || plan != "" {
+		kind = "subscription_plan"
+	} else if len(entries) > 1 {
 		kind = "mixed"
 	}
-	return kind, entries, nil
+	return kind, entries, plan, expiresAt, nil
 }
 
 const newAPIQuotaPerUnit = 500000

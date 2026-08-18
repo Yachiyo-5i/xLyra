@@ -94,6 +94,67 @@ func TestProbeSub2APIUnrestrictedSubscription(t *testing.T) {
 	}
 }
 
+func TestProbeSub2APIPlanSubscription(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/usage" || r.Header.Get("Authorization") != "Bearer plan-key" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"isValid": true,
+			"mode": "unrestricted",
+			"planName": "待宵计划",
+			"subscription": {
+				"daily": {"percentage": 0, "resets_at": "2026-08-19T00:00:00+08:00"},
+				"weekly": {"percentage": 25.5, "resets_at": "2026-08-25T17:12:24.203076+08:00"},
+				"monthly": {"percentage": 100, "resets_at": "2026-09-18T17:12:24.203076+08:00"},
+				"expires_at": "2026-09-17T17:12:24.203076+08:00"
+			},
+			"unit": "%"
+		}`))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeSub2API, server.URL, "plan-key")
+	if result.Status != "ok" || result.Kind != "subscription_plan" || result.Plan != "待宵计划" {
+		t.Fatalf("unexpected plan result %+v", result)
+	}
+	if result.ExpiresAt == nil || *result.ExpiresAt != "2026-09-17T17:12:24.203076+08:00" {
+		t.Fatalf("unexpected expiry %+v", result.ExpiresAt)
+	}
+	if len(result.Entries) != 3 {
+		t.Fatalf("entries = %+v, want daily, weekly, monthly", result.Entries)
+	}
+	daily, weekly, monthly := result.Entries[0], result.Entries[1], result.Entries[2]
+	if daily.Label != "daily" || daily.Unit != "percent" || daily.Used == nil || *daily.Used != 0 || daily.Remaining == nil || *daily.Remaining != 100 || daily.ResetAt == nil {
+		t.Fatalf("unexpected daily entry %+v", daily)
+	}
+	if weekly.Remaining == nil || *weekly.Remaining != 74.5 {
+		t.Fatalf("unexpected weekly entry %+v", weekly)
+	}
+	if monthly.Remaining == nil || *monthly.Remaining != 0 {
+		t.Fatalf("unexpected monthly entry %+v", monthly)
+	}
+}
+
+func TestProbeSub2APIRejectsInvalidKeyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"isValid": false,
+			"mode": "quota_limited",
+			"quota": {"limit": 20, "used": 5, "remaining": 15, "unit": "USD"}
+		}`))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeSub2API, server.URL, "disabled-key")
+	if result.Status != "error" || result.Error != "usage endpoint reported invalid API key" || len(result.Entries) != 0 {
+		t.Fatalf("invalid key result = %+v, want probe error", result)
+	}
+}
+
 func TestProbeNewAPITokenUsage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/usage/token" {
@@ -268,6 +329,29 @@ func TestQuotaProbePrimaryEntry(t *testing.T) {
 	unlimited := QuotaProbeResult{Entries: []QuotaProbeEntry{{Label: "balance", Unlimited: true}}}
 	if _, ok := quotaProbePrimaryEntry(unlimited); ok {
 		t.Fatal("unlimited entries must not produce a primary entry")
+	}
+}
+
+func TestQuotaProbeSummaryEntryKeepsSub2APIPlanOutOfAccountBalance(t *testing.T) {
+	accountRemaining := 42.0
+	planRemaining := 75.0
+	plan := QuotaProbeResult{Entries: []QuotaProbeEntry{{Label: "daily", Unit: "percent", Remaining: &planRemaining}}}
+	if _, ok := quotaProbeSummaryEntry(QuotaProbeTypeSub2API, plan); ok {
+		t.Fatal("sub2api plan window should not become the account balance")
+	}
+
+	withBalance := QuotaProbeResult{Entries: []QuotaProbeEntry{
+		{Label: "daily", Unit: "percent", Remaining: &planRemaining},
+		{Label: "balance", Unit: "usd", Remaining: &accountRemaining},
+	}}
+	entry, ok := quotaProbeSummaryEntry(QuotaProbeTypeSub2API, withBalance)
+	if !ok || entry.Label != "balance" || entry.Remaining == nil || *entry.Remaining != accountRemaining {
+		t.Fatalf("summary entry = %+v, %v, want account balance", entry, ok)
+	}
+
+	entry, ok = quotaProbeSummaryEntry(QuotaProbeTypeKimi, plan)
+	if !ok || entry.Label != "daily" {
+		t.Fatalf("non-sub2api summary entry = %+v, %v, want existing window behavior", entry, ok)
 	}
 }
 

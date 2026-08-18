@@ -64,7 +64,14 @@
       "remaining": "剩余",
       "unlimited": "无限额度",
       "fiveHourQuota": "5 小时额度",
-      "weeklyQuota": "周额度"
+      "weeklyQuota": "周额度",
+      "dailyQuota": "日额度",
+      "monthlyQuota": "月额度",
+      "plan": "套餐",
+      "expiresAt": "到期时间",
+      "probeFailed": "额度探测失败",
+      "probeFailedAt": "额度探测失败，上次数据：{{time}}",
+      "noQuota": "暂无额度信息"
     },
     "ariaLabels": {
       "refresh": "刷新 {{name}}",

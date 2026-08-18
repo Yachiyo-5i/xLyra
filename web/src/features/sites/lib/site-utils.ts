@@ -1,6 +1,6 @@
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { localeFromLanguage as dateTimeLocale } from '@/lib/locale'
-import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
+import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
 import type { SiteUpdatedAtDisplayMode } from '@/features/sites/lib/types'
 
 const UPDATED_AT_MODE_KEY = 'xlyra:sites:updated-at-display-mode'
@@ -288,6 +288,8 @@ export type SiteBalanceDetailLabel =
   | 'unlimited'
   | 'fiveHourQuota'
   | 'weeklyQuota'
+  | 'dailyQuota'
+  | 'monthlyQuota'
 
 export type SiteBalanceDetail = {
   /** i18n key 后缀（table.quotaDetails.*）；entry 类行用 labelText 直传 */
@@ -296,6 +298,10 @@ export type SiteBalanceDetail = {
   value: string
   valuePrefix?: SiteBalanceDetailLabel
   extra?: string
+}
+
+export function isSub2APIQuotaSite(site: Site) {
+  return site.gateway_config?.quota_probe === 'sub2api'
 }
 
 export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDetail[] {
@@ -356,8 +362,53 @@ function kimiQuotaDetails(probe: SiteQuotaProbeSummary, language?: string): Site
   return rows
 }
 
+export function sub2APIKeyQuotaDetails(probe: SiteQuotaProbeResult | null | undefined, language?: string): SiteBalanceDetail[] {
+  if (!probe?.entries?.length) return []
+  const order = ['balance', 'daily', 'weekly', 'monthly']
+  const entries = [...probe.entries].sort((left, right) => {
+    const leftIndex = order.indexOf(left.label)
+    const rightIndex = order.indexOf(right.label)
+    return (leftIndex < 0 ? order.length : leftIndex) - (rightIndex < 0 ? order.length : rightIndex)
+  })
+  const labels: Record<string, SiteBalanceDetailLabel> = {
+    balance: 'accountBalance',
+    daily: 'dailyQuota',
+    weekly: 'weeklyQuota',
+    monthly: 'monthlyQuota',
+  }
+  return entries.flatMap((entry) => {
+    const label = labels[entry.label]
+    const labelText = label ? undefined : entry.label
+    let value: string
+    let valuePrefix: SiteBalanceDetailLabel | undefined
+    if (entry.unlimited) {
+      value = '∞'
+    } else if (typeof entry.remaining === 'number') {
+      if (entry.unit?.trim().toLowerCase() === 'percent') {
+        value = formatProbePercent(entry.remaining)
+        valuePrefix = 'remaining'
+      } else {
+        const { prefix, suffix } = quotaProbeCurrency(entry.unit)
+        value = `${prefix}${formatProbeAmount(Math.max(entry.remaining, 0))}${suffix}`
+        if (typeof entry.limit === 'number') {
+          value = `${value} / ${prefix}${formatProbeAmount(entry.limit)}${suffix}`
+        }
+      }
+    } else {
+      return []
+    }
+    let extra: string | undefined
+    if (entry.reset_at) {
+      extra = formatDateTime(entry.reset_at, language, 'h23') || undefined
+    }
+    return [{ label: label ?? 'accountBalance', labelText, value, valuePrefix, extra }]
+  })
+}
+
 export function formatSiteBalance(site: Site) {
-  const probeBalance = formatQuotaProbeBalance(site.quota_probe)
+  const probeBalance = site.quota_probe?.probe_type === 'sub2api' && isQuotaProbePercent(site.quota_probe)
+    ? undefined
+    : formatQuotaProbeBalance(site.quota_probe)
   if (probeBalance !== undefined) return probeBalance
   if (isOAuthSite(site)) return '-'
   const syncState = getObject(site.sync_state)
@@ -376,11 +427,15 @@ export function formatSiteBalance(site: Site) {
   return `${amount} ${currency}`
 }
 
-export function formatCompactTokens(value: number): string {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B tokens`
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M tokens`
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k tokens`
-  return `${value} tokens`
+export function formatCompactTokens(value: number, includeUnit = true): string {
+  const formatted = value >= 1_000_000_000
+    ? `${(value / 1_000_000_000).toFixed(2)}B`
+    : value >= 1_000_000
+      ? `${(value / 1_000_000).toFixed(1)}M`
+      : value >= 1_000
+        ? `${(value / 1_000).toFixed(1)}k`
+        : `${value}`
+  return includeUnit ? `${formatted} tokens` : formatted
 }
 
 export function siteAPIKeyGroupBadgeVariant(group: string) {

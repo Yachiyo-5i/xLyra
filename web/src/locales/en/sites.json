@@ -64,7 +64,14 @@
       "remaining": "Remaining",
       "unlimited": "Unlimited quota",
       "fiveHourQuota": "5-hour quota",
-      "weeklyQuota": "Weekly quota"
+      "weeklyQuota": "Weekly quota",
+      "dailyQuota": "Daily quota",
+      "monthlyQuota": "Monthly quota",
+      "plan": "Plan",
+      "expiresAt": "Expires",
+      "probeFailed": "Quota probe failed",
+      "probeFailedAt": "Quota probe failed, last data: {{time}}",
+      "noQuota": "No quota data"
     },
     "ariaLabels": {
       "refresh": "Refresh {{name}}",
