@@ -201,6 +201,7 @@ export function AnalyticsCostDonut({
                 </Pie>
                 <Tooltip
                   isAnimationActive={false}
+                  wrapperStyle={{ zIndex: 10 }}
                   content={(props) => (
                     <DonutTooltip {...props} currency={currency} total={total} />
                   )}

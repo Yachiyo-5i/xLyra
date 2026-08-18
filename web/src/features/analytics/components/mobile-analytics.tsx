@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -802,7 +802,19 @@ function MobileCostBreakdown({
 }: MobileCostBreakdownProps) {
   const { t } = useTranslation('analytics')
   const [dimension, setDimension] = useState<AnalyticsBreakdownDimension>('model')
+  const [roseTooltipActive, setRoseTooltipActive] = useState<boolean | undefined>(undefined)
+  const roseChartRef = useRef<HTMLDivElement>(null)
   const currency = usage.meta.currency || 'USD'
+
+  useEffect(() => {
+    function closeRoseTooltip(event: PointerEvent) {
+      if (roseChartRef.current?.contains(event.target as Node)) return
+      setRoseTooltipActive(false)
+    }
+
+    document.addEventListener('pointerdown', closeRoseTooltip)
+    return () => document.removeEventListener('pointerdown', closeRoseTooltip)
+  }, [])
 
   const rows = useMemo(() => {
     return [...usage.breakdowns[dimension]]
@@ -870,7 +882,15 @@ function MobileCostBreakdown({
       {rows.length ? (
         <div className="flex flex-col gap-3">
           {/* 玫瑰图：固定 150px，圆心居中显示总费用 */}
-          <div className="relative mx-auto" style={{ width: MOBILE_ROSE_SIZE, height: MOBILE_ROSE_SIZE }}>
+          <div
+            ref={roseChartRef}
+            className="relative mx-auto"
+            style={{ width: MOBILE_ROSE_SIZE, height: MOBILE_ROSE_SIZE }}
+            onPointerDownCapture={(event) => {
+              const target = event.target
+              setRoseTooltipActive(target instanceof Element && Boolean(target.closest('.recharts-sector')))
+            }}
+          >
             <ResponsiveContainer width="100%" height="100%">
               <PieChart accessibilityLayer={false}>
                 <Pie
@@ -901,7 +921,9 @@ function MobileCostBreakdown({
                   ))}
                 </Pie>
                 <Tooltip
+                  active={roseTooltipActive}
                   isAnimationActive={false}
+                  wrapperStyle={{ zIndex: 10 }}
                   content={(props) => (
                     <MobileRoseTooltip {...props} currency={currency} total={total} />
                   )}
