@@ -122,7 +122,11 @@ func currencyOverview(rows []store.RequestUsageDailySummary) ([]string, map[stri
 
 func pickDisplayCurrency(requested string, available []string, costByCurrency map[string]float64) string {
 	if value := strings.ToUpper(strings.TrimSpace(requested)); value != "" {
-		return value
+		for _, currency := range available {
+			if currency == value {
+				return value
+			}
+		}
 	}
 	display := ""
 	for _, currency := range available {
@@ -665,4 +669,76 @@ func buildAPIKeyContributions(
 		return out[i].TotalTokens > out[j].TotalTokens
 	})
 	return out
+}
+
+func buildUsageFacts(rows []store.RequestUsageDailySummary, apiKeys map[uuid.UUID]store.APIKey, timeZone config.TimeZone, granularity string) []UsageFact {
+	dateFormat := "2006-01-02"
+	if granularity == "hour" {
+		dateFormat = "2006-01-02 15:00"
+	}
+	type aggregate struct {
+		date     string
+		site     dimensionRef
+		model    dimensionRef
+		apiKey   dimensionRef
+		currency string
+		metrics  usageMetrics
+	}
+	byKey := map[string]*aggregate{}
+	for _, row := range rows {
+		date := timeZone.Format(row.BucketStart, dateFormat)
+		site := siteDimension(row)
+		model := modelDimension(row)
+		apiKey := apiKeyDimension(row, apiKeys)
+		currency := normalizeCurrency(row.Currency)
+		key := strings.Join([]string{date, site.key, model.key, apiKey.key, currency}, "\x00")
+		item := byKey[key]
+		if item == nil {
+			item = &aggregate{date: date, site: site, model: model, apiKey: apiKey, currency: currency}
+			byKey[key] = item
+		}
+		item.metrics.add(row)
+	}
+	result := make([]UsageFact, 0, len(byKey))
+	for _, item := range byKey {
+		result = append(result, UsageFact{
+			Date:                   item.date,
+			SiteKey:                item.site.key,
+			SiteID:                 item.site.id,
+			SiteLabel:              item.site.label,
+			ModelKey:               item.model.key,
+			ModelID:                item.model.id,
+			ModelLabel:             item.model.label,
+			APIKeyKey:              item.apiKey.key,
+			APIKeyID:               item.apiKey.id,
+			APIKeyLabel:            item.apiKey.label,
+			Currency:               item.currency,
+			Requests:               item.metrics.requests,
+			SuccessCount:           item.metrics.successCount,
+			FailureCount:           item.metrics.failureCount,
+			PromptTokens:           item.metrics.promptTokens,
+			CompletionTokens:       item.metrics.completionTokens,
+			CachedTokens:           item.metrics.cachedTokens,
+			TotalTokens:            item.metrics.totalTokens,
+			Cost:                   item.metrics.cost,
+			LatencyCount:           item.metrics.latencyCount,
+			LatencyTotalMS:         item.metrics.latencyTotalMS,
+			LatencyMaxMS:           item.metrics.latencyMaxMS,
+			UpstreamLatencyCount:   item.metrics.upstreamLatencyCount,
+			UpstreamLatencyTotalMS: item.metrics.upstreamLatencyTotalMS,
+		})
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].Date != result[j].Date {
+			return result[i].Date < result[j].Date
+		}
+		if result[i].SiteLabel != result[j].SiteLabel {
+			return result[i].SiteLabel < result[j].SiteLabel
+		}
+		if result[i].ModelLabel != result[j].ModelLabel {
+			return result[i].ModelLabel < result[j].ModelLabel
+		}
+		return result[i].APIKeyLabel < result[j].APIKeyLabel
+	})
+	return result
 }

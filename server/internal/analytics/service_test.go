@@ -30,6 +30,42 @@ func TestUsageRejectsNilStore(t *testing.T) {
 	}
 }
 
+func TestAnalyticsOptionOrdering(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)
+	healthyHigh := uuid.New()
+	healthyLow := uuid.New()
+	disabled := uuid.New()
+	abnormal := uuid.New()
+	sites := []store.SiteListOption{
+		{ID: abnormal, Name: "abnormal", Enabled: true, RoutingPriority: 100, CreatedAt: base},
+		{ID: disabled, Name: "disabled", Enabled: false, RoutingPriority: 100, CreatedAt: base},
+		{ID: healthyLow, Name: "low", Enabled: true, RoutingPriority: 1, CreatedAt: base},
+		{ID: healthyHigh, Name: "high", Enabled: true, RoutingPriority: 10, CreatedAt: base.Add(time.Hour)},
+	}
+	states := map[uuid.UUID]store.SiteState{
+		abnormal: {ValidationOK: sql.NullBool{Bool: false, Valid: true}},
+	}
+	sortAnalyticsSiteOptions(sites, states)
+	if sites[0].ID != healthyHigh || sites[1].ID != healthyLow || sites[2].ID != disabled || sites[3].ID != abnormal {
+		t.Fatalf("site option order = %#v", sites)
+	}
+
+	activeOld := uuid.New()
+	activeNew := uuid.New()
+	disabledKey := uuid.New()
+	apiKeys := []store.APIKeyListOption{
+		{ID: disabledKey, Status: "disabled", CreatedAt: base.Add(-time.Hour)},
+		{ID: activeNew, Status: "active", CreatedAt: base.Add(time.Hour)},
+		{ID: activeOld, Status: "active", CreatedAt: base},
+	}
+	sortAnalyticsAPIKeyOptions(apiKeys)
+	if apiKeys[0].ID != activeOld || apiKeys[1].ID != activeNew || apiKeys[2].ID != disabledKey {
+		t.Fatalf("api key option order = %#v", apiKeys)
+	}
+}
+
 func TestResolveRangeDefaultsToLastThirtyDays(t *testing.T) {
 	t.Parallel()
 
@@ -107,6 +143,9 @@ func TestCurrencyOverviewAndPickDisplayCurrency(t *testing.T) {
 	}
 	if got := pickDisplayCurrency("cny", available, costByCurrency); got != "CNY" {
 		t.Fatalf("unexpected requested display currency: %s", got)
+	}
+	if got := pickDisplayCurrency("EUR", available, costByCurrency); got != "USD" {
+		t.Fatalf("requested currency without data should fall back to highest-cost currency, got: %s", got)
 	}
 	if got := pickDisplayCurrency("", nil, map[string]float64{}); got != defaultCurrency {
 		t.Fatalf("unexpected fallback display currency: %s", got)
@@ -492,5 +531,90 @@ func TestUsageGranularityHour(t *testing.T) {
 	}
 	if series[0].Points[1].Date != "2026-08-01 14:00" {
 		t.Fatalf("unexpected second point date: %q", series[0].Points[1].Date)
+	}
+}
+
+func TestBuildUsageFactsCompactsMatchingDimensions(t *testing.T) {
+	t.Parallel()
+
+	timeZone := testTimeZone()
+	siteID := uuid.New()
+	apiKeyID := uuid.New()
+	bucket := time.Date(2026, 8, 1, 9, 0, 0, 0, timeZone.Location)
+	rows := []store.RequestUsageDailySummary{
+		{
+			BucketStart:       bucket,
+			SiteID:            uuid.NullUUID{UUID: siteID, Valid: true},
+			SiteName:          "Site A",
+			CanonicalModelKey: "model-a",
+			APIKeyID:          uuid.NullUUID{UUID: apiKeyID, Valid: true},
+			APIKeyName:        "Old Name",
+			Currency:          "usd",
+			RequestCount:      2,
+			SuccessCount:      2,
+			TotalTokens:       10,
+			EstimatedCost:     0.25,
+			LatencyCount:      2,
+			LatencyTotalMS:    200,
+			LatencyMaxMS:      sql.NullInt64{Int64: 120, Valid: true},
+		},
+		{
+			BucketStart:       bucket.Add(30 * time.Minute),
+			SiteID:            uuid.NullUUID{UUID: siteID, Valid: true},
+			SiteName:          "Site A",
+			CanonicalModelKey: "model-a",
+			APIKeyID:          uuid.NullUUID{UUID: apiKeyID, Valid: true},
+			APIKeyName:        "Old Name",
+			Currency:          "USD",
+			RequestCount:      1,
+			SuccessCount:      1,
+			TotalTokens:       5,
+			EstimatedCost:     0.25,
+			LatencyCount:      1,
+			LatencyTotalMS:    80,
+			LatencyMaxMS:      sql.NullInt64{Int64: 80, Valid: true},
+		},
+	}
+
+	facts := buildUsageFacts(rows, map[uuid.UUID]store.APIKey{
+		apiKeyID: {ID: apiKeyID, Name: "Current Name"},
+	}, timeZone, "hour")
+
+	if len(facts) != 1 {
+		t.Fatalf("expected one compact fact, got %#v", facts)
+	}
+	fact := facts[0]
+	if fact.Date != "2026-08-01 09:00" || fact.SiteID == nil || *fact.SiteID != siteID.String() ||
+		fact.APIKeyLabel != "Current Name" || fact.Currency != "USD" || fact.Requests != 3 ||
+		fact.TotalTokens != 15 || fact.Cost != 0.5 || fact.LatencyCount != 3 ||
+		fact.LatencyTotalMS != 280 || fact.LatencyMaxMS != 120 {
+		t.Fatalf("unexpected compact fact: %#v", fact)
+	}
+}
+
+func TestCheckDatasetFactLimit(t *testing.T) {
+	t.Parallel()
+
+	if err := checkDatasetFactLimit(make([]UsageFact, maxDatasetFacts), nil); err != nil {
+		t.Fatalf("checkDatasetFactLimit at limit returned error: %v", err)
+	}
+	err := checkDatasetFactLimit(make([]UsageFact, maxDatasetFacts), []UsageFact{{}})
+	tooLarge, ok := err.(DatasetTooLargeError)
+	if !ok || tooLarge.Facts != maxDatasetFacts+1 || tooLarge.Limit != maxDatasetFacts {
+		t.Fatalf("checkDatasetFactLimit error = %#v", err)
+	}
+}
+
+func TestHourlyDetailsComplete(t *testing.T) {
+	t.Parallel()
+
+	if !hourlyDetailsComplete(10, 10) {
+		t.Fatal("matching detail and summary counts should use hourly granularity")
+	}
+	if !hourlyDetailsComplete(0, 10) {
+		t.Fatal("details without a historical summary should use hourly granularity")
+	}
+	if hourlyDetailsComplete(10, 0) || hourlyDetailsComplete(10, 9) {
+		t.Fatal("missing or incomplete details should keep daily granularity")
 	}
 }

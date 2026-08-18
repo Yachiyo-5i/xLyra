@@ -51,6 +51,17 @@ type APIKey struct {
 	UpdatedAt              time.Time
 }
 
+type APIKeyListOption struct {
+	ID        uuid.UUID
+	Name      string
+	Status    string
+	CreatedAt time.Time
+}
+
+func (APIKeyListOption) TableName() string {
+	return "api_keys"
+}
+
 type APIKeyImageBridge struct {
 	Enabled  bool       `json:"enabled"`
 	Model    string     `json:"model"`
@@ -288,6 +299,14 @@ func (r APIKeyRepository) List(ctx context.Context) ([]APIKey, error) {
 	sort.SliceStable(items, func(i, j int) bool {
 		return items[i].CreatedAt.After(items[j].CreatedAt)
 	})
+	return items, nil
+}
+
+func (r APIKeyRepository) ListOptions(ctx context.Context) ([]APIKeyListOption, error) {
+	var items []APIKeyListOption
+	if err := r.db.WithContext(ctx).Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list api key options: %w", err)
+	}
 	return items, nil
 }
 

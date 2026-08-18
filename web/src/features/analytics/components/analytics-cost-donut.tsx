@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { AnalyticsUsage } from '@/features/analytics/api/analytics'
 import type { AnalyticsBreakdownDimension } from '@/features/analytics/lib/analytics-utils'
 import { dashboardChartColors, dashboardTooltipStyle } from '@/features/dashboard/components/chart-style'
-import { formatDashboardCurrency } from '@/features/dashboard/lib/dashboard-utils'
+import { formatDashboardCurrency, formatDashboardTokens } from '@/features/dashboard/lib/dashboard-utils'
 import { AnalyticsPanel, AnalyticsSlashTabs } from './analytics-panel'
 
 // 玫瑰图参数
@@ -30,6 +30,7 @@ type DonutSlice = {
   id?: string | null
   name: string
   value: number
+  tokens: number
   color: string
   outerRadius: number
 }
@@ -81,6 +82,7 @@ export function AnalyticsCostDonut({
       id: item.id,
       name: item.label,
       value: item.cost,
+      tokens: item.total_tokens,
       color: dashboardChartColors[index % dashboardChartColors.length],
       outerRadius: 0,
     }))
@@ -199,6 +201,7 @@ export function AnalyticsCostDonut({
                 </Pie>
                 <Tooltip
                   isAnimationActive={false}
+                  wrapperStyle={{ zIndex: 10 }}
                   content={(props) => (
                     <DonutTooltip {...props} currency={currency} total={total} />
                   )}
@@ -244,6 +247,7 @@ export function AnalyticsCostDonut({
                   </span>
                   <span className="shrink-0 tabular-nums text-muted-soft">
                     {formatDashboardCurrency(slice.value, currency, 2)}
+                    {` · ${formatDashboardTokens(slice.tokens)}`}
                     {total > 0 ? ` · ${((slice.value / total) * 100).toFixed(1)}%` : ''}
                   </span>
                 </button>
@@ -264,6 +268,7 @@ function DonutTooltip({ active, payload, currency, total }: TooltipContentProps 
   if (!active || !payload?.length) return null
   const item = payload[0]
   const value = Number(item.value ?? 0)
+  const tokens = Number((item.payload as DonutSlice | undefined)?.tokens ?? 0)
   return (
     <div style={dashboardTooltipStyle} className="min-w-[160px] text-xs">
       <div className="mb-1 flex items-center gap-1.5 text-foreground">
@@ -272,6 +277,7 @@ function DonutTooltip({ active, payload, currency, total }: TooltipContentProps 
       </div>
       <div className="tabular-nums text-muted-soft">
         {formatDashboardCurrency(value, currency, 4)}
+        {` · ${formatDashboardTokens(tokens)}`}
         {total > 0 ? ` · ${((value / total) * 100).toFixed(1)}%` : ''}
       </div>
     </div>

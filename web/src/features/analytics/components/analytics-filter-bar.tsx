@@ -1,15 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { listDownstreamAPIKeys, downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
-import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-utils'
-import { sitesQueryKeys, listSites } from '@/features/sites/api/sites'
-import { sortSitesForDisplay } from '@/features/sites/lib/site-utils'
-import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
 import {
   presetRange,
   formatDateInput,
@@ -31,7 +25,12 @@ export type AnalyticsFiltersState = {
 type AnalyticsFilterBarProps = {
   filters: AnalyticsFiltersState
   availableCurrencies: string[]
-  availableModelKeys: string[]
+  selectedCurrency: string
+  siteOptions: MultiSelectOption[]
+  modelOptions: MultiSelectOption[]
+  apiKeyOptions: MultiSelectOption[]
+  optionsError?: string
+  onRetryOptions?: () => void
   onChange: (next: AnalyticsFiltersState) => void
   dataFrom?: string | null
   updatedAt?: string | null
@@ -43,7 +42,12 @@ type AnalyticsFilterBarProps = {
 export function AnalyticsFilterBar({
   filters,
   availableCurrencies,
-  availableModelKeys,
+  selectedCurrency,
+  siteOptions,
+  modelOptions,
+  apiKeyOptions,
+  optionsError,
+  onRetryOptions,
   onChange,
   dataFrom,
   updatedAt,
@@ -53,33 +57,10 @@ export function AnalyticsFilterBar({
 }: AnalyticsFilterBarProps) {
   const { t } = useTranslation('analytics')
 
-  const sitesQuery = useQuery({
-    queryKey: sitesQueryKeys.list(),
-    queryFn: () => listSites(),
-    staleTime: 60_000,
-  })
-  const apiKeysQuery = useQuery({
-    queryKey: downstreamAPIKeyQueryKeys.list(),
-    queryFn: listDownstreamAPIKeys,
-    staleTime: 60_000,
-  })
-
-  const siteOptions: MultiSelectOption[] = sortSitesForDisplay(sitesQuery.data?.items ?? [])
-    .map((site) => ({ value: site.id, label: site.name }))
-
-  const modelOptions: MultiSelectOption[] = [...availableModelKeys]
-    .sort((a, b) => a.localeCompare(b))
-    .map((key) => {
-      const info = modelNameIconInfo(key)
-      return { value: key, label: key, icon: info.iconPath }
-    })
-
-  const apiKeyOptions: MultiSelectOption[] = sortAPIKeysForDisplay(apiKeysQuery.data?.items ?? [])
-    .map((key) => ({ value: key.id, label: key.name }))
-
   // 预设选项（不含 custom，custom 只在已自定义时作为展示态）
   const presetSelectItems: Array<{ label: string; value: AnalyticsRangePreset }> = [
     { label: t('filters.ranges.today'), value: 'today' },
+    { label: t('filters.ranges.yesterday'), value: 'yesterday' },
     { label: t('filters.ranges.7d'), value: '7d' },
     { label: t('filters.ranges.30d'), value: '30d' },
     { label: t('filters.ranges.90d'), value: '90d' },
@@ -192,7 +173,7 @@ export function AnalyticsFilterBar({
 
       {availableCurrencies.length > 1 ? (
         <Select
-          value={filters.currency || availableCurrencies[0]}
+          value={selectedCurrency}
           onValueChange={(currency) => onChange({ ...filters, currency })}
         >
           <SelectTrigger variant="filter" filterLabel={t('filters.currency')} active className="h-10">
@@ -220,6 +201,13 @@ export function AnalyticsFilterBar({
             <RefreshCw className={isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
             {t('page.refresh')}
           </Button>
+        </div>
+      ) : null}
+
+      {optionsError ? (
+        <div className="flex basis-full items-center justify-between gap-3 rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">
+          <span>{t('page.optionsLoadFailed')}: {optionsError}</span>
+          {onRetryOptions ? <Button variant="outline" size="sm" onClick={onRetryOptions}>{t('page.retry')}</Button> : null}
         </div>
       ) : null}
     </div>

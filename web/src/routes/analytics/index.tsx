@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/common/empty-state'
@@ -6,9 +6,13 @@ import { ErrorState } from '@/components/common/error-state'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import type { MultiSelectOption } from '@/components/ui/multi-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   analyticsQueryKeys,
+  getAnalyticsAPIKeyContributions,
+  getAnalyticsDataset,
+  getAnalyticsOptions,
   getAnalyticsUsage,
   type AnalyticsGroupBy,
 } from '@/features/analytics/api/analytics'
@@ -19,8 +23,12 @@ import { AnalyticsTrendPanel } from '@/features/analytics/components/analytics-t
 import { AnalyticsUserRanking } from '@/features/analytics/components/analytics-user-ranking'
 import { MobileAnalytics } from '@/features/analytics/components/mobile-analytics'
 import {
+  analyticsModelKeys,
+  buildAnalyticsUsage,
+  filterAnalyticsContributionPoints,
+} from '@/features/analytics/lib/analytics-dataset'
+import {
   defaultAnalyticsRange,
-  formatDateInput,
   type AnalyticsBreakdownDimension,
   type AnalyticsTrendDimension,
   type AnalyticsTrendMetric,
@@ -31,6 +39,8 @@ import {
   buildApiKeyContributions,
 } from '@/features/dashboard/lib/dashboard-utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
+import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
+import { APIError } from '@/lib/http'
 
 export function AnalyticsPage() {
   const { t, i18n } = useTranslation('analytics')
@@ -47,71 +57,132 @@ export function AnalyticsPage() {
   const [trendMetric, setTrendMetric] = useState<AnalyticsTrendMetric>('cost')
   const [trendDimension, setTrendDimension] = useState<AnalyticsTrendDimension>('model')
 
-  const params = useMemo(() => ({
+  const datasetParams = useMemo(() => ({
+    from: filters.from,
+    to: filters.to,
+    success: true as const,
+  }), [filters.from, filters.to])
+
+  const datasetQuery = useQuery({
+    queryKey: analyticsQueryKeys.dataset(datasetParams),
+    queryFn: () => getAnalyticsDataset(datasetParams),
+    placeholderData: keepPreviousData,
+    retry: (failureCount, error) => (
+      !(error instanceof APIError && error.code === 'analytics_dataset_too_large')
+      && failureCount < 2
+    ),
+  })
+
+  const datasetTooLarge = datasetQuery.error instanceof APIError
+    && datasetQuery.error.code === 'analytics_dataset_too_large'
+  const legacyParams = useMemo(() => ({
     from: filters.from,
     to: filters.to,
     group_by: trendDimension as AnalyticsGroupBy,
     site_ids: filters.siteIds,
     model_keys: filters.modelKeys,
     api_key_ids: filters.apiKeyIds,
-    // 始终只看成功请求
     success: true as const,
     currency: filters.currency || undefined,
+    include_contributions: false,
   }), [filters, trendDimension])
-
-  const usageQuery = useQuery({
-    queryKey: analyticsQueryKeys.usage(params),
-    queryFn: () => getAnalyticsUsage(params),
+  const legacyQuery = useQuery({
+    queryKey: analyticsQueryKeys.usage(legacyParams),
+    queryFn: () => getAnalyticsUsage(legacyParams),
+    enabled: datasetTooLarge,
     placeholderData: keepPreviousData,
   })
+  const optionsQuery = useQuery({
+    queryKey: analyticsQueryKeys.options(),
+    queryFn: getAnalyticsOptions,
+    staleTime: 5 * 60_000,
+  })
+  const contributionsQuery = useQuery({
+    queryKey: analyticsQueryKeys.contributions(),
+    queryFn: getAnalyticsAPIKeyContributions,
+    staleTime: 60_000,
+  })
 
-  const usage = usageQuery.data
+  const usage = useMemo(() => {
+    if (datasetTooLarge) return legacyQuery.data
+    if (datasetQuery.data) return buildAnalyticsUsage(datasetQuery.data, filters, trendDimension)
+    return undefined
+  }, [datasetQuery.data, datasetTooLarge, filters, legacyQuery.data, trendDimension])
   const availableCurrencies = usage?.meta.available_currencies ?? []
 
-  // 热力图数据：使用 analytics 接口自带的 api_key_contributions
+  const siteOptions = useMemo<MultiSelectOption[]>(() => (
+    (optionsQuery.data?.sites ?? []).map((site) => ({ value: site.id, label: site.name }))
+  ), [optionsQuery.data?.sites])
+  const apiKeyOptions = useMemo<MultiSelectOption[]>(() => (
+    (optionsQuery.data?.api_keys ?? []).map((key) => ({ value: key.id, label: key.name }))
+  ), [optionsQuery.data?.api_keys])
+  const datasetCurrent = datasetQuery.data?.current
+  const displayCurrency = usage?.meta.currency ?? ''
+  const datasetModelKeys = useMemo(() => (
+    analyticsModelKeys(datasetCurrent ?? [], {
+      siteIds: filters.siteIds,
+      apiKeyIds: filters.apiKeyIds,
+      currency: displayCurrency,
+    })
+  ), [datasetCurrent, displayCurrency, filters.apiKeyIds, filters.siteIds])
+  const legacyModelKeys = useMemo(() => (
+    (legacyQuery.data?.breakdowns.model ?? [])
+      .map((item) => item.key)
+      .filter((key) => key && key !== 'other' && key !== 'unknown')
+      .sort((a, b) => a.localeCompare(b))
+  ), [legacyQuery.data?.breakdowns.model])
+  const [cachedLegacyModelKeys, setCachedLegacyModelKeys] = useState<string[]>([])
+  const availableModelKeys = datasetTooLarge
+    ? (filters.modelKeys.length > 0 && cachedLegacyModelKeys.length > 0 ? cachedLegacyModelKeys : legacyModelKeys)
+    : datasetModelKeys
+  const modelOptions = useMemo<MultiSelectOption[]>(() => (
+    availableModelKeys.map((key) => {
+      const info = modelNameIconInfo(key)
+      return { value: key, label: key, icon: info.iconPath }
+    })
+  ), [availableModelKeys])
+
   const [selectedContributionKeyId, setSelectedContributionKeyId] = useState('')
   const contributionOverview = useMemo(() => {
-    if (!usage) return undefined
-    const today = new Date()
-    const todayStr = formatDateInput(today)
+    if (!contributionsQuery.data) return undefined
     return {
       meta: {
-        today_start: `${todayStr}T00:00:00`,
-        range_start: `${usage.meta.from}T00:00:00`,
-        range_end: `${usage.meta.to}T23:59:59`,
+        today_start: `${contributionsQuery.data.to}T00:00:00`,
+        range_start: `${contributionsQuery.data.from}T00:00:00`,
+        range_end: `${contributionsQuery.data.to}T23:59:59`,
       },
       charts: {},
     } as unknown as DashboardOverview
-  }, [usage])
+  }, [contributionsQuery.data])
   const apiKeyContributions = useMemo(() => {
-    if (!usage || !contributionOverview) return undefined
+    if (!contributionsQuery.data || !contributionOverview) return undefined
+    const points = filterAnalyticsContributionPoints(contributionsQuery.data.points, filters.apiKeyIds)
     return buildApiKeyContributions(
-      usage.api_key_contributions ?? [],
+      points,
       contributionOverview,
       365,
       selectedContributionKeyId,
     )
-  }, [usage, contributionOverview, selectedContributionKeyId])
+  }, [contributionsQuery.data, contributionOverview, filters.apiKeyIds, selectedContributionKeyId])
   const effectiveContributionKeyId = apiKeyContributions?.selectedKey?.id ?? apiKeyContributions?.defaultKeyId ?? ''
 
-  // 从 breakdowns.model 提取有数据的模型 key，给 filter bar 用
-  // 用 useRef 缓存：只有在无模型筛选时才更新选项列表，防止选了某模型后其他选项消失
-  const cachedModelKeysRef = useRef<string[]>([])
-  const availableModelKeys = useMemo(() => {
-    // 有模型筛选时不更新缓存，直接返回缓存（确保已选项和其他选项都还在）
-    // eslint-disable-next-line react-hooks/refs -- intentional render-time read: ref acts as a stale-while-filtered cache
-    if (filters.modelKeys.length > 0) return cachedModelKeysRef.current
-    const keys = new Set<string>()
-    for (const item of usage?.breakdowns.model ?? []) {
-      if (item.key && item.key !== 'other' && item.key !== 'unknown') keys.add(item.key)
+  const isFetching = datasetQuery.isFetching || legacyQuery.isFetching || contributionsQuery.isFetching
+  const handleRefresh = () => {
+    const usageRefresh = datasetTooLarge ? legacyQuery.refetch() : datasetQuery.refetch()
+    void Promise.all([usageRefresh, contributionsQuery.refetch()])
+  }
+
+  function handleFiltersChange(next: AnalyticsFiltersState) {
+    if (datasetTooLarge && filters.modelKeys.length === 0 && next.modelKeys.length > 0 && legacyModelKeys.length > 0) {
+      setCachedLegacyModelKeys(legacyModelKeys)
     }
-    const sorted = [...keys].sort((a, b) => a.localeCompare(b))
-    // eslint-disable-next-line react-hooks/refs -- intentional render-time write: ref acts as a stale-while-filtered cache
-    if (sorted.length > 0) cachedModelKeysRef.current = sorted
-    return cachedModelKeysRef.current
-  }, [usage, filters.modelKeys])
+    setFilters(next)
+  }
 
   function handleDrillDown(dimension: AnalyticsBreakdownDimension, item: { key: string; id?: string | null }) {
+    if (dimension === 'model' && datasetTooLarge && filters.modelKeys.length === 0 && legacyModelKeys.length > 0) {
+      setCachedLegacyModelKeys(legacyModelKeys)
+    }
     setFilters((current) => {
       if (dimension === 'model') {
         // unknown 模型条目下钻无意义，跳过
@@ -137,11 +208,12 @@ export function AnalyticsPage() {
     })
   }
 
-  if (usageQuery.isLoading) {
+  if (datasetQuery.isLoading || (datasetTooLarge && legacyQuery.isLoading)) {
     return <AnalyticsSkeleton isMobile={isMobile} />
   }
 
-  if (usageQuery.isError) {
+  const usageError = datasetTooLarge ? legacyQuery.error : datasetQuery.error
+  if (usageError) {
     return (
       <div className="flex flex-col gap-5">
         <PageHeader
@@ -151,8 +223,8 @@ export function AnalyticsPage() {
         />
         <ErrorState
           title={t('page.loadFailed')}
-          description={usageQuery.error.message}
-          action={<Button variant="outline" onClick={() => usageQuery.refetch()}>{t('page.retry')}</Button>}
+          description={usageError.message}
+          action={<Button variant="outline" onClick={handleRefresh}>{t('page.retry')}</Button>}
         />
       </div>
     )
@@ -167,20 +239,27 @@ export function AnalyticsPage() {
       <MobileAnalytics
         usage={usage}
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
         availableCurrencies={availableCurrencies}
-        availableModelKeys={availableModelKeys}
+        selectedCurrency={usage.meta.currency}
+        siteOptions={siteOptions}
+        modelOptions={modelOptions}
+        apiKeyOptions={apiKeyOptions}
+        optionsError={optionsQuery.error?.message}
+        onRetryOptions={() => optionsQuery.refetch()}
         trendMetric={trendMetric}
         trendDimension={trendDimension}
         onTrendMetricChange={setTrendMetric}
         onTrendDimensionChange={setTrendDimension}
         apiKeyContributions={apiKeyContributions}
+        contributionsError={contributionsQuery.error?.message}
+        onRetryContributions={() => contributionsQuery.refetch()}
         contributionKeyId={effectiveContributionKeyId}
         onContributionKeyChange={setSelectedContributionKeyId}
         onDrillDown={handleDrillDown}
         onClearDrillDown={handleClearDrillDown}
-        isFetching={usageQuery.isFetching}
-        onRefresh={() => usageQuery.refetch()}
+        isFetching={isFetching}
+        onRefresh={handleRefresh}
         language={i18n.language}
       />
     )
@@ -197,13 +276,18 @@ export function AnalyticsPage() {
       <AnalyticsFilterBar
         filters={filters}
         availableCurrencies={availableCurrencies}
-        availableModelKeys={availableModelKeys}
-        onChange={setFilters}
+        selectedCurrency={usage.meta.currency}
+        siteOptions={siteOptions}
+        modelOptions={modelOptions}
+        apiKeyOptions={apiKeyOptions}
+        optionsError={optionsQuery.error?.message}
+        onRetryOptions={() => optionsQuery.refetch()}
+        onChange={handleFiltersChange}
         dataFrom={usage.meta.data_from}
         updatedAt={usage.meta.generated_at}
         language={i18n.language}
-        isFetching={usageQuery.isFetching}
-        onRefresh={() => usageQuery.refetch()}
+        isFetching={isFetching}
+        onRefresh={handleRefresh}
       />
 
       <AnalyticsKpiCards usage={usage} />
@@ -230,12 +314,16 @@ export function AnalyticsPage() {
           activeModelKeys={filters.modelKeys}
           activeApiKeyIds={filters.apiKeyIds}
         />
-        <ApiKeyContributionsPanel
+        {contributionsQuery.isError ? <div className="xl:col-span-2"><ErrorState
+            title={t('page.contributionsLoadFailed')}
+            description={contributionsQuery.error.message}
+            action={<Button variant="outline" onClick={() => contributionsQuery.refetch()}>{t('page.retry')}</Button>}
+          /></div> : apiKeyContributions ? <ApiKeyContributionsPanel
             className="h-[360px] xl:col-span-2"
-            contributions={apiKeyContributions!}
+            contributions={apiKeyContributions}
             selectedKeyId={effectiveContributionKeyId}
             onSelectedKeyChange={setSelectedContributionKeyId}
-          />
+          /> : <Card className="h-[360px] p-5 xl:col-span-2"><Skeleton className="h-full w-full" /></Card>}
       </div>
     </div>
   )

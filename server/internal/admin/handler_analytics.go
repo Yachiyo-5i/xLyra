@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +29,57 @@ func (h Handler) AnalyticsUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.writePayload(w, http.StatusOK, payload)
+}
+
+func (h Handler) AnalyticsOptions(w http.ResponseWriter, r *http.Request) {
+	if h.analytics == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "analytics_service_unavailable", "analytics service is not available")
+		return
+	}
+	payload, err := h.analytics.Options(r.Context())
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "analytics_options_failed", "failed to load analytics options")
+		return
+	}
+	h.writePayload(w, http.StatusOK, payload)
+}
+
+func (h Handler) AnalyticsAPIKeyContributions(w http.ResponseWriter, r *http.Request) {
+	if h.analytics == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "analytics_service_unavailable", "analytics service is not available")
+		return
+	}
+	success := true
+	payload, err := h.analytics.Contributions(r.Context(), time.Now(), &success)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "analytics_contributions_failed", "failed to load analytics contributions")
+		return
+	}
+	h.writePayload(w, http.StatusOK, payload)
+}
+
+func (h Handler) AnalyticsDataset(w http.ResponseWriter, r *http.Request) {
+	if h.analytics == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "analytics_service_unavailable", "analytics service is not available")
+		return
+	}
+	params, ok := h.parseAnalyticsUsageParams(w, r)
+	if !ok {
+		return
+	}
+	success := true
+	params.Success = &success
+	payload, err := h.analytics.Dataset(r.Context(), params)
+	if err != nil {
+		var tooLarge analytics.DatasetTooLargeError
+		if errors.As(err, &tooLarge) {
+			h.writeError(w, r, http.StatusRequestEntityTooLarge, "analytics_dataset_too_large", "analytics dataset is too large for local filtering")
+			return
+		}
+		h.writeError(w, r, http.StatusInternalServerError, "analytics_dataset_failed", "failed to load analytics dataset")
+		return
+	}
 	h.writePayload(w, http.StatusOK, payload)
 }
 
@@ -100,6 +152,19 @@ func (h Handler) parseAnalyticsUsageParams(w http.ResponseWriter, r *http.Reques
 	}
 
 	params.Currency = strings.TrimSpace(query.Get("currency"))
+	if raw := strings.TrimSpace(query.Get("include_contributions")); raw != "" {
+		switch strings.ToLower(raw) {
+		case "true":
+			value := true
+			params.IncludeContributions = &value
+		case "false":
+			value := false
+			params.IncludeContributions = &value
+		default:
+			h.writeError(w, r, http.StatusBadRequest, "invalid_include_contributions", "include_contributions must be true or false")
+			return analytics.UsageParams{}, false
+		}
+	}
 	return params, true
 }
 

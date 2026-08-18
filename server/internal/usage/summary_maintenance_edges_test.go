@@ -21,6 +21,7 @@ func TestDailyMaintenanceRebuildsAndSkipsCleanupWhenDisabled(t *testing.T) {
 	confFile := usageGeneralConfigFile(t, false, 30)
 	var logQueries int
 	var deletedSummaryDays int
+	var deletedHourlyRows int
 	var completedDays []store.RequestUsageSummaryDay
 
 	db := usageTransactionGormWithCallbacks(t, usageGormCallbacks{
@@ -39,6 +40,9 @@ func TestDailyMaintenanceRebuildsAndSkipsCleanupWhenDisabled(t *testing.T) {
 		deleteCallback: func(tx *gorm.DB) {
 			if tx.Statement.Schema != nil && tx.Statement.Schema.Name == "RequestUsageDailySummary" {
 				deletedSummaryDays++
+			}
+			if tx.Statement.Schema != nil && tx.Statement.Schema.Name == "RequestUsageHourlySummary" {
+				deletedHourlyRows++
 			}
 			tx.Statement.RowsAffected = 0
 		},
@@ -60,11 +64,11 @@ func TestDailyMaintenanceRebuildsAndSkipsCleanupWhenDisabled(t *testing.T) {
 	}
 
 	yesterday := time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC)
-	if result.SummarizedDays != 1 || result.DeletedDetailRows != 0 {
+	if result.SummarizedDays != 1 || result.DeletedDetailRows != 0 || result.DeletedHourlyRows != 0 {
 		t.Fatalf("DailyMaintenance result = %#v, want one rebuilt day and no cleanup", result)
 	}
-	if logQueries != 2 || deletedSummaryDays != 1 || len(completedDays) != 1 {
-		t.Fatalf("logQueries=%d deletedSummaryDays=%d completedDays=%#v", logQueries, deletedSummaryDays, completedDays)
+	if logQueries != 2 || deletedSummaryDays != 1 || deletedHourlyRows != 1 || len(completedDays) != 1 {
+		t.Fatalf("logQueries=%d deletedSummaryDays=%d deletedHourlyRows=%d completedDays=%#v", logQueries, deletedSummaryDays, deletedHourlyRows, completedDays)
 	}
 	if !completedDays[0].BucketStart.Equal(yesterday) ||
 		completedDays[0].TimeZone != "UTC" ||
@@ -157,8 +161,8 @@ func TestDailyMaintenanceCleanupDeletesDetailRowsAndMarksDaysCleaned(t *testing.
 	if len(completedDays) != 1 || completedDays[0].Source != "daily" {
 		t.Fatalf("completedDays = %#v, want daily rebuild marker", completedDays)
 	}
-	if len(deletedSchemas) != 2 || deletedSchemas[0] != "RequestUsageDailySummary" || deletedSchemas[1] != "RequestLog" {
-		t.Fatalf("deletedSchemas = %#v, want summary delete then request log delete", deletedSchemas)
+	if len(deletedSchemas) != 3 || deletedSchemas[0] != "RequestUsageHourlySummary" || deletedSchemas[1] != "RequestUsageDailySummary" || deletedSchemas[2] != "RequestLog" {
+		t.Fatalf("deletedSchemas = %#v, want hourly, daily summary, then request log delete", deletedSchemas)
 	}
 	if len(cleanedDays) != 2 || !cleanedDays[0].LastCleanedAt.Valid || !cleanedDays[1].LastCleanedAt.Valid {
 		t.Fatalf("cleanedDays = %#v, want completed days marked as cleaned", cleanedDays)

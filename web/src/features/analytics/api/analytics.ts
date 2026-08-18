@@ -125,12 +125,76 @@ export type AnalyticsUsageParams = {
   api_key_ids?: string[]
   success?: boolean
   currency?: string
+  include_contributions?: boolean
 }
+
+export type AnalyticsUsageFact = {
+  date: string
+  site_key: string
+  site_id?: string | null
+  site_label: string
+  model_key: string
+  model_id?: string | null
+  model_label: string
+  api_key_key: string
+  api_key_id?: string | null
+  api_key_label: string
+  currency: string
+  requests: number
+  success_count: number
+  failure_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  cached_tokens: number
+  total_tokens: number
+  cost: number
+  latency_count: number
+  latency_total_ms: number
+  latency_max_ms: number
+  upstream_latency_count: number
+  upstream_latency_total_ms: number
+}
+
+export type AnalyticsDataset = {
+  meta: {
+    from: string
+    to: string
+    previous_from: string
+    previous_to: string
+    days: number
+    timezone: string
+    generated_at: string
+    data_from?: string | null
+    granularity: 'day' | 'hour'
+    fact_count: number
+    fact_limit: number
+  }
+  current: AnalyticsUsageFact[]
+  previous: AnalyticsUsageFact[]
+}
+
+export type AnalyticsOptions = {
+  sites: Array<{ id: string; name: string }>
+  api_keys: Array<{ id: string; name: string }>
+}
+
+export type AnalyticsAPIKeyContributions = {
+  generated_at: string
+  from: string
+  to: string
+  points: AnalyticsUsage['api_key_contributions']
+}
+
+export type AnalyticsDatasetParams = Pick<AnalyticsUsageParams, 'from' | 'to' | 'success'>
 
 export const analyticsQueryKeys = {
   all: ['analytics'] as const,
   usage: (params: AnalyticsUsageParams) =>
     [...analyticsQueryKeys.all, 'usage', params] as const,
+  dataset: (params: AnalyticsDatasetParams) =>
+    [...analyticsQueryKeys.all, 'dataset', params] as const,
+  options: () => [...analyticsQueryKeys.all, 'options'] as const,
+  contributions: () => [...analyticsQueryKeys.all, 'api-key-contributions'] as const,
 }
 
 export async function getAnalyticsUsage(params: AnalyticsUsageParams = {}) {
@@ -143,6 +207,24 @@ export async function getAnalyticsUsage(params: AnalyticsUsageParams = {}) {
   if (params.api_key_ids?.length) search.set('api_key_ids', params.api_key_ids.join(','))
   if (typeof params.success === 'boolean') search.set('success', String(params.success))
   if (params.currency) search.set('currency', params.currency)
+  if (typeof params.include_contributions === 'boolean') search.set('include_contributions', String(params.include_contributions))
   const query = search.toString()
   return apiFetch<AnalyticsUsage>(`/api/v1/analytics/usage${query ? `?${query}` : ''}`)
+}
+
+export async function getAnalyticsDataset(params: AnalyticsDatasetParams = {}) {
+  const search = new URLSearchParams()
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  if (typeof params.success === 'boolean') search.set('success', String(params.success))
+  const query = search.toString()
+  return apiFetch<AnalyticsDataset>(`/api/v1/analytics/dataset${query ? `?${query}` : ''}`)
+}
+
+export async function getAnalyticsOptions() {
+  return apiFetch<AnalyticsOptions>('/api/v1/analytics/options')
+}
+
+export async function getAnalyticsAPIKeyContributions() {
+  return apiFetch<AnalyticsAPIKeyContributions>('/api/v1/analytics/api-key-contributions')
 }
