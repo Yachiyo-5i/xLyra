@@ -3,6 +3,7 @@ package gateway
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,26 @@ func TestWriteChatFailureUsesSharedEnvelope(t *testing.T) {
 	})
 
 	assertGatewayErrorEnvelope(t, rec, http.StatusBadRequest, "invalid_json", "req-456")
+}
+
+func TestWriteChatFailureIncludesUnsupportedReasoningEffortValue(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(nil, nil, nil, nil, "")
+	req := gatewayRequestWithID(http.MethodPost, "/v1/chat/completions", "", "req-effort")
+	rec := httptest.NewRecorder()
+	message := `reasoning_effort value "light" is not supported; must be one of ` + supportedReasoningEfforts
+
+	handler.writeChatFailure(rec, req, gatewayEndpointChatCompletions, "req-effort", uuid.Nil, time.Now(), chatFailure{
+		status:  http.StatusBadRequest,
+		code:    "invalid_reasoning_effort",
+		message: message,
+		stage:   "validate",
+	})
+
+	if !strings.Contains(rec.Body.String(), `reasoning_effort value \"light\" is not supported`) {
+		t.Fatalf("response body = %s", rec.Body.String())
+	}
 }
 
 func TestResolveModelMappingNormalizesDownstreamModel(t *testing.T) {

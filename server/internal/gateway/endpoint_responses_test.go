@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -28,6 +29,9 @@ func TestResponsesEndpointAdapterRejectsInvalidJSONAndMissingModel(t *testing.T)
 	assertEndpointDecodeFailure(t, "missing model", adapter, `{"input":"hi"}`, "invalid_model", "validate")
 	_, failure := decodeEndpointRequest(t, adapter, `{"model":"gpt-5.6","input":"hi","reasoning":{"effort":"light"},"stream":true}`)
 	assertEndpointFailure(t, "invalid reasoning effort", failure, "invalid_reasoning_effort", "validate")
+	if !strings.Contains(failure.message, `reasoning.effort value "light" is not supported`) {
+		t.Fatalf("failure message = %q", failure.message)
+	}
 	if failure.requestedModel != "gpt-5.6" || !failure.stream {
 		t.Fatalf("failure request metadata = %+v", failure)
 	}

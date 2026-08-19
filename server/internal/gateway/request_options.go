@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const supportedReasoningEfforts = "none, minimal, low, medium, high, xhigh, max, ultra"
+
 func normalizeClientRequestOptions(payload map[string]any) *chatFailure {
 	if serviceTier, ok := payload["service_tier"].(string); ok {
 		payload["service_tier"] = strings.ToLower(strings.TrimSpace(serviceTier))
@@ -48,23 +50,32 @@ func normalizeReasoningEffortField(payload map[string]any, key string) (string, 
 	}
 	effort, ok := raw.(string)
 	if !ok {
-		return "", false, fmt.Errorf("%s must be one of low, medium, high, xhigh, max, ultra", key)
+		return "", false, unsupportedReasoningEffortError(key, raw)
 	}
+	rawEffort := effort
 	effort = strings.ToLower(strings.TrimSpace(effort))
 	if effort == "" {
 		delete(payload, key)
 		return "", false, nil
 	}
 	if !isSupportedReasoningEffort(effort) {
-		return "", false, fmt.Errorf("%s must be one of low, medium, high, xhigh, max, ultra", key)
+		return "", false, unsupportedReasoningEffortError(key, rawEffort)
 	}
 	payload[key] = effort
 	return effort, true, nil
 }
 
+func unsupportedReasoningEffortError(key string, value any) error {
+	valueText := fmt.Sprintf("%#v", value)
+	if stringValue, ok := value.(string); ok {
+		valueText = fmt.Sprintf("%q", stringValue)
+	}
+	return fmt.Errorf("%s value %s is not supported; must be one of %s", key, valueText, supportedReasoningEfforts)
+}
+
 func isSupportedReasoningEffort(effort string) bool {
 	switch effort {
-	case "low", "medium", "high", "xhigh", "max", "ultra":
+	case "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra":
 		return true
 	default:
 		return false

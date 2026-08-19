@@ -35,6 +35,9 @@ func TestChatCompletionsEndpointAdapterRejectsInvalidJSONAndMissingModel(t *test
 	assertEndpointDecodeFailure(t, "missing model", adapter, `{"messages":[]}`, "invalid_model", "validate")
 	_, failure := decodeEndpointRequest(t, adapter, `{"model":"gpt-5.6","messages":[],"reasoning_effort":"light","stream":true}`)
 	assertEndpointFailure(t, "invalid reasoning effort", failure, "invalid_reasoning_effort", "validate")
+	if !strings.Contains(failure.message, `reasoning_effort value "light" is not supported`) {
+		t.Fatalf("failure message = %q", failure.message)
+	}
 	if failure.requestedModel != "gpt-5.6" || !failure.stream {
 		t.Fatalf("failure request metadata = %+v", failure)
 	}
