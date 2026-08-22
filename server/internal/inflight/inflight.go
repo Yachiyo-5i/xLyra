@@ -96,7 +96,9 @@ func (r *Registry) Start(request Request) {
 	}
 	now := time.Now()
 	request.Phase = PhaseAccepted
-	request.StartedAt = now
+	if request.StartedAt.IsZero() {
+		request.StartedAt = now
+	}
 	request.UpdatedAt = now
 
 	r.mu.Lock()

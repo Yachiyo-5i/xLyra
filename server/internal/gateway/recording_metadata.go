@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,6 +14,7 @@ import (
 type modelMappingContextKey struct{}
 type retryAfterContextKey struct{}
 type reasoningEffortContextKey struct{}
+type requestStartedAtContextKey struct{}
 
 type modelMappingInfo struct {
 	OriginalModel string
@@ -63,6 +65,31 @@ func reasoningEffortFromContext(ctx context.Context) (string, bool) {
 	effort, ok := ctx.Value(reasoningEffortContextKey{}).(string)
 	effort = strings.ToLower(strings.TrimSpace(effort))
 	return effort, ok && isSupportedReasoningEffort(effort)
+}
+
+func withRequestStartedAt(ctx context.Context, startedAt time.Time) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if startedAt.IsZero() {
+		return ctx
+	}
+	return context.WithValue(ctx, requestStartedAtContextKey{}, startedAt)
+}
+
+func requestStartedAtFromContext(ctx context.Context) (time.Time, bool) {
+	if ctx == nil {
+		return time.Time{}, false
+	}
+	startedAt, ok := ctx.Value(requestStartedAtContextKey{}).(time.Time)
+	return startedAt, ok && !startedAt.IsZero()
+}
+
+func requestStartedAtMetadataValue(startedAt time.Time) any {
+	if startedAt.IsZero() {
+		return nil
+	}
+	return startedAt.UTC().Format(time.RFC3339Nano)
 }
 
 func reasoningEffortFromPayload(payload map[string]any) string {

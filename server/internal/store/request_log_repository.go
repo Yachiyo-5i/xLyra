@@ -539,11 +539,16 @@ func (r RequestLogRepository) requestLogQuery(ctx context.Context, exprs []claus
 	return db
 }
 
+const requestLogStartTimeOrderSQL = `COALESCE(
+  CASE
+    WHEN metadata ->> 'started_at' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?Z$'
+    THEN metadata ->> 'started_at'
+  END,
+  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') || '000Z'
+) DESC, created_at DESC, id DESC`
+
 func requestLogDefaultOrderClause() clause.OrderBy {
-	return clause.OrderBy{Columns: []clause.OrderByColumn{
-		{Column: clause.Column{Name: "created_at"}, Desc: true},
-		{Column: clause.Column{Name: "id"}, Desc: true},
-	}}
+	return clause.OrderBy{Expression: clause.Expr{SQL: requestLogStartTimeOrderSQL}}
 }
 
 func requestLogAttemptOrderClause() clause.OrderBy {

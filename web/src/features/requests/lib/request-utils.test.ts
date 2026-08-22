@@ -13,6 +13,9 @@ import {
   requestHasBillingDetails,
   requestFirstByteLatency,
   requestFirstByteLatencyTone,
+  requestElapsedMs,
+  requestIsInProgress,
+  requestLogDisplayTimestamp,
   requestReasoningEffort,
   requestTotalLatencyTone,
 } from '@/features/requests/lib/request-utils'
@@ -32,6 +35,35 @@ describe('requestDownstreamTransportLabel', () => {
 })
 
 describe('request log display helpers', () => {
+  it('derives elapsed time for in-progress requests', () => {
+    const item = requestDetail()
+    item.is_live = true
+    item.started_at = '2026-08-17T08:00:00.000Z'
+    const now = Date.parse('2026-08-17T08:00:01.250Z')
+
+    expect(requestIsInProgress(item)).toBe(true)
+    expect(requestElapsedMs(item, now)).toBe(1250)
+
+    item.is_live = false
+    expect(requestElapsedMs(item, now)).toBeNull()
+    item.is_live = true
+    item.started_at = 'invalid'
+    expect(requestElapsedMs(item, now)).toBeNull()
+  })
+
+  it('uses the effective request start timestamp for display', () => {
+    const item = { ...requestDetail(), display_started_at: null as string | null }
+    item.started_at = '2026-08-17T08:00:00.000Z'
+    expect(requestLogDisplayTimestamp(item)).toBe(item.started_at)
+
+    item.display_started_at = '2026-08-17T08:00:01.000Z'
+    expect(requestLogDisplayTimestamp(item)).toBe(item.display_started_at)
+
+    item.display_started_at = null
+    item.started_at = null
+    expect(requestLogDisplayTimestamp(item)).toBe(item.created_at)
+  })
+
   it('projects route and credential failover details', () => {
     const item = requestDetail()
     item.failover = true

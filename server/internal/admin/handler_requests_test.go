@@ -469,6 +469,7 @@ func TestRequestLogPayloadProjectsTimingReasoningAndSecretFreeCredential(t *test
 	metadata, err := json.Marshal(map[string]any{
 		"first_byte_latency": 37,
 		"reasoning_effort":   "high",
+		"started_at":         "2026-08-17T08:00:00.123456789Z",
 		"credential_id":      "credential-fallback",
 		"credential_name":    "Fallback name",
 		"credential_masked":  "sk-...fallback",
@@ -494,6 +495,10 @@ func TestRequestLogPayloadProjectsTimingReasoningAndSecretFreeCredential(t *test
 	}
 	if got := payload["reasoning_effort"]; got != "high" {
 		t.Fatalf("reasoning_effort = %#v, want high", got)
+	}
+	wantStartedAt := adminTimeZone().Format(time.Date(2026, 8, 17, 8, 0, 0, 123456789, time.UTC), time.RFC3339Nano)
+	if got := payload["started_at"]; got != wantStartedAt {
+		t.Fatalf("started_at = %#v, want localized timestamp", got)
 	}
 	credential, ok := payload["credential"].(map[string]any)
 	if !ok || credential["id"] != "credential-123" || credential["name"] != "Production key" {
@@ -524,6 +529,7 @@ func TestRequestLogPayloadOmitsUnknownFirstByteLatencyAndCredential(t *testing.T
 	metadata, err := json.Marshal(map[string]any{
 		"first_byte_latency": 0,
 		"reasoning_effort":   42,
+		"started_at":         "not-a-timestamp",
 		"credential":         map[string]any{"masked_secret": "sk-...123"},
 	})
 	if err != nil {
@@ -538,6 +544,9 @@ func TestRequestLogPayloadOmitsUnknownFirstByteLatencyAndCredential(t *testing.T
 	}
 	if payload["reasoning_effort"] != nil {
 		t.Fatalf("invalid reasoning effort = %#v, want nil", payload["reasoning_effort"])
+	}
+	if payload["started_at"] != nil {
+		t.Fatalf("invalid started_at = %#v, want nil", payload["started_at"])
 	}
 	if payload["credential"] != nil {
 		t.Fatalf("credential without id/name = %#v, want nil", payload["credential"])

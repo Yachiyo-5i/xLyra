@@ -8,6 +8,7 @@ import { getRequestLog, requestQueryKeys, type RequestLogItem } from '@/features
 import {
   compactJoin,
   formatCurrency,
+  formatDateTime,
   formatFailureResponse,
   formatMetricValue,
   formatPerRequestPrice,
@@ -29,9 +30,12 @@ import {
   requestGroupName,
   requestGroupRatio,
   requestHasBillingDetails,
+  requestIsInProgress,
+  requestPhaseLabel,
   requestIsFastBilling,
   requestMappedModel,
   requestModelName,
+  requestResponseModeLabel,
 } from '@/features/requests/lib/request-utils'
 
 export function RequestDetailRow({ item }: { item: RequestLogItem }) {
@@ -45,11 +49,35 @@ export function RequestDetailRow({ item }: { item: RequestLogItem }) {
 }
 
 export function RequestDetailContent({ item }: { item: RequestLogItem }) {
-  const { t } = useTranslation('requests')
+  const { t, i18n } = useTranslation('requests')
+  const inProgress = requestIsInProgress(item)
   const detailQuery = useQuery({
     queryKey: requestQueryKeys.detail(item.id),
     queryFn: () => getRequestLog(item.id),
+    enabled: !inProgress,
   })
+
+  if (inProgress) {
+    return (
+      <div className="space-y-2.5 text-left text-sm">
+        <DetailRow label={t('detail.requestId')}>
+          <InlineItem label={t('detail.requestId')} value={item.request_id} tone="badge" />
+        </DetailRow>
+        <DetailRow label={t('detail.request')}>
+          <InlineItem label={t('detail.downstreamModel')} value={requestModelName(item)} tone="badge" />
+          <InlineItem label={t('detail.status')}>
+            <StatusBadge status="syncing">{t('detail.inProgress')}</StatusBadge>
+          </InlineItem>
+          <InlineItem label={t('detail.phase')} value={requestPhaseLabel(item, t)} tone="badge" />
+          <InlineItem label={t('detail.attempt')} value={item.attempt != null ? String(item.attempt) : null} tone="badge" />
+          <InlineItem label={t('detail.responseMode')} value={requestResponseModeLabel(item, t)} tone="badge" />
+          <InlineItem label={t('detail.site')} value={item.site.name} tone="badge" />
+          <InlineItem label={t('detail.apiKey')} value={item.api_key.name} tone="badge" />
+          <InlineItem label={t('detail.startedAt')} value={formatDateTime(item.started_at, i18n.language)} tone="badge" />
+        </DetailRow>
+      </div>
+    )
+  }
 
   if (detailQuery.isLoading) {
     return (

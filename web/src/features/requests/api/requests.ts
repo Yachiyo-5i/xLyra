@@ -1,4 +1,4 @@
-import { apiFetch } from '@/lib/http'
+import { apiFetch, apiURL } from '@/lib/http'
 
 type RequestLogAPIKey = {
   id?: string | null
@@ -140,6 +140,11 @@ export type RequestLogItem = {
   id: string
   request_id: string
   parent_request_id?: string | null
+  state?: 'in_progress' | 'completed' | 'failed' | 'cancelled'
+  phase?: string | null
+  is_live?: boolean
+  started_at?: string | null
+  updated_at?: string | null
   scope?: string | null
   is_test?: boolean | null
   requested_model?: string | null
@@ -265,6 +270,40 @@ export const requestQueryKeys = {
 export type RequestLogListPagination = {
   page: number
   pageSize: number
+}
+
+export type RequestActivityPhase = 'accepted' | 'routed' | 'responding' | 'completed' | 'failed' | 'cancelled'
+
+export type RequestActivityRequest = {
+  request_id: string
+  api_key_id: string
+  api_key_name: string
+  model_key: string
+  model_provider: string
+  upstream_site_id?: string
+  upstream_site_name?: string
+  upstream_site_type?: string
+  attempt: number
+  stream: boolean
+  phase: RequestActivityPhase
+  started_at: string
+  updated_at: string
+}
+
+export type RequestActivitySnapshot = {
+  sequence: number
+  requests: RequestActivityRequest[]
+}
+
+export type RequestActivityEvent = {
+  sequence: number
+  type: 'upsert' | 'remove' | 'usage'
+  request?: RequestActivityRequest
+  request_id?: string
+}
+
+export function createRequestActivityStream() {
+  return new EventSource(apiURL('/api/v1/traffic-flow/stream'), { withCredentials: true })
 }
 
 export async function listRequestLogs(input: RequestLogListFilters & RequestLogListPagination) {

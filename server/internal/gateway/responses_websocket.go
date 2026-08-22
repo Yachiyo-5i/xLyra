@@ -544,7 +544,8 @@ func (h Handler) ResponsesWebSocket(maxMessageBytes int64) http.HandlerFunc {
 				ConnectionReused: turnIndex > 1,
 				ConnectionAgeMS:  time.Since(connectionStarted).Milliseconds(),
 			}
-			turnCtx := withResponsesWebSocketMetadata(connectionCtx, metadata)
+			turnCtx := withRequestStartedAt(connectionCtx, turnStarted)
+			turnCtx = withResponsesWebSocketMetadata(turnCtx, metadata)
 			turnCtx = context.WithValue(turnCtx, middleware.RequestIDKey, turnRequestID)
 
 			freshKey, validateErr := h.auth.ValidateAPIKey(turnCtx, key)
