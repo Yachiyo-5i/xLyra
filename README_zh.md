@@ -16,7 +16,21 @@
   </p>
 </div>
 
-xLyra 把分散的中转站、官方模型接口、OAuth 账号和兼容接口收敛到一个控制台中，并向下游应用暴露统一的 OpenAI-style API 入口。它不是单站点反代，而是一个多站点编排层：负责接入、同步、授权、路由、失败转移、用量记录和成本估算。
+xLyra 是一个自托管 AI 网关、LLM 代理和控制面，用于聚合多个 AI 服务商、中转站、OAuth 账号以及 OpenAI 兼容接口。
+
+它为 OpenAI、Anthropic、Claude Code、Codex、Gemini、Grok、Antigravity、DeepSeek、NewAPI 及其他兼容服务商提供统一的 API 入口。
+
+xLyra 支持：
+
+- OpenAI 兼容和 Anthropic 兼容 API
+- Chat Completions、Responses 和 Messages 协议转换
+- OAuth 账号编排与 Token 刷新
+- 多站点、多账号模型路由
+- 基于健康状态的故障转移与冷却机制
+- API Key 配额与模型权限
+- 用量与成本统计
+- 实时流量可观测性
+- 使用 Docker Compose 自托管部署
 
 ## 为什么需要 xLyra
 
@@ -172,6 +186,20 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 - 管理员登录、资料、密码、TOTP、会话、Access Token 和审计日志
 - 备份与恢复：手动导出/导入，以及 S3 兼容的自动定期备份
 - 系统代理配置与连通性测试
+
+## 替代方案与相关项目
+
+xLyra 定位为面向多站点 AI 路由的自托管控制面。
+
+相比基础的 OpenAI 代理，xLyra 额外提供：
+
+- 多站点与凭据管理
+- OAuth 账号编排
+- OpenAI / Anthropic / Gemini 协议转换
+- 模型与站点权限控制
+- 基于健康状态的路由与故障转移
+- 用量与成本可观测性
+
 
 ## 快速开始
 

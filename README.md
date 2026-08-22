@@ -16,7 +16,21 @@
   </p>
 </div>
 
-xLyra brings scattered relay stations, official model APIs, OAuth accounts, and compatible endpoints into one console, then exposes a unified OpenAI-style API gateway to downstream applications. It is not a single-site reverse proxy; it is a multi-site orchestration layer for onboarding, syncing, authorization, routing, failover, usage records, and cost estimation.
+xLyra is a self-hosted AI gateway, LLM proxy, and control plane for aggregating multiple AI providers, relay stations, OAuth accounts, and OpenAI-compatible endpoints.
+
+It provides one API endpoint for OpenAI, Anthropic, Claude Code, Codex, Gemini, Grok, Antigravity, DeepSeek, NewAPI, and other compatible providers.
+
+xLyra supports:
+
+- OpenAI-compatible and Anthropic-compatible APIs
+- Chat Completions, Responses, and Messages protocol conversion
+- OAuth account orchestration and token refresh
+- Multi-site and multi-account model routing
+- Health-aware failover and cooldown
+- API key quotas and model permissions
+- Usage and cost tracking
+- Real-time traffic observability
+- Self-hosted deployment with Docker Compose
 
 ## Why xLyra
 
@@ -172,6 +186,20 @@ Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a
 - Admin login, profile, password, TOTP, sessions, access token, and audit logs
 - Backup and restore: manual export / import and automatic S3-compatible scheduled backups
 - System proxy configuration with connectivity test
+
+## Alternatives and Related Projects
+
+xLyra is designed as a self-hosted control plane for multi-site AI routing.
+
+Compared with a basic OpenAI proxy, xLyra adds:
+
+- Multiple site and credential management
+- OAuth account orchestration
+- OpenAI / Anthropic / Gemini protocol conversion
+- Model and site permissions
+- Health-aware routing and failover
+- Usage and cost observability
+
 
 ## Quick Start
 
