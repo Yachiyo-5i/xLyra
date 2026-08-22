@@ -104,7 +104,7 @@ func (s *flexibleJSONString) UnmarshalJSON(data []byte) error {
 
 func newOpenAIResponsesProtocolAdapter(request gatewayRequest) gatewayProtocolAdapter {
 	return openAIResponsesProtocolAdapter{
-		includeUsage:       streamIncludeUsage(request.Payload),
+		includeUsage:       chatStreamUsageEnabled(request.Payload),
 		downstreamProtocol: downstreamCanonicalProtocol(request.DownstreamPath),
 	}
 }
@@ -193,7 +193,7 @@ func (a openAIResponsesProtocolAdapter) ProxyStream(ctx context.Context, w http.
 	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIResponses, target, canonicalStreamOptions{IncludeUsage: a.includeUsage, Candidate: candidate})
 }
 
-func streamIncludeUsage(payload map[string]any) bool {
+func chatStreamUsageEnabled(payload map[string]any) bool {
 	streamOptions, ok := payload["stream_options"].(map[string]any)
 	if !ok {
 		return false

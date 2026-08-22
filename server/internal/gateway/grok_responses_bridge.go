@@ -26,7 +26,7 @@ type grokResponsesProtocolAdapter struct {
 func newGrokResponsesProtocolAdapter(request gatewayRequest, supportsReasoningEffort bool) *grokResponsesProtocolAdapter {
 	result := &grokResponsesProtocolAdapter{
 		inner: openAIResponsesProtocolAdapter{
-			includeUsage:       streamIncludeUsage(request.Payload),
+			includeUsage:       chatStreamUsageEnabled(request.Payload),
 			downstreamProtocol: downstreamCanonicalProtocol(request.DownstreamPath),
 		},
 	}

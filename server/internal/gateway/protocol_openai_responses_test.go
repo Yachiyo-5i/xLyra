@@ -18,14 +18,20 @@ import (
 func TestResponsesProtocolHelperEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	if streamIncludeUsage(nil) {
-		t.Fatal("nil payload should not include usage")
+	if chatStreamUsageEnabled(nil) || chatStreamUsageEnabled(map[string]any{}) {
+		t.Fatal("Chat stream usage should default to disabled")
 	}
-	if streamIncludeUsage(map[string]any{"stream_options": map[string]any{"include_usage": "true"}}) {
-		t.Fatal("non-bool include_usage should not include usage")
+	if chatStreamUsageEnabled(map[string]any{"stream_options": nil}) {
+		t.Fatal("null stream_options should default to disabled")
 	}
-	if !streamIncludeUsage(map[string]any{"stream_options": map[string]any{"include_usage": true}}) {
-		t.Fatal("bool include_usage should include usage")
+	if !chatStreamUsageEnabled(map[string]any{"stream_options": map[string]any{"include_usage": true}}) {
+		t.Fatal("explicit include_usage=true should enable Chat stream usage")
+	}
+	if chatStreamUsageEnabled(map[string]any{"stream_options": map[string]any{"include_usage": false}}) {
+		t.Fatal("explicit include_usage=false should disable Chat stream usage")
+	}
+	if chatStreamUsageEnabled(map[string]any{"stream_options": map[string]any{"include_usage": "true"}}) {
+		t.Fatal("non-bool include_usage should disable Chat stream usage")
 	}
 
 	var event responsesStreamEvent
@@ -1669,7 +1675,10 @@ func TestOpenAIResponsesProxyStreamTransformsToChatChunks(t *testing.T) {
 	}
 	assertGatewayBodyContainsAll(t, rec.Body.String(),
 		"\"chat.completion.chunk\"",
-		"\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":7,\"total_tokens\":18}",
+		"\"prompt_tokens\":11",
+		"\"completion_tokens\":7",
+		"\"total_tokens\":18",
+		"\"prompt_tokens_details\":{\"cached_tokens\":0}",
 		"data: [DONE]",
 	)
 }

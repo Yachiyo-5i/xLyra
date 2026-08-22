@@ -1012,6 +1012,28 @@ func TestProxyCanonicalStreamAnthropicSplitUsageAccumulatesPromptAndCompletion(t
 	}
 }
 
+func TestProxyCanonicalStreamAnthropicUsageUsesChatCompletionTokenDetails(t *testing.T) {
+	t.Parallel()
+
+	body := gatewaySSEEvent("message_start", `{"type":"message_start","message":{"id":"msg_cache","model":"deepseek-v4-pro","usage":{"input_tokens":40,"cache_read_input_tokens":60,"output_tokens":0}}}`) +
+		gatewaySSEEvent("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`) +
+		gatewaySSEEvent("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}`) +
+		gatewaySSEEvent("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":8}}`) +
+		gatewaySSEEvent("message_stop", `{"type":"message_stop"}`)
+	rec, capture, started, err := proxyCanonicalStreamTest(t, body, canonicalProtocolAnthropicMessages, canonicalProtocolOpenAIChat, canonicalStreamOptions{IncludeUsage: true})
+	if err != nil {
+		t.Fatalf("proxyCanonicalStream returned error: %v", err)
+	}
+	if !started || !capture.streamCompleted {
+		t.Fatalf("expected completed stream, started=%v capture=%+v", started, capture)
+	}
+	assertGatewayBodyContainsAll(t, rec.Body.String(),
+		`"prompt_tokens":100`,
+		`"completion_tokens":8`,
+		`"prompt_tokens_details":{"cached_tokens":60}`,
+	)
+}
+
 // A malformed/truncated line after content is already streaming must be skipped,
 // not abort the whole stream and discard everything already sent. (F13 regression.)
 func TestProxyCanonicalStreamSkipsMalformedLineAfterHeaders(t *testing.T) {

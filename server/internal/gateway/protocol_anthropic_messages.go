@@ -66,6 +66,7 @@ func (anthropicMessagesEndpointAdapter) DecodeRequest(r *http.Request) (gatewayR
 
 type anthropicMessagesProtocolAdapter struct {
 	downstreamProtocol canonicalProtocol
+	includeUsage       bool
 	state              *anthropicMessagesProtocolState
 }
 
@@ -139,7 +140,7 @@ func (a anthropicMessagesProtocolAdapter) TransformBufferedResponse(statusCode i
 
 func (a anthropicMessagesProtocolAdapter) ProxyStream(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, candidate routeengine.Candidate) (streamCaptureState, bool, error) {
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolAnthropicMessages {
-		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAnthropicMessages, a.downstreamProtocol, canonicalStreamOptions{Candidate: candidate, ResponseTools: a.responseTools()})
+		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAnthropicMessages, a.downstreamProtocol, canonicalStreamOptions{IncludeUsage: a.includeUsage, Candidate: candidate, ResponseTools: a.responseTools()})
 	}
 	return proxyUpstreamStreamWithInspector(ctx, w, resp, startedAt, inspectAnthropicMessagesStreamLine)
 }
@@ -165,6 +166,7 @@ type providerAnthropicMessagesProtocolAdapter struct {
 	basePath           string
 	path               string
 	downstreamProtocol canonicalProtocol
+	includeUsage       bool
 	customTools        map[string]struct{}
 	responseTools      map[string]responsesToolIdentity
 }
@@ -238,6 +240,7 @@ func (a providerAnthropicMessagesProtocolAdapter) ProxyStream(ctx context.Contex
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolAnthropicMessages {
 		inspector := newProviderAnthropicStreamInspector()
 		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAnthropicMessages, a.downstreamProtocol, canonicalStreamOptions{
+			IncludeUsage:        a.includeUsage,
 			UpstreamLineInspect: inspector.inspect,
 			Candidate:           candidate,
 			CustomTools:         a.customTools,

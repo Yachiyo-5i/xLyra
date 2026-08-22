@@ -55,6 +55,44 @@ func TestProtocolSpecsRegisterCurrentProtocols(t *testing.T) {
 	}
 }
 
+func TestAnthropicUsageConvertsToChatCompletionTokenDetails(t *testing.T) {
+	t.Parallel()
+
+	body, usage, err := convertResponseBetweenProtocols(canonicalProtocolAnthropicMessages, canonicalProtocolOpenAIChat, []byte(`{
+		"id":"msg_cache",
+		"model":"deepseek-v4-pro",
+		"role":"assistant",
+		"content":[{"type":"text","text":"ok"}],
+		"stop_reason":"end_turn",
+		"usage":{"input_tokens":40,"output_tokens":8,"cache_read_input_tokens":60}
+	}`), responseConversionOptions{})
+	if err != nil {
+		t.Fatalf("convertResponseBetweenProtocols returned error: %v", err)
+	}
+	if usage.PromptTokens != 100 || usage.CachedPromptTokens != 60 || usage.CompletionTokens != 8 {
+		t.Fatalf("usage = %+v, want prompt=100 cached=60 completion=8", usage)
+	}
+
+	var response struct {
+		Usage map[string]any `json:"usage"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		t.Fatalf("decode converted response: %v", err)
+	}
+	if response.Usage["prompt_tokens"] != float64(100) {
+		t.Fatalf("prompt_tokens = %#v, want 100", response.Usage["prompt_tokens"])
+	}
+	details, ok := response.Usage["prompt_tokens_details"].(map[string]any)
+	if !ok || details["cached_tokens"] != float64(60) {
+		t.Fatalf("prompt_tokens_details = %#v, want cached_tokens=60", response.Usage["prompt_tokens_details"])
+	}
+	for _, key := range []string{"cached_tokens", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens"} {
+		if _, ok := response.Usage[key]; ok {
+			t.Fatalf("converted Chat usage contains non-standard field %q: %#v", key, response.Usage)
+		}
+	}
+}
+
 func TestCanonicalFileAttachmentConversions(t *testing.T) {
 	t.Parallel()
 

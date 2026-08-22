@@ -1739,7 +1739,7 @@ func encodeCanonicalResponseAsChatCompletion(response canonicalResponse) ([]byte
 				"finish_reason": finishReason,
 			},
 		},
-		"usage": completionUsageFromGatewayUsage(response.Usage),
+		"usage": chatCompletionUsagePayload(response.Usage),
 	}
 	encoded, err := json.Marshal(body)
 	return encoded, response.Usage, err
@@ -1848,6 +1848,24 @@ func completionUsageFromGatewayUsage(usage gatewayUsage) completionUsage {
 		CacheCreationInputTokens: usage.CacheCreationInputTokens,
 		ReasoningTokens:          usage.ReasoningTokens,
 	}.normalized()
+}
+
+func chatCompletionUsagePayload(usage gatewayUsage) map[string]any {
+	usage = usage.normalized()
+	payload := map[string]any{
+		"prompt_tokens":     usage.PromptTokens,
+		"completion_tokens": usage.CompletionTokens,
+		"total_tokens":      usage.TotalTokens,
+		"prompt_tokens_details": map[string]any{
+			"cached_tokens": usage.CachedPromptTokens,
+		},
+	}
+	if usage.ReasoningTokens > 0 {
+		payload["completion_tokens_details"] = map[string]any{
+			"reasoning_tokens": usage.ReasoningTokens,
+		}
+	}
+	return payload
 }
 
 func contentPartTypeForRole(role string) string {

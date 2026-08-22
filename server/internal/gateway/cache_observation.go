@@ -188,6 +188,20 @@ func cacheObservationInferUpstreamProtocol(candidate routeengine.Candidate, requ
 		return newProviderAnthropicMessagesProtocolAdapter(providerNameForCandidate(candidate), alt, downstream).ProtocolName()
 	}
 	endpointTypes := candidate.Model.SupportedEndpointTypes
+	switch downstream {
+	case canonicalProtocolOpenAIChat:
+		if containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAI) {
+			return newOpenAIChatProtocolAdapter(request, candidate).ProtocolName()
+		}
+	case canonicalProtocolOpenAIResponses:
+		if containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAIResponse) {
+			return newOpenAIResponsesProtocolAdapter(request).ProtocolName()
+		}
+	case canonicalProtocolAnthropicMessages:
+		if containsEndpointType(endpointTypes, upstreamEndpointTypeAnthropicMessages) {
+			return anthropicMessagesProtocolForCandidate(request, candidate).ProtocolName()
+		}
+	}
 	if containsEndpointType(endpointTypes, upstreamEndpointTypeGoogleGemini) {
 		return newGoogleProtocolAdapter(request).ProtocolName()
 	}

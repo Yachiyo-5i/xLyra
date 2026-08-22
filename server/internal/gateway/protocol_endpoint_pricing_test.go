@@ -183,3 +183,72 @@ func TestSupportedEndpointTypesMergesAndNormalizesCapabilities(t *testing.T) {
 		t.Fatalf("normalized endpoint types = %#v", values)
 	}
 }
+
+func TestOpenAIResolverPrefersMatchingDownstreamProtocol(t *testing.T) {
+	t.Parallel()
+
+	siteModelID := uuid.New()
+	db := gatewayStoreWithSiteModelCapabilities(t, siteModelID, store.JSON(`{
+		"supported_endpoint_types": ["openai", "openai-response", "anthropic-messages"]
+	}`))
+	candidate := routeengine.Candidate{
+		Site: routeengine.CandidateSite{
+			SiteType: "deepseek",
+			BaseURL:  "https://api.deepseek.com",
+		},
+		Model: routeengine.CandidateModel{
+			SiteModelID:  siteModelID,
+			UpstreamName: "deepseek-v4-pro",
+		},
+	}
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: gatewayEndpointChatCompletions, want: "openai_chat_completions"},
+		{path: gatewayEndpointResponses, want: "openai_responses"},
+		{path: gatewayEndpointMessages, want: "deepseek_anthropic_messages"},
+	}
+	for _, testCase := range tests {
+		request := gatewayRequest{DownstreamPath: testCase.path, Payload: map[string]any{"model": "deepseek-v4-pro"}}
+		protocol, err := (openAIProtocolResolver{db: db}).Resolve(context.Background(), request, candidate)
+		if err != nil {
+			t.Fatalf("Resolve(%s) returned error: %v", testCase.path, err)
+		}
+		if got := protocol.ProtocolName(); got != testCase.want {
+			t.Fatalf("Resolve(%s) protocol = %q, want %q", testCase.path, got, testCase.want)
+		}
+	}
+}
+
+func TestOpenAIResolverFallsBackToMessagesWhenChatIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	siteModelID := uuid.New()
+	db := gatewayStoreWithSiteModelCapabilities(t, siteModelID, store.JSON(`{
+		"supported_endpoint_types": ["anthropic-messages"]
+	}`))
+	request := gatewayRequest{
+		DownstreamPath: gatewayEndpointChatCompletions,
+		Payload:        map[string]any{"model": "deepseek-v4-pro"},
+	}
+	candidate := routeengine.Candidate{
+		Site: routeengine.CandidateSite{
+			SiteType: "deepseek",
+			BaseURL:  "https://api.deepseek.com",
+		},
+		Model: routeengine.CandidateModel{
+			SiteModelID:  siteModelID,
+			UpstreamName: "deepseek-v4-pro",
+		},
+	}
+
+	protocol, err := (openAIProtocolResolver{db: db}).Resolve(context.Background(), request, candidate)
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	if got := protocol.ProtocolName(); got != "deepseek_anthropic_messages_to_chat_completions" {
+		t.Fatalf("ProtocolName = %q, want Messages fallback", got)
+	}
+}

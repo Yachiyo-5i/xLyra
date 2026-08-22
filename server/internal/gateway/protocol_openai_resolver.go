@@ -67,7 +67,9 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		return newGoogleProtocolAdapter(request), nil
 	}
 	if isAnthropicSite(candidate.Site.SiteType) || isClaudeCodeSite(candidate.Site.SiteType) {
-		return newAnthropicMessagesProtocolAdapter(downstreamCanonicalProtocol(request.DownstreamPath)), nil
+		adapter := newAnthropicMessagesProtocolAdapter(downstreamCanonicalProtocol(request.DownstreamPath))
+		adapter.includeUsage = chatStreamUsageEnabled(request.Payload)
+		return adapter, nil
 	}
 	if isGrokSite(candidate.Site.SiteType) {
 		return newGrokResponsesProtocolAdapterWithReasoningEfforts(request, r.grokModelReasoningEfforts(ctx, candidate.Model.SiteModelID)), nil
@@ -78,13 +80,30 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 	if alt, ok := alternateProtocolForCandidate(downstreamCanonicalProtocol(request.DownstreamPath), candidate); ok {
 		switch canonicalProtocol(normalizeSpecKey(alt.Protocol)) {
 		case canonicalProtocolAnthropicMessages:
-			return newProviderAnthropicMessagesProtocolAdapter(providerNameForCandidate(candidate), alt, downstreamCanonicalProtocol(request.DownstreamPath)), nil
+			adapter := newProviderAnthropicMessagesProtocolAdapter(providerNameForCandidate(candidate), alt, downstreamCanonicalProtocol(request.DownstreamPath))
+			adapter.includeUsage = chatStreamUsageEnabled(request.Payload)
+			return adapter, nil
 		}
 	}
 
 	endpointTypes, err := r.supportedEndpointTypes(ctx, candidate.Model.SiteModelID)
 	if err != nil {
 		return nil, err
+	}
+	downstream := downstreamCanonicalProtocol(request.DownstreamPath)
+	switch downstream {
+	case canonicalProtocolOpenAIChat:
+		if containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAI) {
+			return newOpenAIChatProtocolAdapter(request, candidate), nil
+		}
+	case canonicalProtocolOpenAIResponses:
+		if containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAIResponse) {
+			return newOpenAIResponsesProtocolAdapter(request), nil
+		}
+	case canonicalProtocolAnthropicMessages:
+		if containsEndpointType(endpointTypes, upstreamEndpointTypeAnthropicMessages) {
+			return anthropicMessagesProtocolForCandidate(request, candidate), nil
+		}
 	}
 
 	if containsEndpointType(endpointTypes, upstreamEndpointTypeGoogleGemini) {
@@ -105,10 +124,14 @@ func anthropicMessagesProtocolForCandidate(request gatewayRequest, candidate rou
 	downstream := downstreamCanonicalProtocol(request.DownstreamPath)
 	if alt, ok := alternateProtocolForCandidate(canonicalProtocolAnthropicMessages, candidate); ok {
 		if canonicalProtocol(normalizeSpecKey(alt.Protocol)) == canonicalProtocolAnthropicMessages {
-			return newProviderAnthropicMessagesProtocolAdapter(providerNameForCandidate(candidate), alt, downstream)
+			adapter := newProviderAnthropicMessagesProtocolAdapter(providerNameForCandidate(candidate), alt, downstream)
+			adapter.includeUsage = chatStreamUsageEnabled(request.Payload)
+			return adapter
 		}
 	}
-	return newAnthropicMessagesProtocolAdapter(downstream)
+	adapter := newAnthropicMessagesProtocolAdapter(downstream)
+	adapter.includeUsage = chatStreamUsageEnabled(request.Payload)
+	return adapter
 }
 
 func providerNameForCandidate(candidate routeengine.Candidate) string {

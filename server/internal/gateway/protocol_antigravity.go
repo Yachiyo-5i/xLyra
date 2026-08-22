@@ -24,6 +24,7 @@ type antigravityProtocolAdapter struct {
 	downstreamProtocol  canonicalProtocol
 	downstreamImages    bool
 	imageResponseFormat string
+	includeUsage        bool
 }
 
 func newAntigravityProtocolAdapter(request gatewayRequest, db *store.Store) gatewayProtocolAdapter {
@@ -33,6 +34,7 @@ func newAntigravityProtocolAdapter(request gatewayRequest, db *store.Store) gate
 		downstreamProtocol:  downstreamCanonicalProtocol(request.DownstreamPath),
 		downstreamImages:    request.DownstreamPath == gatewayEndpointImagesGenerations,
 		imageResponseFormat: strings.TrimSpace(anyString(request.Payload["response_format"])),
+		includeUsage:        chatStreamUsageEnabled(request.Payload),
 	}
 }
 
@@ -1022,7 +1024,7 @@ func antigravityRawFinishReason(gemini map[string]any) string {
 }
 
 func (a antigravityProtocolAdapter) proxyStreamAs(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, target canonicalProtocol, candidate routeengine.Candidate) (streamCaptureState, bool, error) {
-	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAntigravity, target, canonicalStreamOptions{Candidate: candidate})
+	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAntigravity, target, canonicalStreamOptions{IncludeUsage: a.includeUsage, Candidate: candidate})
 }
 
 func antigravityRequestID() string {

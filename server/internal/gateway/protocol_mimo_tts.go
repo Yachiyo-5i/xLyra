@@ -161,7 +161,7 @@ func (d *mimoTTSChatStreamDecoder) responseBody(responseFormat string) ([]byte, 
 		}},
 	}
 	if d.hasUsage {
-		response["usage"] = usage
+		response["usage"] = chatCompletionUsagePayload(usage)
 	}
 	encoded, err := json.Marshal(response)
 	if err != nil {

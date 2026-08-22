@@ -266,26 +266,26 @@ func TestOpenAIChatProtocolConvertsResponsesRequestAndResponse(t *testing.T) {
 func TestOpenAIChatProtocolTransformsNativeAndStreams(t *testing.T) {
 	t.Parallel()
 
-	body := []byte(`{"choices":[{"message":{"role":"assistant","content":"hi"}}],"usage":{"prompt_tokens":4,"completion_tokens":6,"total_tokens":10}}`)
+	body := []byte(`{"choices":[{"message":{"role":"assistant","content":"hi"}}],"usage":{"prompt_tokens":4,"completion_tokens":6,"total_tokens":10,"prompt_cache_hit_tokens":3,"prompt_cache_miss_tokens":1}}`)
 	transformed, err := (openAIChatProtocolAdapter{}).TransformBufferedResponse(http.StatusOK, http.Header{"Content-Type": []string{"application/json"}}, body)
 	if err != nil {
 		t.Fatalf("TransformBufferedResponse returned error: %v", err)
 	}
-	if transformed.ContentType != "application/json" || transformed.Usage.PromptTokens != 4 || transformed.Usage.TotalTokens != 10 || string(transformed.Body) != string(body) {
+	if transformed.ContentType != "application/json" || transformed.Usage.PromptTokens != 4 || transformed.Usage.CachedPromptTokens != 3 || transformed.Usage.TotalTokens != 10 || string(transformed.Body) != string(body) {
 		t.Fatalf("unexpected native transform: %#v", transformed)
 	}
 
 	resp := gatewayStreamTestResponse(
 		"data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n" +
-			"data: {\"choices\":[{\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":2,\"total_tokens\":3}}\n\n" +
+			"data: {\"choices\":[{\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":2,\"total_tokens\":3,\"prompt_cache_hit_tokens\":1,\"prompt_cache_miss_tokens\":0}}\n\n" +
 			"data: [DONE]\n\n")
 	rec := httptest.NewRecorder()
 	capture, started, err := (openAIChatProtocolAdapter{}).ProxyStream(t.Context(), rec, resp, time.Now(), routeengine.Candidate{})
 	if err != nil {
 		t.Fatalf("ProxyStream returned error: %v", err)
 	}
-	if !started || !capture.streamCompleted || capture.usage.TotalTokens != 3 {
+	if !started || !capture.streamCompleted || capture.usage.TotalTokens != 3 || capture.usage.CachedPromptTokens != 1 {
 		t.Fatalf("started=%v capture=%+v", started, capture)
 	}
-	assertGatewayBodyContainsAll(t, rec.Body.String(), `"delta":{"content":"Hi"}`)
+	assertGatewayBodyContainsAll(t, rec.Body.String(), `"delta":{"content":"Hi"}`, `"prompt_cache_hit_tokens":1`, `"prompt_cache_miss_tokens":0`)
 }

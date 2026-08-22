@@ -447,6 +447,15 @@ func TestCacheObservationInfersProtocolFromCandidateCapabilities(t *testing.T) {
 			},
 			want: "deepseek_anthropic_messages_to_responses",
 		},
+		{
+			name:    "chat completions prefers matching native endpoint",
+			request: gatewayRequest{DownstreamPath: gatewayEndpointChatCompletions},
+			candidate: routeengine.Candidate{
+				Site:  routeengine.CandidateSite{SiteType: "deepseek"},
+				Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro", SupportedEndpointTypes: []string{"openai", "openai-response", "anthropic-messages"}},
+			},
+			want: "openai_chat_completions",
+		},
 	}
 
 	for _, tt := range tests {

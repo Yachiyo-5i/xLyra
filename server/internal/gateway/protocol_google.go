@@ -15,12 +15,14 @@ type googleProtocolAdapter struct {
 	stream             bool
 	downstreamProtocol canonicalProtocol
 	upstreamModel      string
+	includeUsage       bool
 }
 
 func newGoogleProtocolAdapter(request gatewayRequest) gatewayProtocolAdapter {
 	return &googleProtocolAdapter{
 		stream:             request.Stream,
 		downstreamProtocol: downstreamCanonicalProtocol(request.DownstreamPath),
+		includeUsage:       chatStreamUsageEnabled(request.Payload),
 	}
 }
 
@@ -109,5 +111,5 @@ func (g *googleProtocolAdapter) ProxyStream(ctx context.Context, w http.Response
 	if target == "" || target == canonicalProtocolOpenAIImages {
 		target = canonicalProtocolOpenAIChat
 	}
-	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAntigravity, target, canonicalStreamOptions{Candidate: candidate})
+	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAntigravity, target, canonicalStreamOptions{IncludeUsage: g.includeUsage, Candidate: candidate})
 }
