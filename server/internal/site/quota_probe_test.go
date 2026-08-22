@@ -400,6 +400,41 @@ func TestPreserveQuotaProbeResultWithoutHistoryReturnsFailure(t *testing.T) {
 	}
 }
 
+func TestCredentialQuotaProbeResetAt(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 20, 4, 3, 37, 0, time.UTC)
+	want := time.Date(2026, 8, 21, 14, 29, 8, 997742000, time.UTC)
+	valid := store.JSON(`{"quota_probe":{"status":"ok","entries":[{"label":"daily","remaining":100,"reset_at":"2026-08-21T00:00:00+08:00"},{"label":"weekly","remaining":0,"reset_at":"2026-08-21T22:29:08.997742+08:00"}],"fetched_at":"2026-08-20T00:00:14Z"}}`)
+	if got, ok := CredentialQuotaProbeResetAt(valid, "weekly", now); !ok || !got.Equal(want) {
+		t.Fatalf("CredentialQuotaProbeResetAt() = %s, %v, want %s, true", got, ok, want)
+	}
+
+	for _, test := range []struct {
+		name string
+		meta store.JSON
+	}{
+		{name: "failed probe", meta: store.JSON(`{"quota_probe":{"status":"error","entries":[{"label":"weekly","remaining":0,"reset_at":"2026-08-21T22:29:08.997742+08:00"}],"fetched_at":"2026-08-20T00:00:14Z"}}`)},
+		{name: "missing observation time", meta: store.JSON(`{"quota_probe":{"status":"ok","entries":[{"label":"weekly","remaining":0,"reset_at":"2026-08-21T22:29:08.997742+08:00"}]}}`)},
+		{name: "future observation", meta: store.JSON(`{"quota_probe":{"status":"ok","entries":[{"label":"weekly","remaining":0,"reset_at":"2026-08-21T22:29:08.997742+08:00"}],"fetched_at":"2026-08-20T05:00:00Z"}}`)},
+		{name: "past reset", meta: store.JSON(`{"quota_probe":{"status":"ok","entries":[{"label":"weekly","remaining":0,"reset_at":"2026-08-19T22:29:08.997742+08:00"}],"fetched_at":"2026-08-20T00:00:14Z"}}`)},
+		{name: "wrong window", meta: valid},
+		{name: "invalid metadata", meta: store.JSON(`{invalid`)},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			window := "weekly"
+			if test.name == "wrong window" {
+				window = "usage"
+			}
+			if got, ok := CredentialQuotaProbeResetAt(test.meta, window, now); ok || !got.IsZero() {
+				t.Fatalf("CredentialQuotaProbeResetAt() = %s, %v, want zero, false", got, ok)
+			}
+		})
+	}
+}
+
 func TestSub2APISubscriptionQuotaRecovered(t *testing.T) {
 	t.Parallel()
 
@@ -428,6 +463,111 @@ func TestSub2APISubscriptionQuotaRecovered(t *testing.T) {
 				t.Fatalf("sub2APISubscriptionQuotaRecovered() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestSub2APISubscriptionQuotaEntry(t *testing.T) {
+	t.Parallel()
+
+	remaining := 0.0
+	result := QuotaProbeResult{Entries: []QuotaProbeEntry{{Label: "weekly", Remaining: &remaining}}}
+	entry, ok := sub2APISubscriptionQuotaEntry(result, "WEEKLY")
+	if !ok || entry.Label != "weekly" || entry.Remaining == nil || *entry.Remaining != 0 {
+		t.Fatalf("entry = %+v, %v, want weekly exhausted entry", entry, ok)
+	}
+	if _, ok := sub2APISubscriptionQuotaEntry(result, "usage"); ok {
+		t.Fatal("usage should not select a specific subscription window")
+	}
+}
+
+func TestRecoverSub2APISubscriptionCooldownUpdatesExhaustedReset(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Now().UTC()
+	credentialID := uuid.New()
+	cooldownID := uuid.New()
+	resetAt := observedAt.Add(2 * time.Hour)
+	updates := 0
+	service := siteServiceWithCallbacks(t, siteGormCallbacks{
+		query: func(tx *gorm.DB) {
+			items, ok := tx.Statement.Dest.(*[]store.RouteCooldown)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			*items = []store.RouteCooldown{{
+				ID:               cooldownID,
+				SiteID:           uuid.New(),
+				SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
+				Reason:           store.CooldownReasonUpstreamSubscriptionLimitExceeded,
+				ActiveUntil:      observedAt.Add(7 * 24 * time.Hour),
+				CreatedAt:        observedAt.Add(-time.Minute),
+				Metadata:         store.JSON(`{"limit_window":"weekly","reset_at":"2099-01-05T00:00:00Z"}`),
+			}}
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
+		update: func(tx *gorm.DB) {
+			updates++
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
+	})
+	remaining := 0.0
+	reset := resetAt.Format(time.RFC3339Nano)
+	service.recoverSub2APISubscriptionCooldown(context.Background(), uuid.New(), credentialID, QuotaProbeResult{
+		Status:    "ok",
+		FetchedAt: observedAt,
+		Entries:   []QuotaProbeEntry{{Label: "weekly", Remaining: &remaining, ResetAt: &reset}},
+	})
+	if updates != 1 {
+		t.Fatalf("cooldown updates = %d, want 1", updates)
+	}
+}
+
+func TestRecoverSub2APISubscriptionCooldownKeepsGenericUsageRecovery(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Now().UTC()
+	credentialID := uuid.New()
+	updates := 0
+	service := siteServiceWithCallbacks(t, siteGormCallbacks{
+		query: func(tx *gorm.DB) {
+			items, ok := tx.Statement.Dest.(*[]store.RouteCooldown)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			*items = []store.RouteCooldown{{
+				ID:               uuid.New(),
+				SiteID:           uuid.New(),
+				SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
+				Reason:           store.CooldownReasonUpstreamSubscriptionLimitExceeded,
+				ActiveUntil:      observedAt.Add(24 * time.Hour),
+				CreatedAt:        observedAt.Add(-time.Minute),
+				Metadata:         store.JSON(`{"limit_window":"usage"}`),
+			}}
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
+		update: func(tx *gorm.DB) {
+			updates++
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
+	})
+	positive := 1.0
+	service.recoverSub2APISubscriptionCooldown(context.Background(), uuid.New(), credentialID, QuotaProbeResult{
+		Status:    "ok",
+		FetchedAt: observedAt,
+		Entries: []QuotaProbeEntry{
+			{Label: "balance", Remaining: &positive},
+			{Label: "daily", Remaining: &positive},
+			{Label: "weekly", Remaining: &positive},
+		},
+	})
+	if updates != 1 {
+		t.Fatalf("generic usage cooldown updates = %d, want 1", updates)
 	}
 }
 

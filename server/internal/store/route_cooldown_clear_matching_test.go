@@ -58,6 +58,52 @@ func TestClearActiveMatchingBuildsScopedWhereOffline(t *testing.T) {
 	}
 }
 
+func TestUpdateActiveUntilBuildsScopedUpdateOffline(t *testing.T) {
+	t.Parallel()
+
+	cooldownID := uuid.New()
+	db := storeRepositoryOfflineGorm(t)
+	var captured string
+	var vars []any
+	var destination map[string]any
+	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		if updates, ok := tx.Statement.Dest.(map[string]any); ok {
+			destination = updates
+		}
+		tx.Statement.Build("WHERE")
+		captured = tx.Statement.SQL.String()
+		vars = tx.Statement.Vars
+		tx.Statement.RowsAffected = 1
+	})
+
+	metadata := JSON(`{"limit_window":"weekly","reset_at":"2026-08-21T14:29:08Z"}`)
+	err := NewRouteCooldownRepository(db).UpdateActiveUntil(context.Background(), cooldownID, time.Date(2026, 8, 21, 14, 29, 8, 0, time.UTC), metadata)
+	if err != nil {
+		t.Fatalf("UpdateActiveUntil returned error: %v", err)
+	}
+	lower := strings.ToLower(captured)
+	for _, want := range []string{"id =", "cleared_at is null"} {
+		if !strings.Contains(lower, want) {
+			t.Fatalf("generated SQL %q missing %q", captured, want)
+		}
+	}
+	if _, ok := destination["active_until"]; !ok {
+		t.Fatalf("update destination %#v missing active_until", destination)
+	}
+	if _, ok := destination["metadata"]; !ok {
+		t.Fatalf("update destination %#v missing metadata", destination)
+	}
+	foundID := false
+	for _, value := range vars {
+		if got, ok := value.(uuid.UUID); ok && got == cooldownID {
+			foundID = true
+		}
+	}
+	if !foundID {
+		t.Fatalf("bound vars %#v missing cooldown id %s", vars, cooldownID)
+	}
+}
+
 func TestCountRecentActivationsBuildsScopedWhereOffline(t *testing.T) {
 	t.Parallel()
 

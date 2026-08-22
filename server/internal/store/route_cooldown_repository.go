@@ -215,6 +215,27 @@ func (r RouteCooldownRepository) ClearActiveMatching(ctx context.Context, filter
 	return result.RowsAffected, nil
 }
 
+// UpdateActiveUntil updates an active cooldown after a fresh upstream quota
+// probe supplies a more accurate reset time. The metadata is updated together
+// so diagnostics and the UI do not retain the old fallback deadline.
+func (r RouteCooldownRepository) UpdateActiveUntil(ctx context.Context, cooldownID uuid.UUID, activeUntil time.Time, metadata JSON) error {
+	if cooldownID == uuid.Nil || activeUntil.IsZero() {
+		return nil
+	}
+	updates := map[string]any{"active_until": activeUntil}
+	if len(metadata) > 0 {
+		updates["metadata"] = metadata
+	}
+	result := r.db.WithContext(ctx).
+		Model(&RouteCooldown{}).
+		Where("id = ? AND cleared_at IS NULL", cooldownID).
+		Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("update active route cooldown: %w", result.Error)
+	}
+	return nil
+}
+
 func (r RouteCooldownRepository) DeleteBySiteModel(ctx context.Context, siteID uuid.UUID, siteModelID uuid.UUID) error {
 	if err := r.db.WithContext(ctx).Where(&RouteCooldown{
 		SiteID:      siteID,

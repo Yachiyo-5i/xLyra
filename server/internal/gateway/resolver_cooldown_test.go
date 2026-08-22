@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -589,6 +590,36 @@ func TestClassifyGatewayUpstreamErrorBuildsSubscriptionCooldown(t *testing.T) {
 	}
 	if got.cooldownMetadata["limit_window"] != "daily" || got.cooldownMetadata["upstream_code"] != "USAGE_LIMIT_EXCEEDED" || got.cooldownMetadata["upstream_reason"] != "DAILY_LIMIT_EXCEEDED" || got.cooldownMetadata["reset_at"] != wantReset.UTC().Format(time.RFC3339) {
 		t.Fatalf("metadata = %#v, want daily upstream details and reset", got.cooldownMetadata)
+	}
+}
+
+func TestClassifyGatewayUpstreamErrorUsesCredentialQuotaProbeReset(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 20, 4, 3, 37, 0, time.UTC)
+	wantReset := time.Date(2026, 8, 21, 14, 29, 8, 997742000, time.UTC)
+	result := gatewayAttemptResult{
+		statusCode:         http.StatusTooManyRequests,
+		upstreamStatusCode: http.StatusTooManyRequests,
+		errorType:          "upstream_http_error",
+		errorMessage:       "upstream returned HTTP 429",
+		credentialMeta: store.JSON(`{"quota_probe":{"status":"ok","entries":[
+			{"label":"daily","remaining":100,"reset_at":"2026-08-21T00:00:00+08:00"},
+			{"label":"weekly","remaining":0,"reset_at":"2026-08-21T22:29:08.997742+08:00"},
+			{"label":"monthly","remaining":33.8,"reset_at":"2026-09-07T22:29:08.997742+08:00"}
+		],"fetched_at":"2026-08-20T00:00:14Z"}}`),
+	}
+	body := []byte(`{"code":"USAGE_LIMIT_EXCEEDED","message":"error: code=429 reason=\"WEEKLY_LIMIT_EXCEEDED\" message=\"weekly usage limit exceeded\" metadata=map[]"}`)
+	got := classifyGatewayUpstreamErrorWithTimeZone(resolverCooldownCandidate("openai"), result, body, now, config.LoadTimeZone("Asia/Shanghai"))
+	if got.cooldownDuration != wantReset.Sub(now) || got.retryAfterSeconds != int64(math.Ceil(wantReset.Sub(now).Seconds())) {
+		t.Fatalf("cooldown = %s retry=%d, want reset %s", got.cooldownDuration, got.retryAfterSeconds, wantReset)
+	}
+	if got.cooldownMetadata["reset_at"] != wantReset.Format(time.RFC3339) {
+		t.Fatalf("reset_at = %#v, want %s", got.cooldownMetadata["reset_at"], wantReset.Format(time.RFC3339))
+	}
+	calendarReset := subscriptionLimitCalendarResetAt(now, "weekly", config.LoadTimeZone("Asia/Shanghai"))
+	if wantReset.Equal(calendarReset) {
+		t.Fatalf("test setup must differ from calendar fallback %s", calendarReset)
 	}
 }
 
