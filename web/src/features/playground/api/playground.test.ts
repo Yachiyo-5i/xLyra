@@ -1,248 +1,122 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  generateImage,
-  listGatewayModels,
-  streamChatCompletion,
-  streamMessages,
-  streamResponses,
+  followServerConversation,
+  listPlaygroundModels,
+  type PlaygroundRolloutEvent,
 } from '@/features/playground/api/playground'
+import type { PlaygroundRun } from '@/features/playground/lib/types'
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('listGatewayModels', () => {
-  it('bypasses the browser cache when the authorization key changes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    )
+function jsonResponse(payload: unknown): Response {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+describe('listPlaygroundModels', () => {
+  it('requests models through the admin endpoint with the API key id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [] }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await listGatewayModels('sk-test')
+    await listPlaygroundModels('key-id-1')
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/playground/v1/models', {
-      method: 'GET',
-      headers: { Authorization: 'Bearer sk-test' },
-      cache: 'no-store',
-    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/playground/models?api_key_id=key-id-1',
+      expect.objectContaining({ credentials: 'include' }),
+    )
   })
 
   it('sorts models alphabetically without case sensitivity', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({
-        data: [
-          { id: 'zeta-model' },
-          { id: 'Beta-model' },
-          { id: 'alpha-model' },
-        ],
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    ))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      data: [
+        { id: 'zeta-model' },
+        { id: 'Beta-model' },
+        { id: 'alpha-model' },
+      ],
+    })))
 
-    const models = await listGatewayModels('sk-test')
+    const models = await listPlaygroundModels('key-id-1')
 
     expect(models.map((model) => model.id)).toEqual(['alpha-model', 'Beta-model', 'zeta-model'])
   })
 
   it('preserves the mapped target for model aliases', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({
-        data: [{
-          id: 'codex-pro',
-          metadata: { mapped_model: ' gpt-5.6-sol ' },
-        }],
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    ))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      data: [{
+        id: 'codex-pro',
+        metadata: { mapped_model: ' gpt-5.6-sol ' },
+      }],
+    })))
 
-    const models = await listGatewayModels('sk-test')
+    const models = await listPlaygroundModels('key-id-1')
 
     expect(models[0].mappedModel).toBe('gpt-5.6-sol')
   })
 
-  it('reports a clear error when the development server returns the SPA document', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response('<!doctype html><html></html>', {
-        status: 200,
-        headers: { 'Content-Type': 'text/html' },
-      }),
-    ))
+  it('normalizes supported endpoint types', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      data: [{
+        id: 'gpt-5.6-sol',
+        metadata: { supported_endpoint_types: [' Chat ', 'RESPONSES', 42, ''] },
+      }],
+    })))
 
-    await expect(listGatewayModels('sk-test')).rejects.toThrow(
-      'Playground API returned text/html instead of JSON',
-    )
+    const models = await listPlaygroundModels('key-id-1')
+
+    expect(models[0].endpointTypes).toEqual(['chat', 'responses'])
   })
 })
 
-describe('gateway route metadata', () => {
-  it('reports the routed site for streaming chat responses', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response('data: [DONE]\n\n', {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'X-Xlyra-Route-Site': 'tokenfree',
-        },
-      }),
-    ))
-    const onRouteSite = vi.fn()
-
-    await streamChatCompletion({
-      apiKey: 'sk-test',
-      model: 'gpt-5.6-sol',
-      messages: [{ role: 'user', content: 'hello' }],
-      onContent: vi.fn(),
-      onReasoning: vi.fn(),
-      onUsage: vi.fn(),
-      onRouteSite,
+describe('followServerConversation', () => {
+  function sseResponse(body: string): Response {
+    return new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
     })
-
-    expect(onRouteSite).toHaveBeenCalledWith('tokenfree')
-  })
-
-  it('parses CRLF-delimited streaming chat events', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(
-        'data: {"choices":[{"delta":{"content":"hello"}}]}\r\n\r\n' +
-          'data: {"choices":[{"delta":{"content":" world"}}]}\r\n\r\n' +
-          'data: [DONE]\r\n\r\n',
-        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
-      ),
-    ))
-    const onContent = vi.fn()
-
-    await streamChatCompletion({
-      apiKey: 'sk-test',
-      model: 'gpt-test',
-      messages: [{ role: 'user', content: 'hello' }],
-      onContent,
-      onReasoning: vi.fn(),
-      onUsage: vi.fn(),
-      onRouteSite: vi.fn(),
-    })
-
-    expect(onContent.mock.calls.flat()).toEqual(['hello', ' world'])
-  })
-
-  it('rejects an error event after partial streaming content', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(
-        'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n' +
-          'data: {"error":{"message":"upstream interrupted"}}\n\n',
-        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
-      ),
-    ))
-
-    await expect(streamChatCompletion({
-      apiKey: 'sk-test',
-      model: 'gpt-test',
-      messages: [{ role: 'user', content: 'hello' }],
-      onContent: vi.fn(),
-      onReasoning: vi.fn(),
-      onUsage: vi.fn(),
-      onRouteSite: vi.fn(),
-    })).rejects.toThrow('upstream interrupted')
-  })
-
-  it('returns the routed site with generated images', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ b64_json: 'aW1hZ2U=' }] }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Xlyra-Route-Site': '%E5%9B%BE%E7%89%87%E7%AB%99%E7%82%B9',
-        },
-      }),
-    ))
-
-    const result = await generateImage({
-      apiKey: 'sk-test',
-      model: 'gpt-image-1',
-      prompt: 'a lighthouse',
-    })
-
-    expect(result.siteName).toBe('图片站点')
-    expect(result.images).toHaveLength(1)
-  })
-})
-
-describe('chat attachments', () => {
-  const attachment = {
-    id: 'attachment-1',
-    name: 'report.pdf',
-    mimeType: 'application/pdf',
-    size: 4,
-    dataURL: 'data:application/pdf;base64,cGRm',
   }
 
-  function streamInput() {
-    return {
-      apiKey: 'sk-test',
-      model: 'test-model',
-      messages: [{ role: 'user' as const, content: 'summarize', attachments: [attachment] }],
-      onContent: vi.fn(),
-      onReasoning: vi.fn(),
-      onUsage: vi.fn(),
-      onRouteSite: vi.fn(),
+  it('dispatches rollout events and terminal run status', async () => {
+    const event: PlaygroundRolloutEvent = {
+      timestamp: '2026-08-24T00:00:00Z',
+      ordinal: 7,
+      type: 'assistant_delta',
+      payload: { message_id: 'm1', content: 'hello' },
     }
-  }
+    const run: PlaygroundRun = { id: 'run-1', status: 'completed', created_at: 1 }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(
+      `id: 7\nevent: rollout\ndata: ${JSON.stringify(event)}\n\n` +
+      `event: run_status\ndata: ${JSON.stringify(run)}\n\n`,
+    )))
 
-  it('sends files using the Chat Completions file content part', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('data: [DONE]\n\n', {
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream' },
-    }))
-    vi.stubGlobal('fetch', fetchMock)
+    const events: PlaygroundRolloutEvent[] = []
+    const runs: PlaygroundRun[] = []
+    await followServerConversation('conv-1', 0, new AbortController().signal, (item) => events.push(item), (item) => runs.push(item))
 
-    await streamChatCompletion(streamInput())
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
-    expect(body.messages[0].content).toEqual([
-      { type: 'text', text: 'summarize' },
-      { type: 'file', file: { filename: 'report.pdf', file_data: attachment.dataURL } },
-    ])
+    expect(events).toHaveLength(1)
+    expect(events[0].ordinal).toBe(7)
+    expect(runs).toHaveLength(1)
+    expect(runs[0].status).toBe('completed')
   })
 
-  it('sends files using the Responses input_file content part', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('data: {"type":"response.completed"}\n\n', {
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream' },
-    }))
-    vi.stubGlobal('fetch', fetchMock)
+  it('parses CRLF-delimited events and skips keepalive comments', async () => {
+    const event: PlaygroundRolloutEvent = {
+      timestamp: '2026-08-24T00:00:00Z',
+      ordinal: 3,
+      type: 'turn_completed',
+      payload: { response_duration_ms: 12 },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(
+      `: keepalive\r\n\r\nevent: rollout\r\ndata: ${JSON.stringify(event)}\r\n\r\n`,
+    )))
 
-    await streamResponses(streamInput())
+    const events: PlaygroundRolloutEvent[] = []
+    await followServerConversation('conv-1', 0, new AbortController().signal, (item) => events.push(item), vi.fn())
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
-    expect(body.input[0].content).toEqual([
-      { type: 'input_text', text: 'summarize' },
-      { type: 'input_file', filename: 'report.pdf', file_data: attachment.dataURL },
-    ])
-  })
-
-  it('sends files using the Anthropic document content block', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('data: {"type":"message_stop"}\n\n', {
-      status: 200,
-      headers: { 'Content-Type': 'text/event-stream' },
-    }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await streamMessages(streamInput())
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
-    expect(body.messages[0].content).toEqual([
-      { type: 'text', text: 'summarize' },
-      {
-        type: 'document',
-        title: 'report.pdf',
-        source: { type: 'base64', media_type: 'application/pdf', data: 'cGRm' },
-      },
-    ])
+    expect(events).toHaveLength(1)
+    expect(events[0].type).toBe('turn_completed')
   })
 })

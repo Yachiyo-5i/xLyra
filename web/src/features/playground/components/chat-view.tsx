@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ImageIcon, Lightbulb, Paperclip, Sparkles } from 'lucide-react'
 import { APIError } from '@/lib/http'
-import { streamChat, type ChatTurn } from '@/features/playground/api/playground'
+import {
+  cancelServerRun,
+  followServerConversation,
+  getServerConversation,
+  startServerTurn,
+  type PlaygroundRolloutEvent,
+  type ServerConversationView,
+} from '@/features/playground/api/playground'
 import { Composer } from '@/features/playground/components/composer'
 import { ModelReasoningPicker } from '@/features/playground/components/model-reasoning-picker'
 import { ChatMessageItem } from '@/features/playground/components/chat-message'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
 import { newId } from '@/features/playground/lib/storage'
-import {
-  RESPONSE_TIMER_REVEAL_MS,
-  RESPONSE_TIMER_TICK_MS,
-  responseTimestamp,
-} from '@/features/playground/lib/response-timing'
+import { RESPONSE_TIMER_TICK_MS } from '@/features/playground/lib/response-timing'
 import { useStickToBottom } from '@/hooks/use-stick-to-bottom'
 import { saveChatAttachmentDataAsync } from '@/features/playground/lib/attachment-store'
 import type {
@@ -52,7 +55,6 @@ function attachmentMimeType(file: File): string {
 }
 
 type ChatViewProps = {
-  apiKey: string | null
   apiKeys: Array<{ id: string; name: string }>
   apiKeyId: string | null
   onAPIKeyChange: (id: string) => void
@@ -74,7 +76,6 @@ function autoProtocol(model: GatewayModel | undefined): ChatProtocol {
 }
 
 export function ChatView({
-  apiKey,
   apiKeys,
   apiKeyId,
   onAPIKeyChange,
@@ -91,16 +92,19 @@ export function ChatView({
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
-  const [streaming, setStreaming] = useState(false)
-  const [streamingId, setStreamingId] = useState<string | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false)
   const [streamingElapsedMs, setStreamingElapsedMs] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const [stopRequested, setStopRequested] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { handleScroll, scrollToBottom, scrollToBottomIfStuck } = useStickToBottom(scrollRef)
 
   const isEmpty = conversation.messages.length === 0
-  const canSend = Boolean(apiKey && model && (input.trim() || attachments.length > 0) && !streaming)
+  const runActive = conversation.activeRun?.status === 'queued' || conversation.activeRun?.status === 'running'
+  const streaming = starting || runActive
+  const canSend = Boolean(apiKeyId && model && (input.trim() || attachments.length > 0) && !streaming)
 
   const lastUserId = useMemo(() => {
     for (let index = conversation.messages.length - 1; index >= 0; index -= 1) {
@@ -109,7 +113,15 @@ export function ChatView({
     return null
   }, [conversation.messages])
   const lastMessageId = conversation.messages[conversation.messages.length - 1]?.id ?? null
+  const streamingId = streaming
+    ? [...conversation.messages].reverse().find((message) => message.role === 'assistant')?.id ?? null
+    : null
   const modelsById = useMemo(() => new Map(models.map((item) => [item.id, item])), [models])
+  const subscriptionState = useEffectEvent(() => ({
+    id: conversation.id,
+    lastOrdinal: conversation.lastOrdinal ?? 0,
+    run: conversation.activeRun,
+  }))
 
   useEffect(() => {
     scrollToBottom()
@@ -121,108 +133,154 @@ export function ChatView({
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const patchMessage = (id: string, patch: (message: ChatMessage) => ChatMessage) => {
-    onChange((current) => ({
-      ...current,
-      updatedAt: Date.now(),
-      messages: current.messages.map((message) => (message.id === id ? patch(message) : message)),
-    }))
-  }
-
-  const buildTurns = (messages: ChatMessage[]): ChatTurn[] => {
-    const turns: ChatTurn[] = []
-    if (conversation.systemPrompt.trim()) {
-      turns.push({ role: 'system', content: conversation.systemPrompt.trim() })
+  useEffect(() => {
+    if (!stopRequested) return
+    const run = conversation.activeRun
+    if (!run) return
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      if (run.status === 'queued' || run.status === 'running') {
+        void cancelServerRun(run.id)
+      }
+      setStopRequested(false)
+    })
+    return () => {
+      cancelled = true
     }
-    for (const message of messages) {
-      if ((message.content || message.attachments?.some((attachment) => attachment.dataURL)) && !message.error) {
-        turns.push({ role: message.role, content: message.content, attachments: message.attachments })
+  }, [stopRequested, conversation.activeRun])
+
+  useEffect(() => {
+    if (!streaming) return
+    const startedAt = conversation.activeRun?.created_at ?? Date.now()
+    const update = () => setStreamingElapsedMs(Math.max(0, Date.now() - startedAt))
+    const interval = window.setInterval(update, RESPONSE_TIMER_TICK_MS)
+    return () => window.clearInterval(interval)
+  }, [streaming, conversation.activeRun?.created_at])
+
+  const applyServerView = useCallback((view: ServerConversationView) => {
+    if (!view.chat) return
+    const next = {
+      ...view.chat,
+      serverPersisted: true,
+      lastOrdinal: view.last_ordinal,
+      activeRun: view.run,
+    }
+    onChange(() => next)
+  }, [onChange])
+
+  const applyRolloutEvent = useCallback((event: PlaygroundRolloutEvent) => {
+    onChange((current) => {
+      let messages = current.messages
+      if (event.type === 'assistant_delta') {
+        const payload = event.payload as { message_id?: string; content?: string; reasoning?: string }
+        messages = messages.map((message) => message.id === payload.message_id ? {
+          ...message,
+          content: message.content + (payload.content ?? ''),
+          reasoning: (message.reasoning ?? '') + (payload.reasoning ?? ''),
+        } : message)
+      }
+      if (event.type === 'assistant_final') {
+        const final = event.payload as ChatMessage
+        messages = messages.map((message) => message.id === final.id ? final : message)
+      }
+      if (event.type === 'turn_failed' || event.type === 'turn_cancelled' || event.type === 'turn_interrupted') {
+        const payload = event.payload as { message_id?: string; error?: string; response_duration_ms?: number }
+        messages = messages.map((message) => message.id === payload.message_id ? {
+          ...message,
+          error: payload.error,
+          responseDurationMs: payload.response_duration_ms,
+        } : message)
+      }
+      return { ...current, messages, lastOrdinal: event.ordinal, updatedAt: Date.now() }
+    })
+  }, [onChange])
+
+  useEffect(() => {
+    const current = subscriptionState()
+    const run = current.run
+    const active = run?.status === 'queued' || run?.status === 'running'
+    if (!active || !run) return
+    const controller = new AbortController()
+    abortRef.current?.abort()
+    abortRef.current = controller
+    let cursor = current.lastOrdinal ?? 0
+    let terminal = false
+    const follow = async () => {
+      while (!controller.signal.aborted && !terminal) {
+        try {
+          await followServerConversation(
+            current.id,
+            cursor,
+            controller.signal,
+            (event) => {
+              cursor = Math.max(cursor, event.ordinal)
+              applyRolloutEvent(event)
+            },
+            (nextRun) => {
+              terminal = nextRun.status !== 'queued' && nextRun.status !== 'running'
+            },
+          )
+          const view = await getServerConversation(current.id)
+          applyServerView(view)
+          terminal = view.run?.status !== 'queued' && view.run?.status !== 'running'
+        } catch {
+          if (controller.signal.aborted) return
+          await new Promise((resolve) => window.setTimeout(resolve, 750))
+        }
       }
     }
-    return turns
-  }
+    void follow()
+    return () => controller.abort()
+  }, [conversation.id, conversation.activeRun?.id, conversation.activeRun?.status, applyRolloutEvent, applyServerView])
 
   const streamAssistant = async (keptMessages: ChatMessage[], extra?: Partial<Conversation>) => {
-    if (!apiKey || !model || streaming) return
-    const startedAt = responseTimestamp()
+    if (!apiKeyId || !model || streaming) return
     const activeModel = models.find((item) => item.id === model)
     const protocol = autoProtocol(activeModel)
-    const assistantId = newId()
-    const assistantMessage: ChatMessage = {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      model: model ?? undefined,
-      createdAt: Date.now(),
-    }
-    onChange((current) => ({
-      ...current,
+    const nextConversation: Conversation = {
+      ...conversation,
       ...extra,
       model,
       updatedAt: Date.now(),
-      messages: [...keptMessages, assistantMessage],
-    }))
-    setStreamingElapsedMs(null)
-    setStreaming(true)
-    setStreamingId(assistantId)
-    scrollToBottom()
-
-    let elapsedIntervalId: number | null = null
-    let revealTimerId: number | null = null
-    const updateElapsed = () => setStreamingElapsedMs(Math.round(responseTimestamp() - startedAt))
-    const revealElapsed = () => {
-      if (elapsedIntervalId !== null) return
-      if (revealTimerId !== null) window.clearTimeout(revealTimerId)
-      updateElapsed()
-      elapsedIntervalId = window.setInterval(updateElapsed, RESPONSE_TIMER_TICK_MS)
+      messages: keptMessages,
     }
-    revealTimerId = window.setTimeout(revealElapsed, RESPONSE_TIMER_REVEAL_MS)
-
-    const controller = new AbortController()
-    abortRef.current = controller
-
+    onChange(() => nextConversation)
+    setSendError(null)
+    setStarting(true)
+    scrollToBottom()
     try {
-      await streamChat(protocol, {
-        apiKey,
+      const view = await startServerTurn(conversation.id, {
+        mode: 'chat',
+        api_key_id: apiKeyId,
         model,
-        messages: buildTurns(keptMessages),
-        reasoningEffort: normalizeReasoningEffort(activeModel, effort),
-        signal: controller.signal,
-        onContent: (delta) => {
-          if (delta) revealElapsed()
-          patchMessage(assistantId, (message) => ({ ...message, content: message.content + delta }))
-        },
-        onReasoning: (delta) => {
-          if (delta) revealElapsed()
-          patchMessage(assistantId, (message) => ({
-            ...message,
-            reasoning: (message.reasoning ?? '') + delta,
-          }))
-        },
-        onUsage: (usage) => patchMessage(assistantId, (message) => ({ ...message, usage })),
-        onRouteSite: (siteName) =>
-          patchMessage(assistantId, (message) => ({ ...message, siteName })),
+        protocol,
+        reasoning_effort: normalizeReasoningEffort(activeModel, effort),
+        idempotency_key: newId(),
+        legacy_import: !conversation.serverPersisted,
+        chat: nextConversation,
       })
+      applyServerView(view)
+      setStarting(false)
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        const messageText =
-          error instanceof APIError || error instanceof Error ? error.message : t('chat.errorGeneric')
-        patchMessage(assistantId, (message) => ({
-          ...message,
-          error: messageText,
-        }))
+      setStarting(false)
+      setStopRequested(false)
+      const messageText = error instanceof APIError || error instanceof Error ? error.message : t('chat.errorGeneric')
+      try {
+        const view = await getServerConversation(conversation.id)
+        applyServerView(view)
+        setSendError(messageText)
+      } catch (lookup) {
+        if (lookup instanceof APIError && lookup.status === 404) {
+          onChange((current) => ({
+            ...current,
+            serverPersisted: false,
+            messages: [...current.messages, { id: newId(), role: 'assistant', content: '', error: messageText, model: model ?? undefined, createdAt: Date.now() }],
+          }))
+        } else {
+          setSendError(messageText)
+        }
       }
-    } finally {
-      if (revealTimerId !== null) window.clearTimeout(revealTimerId)
-      if (elapsedIntervalId !== null) window.clearInterval(elapsedIntervalId)
-      patchMessage(assistantId, (message) => ({
-        ...message,
-        responseDurationMs: Math.round(responseTimestamp() - startedAt),
-      }))
-      setStreamingElapsedMs(null)
-      setStreaming(false)
-      setStreamingId(null)
-      abortRef.current = null
     }
   }
 
@@ -261,7 +319,7 @@ export function ChatView({
   }
 
   const handleSend = () => {
-    if (!apiKey || !model) return
+    if (!apiKeyId || !model) return
     const text = input.trim()
     if ((!text && attachments.length === 0) || streaming) return
     const userMessage: ChatMessage = {
@@ -311,7 +369,14 @@ export function ChatView({
       value={input}
       onChange={setInput}
       onSubmit={handleSend}
-      onStop={() => abortRef.current?.abort()}
+      onStop={() => {
+        const runId = conversation.activeRun?.id
+        if (runId && runActive) {
+          void cancelServerRun(runId)
+        } else if (starting) {
+          setStopRequested(true)
+        }
+      }}
       streaming={streaming}
       canSubmit={canSend}
       placeholder={t('chat.inputPlaceholder')}
@@ -340,7 +405,7 @@ export function ChatView({
           </button>
         </>
       }
-      attachments={attachments.length > 0 || attachmentError ? (
+      attachments={attachments.length > 0 || attachmentError || sendError ? (
         <div className="space-y-2">
           {attachments.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -355,6 +420,7 @@ export function ChatView({
             </div>
           ) : null}
           {attachmentError ? <p className="px-1 text-xs text-red-500">{attachmentError}</p> : null}
+          {sendError ? <p className="px-1 text-xs text-red-500">{sendError}</p> : null}
         </div>
       ) : undefined}
       trailingControls={
@@ -366,7 +432,7 @@ export function ChatView({
               onModelChange={onModelChange}
               effort={effort}
               onEffortChange={onEffortChange}
-              disabled={!apiKey}
+              disabled={!apiKeyId}
             />
           </div>
           <div className="min-w-0 md:hidden">

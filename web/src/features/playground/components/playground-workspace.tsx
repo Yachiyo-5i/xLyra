@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { SquarePen } from 'lucide-react'
@@ -12,9 +12,10 @@ import { EmptyState } from '@/components/common/empty-state'
 import { APIError } from '@/lib/http'
 import {
   downstreamAPIKeyQueryKeys,
+  deleteServerConversation,
   listDownstreamAPIKeys,
-  listGatewayModels,
-  revealDownstreamAPIKey,
+  listPlaygroundModels,
+  listServerConversations,
 } from '@/features/playground/api/playground'
 import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-utils'
 import { PlaygroundRail } from '@/features/playground/components/playground-rail'
@@ -74,6 +75,7 @@ export function PlaygroundWorkspace() {
   ])
   const [activeImageId, setActiveImageId] = useState<string>(() => imageConversations[0]?.id ?? '')
   const imageLoadedRef = useRef(false)
+  const serverMergedRef = useRef(false)
   const conversationsRef = useRef(conversations)
 
   useEffect(() => saveSettings(settings), [settings])
@@ -102,8 +104,10 @@ export function PlaygroundWorkspace() {
       if (cancelled) return
       imageLoadedRef.current = true
       if (stored.length > 0) {
-        setImageConversations(stored)
-        setActiveImageId(stored[0].id)
+        setImageConversations((current) => {
+          const storedIds = new Set(stored.map((item) => item.id))
+          return [...current.filter((item) => item.serverPersisted && !storedIds.has(item.id)), ...stored]
+        })
       }
     })
     return () => {
@@ -132,22 +136,61 @@ export function PlaygroundWorkspace() {
     return apiKeys[0]?.id ?? null
   }, [apiKeys, settings.apiKeyId])
 
-  const revealQuery = useQuery({
-    queryKey: ['playground', 'reveal', effectiveApiKeyId],
-    queryFn: () => revealDownstreamAPIKey(effectiveApiKeyId as string),
-    enabled: Boolean(effectiveApiKeyId),
-    staleTime: Infinity,
-    retry: false,
-  })
-  const plaintextKey = revealQuery.data?.key ?? null
-
   const modelsQuery = useQuery({
     queryKey: ['playground', 'models', effectiveApiKeyId],
-    queryFn: () => listGatewayModels(plaintextKey as string),
-    enabled: Boolean(plaintextKey),
+    queryFn: () => listPlaygroundModels(effectiveApiKeyId as string),
+    enabled: Boolean(effectiveApiKeyId),
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
+  const serverConversationsQuery = useQuery({
+    queryKey: ['playground', 'conversations'],
+    queryFn: () => listServerConversations(),
+    staleTime: 30 * 1000,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (!serverConversationsQuery.data) return
+    let cancelled = false
+    const items = serverConversationsQuery.data
+    const exhaustive = items.length < 50
+    queueMicrotask(() => {
+      if (cancelled) return
+      const chatItems = items.flatMap((item) => item.chat ? [{
+        ...item.chat,
+        serverPersisted: true,
+        lastOrdinal: item.last_ordinal,
+        activeRun: item.run,
+      }] : [])
+      const imageItems = items.flatMap((item) => item.image ? [{
+        ...item.image,
+        serverPersisted: true,
+        lastOrdinal: item.last_ordinal,
+        activeRun: item.run,
+      }] : [])
+      setConversations((current) => {
+        const serverIds = new Set(chatItems.map((item) => item.id))
+        return [...chatItems, ...current.filter((item) =>
+          !serverIds.has(item.id) && !(exhaustive && item.serverPersisted),
+        )]
+      })
+      setImageConversations((current) => {
+        const serverIds = new Set(imageItems.map((item) => item.id))
+        return [...imageItems, ...current.filter((item) =>
+          !serverIds.has(item.id) && !(exhaustive && item.serverPersisted),
+        )]
+      })
+      if (!serverMergedRef.current) {
+        if (chatItems.length > 0) setActiveId(chatItems[0].id)
+        if (imageItems.length > 0) setActiveImageId(imageItems[0].id)
+        serverMergedRef.current = true
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [serverConversationsQuery.data])
   const models = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data])
   const chatModels = useMemo(() => models.filter((model) => isChatModel(model.category)), [models])
   const imageModels = useMemo(() => models.filter((model) => model.category === 'image'), [models])
@@ -176,10 +219,10 @@ export function PlaygroundWorkspace() {
   )
 
   const modelsError = useMemo(() => {
-    const error = revealQuery.error ?? modelsQuery.error
+    const error = modelsQuery.error ?? serverConversationsQuery.error
     if (!error) return null
     return error instanceof APIError || error instanceof Error ? error.message : String(error)
-  }, [revealQuery.error, modelsQuery.error])
+  }, [modelsQuery.error, serverConversationsQuery.error])
 
   const setApiKeyId = (id: string) => {
     setSettings((current) => ({
@@ -190,21 +233,21 @@ export function PlaygroundWorkspace() {
     }))
   }
 
-  const updateActiveConversation = (updater: (conversation: Conversation) => Conversation) => {
+  const updateActiveConversation = useCallback((updater: (conversation: Conversation) => Conversation) => {
     setConversations((current) =>
       current.map((conversation) =>
         conversation.id === activeConversation?.id ? updater(conversation) : conversation,
       ),
     )
-  }
+  }, [activeConversation?.id])
 
-  const updateActiveImageConversation = (updater: (conversation: ImageConversation) => ImageConversation) => {
+  const updateActiveImageConversation = useCallback((updater: (conversation: ImageConversation) => ImageConversation) => {
     setImageConversations((current) =>
       current.map((conversation) =>
         conversation.id === activeImageConversation?.id ? updater(conversation) : conversation,
       ),
     )
-  }
+  }, [activeImageConversation?.id])
 
   const handleNewConversation = () => {
     if (activeConversation && activeConversation.messages.length === 0) {
@@ -217,6 +260,8 @@ export function PlaygroundWorkspace() {
   }
 
   const handleDeleteConversation = (id: string) => {
+    const target = conversations.find((conversation) => conversation.id === id)
+    if (target?.serverPersisted) void deleteServerConversation(id).catch(() => {})
     setConversations((current) => {
       const next = current.filter((conversation) => conversation.id !== id)
       if (next.length === 0) {
@@ -240,6 +285,8 @@ export function PlaygroundWorkspace() {
   }
 
   const handleDeleteImageConversation = (id: string) => {
+    const target = imageConversations.find((conversation) => conversation.id === id)
+    if (target?.serverPersisted) void deleteServerConversation(id).catch(() => {})
     setImageConversations((current) => {
       const next = current.filter((conversation) => conversation.id !== id)
       if (next.length === 0) {
@@ -341,7 +388,6 @@ export function PlaygroundWorkspace() {
             {isChat ? (
               activeConversation ? (
                 <ChatView
-                  apiKey={plaintextKey}
                   apiKeys={apiKeys}
                   apiKeyId={effectiveApiKeyId}
                   onAPIKeyChange={setApiKeyId}
@@ -358,7 +404,6 @@ export function PlaygroundWorkspace() {
             ) : activeImageConversation ? (
               <ImageView
                 key={activeImageConversation.id}
-                apiKey={plaintextKey}
                 apiKeys={apiKeys}
                 apiKeyId={effectiveApiKeyId}
                 onAPIKeyChange={setApiKeyId}

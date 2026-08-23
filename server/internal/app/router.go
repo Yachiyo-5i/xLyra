@@ -27,6 +27,7 @@ import (
 	"xlyra/server/internal/newapi"
 	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/observability"
+	"xlyra/server/internal/playground"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/settings"
 	"xlyra/server/internal/site"
@@ -71,6 +72,8 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	downloadService := downloads.NewService()
 	gatewayHandler := gateway.NewHandlerWithTimeZone(logger.With("thread", "gateway"), authService, routerService, db, masterKey, appTimeZone, confFile)
 	playgroundGatewayHandler := gatewayHandler.WithRouteSiteHeader()
+	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, filepath.Join(config.ResolveWorkdir(), "playground"))
+	playgroundHandler := playground.NewHandler(playgroundService)
 	if db != nil {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -131,6 +134,16 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 				protected.Use(adminHandler.AuditAdminMutation)
 				protected.Get("/auth/session", adminHandler.CurrentSession)
 				protected.Delete("/auth/session", adminHandler.DeleteSession)
+				protected.Route("/playground", func(playgroundRouter chi.Router) {
+					playgroundRouter.Get("/models", playgroundHandler.Models)
+					playgroundRouter.Get("/conversations", playgroundHandler.List)
+					playgroundRouter.Get("/conversations/{conversationID}", playgroundHandler.Get)
+					playgroundRouter.With(httpx.LimitRequestBody(64*1024*1024)).Post("/conversations/{conversationID}/turns", playgroundHandler.StartTurn)
+					playgroundRouter.Get("/conversations/{conversationID}/events", playgroundHandler.Events)
+					playgroundRouter.Delete("/conversations/{conversationID}", playgroundHandler.Delete)
+					playgroundRouter.Post("/runs/{runID}/cancel", playgroundHandler.Cancel)
+					playgroundRouter.Get("/assets/{assetID}", playgroundHandler.Asset)
+				})
 
 				protected.Get("/profile", adminHandler.GetProfile)
 				protected.Put("/profile/account", adminHandler.UpdateProfileAccount)
@@ -399,6 +412,10 @@ func routeAwareTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 				return
 			}
 			if r.Method == http.MethodGet && r.URL.Path == "/api/v1/traffic-flow/stream" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/playground/conversations/") && strings.HasSuffix(r.URL.Path, "/events") {
 				next.ServeHTTP(w, r)
 				return
 			}

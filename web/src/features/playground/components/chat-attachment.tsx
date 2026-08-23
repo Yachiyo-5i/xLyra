@@ -100,7 +100,7 @@ function attachmentIcon(attachment: ChatAttachment): AttachmentIcon {
 }
 
 export function ChatAttachmentItem({ attachment, removeLabel, onRemove }: ChatAttachmentItemProps) {
-  const imageSource = attachment.mimeType.startsWith('image/') ? attachment.dataURL : undefined
+  const imageSource = attachment.mimeType.startsWith('image/') ? attachment.dataURL ?? attachment.src : undefined
   const { Icon, className } = attachmentIcon(attachment)
 
   return (

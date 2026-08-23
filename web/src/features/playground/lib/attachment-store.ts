@@ -77,7 +77,7 @@ export async function hydrateChatAttachmentsAsync(items: Conversation[]): Promis
 export async function pruneChatAttachmentDataAsync(items: Conversation[]): Promise<void> {
   const activeIDs = new Set(
     items.flatMap((conversation) =>
-      conversation.messages.flatMap((message) => message.attachments?.map((attachment) => attachment.id) ?? []),
+      conversation.messages.flatMap((message) => message.attachments?.filter((attachment) => !attachment.assetId).map((attachment) => attachment.id) ?? []),
     ),
   )
   await updateAttachmentData((data) => (
