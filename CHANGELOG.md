@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.3](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.2...v1.2.3) (2026-08-23)
+
+
+### Bug Fixes
+
+* 🐛 修复推理强度错误提示并兼容完整枚举 ([fe411f2](https://github.com/Yachiyo-5i/xLyra/commit/fe411f271e54b84f799de4b9b732796246d17f77))
+* 🐛 修复跨协议请求的缓存用量回传与上游协议选择 ([5bf3af7](https://github.com/Yachiyo-5i/xLyra/commit/5bf3af7ade801294be920f1862c35164d52335f3))
+* 🐛 减少页面认证初始化等待并防止登录状态被错误缓存 ([5cba9ea](https://github.com/Yachiyo-5i/xLyra/commit/5cba9ea27f3cfb34f39aee9f070ddd263d14c361))
+
 ## [1.2.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.1...v1.2.2) (2026-08-18)
 
 
