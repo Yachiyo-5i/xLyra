@@ -23,7 +23,7 @@ import {
   type RestoreProgressEvent,
 } from '@/features/settings/api/settings'
 
-type StepId = 'download' | 'decrypt' | 'parse' | 'import'
+type StepId = 'download' | 'decrypt' | 'parse' | 'import' | 'files'
 type StepState = 'pending' | 'in_progress' | 'complete' | 'error' | 'canceled'
 type Outcome = 'running' | 'success' | 'error' | 'canceled'
 
@@ -38,6 +38,7 @@ const STEPS: { id: StepId; tKey: string }[] = [
   { id: 'decrypt', tKey: 'backup.automatic.restoreProgress.stepDecrypt' },
   { id: 'parse', tKey: 'backup.automatic.restoreProgress.stepParse' },
   { id: 'import', tKey: 'backup.automatic.restoreProgress.stepImport' },
+  { id: 'files', tKey: 'backup.automatic.restoreProgress.stepFiles' },
 ]
 
 type RestoreProgressDialogProps = {
@@ -59,6 +60,7 @@ function initialSteps(task: RestoreTask): Record<StepId, StepState> {
     decrypt: 'pending',
     parse: 'pending',
     import: 'pending',
+    files: 'pending',
   }
 }
 
@@ -115,7 +117,7 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
           if (event.step === 'complete') {
             setSummary(event.summary ?? null)
             setRows(event.summary?.rows ?? event.rows ?? 0)
-            setSteps({ download: 'complete', decrypt: 'complete', parse: 'complete', import: 'complete' })
+            setSteps({ download: 'complete', decrypt: 'complete', parse: 'complete', import: 'complete', files: 'complete' })
             setOutcome('success')
             return true
           }
@@ -168,7 +170,7 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
             if (restore.status === 'completed') {
               setSummary(restore.summary ?? null)
               setRows(restore.summary?.rows ?? 0)
-              setSteps({ download: 'complete', decrypt: 'complete', parse: 'complete', import: 'complete' })
+              setSteps({ download: 'complete', decrypt: 'complete', parse: 'complete', import: 'complete', files: 'complete' })
               setOutcome('success')
               return
             }

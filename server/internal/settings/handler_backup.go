@@ -10,6 +10,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
+
+	"xlyra/server/internal/auth"
 	"xlyra/server/internal/backup"
 	"xlyra/server/internal/downloads"
 	"xlyra/server/internal/httpx"
@@ -84,7 +87,7 @@ func (h Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary, err := h.backups.ImportReader(r.Context(), passphrase, io.LimitReader(file, maxBackupUploadBytes+1))
+	summary, err := h.backups.ImportReader(r.Context(), passphrase, io.LimitReader(file, maxBackupUploadBytes+1), backup.ImportOptions{AdminID: adminIDFromRequest(r)})
 	if err != nil {
 		h.writeBackupError(w, r, err)
 		return
@@ -94,8 +97,13 @@ func (h Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) importBackupSSE(w http.ResponseWriter, r *http.Request, passphrase string, file io.Reader) {
 	streamBackupRestore(w, r, "decrypt", func(ctx context.Context, progress backup.ProgressFunc) (backup.ImportSummary, error) {
-		return h.backups.ImportReader(ctx, passphrase, io.LimitReader(file, maxBackupUploadBytes+1), progress)
+		return h.backups.ImportReader(ctx, passphrase, io.LimitReader(file, maxBackupUploadBytes+1), backup.ImportOptions{AdminID: adminIDFromRequest(r)}, progress)
 	})
+}
+
+func adminIDFromRequest(r *http.Request) uuid.UUID {
+	adminID, _ := auth.AdminIDFromContext(r.Context())
+	return adminID
 }
 
 func streamBackupRestore(w http.ResponseWriter, r *http.Request, initialStep string, run func(context.Context, backup.ProgressFunc) (backup.ImportSummary, error)) {

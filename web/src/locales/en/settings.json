@@ -305,6 +305,7 @@
         "stepDecrypt": "Decrypt backup file",
         "stepParse": "Validate backup contents",
         "stepImport": "Write backup data",
+        "stepFiles": "Write session files",
         "status": {
           "pending": "Waiting",
           "in_progress": "In progress",

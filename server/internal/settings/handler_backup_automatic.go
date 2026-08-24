@@ -91,7 +91,7 @@ func (h Handler) RestoreAutomaticBackupFile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	task, err := h.autoBackups.StartRestore(req.Key)
+	task, err := h.autoBackups.StartRestore(req.Key, backup.ImportOptions{AdminID: adminIDFromRequest(r)})
 	if err != nil {
 		h.writeAutomaticBackupError(w, r, err)
 		return

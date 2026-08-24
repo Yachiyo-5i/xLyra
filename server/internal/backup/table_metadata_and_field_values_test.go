@@ -26,7 +26,7 @@ func TestImportChecksReadinessBeforeReadingBackupPayload(t *testing.T) {
 
 	service := Service{db: &store.Store{}, confFile: nil, masterKey: "master-key"}
 
-	_, err := service.Import(context.Background(), "passphrase", []byte("encrypted"))
+	_, err := service.Import(context.Background(), "passphrase", []byte("encrypted"), ImportOptions{})
 	assertBackupErrorContains(t, "Import readiness", err, "database is not available")
 }
 

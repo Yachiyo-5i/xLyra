@@ -32,7 +32,45 @@ func TestWriteArchiveReturnsDatabaseWriterError(t *testing.T) {
 	}
 }
 
-func TestParseArchiveRejectsMissingDatabaseTable(t *testing.T) {
+func TestParseArchiveToleratesMissingDatabaseTables(t *testing.T) {
+	t.Parallel()
+
+	filename := writeArchiveFixture(t, func(zw *zip.Writer) {
+		if err := writeArchiveJSONFile(zw, "manifest.json", manifest{
+			FormatVersion: minImportFormatVersion,
+			App:           backupAppName,
+			Payload:       backupPayload,
+			CreatedAt:     time.Now().UTC(),
+			Tables:        exportTables[:len(exportTables)-4],
+		}); err != nil {
+			t.Fatalf("write manifest: %v", err)
+		}
+		if err := writeArchiveJSONFile(zw, "config.json", map[string]any{}); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+	})
+
+	_, dump, err := parseArchive(filename)
+	if err != nil {
+		t.Fatalf("parseArchive error = %v, want nil", err)
+	}
+	if dump.TotalRows != 0 {
+		t.Fatalf("expected zero total rows, got %d", dump.TotalRows)
+	}
+	if err := validateDumpTables(dump); err != nil {
+		t.Fatalf("expected dump with empty tables to validate: %v", err)
+	}
+	for _, table := range backupTables {
+		if _, streamed := streamedImportTables[table.Name]; streamed {
+			continue
+		}
+		if rows := dump.Tables[table.Name]; len(rows) != 0 {
+			t.Fatalf("expected table %s to be empty, got %d rows", table.Name, len(rows))
+		}
+	}
+}
+
+func TestParseArchiveRejectsCurrentVersionArchiveMissingTables(t *testing.T) {
 	t.Parallel()
 
 	filename := writeArchiveFixture(t, func(zw *zip.Writer) {
@@ -65,7 +103,7 @@ func TestDecodeArchiveJSONRejectsMalformedJSON(t *testing.T) {
 func TestDecodeArchiveTableRejectsMalformedJSONLRow(t *testing.T) {
 	t.Parallel()
 
-	_, err := decodeArchiveTable(archivePayloadZipFiles(t, map[string]string{"database/sites.jsonl": "{"}), "sites")
+	_, err := decodeArchiveTable(archivePayloadZipFiles(t, map[string]string{"database/sites.jsonl": "{"}), "sites", true)
 	assertBackupErrorContains(t, "decodeArchiveTable", err, "decode database/sites.jsonl")
 }
 
