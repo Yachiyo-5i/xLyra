@@ -130,6 +130,8 @@ export type BackupImportSummary = {
   rows: number
   config_keys: number
   format_version: number
+  files?: number
+  file_bytes?: number
 }
 
 export type AutomaticBackupConfig = {
@@ -230,7 +232,7 @@ export async function runAutomaticBackup() {
 }
 
 export type RestoreProgressEvent = {
-  step: 'download' | 'decrypt' | 'parse' | 'import' | 'complete'
+  step: 'download' | 'decrypt' | 'parse' | 'import' | 'files' | 'complete'
   status: 'in_progress' | 'complete' | 'error'
   rows?: number
   total_rows?: number

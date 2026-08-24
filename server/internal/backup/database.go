@@ -69,6 +69,10 @@ var exportTables = []string{
 	"usage_records",
 	"request_usage_daily_summaries",
 	"request_usage_summary_days",
+	"playground_conversations",
+	"playground_runs",
+	"playground_turn_indexes",
+	"playground_assets",
 }
 
 type backupTable struct {
@@ -100,9 +104,17 @@ var backupTables = []backupTable{
 	{Name: "usage_records", Model: &store.UsageRecord{}, NewSlice: func() any { return &[]store.UsageRecord{} }},
 	{Name: "request_usage_daily_summaries", Model: &store.RequestUsageDailySummary{}, NewSlice: func() any { return &[]store.RequestUsageDailySummary{} }},
 	{Name: "request_usage_summary_days", Model: &store.RequestUsageSummaryDay{}, NewSlice: func() any { return &[]store.RequestUsageSummaryDay{} }},
+	{Name: "playground_conversations", Model: &store.PlaygroundConversation{}, NewSlice: func() any { return &[]store.PlaygroundConversation{} }},
+	{Name: "playground_runs", Model: &store.PlaygroundRun{}, NewSlice: func() any { return &[]store.PlaygroundRun{} }},
+	{Name: "playground_turn_indexes", Model: &store.PlaygroundTurnIndex{}, NewSlice: func() any { return &[]store.PlaygroundTurnIndex{} }},
+	{Name: "playground_assets", Model: &store.PlaygroundAsset{}, NewSlice: func() any { return &[]store.PlaygroundAsset{} }},
 }
 
 var importDeleteOrder = []string{
+	"playground_assets",
+	"playground_turn_indexes",
+	"playground_runs",
+	"playground_conversations",
 	"request_usage_summary_days",
 	"request_usage_daily_summaries",
 	"usage_records",
@@ -133,14 +145,23 @@ var textSecretColumns = map[string][]string{
 	"oauth_connections": {"encrypted_access_token", "encrypted_refresh_token", "encrypted_id_token"},
 }
 
-func exportDatabase(ctx context.Context, db *gorm.DB, masterKey string, zw *zip.Writer) (map[string]int, error) {
+func exportDatabase(ctx context.Context, db *gorm.DB, masterKey string, playgroundRoot string, zw *zip.Writer) (map[string]int, error) {
 	var rowCounts map[string]int
+	var conversations []store.PlaygroundConversation
+	var assets []store.PlaygroundAsset
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
 		rowCounts, err = exportDatabaseSnapshot(ctx, tx, masterKey, zw)
+		if err != nil {
+			return err
+		}
+		conversations, assets, err = listPlaygroundFileRefs(ctx, tx)
 		return err
 	}, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	if err != nil {
+		return nil, err
+	}
+	if _, _, err := exportPlaygroundFileEntries(ctx, db, zw, playgroundRoot, conversations, assets); err != nil {
 		return nil, err
 	}
 	return rowCounts, nil
@@ -158,7 +179,7 @@ func exportDatabaseSnapshot(ctx context.Context, db *gorm.DB, masterKey string, 
 	return rowCounts, nil
 }
 
-func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump databaseDump, progress ...ProgressFunc) (int, int, error) {
+func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump databaseDump, adminID uuid.UUID, progress ...ProgressFunc) (int, int, error) {
 	if err := validateDumpTables(dump); err != nil {
 		return 0, 0, err
 	}
@@ -261,6 +282,9 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 						row["created_by_admin_id"] = nil
 					}
 				}
+				if table.Name == "playground_conversations" && adminID != uuid.Nil {
+					reownPlaygroundConversations(rows, adminID)
+				}
 				if err := importTable(ctx, tx, table, rows, func(imported int) {
 					emit(ProgressEvent{Step: "import", Status: "in_progress", Rows: total + imported, TotalRows: progressTotal - skippedTotal, Table: table.Name})
 				}); err != nil {
@@ -343,7 +367,7 @@ func forEachArchiveTableChunk(archivePath string, tableName string, chunkSize in
 	name := path.Join("database", tableName+".jsonl")
 	file := archiveFile(zr.File, name)
 	if file == nil {
-		return fmt.Errorf("backup archive missing %s", name)
+		return nil
 	}
 	reader, err := file.Open()
 	if err != nil {
@@ -378,13 +402,9 @@ func forEachArchiveTableChunk(archivePath string, tableName string, chunkSize in
 }
 
 func exportTable(ctx context.Context, db *gorm.DB, table backupTable, masterKey string, zw *zip.Writer) (int, error) {
-	w, err := zw.CreateHeader(&zip.FileHeader{
-		Name:     path.Join("database", table.Name+".jsonl"),
-		Method:   zip.Deflate,
-		Modified: time.Now().UTC(),
-	})
+	w, err := createArchiveEntry(zw, path.Join("database", table.Name+".jsonl"), zip.Deflate)
 	if err != nil {
-		return 0, fmt.Errorf("write zip header %s: %w", table.Name, err)
+		return 0, err
 	}
 	encoder := json.NewEncoder(w)
 	rows, err := exportTableRows(ctx, db, table, masterKey, encoder)
@@ -580,7 +600,7 @@ func validateDumpTables(dump databaseDump) error {
 			continue
 		}
 		if _, ok := dump.Tables[table.Name]; !ok {
-			return fmt.Errorf("backup database payload missing table %s", table.Name)
+			dump.Tables[table.Name] = []map[string]any{}
 		}
 	}
 	return nil
@@ -867,4 +887,10 @@ func cloneRows(rows []map[string]any) []map[string]any {
 		out = append(out, next)
 	}
 	return out
+}
+
+func reownPlaygroundConversations(rows []map[string]any, adminID uuid.UUID) {
+	for _, row := range rows {
+		row["admin_id"] = adminID.String()
+	}
 }

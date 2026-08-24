@@ -10,29 +10,41 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/store"
 )
 
 const (
-	currentFormatVersion       = 2
-	backupAppName              = "xlyra"
-	MaxImportBytes       int64 = 512 << 20
+	currentFormatVersion         = 3
+	minImportFormatVersion       = 2
+	backupAppName                = "xlyra"
+	MaxImportBytes         int64 = 2 << 30
 )
 
 type Service struct {
-	db        *store.Store
-	confFile  *config.ConfigFile
-	masterKey string
-	now       func() time.Time
-	timeZone  config.TimeZone
+	db             *store.Store
+	confFile       *config.ConfigFile
+	masterKey      string
+	playgroundRoot string
+	preRestore     func(context.Context) error
+	postRestore    func(context.Context) error
+	now            func() time.Time
+	timeZone       config.TimeZone
 }
 
 type ImportSummary struct {
-	Tables        int `json:"tables"`
-	Rows          int `json:"rows"`
-	ConfigKeys    int `json:"config_keys"`
-	FormatVersion int `json:"format_version"`
+	Tables        int   `json:"tables"`
+	Rows          int   `json:"rows"`
+	ConfigKeys    int   `json:"config_keys"`
+	FormatVersion int   `json:"format_version"`
+	Files         int   `json:"files"`
+	FileBytes     int64 `json:"file_bytes"`
+}
+
+type ImportOptions struct {
+	AdminID uuid.UUID
 }
 
 type ProgressEvent struct {
@@ -49,14 +61,21 @@ type ProgressEvent struct {
 
 type ProgressFunc func(ProgressEvent)
 
-func NewService(db *store.Store, confFile *config.ConfigFile, masterKey string, timeZones ...config.TimeZone) Service {
+func NewService(db *store.Store, confFile *config.ConfigFile, masterKey string, playgroundRoot string, timeZones ...config.TimeZone) Service {
 	return Service{
-		db:        db,
-		confFile:  confFile,
-		masterKey: masterKey,
-		now:       func() time.Time { return time.Now().UTC() },
-		timeZone:  backupTimeZone(timeZones...),
+		db:             db,
+		confFile:       confFile,
+		masterKey:      masterKey,
+		playgroundRoot: playgroundRoot,
+		now:            func() time.Time { return time.Now().UTC() },
+		timeZone:       backupTimeZone(timeZones...),
 	}
+}
+
+func (s Service) WithRestoreHooks(pre func(context.Context) error, post func(context.Context) error) Service {
+	s.preRestore = pre
+	s.postRestore = post
+	return s
 }
 
 func (s Service) Export(ctx context.Context, passphrase string) (string, string, error) {
@@ -97,7 +116,7 @@ func (s Service) exportAt(ctx context.Context, passphrase string, createdAt time
 	writeErrs := make(chan error, 1)
 	go func() {
 		writeErr := writeArchive(payload, func(zw *zip.Writer) (map[string]int, error) {
-			return exportDatabase(ctx, s.db.DB(), s.masterKey, zw)
+			return exportDatabase(ctx, s.db.DB(), s.masterKey, s.playgroundRoot, zw)
 		}, plainWriter)
 		if writeErr != nil {
 			_ = plainWriter.CloseWithError(writeErr)
@@ -126,6 +145,13 @@ func (s Service) exportAt(ctx context.Context, passphrase string, createdAt time
 	if closeEncryptedErr != nil {
 		return "", "", fmt.Errorf("close encrypted backup: %w", closeEncryptedErr)
 	}
+	stat, err := os.Stat(encryptedPath)
+	if err != nil {
+		return "", "", fmt.Errorf("stat encrypted backup: %w", err)
+	}
+	if stat.Size() > MaxImportBytes {
+		return "", "", fmt.Errorf("backup size %d exceeds maximum restorable size %d", stat.Size(), MaxImportBytes)
+	}
 
 	success = true
 	return encryptedPath, s.backupFilename(createdAt), nil
@@ -139,7 +165,7 @@ func backupTimeZone(timeZones ...config.TimeZone) config.TimeZone {
 	return config.TimeZoneOrDefault(timeZones...)
 }
 
-func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte, progress ...ProgressFunc) (ImportSummary, error) {
+func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte, opts ImportOptions, progress ...ProgressFunc) (ImportSummary, error) {
 	if err := s.ready(); err != nil {
 		return ImportSummary{}, err
 	}
@@ -194,14 +220,50 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 	defer preparedConfig.Discard()
 
 	emit(ProgressEvent{Step: "parse", Status: "complete", TotalRows: dbDump.TotalRows})
+
+	quiesced := false
+	if s.preRestore != nil {
+		if err := s.preRestore(ctx); err != nil {
+			return ImportSummary{}, fmt.Errorf("prepare restore: %w", err)
+		}
+		quiesced = true
+	}
+	converge := func() {
+		if quiesced && s.postRestore != nil {
+			_ = s.postRestore(ctx)
+		}
+	}
+
 	emit(ProgressEvent{Step: "import", Status: "in_progress", TotalRows: dbDump.TotalRows, Message: "Writing backup data to database"})
 
-	importedRows, totalRows, err := importDatabase(ctx, s.db.DB(), s.masterKey, dbDump, prog)
+	importedRows, totalRows, err := importDatabase(ctx, s.db.DB(), s.masterKey, dbDump, opts.AdminID, prog)
 	if err != nil {
+		converge()
 		return ImportSummary{}, err
 	}
 
 	emit(ProgressEvent{Step: "import", Status: "complete", Rows: importedRows, TotalRows: totalRows})
+	emit(ProgressEvent{Step: "files", Status: "in_progress", Message: "Restoring playground session files"})
+
+	lastFileProgress := int64(0)
+	restoredFiles, restoredBytes, err := restorePlaygroundFiles(archivePath, s.playgroundRoot, func(restored int64) {
+		if restored-lastFileProgress >= 4<<20 {
+			lastFileProgress = restored
+			emit(ProgressEvent{Step: "files", Status: "in_progress", Bytes: restored})
+		}
+	})
+	if err != nil {
+		converge()
+		return ImportSummary{}, err
+	}
+
+	emit(ProgressEvent{Step: "files", Status: "complete", Bytes: restoredBytes})
+
+	if s.postRestore != nil {
+		if err := s.postRestore(ctx); err != nil {
+			return ImportSummary{}, fmt.Errorf("finish restore: %w", err)
+		}
+	}
 
 	if err := preparedConfig.Commit(); err != nil {
 		return ImportSummary{}, fmt.Errorf("replace config: %w", err)
@@ -212,6 +274,8 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 		Rows:          importedRows,
 		ConfigKeys:    len(payload.Config),
 		FormatVersion: payload.Manifest.FormatVersion,
+		Files:         restoredFiles,
+		FileBytes:     restoredBytes,
 	}
 	emit(ProgressEvent{Step: "complete", Status: "complete", Rows: importedRows, TotalRows: totalRows, Summary: &summary})
 
@@ -235,17 +299,25 @@ func validateManifest(value manifest) error {
 	if value.App != backupAppName {
 		return fmt.Errorf("backup app mismatch")
 	}
-	if value.FormatVersion != currentFormatVersion {
+	if value.FormatVersion < minImportFormatVersion || value.FormatVersion > currentFormatVersion {
 		return fmt.Errorf("unsupported backup format version %d", value.FormatVersion)
 	}
 	if value.Payload != backupPayload {
 		return fmt.Errorf("unsupported backup payload %q", value.Payload)
 	}
-	if len(value.Tables) != len(exportTables) {
-		return fmt.Errorf("backup table list mismatch")
+	if value.FormatVersion == currentFormatVersion {
+		if len(value.Tables) != len(exportTables) {
+			return fmt.Errorf("backup table list mismatch")
+		}
+		for i, table := range exportTables {
+			if value.Tables[i] != table {
+				return fmt.Errorf("backup table list mismatch")
+			}
+		}
+		return nil
 	}
-	for i, table := range exportTables {
-		if value.Tables[i] != table {
+	for _, table := range value.Tables {
+		if _, ok := backupTableByName(table); !ok {
 			return fmt.Errorf("backup table list mismatch")
 		}
 	}

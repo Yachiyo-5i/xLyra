@@ -24,13 +24,13 @@ func TestServiceValidatesPassphraseAndImportPayloadAfterReadiness(t *testing.T) 
 	}
 	assertBackupErrorContains(t, "exportAt blank passphrase", err, "backup passphrase is required")
 
-	summary, err := service.Import(context.Background(), "  ", []byte("encrypted"))
+	summary, err := service.Import(context.Background(), "  ", []byte("encrypted"), ImportOptions{})
 	if summary != (ImportSummary{}) {
 		t.Fatalf("Import blank passphrase summary=%#v, want zero", summary)
 	}
 	assertBackupErrorContains(t, "Import blank passphrase", err, "backup passphrase is required")
 
-	summary, err = service.Import(context.Background(), "passphrase", nil)
+	summary, err = service.Import(context.Background(), "passphrase", nil, ImportOptions{})
 	if summary != (ImportSummary{}) {
 		t.Fatalf("Import empty file summary=%#v, want zero", summary)
 	}

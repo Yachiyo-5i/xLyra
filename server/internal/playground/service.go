@@ -21,18 +21,21 @@ import (
 )
 
 type Service struct {
-	logger   *slog.Logger
-	db       *store.Store
-	repo     store.PlaygroundRepository
-	rollout  *RolloutStore
-	assets   *AssetStore
-	gateway  gateway.Handler
-	mu       sync.Mutex
-	cancels  map[uuid.UUID]context.CancelFunc
-	finishes map[uuid.UUID]chan struct{}
-	turns    map[uuid.UUID]*sync.Mutex
-	runs     map[uuid.UUID]store.PlaygroundRun
+	logger    *slog.Logger
+	db        *store.Store
+	repo      store.PlaygroundRepository
+	rollout   *RolloutStore
+	assets    *AssetStore
+	gateway   gateway.Handler
+	mu        sync.Mutex
+	cancels   map[uuid.UUID]context.CancelFunc
+	finishes  map[uuid.UUID]chan struct{}
+	turns     map[uuid.UUID]*sync.Mutex
+	runs      map[uuid.UUID]store.PlaygroundRun
+	restoring bool
 }
+
+var ErrPlaygroundRestoring = errors.New("playground is restoring from a backup")
 
 func NewService(logger *slog.Logger, db *store.Store, gatewayHandler gateway.Handler, root string) *Service {
 	if db == nil {
@@ -175,6 +178,70 @@ func (s *Service) recoverActiveRuns() {
 	}
 }
 
+func (s *Service) QuiesceForRestore(ctx context.Context) error {
+	s.mu.Lock()
+	if s.restoring {
+		s.mu.Unlock()
+		return ErrPlaygroundRestoring
+	}
+	s.restoring = true
+	cancels := make([]context.CancelFunc, 0, len(s.cancels))
+	for _, cancel := range s.cancels {
+		cancels = append(cancels, cancel)
+	}
+	s.mu.Unlock()
+
+	finished := false
+	defer func() {
+		if !finished {
+			s.mu.Lock()
+			s.restoring = false
+			s.mu.Unlock()
+		}
+	}()
+
+	for _, cancel := range cancels {
+		cancel()
+	}
+
+	s.mu.Lock()
+	finishes := make([]chan struct{}, 0, len(s.finishes))
+	for _, done := range s.finishes {
+		finishes = append(finishes, done)
+	}
+	s.mu.Unlock()
+	deadline := time.After(30 * time.Second)
+	for _, done := range finishes {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline:
+			return fmt.Errorf("timeout waiting for playground runs to stop")
+		}
+	}
+
+	s.resetRunState()
+	finished = true
+	return nil
+}
+
+func (s *Service) RecoverAfterRestore(_ context.Context) error {
+	s.mu.Lock()
+	s.restoring = false
+	s.mu.Unlock()
+	s.resetRunState()
+	s.recoverActiveRuns()
+	return nil
+}
+
+func (s *Service) resetRunState() {
+	s.mu.Lock()
+	s.runs = map[uuid.UUID]store.PlaygroundRun{}
+	s.turns = map[uuid.UUID]*sync.Mutex{}
+	s.mu.Unlock()
+}
+
 func (s *Service) List(ctx context.Context, adminID uuid.UUID, mode string) ([]ConversationView, error) {
 	items, err := s.repo.ListConversations(ctx, adminID, mode, 50)
 	if err != nil {
@@ -235,6 +302,12 @@ func (s *Service) Events(ctx context.Context, adminID uuid.UUID, id uuid.UUID, o
 }
 
 func (s *Service) StartTurn(ctx context.Context, adminID uuid.UUID, conversationID uuid.UUID, input TurnRequest) (ConversationView, error) {
+	s.mu.Lock()
+	restoring := s.restoring
+	s.mu.Unlock()
+	if restoring {
+		return ConversationView{}, ErrPlaygroundRestoring
+	}
 	if input.Mode != ModeChat && input.Mode != ModeImage {
 		return ConversationView{}, fmt.Errorf("unsupported playground mode")
 	}

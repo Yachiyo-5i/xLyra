@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -204,7 +205,7 @@ func TestImportDatabaseAdjustsProgressTotalForFilteredRows(t *testing.T) {
 		dump.Tables[table.Name] = nil
 	}
 	var last ProgressEvent
-	rows, totalRows, err := importDatabase(context.Background(), db, "master-key", dump, func(event ProgressEvent) {
+	rows, totalRows, err := importDatabase(context.Background(), db, "master-key", dump, uuid.Nil, func(event ProgressEvent) {
 		last = event
 	})
 	if err != nil {
@@ -215,12 +216,19 @@ func TestImportDatabaseAdjustsProgressTotalForFilteredRows(t *testing.T) {
 	}
 }
 
-func TestForEachArchiveTableChunkMissingEntryErrors(t *testing.T) {
+func TestForEachArchiveTableChunkMissingEntryYieldsNoRows(t *testing.T) {
 	t.Parallel()
 
 	archivePath := writeStreamTestArchive(t, 1)
-	err := forEachArchiveTableChunk(archivePath, "usage_records", 2, func([]map[string]any) error { return nil })
-	if err == nil {
-		t.Fatal("expected error for missing table entry")
+	calls := 0
+	err := forEachArchiveTableChunk(archivePath, "usage_records", 2, func([]map[string]any) error {
+		calls++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected missing table entry to be tolerated, got %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("expected no chunks for missing table entry, got %d", calls)
 	}
 }

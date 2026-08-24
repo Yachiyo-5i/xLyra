@@ -317,12 +317,12 @@ func (s *AutomaticService) run(ctx context.Context, cfg config.AutomaticBackupCo
 	return result, nil
 }
 
-func (s *AutomaticService) Restore(ctx context.Context, key string) (ImportSummary, error) {
-	return s.restore(ctx, key, nil)
+func (s *AutomaticService) Restore(ctx context.Context, key string, opts ImportOptions) (ImportSummary, error) {
+	return s.restore(ctx, key, opts, nil)
 }
 
-func (s *AutomaticService) RestoreWithProgress(ctx context.Context, key string, progress ProgressFunc) (ImportSummary, error) {
-	return s.restore(ctx, key, progress)
+func (s *AutomaticService) RestoreWithProgress(ctx context.Context, key string, opts ImportOptions, progress ProgressFunc) (ImportSummary, error) {
+	return s.restore(ctx, key, opts, progress)
 }
 
 type restoreDownloadCounter struct {
@@ -341,7 +341,7 @@ func (c *restoreDownloadCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (s *AutomaticService) restore(ctx context.Context, key string, progress ProgressFunc) (ImportSummary, error) {
+func (s *AutomaticService) restore(ctx context.Context, key string, opts ImportOptions, progress ProgressFunc) (ImportSummary, error) {
 	cfg, client, err := s.readyClient()
 	if err != nil {
 		return ImportSummary{}, err
@@ -394,7 +394,7 @@ func (s *AutomaticService) restore(ctx context.Context, key string, progress Pro
 		progress(ProgressEvent{Step: "download", Status: "complete", Bytes: counter.read, Total: stat.Size})
 	}
 
-	return s.base.Import(ctx, passphrase, data, progress)
+	return s.base.Import(ctx, passphrase, data, opts, progress)
 }
 
 func validateRestoreObjectSize(size int64) error {
