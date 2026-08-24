@@ -228,7 +228,10 @@ func (r RouteCooldownRepository) UpdateActiveUntil(ctx context.Context, cooldown
 	}
 	result := r.db.WithContext(ctx).
 		Model(&RouteCooldown{}).
-		Where("id = ? AND cleared_at IS NULL", cooldownID).
+		Clauses(clause.Where{Exprs: []clause.Expression{
+			clause.Eq{Column: clause.Column{Name: "id"}, Value: cooldownID},
+			clause.Eq{Column: clause.Column{Name: "cleared_at"}, Value: nil},
+		}}).
 		Updates(updates)
 	if result.Error != nil {
 		return fmt.Errorf("update active route cooldown: %w", result.Error)

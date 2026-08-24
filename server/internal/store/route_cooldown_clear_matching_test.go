@@ -82,7 +82,7 @@ func TestUpdateActiveUntilBuildsScopedUpdateOffline(t *testing.T) {
 		t.Fatalf("UpdateActiveUntil returned error: %v", err)
 	}
 	lower := strings.ToLower(captured)
-	for _, want := range []string{"id =", "cleared_at is null"} {
+	for _, want := range []string{`"id" =`, `"cleared_at" is null`} {
 		if !strings.Contains(lower, want) {
 			t.Fatalf("generated SQL %q missing %q", captured, want)
 		}
