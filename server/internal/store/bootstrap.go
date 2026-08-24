@@ -148,6 +148,16 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure request_usage_hourly_summaries table: %w", err)
 		}
 	}
+	if !migrator.HasTable(&SiteSyncJob{}) {
+		if err := migrator.CreateTable(&SiteSyncJob{}); err != nil {
+			return fmt.Errorf("ensure site_sync_jobs table: %w", err)
+		}
+	}
+	if migrator.HasTable(&SiteSyncJob{}) && !migrator.HasColumn(&SiteSyncJob{}, "RerunRequested") {
+		if err := migrator.AddColumn(&SiteSyncJob{}, "RerunRequested"); err != nil {
+			return fmt.Errorf("ensure site_sync_jobs.rerun_requested column: %w", err)
+		}
+	}
 	for _, model := range []any{
 		&PlaygroundConversation{},
 		&PlaygroundRun{},

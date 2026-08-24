@@ -125,6 +125,7 @@ func (SiteState) TableName() string           { return "site_states" }
 func (OAuthSession) TableName() string        { return "oauth_sessions" }
 func (OAuthConnection) TableName() string     { return "oauth_connections" }
 func (SiteAPIKeyState) TableName() string     { return "site_api_key_states" }
+func (SiteSyncJob) TableName() string         { return "site_sync_jobs" }
 func (SiteAPIKeyModel) TableName() string     { return "site_api_key_models" }
 func (CanonicalModel) TableName() string      { return "canonical_models" }
 func (CanonicalModelAlias) TableName() string { return "canonical_model_aliases" }

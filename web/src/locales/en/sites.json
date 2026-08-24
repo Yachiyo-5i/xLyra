@@ -31,7 +31,8 @@
       "refreshPartialFailed": "Some sites failed to refresh",
       "refreshPartialDesc": "{{count}} site(s) failed to refresh",
       "refreshPartialDescFallback": "Some sites failed to refresh",
-      "statusFailed": "Failed to update site status"
+      "statusFailed": "Failed to update site status",
+      "syncQueued": "Saved and syncing in the background"
     }
   },
   "table": {
@@ -51,7 +52,9 @@
     "health": {
       "unchecked": "Unchecked",
       "healthy": "Healthy",
-      "abnormal": "Abnormal"
+      "abnormal": "Abnormal",
+      "pending": "Waiting to sync",
+      "syncing": "Syncing"
     },
     "quotaDetails": {
       "keyAvailable": "Key available quota",
@@ -238,6 +241,7 @@
     "toast": {
       "createFailed": "API key create failed",
       "created": "API key created",
+      "syncQueued": "API key saved and syncing in the background",
       "deleteFailed": "API key delete failed",
       "deleted": "API key deleted",
       "updateFailed": "API key update failed",
@@ -259,7 +263,9 @@
       "failed": "Failed",
       "partial": "Partial",
       "stale": "Removed upstream",
-      "unknown": "Not synced"
+      "unknown": "Not synced",
+      "pending": "Waiting to sync",
+      "syncing": "Syncing"
     }
   },
   "grokAccounts": {

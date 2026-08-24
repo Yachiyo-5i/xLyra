@@ -126,6 +126,20 @@ func (r SiteStateRepository) MarkSyncStarted(ctx context.Context, siteID uuid.UU
 	return state, nil
 }
 
+func (r SiteStateRepository) MarkSyncFailed(ctx context.Context, siteID uuid.UUID, message string) (SiteState, error) {
+	db := r.db.WithContext(ctx)
+	var state SiteState
+	if err := db.Where(&SiteState{SiteID: siteID}).First(&state).Error; err != nil {
+		return SiteState{}, fmt.Errorf("mark site sync failed: %w", err)
+	}
+	state.SyncStatus = "failed"
+	state.SyncMessage = sql.NullString{String: message, Valid: message != ""}
+	if err := db.Save(&state).Error; err != nil {
+		return SiteState{}, fmt.Errorf("mark site sync failed: %w", err)
+	}
+	return state, nil
+}
+
 func (r SiteStateRepository) MarkPricingGap(ctx context.Context, siteID uuid.UUID, message string) (SiteState, error) {
 	db := r.db.WithContext(ctx)
 	var state SiteState

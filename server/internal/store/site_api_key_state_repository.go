@@ -234,3 +234,43 @@ func (r SiteAPIKeyStateRepository) RecoverPending(ctx context.Context, siteCrede
 	}
 	return state, nil
 }
+
+func (r SiteAPIKeyStateRepository) MarkSyncPending(ctx context.Context, siteID uuid.UUID, siteCredentialID uuid.UUID, enabled bool) (SiteAPIKeyState, error) {
+	return r.markSyncStatus(ctx, siteID, siteCredentialID, enabled, "pending", "")
+}
+
+func (r SiteAPIKeyStateRepository) MarkSyncStarted(ctx context.Context, siteID uuid.UUID, siteCredentialID uuid.UUID, enabled bool) (SiteAPIKeyState, error) {
+	return r.markSyncStatus(ctx, siteID, siteCredentialID, enabled, "syncing", "")
+}
+
+func (r SiteAPIKeyStateRepository) MarkSyncFailed(ctx context.Context, siteID uuid.UUID, siteCredentialID uuid.UUID, enabled bool, message string) (SiteAPIKeyState, error) {
+	return r.markSyncStatus(ctx, siteID, siteCredentialID, enabled, "failed", message)
+}
+
+func (r SiteAPIKeyStateRepository) markSyncStatus(ctx context.Context, siteID uuid.UUID, siteCredentialID uuid.UUID, enabled bool, status string, message string) (SiteAPIKeyState, error) {
+	db := r.db.WithContext(ctx)
+	var state SiteAPIKeyState
+	err := db.Where(&SiteAPIKeyState{SiteCredentialID: siteCredentialID}).First(&state).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return SiteAPIKeyState{}, fmt.Errorf("mark site api key sync status: %w", err)
+	}
+	state.SiteCredentialID = siteCredentialID
+	state.SiteID = siteID
+	state.SyncStatus = status
+	state.SyncMessage = sql.NullString{String: message, Valid: message != ""}
+	if err == gorm.ErrRecordNotFound {
+		state.Enabled = enabled
+		state.UpstreamStatus = jsonDefault(nil, "null")
+		state.ModelLimits = jsonDefault(nil, "[]")
+		state.Usage = jsonDefault(nil, "{}")
+		state.Raw = jsonDefault(nil, "{}")
+		if err := db.Create(&state).Error; err != nil {
+			return SiteAPIKeyState{}, fmt.Errorf("mark site api key sync status: %w", err)
+		}
+		return state, nil
+	}
+	if err := db.Save(&state).Error; err != nil {
+		return SiteAPIKeyState{}, fmt.Errorf("mark site api key sync status: %w", err)
+	}
+	return state, nil
+}

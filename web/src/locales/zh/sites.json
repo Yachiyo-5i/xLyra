@@ -31,7 +31,8 @@
       "refreshPartialFailed": "部分站点刷新失败",
       "refreshPartialDesc": "{{count}} 个站点刷新失败",
       "refreshPartialDescFallback": "部分站点刷新失败",
-      "statusFailed": "站点状态更新失败"
+      "statusFailed": "站点状态更新失败",
+      "syncQueued": "已保存，正在后台同步"
     }
   },
   "table": {
@@ -51,7 +52,9 @@
     "health": {
       "unchecked": "未检测",
       "healthy": "可用",
-      "abnormal": "异常"
+      "abnormal": "异常",
+      "pending": "等待同步",
+      "syncing": "同步中"
     },
     "quotaDetails": {
       "keyAvailable": "Key 可用额度",
@@ -238,6 +241,7 @@
     "toast": {
       "createFailed": "ApiKey 创建失败",
       "created": "ApiKey 已创建",
+      "syncQueued": "ApiKey 已保存，正在后台同步",
       "deleteFailed": "ApiKey 删除失败",
       "deleted": "ApiKey 已删除",
       "updateFailed": "ApiKey 更新失败",
@@ -261,7 +265,9 @@
       "failed": "失败",
       "partial": "部分",
       "stale": "上游已移除",
-      "unknown": "未同步"
+      "unknown": "未同步",
+      "pending": "等待同步",
+      "syncing": "同步中"
     }
   },
   "grokAccounts": {

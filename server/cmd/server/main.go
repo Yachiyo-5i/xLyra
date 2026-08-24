@@ -148,6 +148,13 @@ func run() int {
 		backgroundTasks.Wait()
 	}()
 
+	siteSyncWorker := site.NewSyncWorker(siteService, logger.With("thread", "site-sync-worker"), gatewayHandler.InvalidateModelsCache)
+	backgroundTasks.Add(1)
+	go func() {
+		defer backgroundTasks.Done()
+		siteSyncWorker.Run(backgroundCtx)
+	}()
+
 	backgroundTasks.Add(1)
 	go func() {
 		defer backgroundTasks.Done()

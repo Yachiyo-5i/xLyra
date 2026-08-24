@@ -126,6 +126,7 @@ func (h Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		ProxyID:         payload.ProxyID,
 		RequestHeaders:  requestHeadersFromInput(payload.RequestHeaders),
 		Credentials:     credentials,
+		QueueSync:       true,
 	})
 	if err != nil {
 		h.writeError(w, r, http.StatusBadRequest, "site_create_failed", err.Error())
@@ -133,9 +134,11 @@ func (h Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logInfo("site created", "site_id", created.ID, "slug", created.Slug, "site_type", created.SiteType, "enabled", created.Enabled)
-	response := h.siteSetupResponse(r, created)
 	h.invalidateGatewayModelsCache()
-	h.writePayload(w, http.StatusCreated, response)
+	h.writePayload(w, http.StatusAccepted, map[string]any{
+		"ok":   true,
+		"site": h.sitePayloadWithStats(r, created),
+	})
 }
 
 func (h Handler) UpdateSite(w http.ResponseWriter, r *http.Request) {
@@ -859,19 +862,11 @@ func (h Handler) CreateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		RoutingPriority:        payload.RoutingPriority,
 		UpstreamCostMultiplier: payload.UpstreamCostMultiplier,
 		CacheDomain:            payload.CacheDomain,
+		QueueSync:              true,
 	})
 	if err != nil {
 		h.writeError(w, r, http.StatusBadRequest, "site_api_key_create_failed", err.Error())
 		return
-	}
-
-	// Fetch and bind the new key's models immediately so it is routable (and its
-	// models are testable) without waiting for a manual or scheduled refresh.
-	// Best-effort: a refresh failure must not fail key creation.
-	if _, refreshErr := h.sites.RefreshSingleAPIKey(r.Context(), siteID, apiKey.Credential.ID); refreshErr != nil {
-		h.logWarn("site api key initial refresh failed", "site_id", siteID, "credential_id", apiKey.Credential.ID, "error", refreshErr)
-	} else if refreshed, err := h.sites.APIKeyByCredentialID(r.Context(), siteID, apiKey.Credential.ID); err == nil {
-		apiKey = refreshed
 	}
 
 	apiKeyStates, _ := h.sites.APIKeyStates(r.Context(), siteID)
@@ -890,7 +885,7 @@ func (h Handler) CreateSiteAPIKey(w http.ResponseWriter, r *http.Request) {
 		"cache_domain":             apiKey.CacheDomain,
 		"enabled":                  apiKey.Enabled,
 	})
-	h.writeResource(w, http.StatusCreated, "api_key", h.siteAPIKeyPayloadFromState(item, apiKey, statesByCredentialID[apiKey.Credential.ID], models, h.siteAPIKeyDefaultName(r.Context(), siteID, apiKey.Credential.ID)))
+	h.writeResource(w, http.StatusAccepted, "api_key", h.siteAPIKeyPayloadFromState(item, apiKey, statesByCredentialID[apiKey.Credential.ID], models, h.siteAPIKeyDefaultName(r.Context(), siteID, apiKey.Credential.ID)))
 }
 
 func (h Handler) DeleteSiteAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -1143,7 +1138,7 @@ func (h Handler) UpdateSiteAPIKeySecret(w http.ResponseWriter, r *http.Request) 
 	h.recordAudit(r, currentAdminActor(r), "site_api_key.secret_update", "site_api_key", apiKeyID.String(), true, "", map[string]any{
 		"site_id": siteID.String(),
 	})
-	h.writeResource(w, http.StatusOK, "api_key", h.siteAPIKeyPayloadFromState(item, apiKey, statesByCredentialID[apiKey.Credential.ID], models, h.siteAPIKeyDefaultName(r.Context(), siteID, apiKey.Credential.ID)))
+	h.writeResource(w, http.StatusAccepted, "api_key", h.siteAPIKeyPayloadFromState(item, apiKey, statesByCredentialID[apiKey.Credential.ID], models, h.siteAPIKeyDefaultName(r.Context(), siteID, apiKey.Credential.ID)))
 }
 
 func (h Handler) UpdateSiteAPIKeyModel(w http.ResponseWriter, r *http.Request) {

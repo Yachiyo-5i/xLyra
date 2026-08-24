@@ -74,10 +74,18 @@ export function SiteHealthBadge({ site, validation, className }: SiteHealthBadge
 }
 
 function siteHealthStatus(site: Site, validation: ValidationSnapshot | Site['validation'] | undefined, t: (key: string) => string): {
-  status: 'healthy' | 'error' | 'idle'
+  status: 'healthy' | 'error' | 'syncing' | 'idle'
   label: string
   message?: string
 } {
+  const syncStatus = site.sync_state?.status?.trim().toLowerCase()
+  if (syncStatus === 'pending') {
+    return { status: 'syncing', label: t('table.health.pending') }
+  }
+  if (syncStatus === 'syncing') {
+    return { status: 'syncing', label: t('table.health.syncing') }
+  }
+
   if (isSiteAbnormal(site, validation)) {
     const message =
       (validation && validation.ok === false ? stringValue(validation.message) : undefined) ??

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useMutation,
   useQueries,
@@ -100,6 +100,12 @@ const EMPTY_API_KEYS: SiteAPIKey[] = []
 const EMPTY_SITE_TYPES: SiteTypeInfo[] = []
 const EMPTY_SITE_GROUPS: SiteGroup[] = []
 const EMPTY_OAUTH_CONNECTIONS: OAuthConnectionListItem[] = []
+const SITE_SYNC_POLL_INTERVAL = 2000
+
+function syncStatusActive(status?: string | null) {
+  const normalized = status?.trim().toLowerCase()
+  return normalized === 'pending' || normalized === 'syncing'
+}
 
 function siteURLTarget(params: URLSearchParams) {
   return {
@@ -143,10 +149,18 @@ export function SitesWorkspace({
   const [updatedAtMode, setUpdatedAtMode] =
     useState<SiteUpdatedAtDisplayMode>(readUpdatedAtMode)
   const [now, setNow] = useState(() => Date.now())
+  const previousSiteSyncStatuses = useRef<Record<string, string>>({})
+  const previousAPIKeySyncStatuses = useRef<Record<string, string>>({})
 
   const sitesQuery = useQuery({
     queryKey: sitesQueryKeys.list(),
     queryFn: () => listSites(),
+    refetchInterval: (query) =>
+      query.state.data?.items.some((site) =>
+        syncStatusActive(site.sync_state?.status),
+      )
+        ? SITE_SYNC_POLL_INTERVAL
+        : false,
   })
   const splitSitesQuery = useQuery({
     queryKey: sitesQueryKeys.list('all', 'with_requests'),
@@ -206,6 +220,14 @@ export function SitesWorkspace({
     queries: sitesWithAPIKeys.map((site) => ({
       queryKey: [...sitesQueryKeys.detail(site.id), 'api-keys'],
       queryFn: () => listSiteAPIKeys(site.id),
+      refetchInterval: (query: {
+        state: { data?: { items?: SiteAPIKey[] } }
+      }) =>
+        query.state.data?.items?.some((apiKey) =>
+          syncStatusActive(apiKey.sync_status),
+        )
+          ? SITE_SYNC_POLL_INTERVAL
+          : false,
     })),
   })
 
@@ -240,6 +262,93 @@ export function SitesWorkspace({
   const siteTypes = siteTypesQuery.data?.items ?? EMPTY_SITE_TYPES
   const siteGroups = siteGroupsQuery.data?.items ?? EMPTY_SITE_GROUPS
   const proxies = systemProxyQuery.data?.proxies ?? []
+
+  useEffect(() => {
+    const nextStatuses: Record<string, string> = {}
+    const completedSiteIds: string[] = []
+    for (const site of sites) {
+      const status = site.sync_state?.status?.trim().toLowerCase() ?? ''
+      nextStatuses[site.id] = status
+      if (
+        syncStatusActive(previousSiteSyncStatuses.current[site.id]) &&
+        !syncStatusActive(status)
+      ) {
+        completedSiteIds.push(site.id)
+      }
+    }
+    previousSiteSyncStatuses.current = nextStatuses
+    if (!completedSiteIds.length) return
+    void Promise.all([
+      ...completedSiteIds.map((siteId) =>
+        queryClient.invalidateQueries({
+          queryKey: sitesQueryKeys.models(siteId),
+        }),
+      ),
+      ...completedSiteIds.map((siteId) =>
+        queryClient.invalidateQueries({
+          queryKey: [...sitesQueryKeys.detail(siteId), 'api-keys'],
+        }),
+      ),
+      queryClient.invalidateQueries({
+        queryKey: [...sitesQueryKeys.all, 'canonical-models'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: [...sitesQueryKeys.all, 'routes-matrix'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: [...sitesQueryKeys.all, 'all-pricings'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['settings', 'model-prices'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: downstreamAPIKeyQueryKeys.list(),
+      }),
+    ])
+  }, [queryClient, sites])
+
+  useEffect(() => {
+    const nextStatuses: Record<string, string> = {}
+    const completedSiteIds = new Set<string>()
+    for (const [siteId, apiKeys] of Object.entries(siteAPIKeysMap)) {
+      for (const apiKey of apiKeys) {
+        const key = `${siteId}:${apiKey.id}`
+        const status = apiKey.sync_status?.trim().toLowerCase() ?? ''
+        nextStatuses[key] = status
+        if (
+          syncStatusActive(previousAPIKeySyncStatuses.current[key]) &&
+          !syncStatusActive(status)
+        ) {
+          completedSiteIds.add(siteId)
+        }
+      }
+    }
+    previousAPIKeySyncStatuses.current = nextStatuses
+    if (!completedSiteIds.size) return
+    void Promise.all([
+      ...Array.from(completedSiteIds).map((siteId) =>
+        queryClient.invalidateQueries({
+          queryKey: sitesQueryKeys.models(siteId),
+        }),
+      ),
+      queryClient.invalidateQueries({
+        queryKey: [...sitesQueryKeys.all, 'canonical-models'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: [...sitesQueryKeys.all, 'routes-matrix'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: [...sitesQueryKeys.all, 'all-pricings'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['settings', 'model-prices'],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: downstreamAPIKeyQueryKeys.list(),
+      }),
+    ])
+  }, [queryClient, siteAPIKeysMap])
+
   const urlTargetSearch = urlTargetSite
     ? urlTargetSite.name || urlTargetSite.slug
     : ''
@@ -300,16 +409,8 @@ export function SitesWorkspace({
   )
 
   const createMutation = useMutation({
-    mutationFn: async (input: SiteCreateSubmitInput) => {
-      const result = await createSite(input)
-      await updateSiteGroupMembershipForSite(
-        siteGroups,
-        result.site.id,
-        input.siteGroupIds ?? [],
-      )
-      return result
-    },
-    onSuccess: async (result) => {
+    mutationFn: (input: SiteCreateSubmitInput) => createSite(input),
+    onSuccess: async (result, input) => {
       queryClient.setQueryData(
         sitesQueryKeys.list(),
         (current: { items: Site[]; meta: { count: number } } | undefined) =>
@@ -333,6 +434,18 @@ export function SitesWorkspace({
       notifySiteSetupIncomplete(result)
       setEditingSite(null)
       setCreateOpen(false)
+      toast.success(t('page.toast.syncQueued'))
+      try {
+        await updateSiteGroupMembershipForSite(
+          siteGroups,
+          result.site.id,
+          input.siteGroupIds ?? [],
+        )
+      } catch (error) {
+        toast.error(t('page.toast.saveFailed'), {
+          description: error instanceof Error ? error.message : String(error),
+        })
+      }
       await invalidateSiteLists()
     },
     onError: (error) =>
