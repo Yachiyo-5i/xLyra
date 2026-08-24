@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.3...v1.3.0) (2026-08-24)
+
+
+### Features
+
+* 🎸 新增模型体验记录跨浏览器持久化与断点续传 ([74815a5](https://github.com/Yachiyo-5i/xLyra/commit/74815a54a1ed1561c4ff5f8d05dd506eebe59ad7))
+
+
+### Bug Fixes
+
+* 🐛 修复备份恢复未覆盖模型体验会话记录与图片附件的问题 ([8225a03](https://github.com/Yachiyo-5i/xLyra/commit/8225a036773d567844e16d94a8d5ffe8ae2a4cbf))
+* 🐛 修复大文件备份还原限制并完善后台恢复体验 ([48fb46d](https://github.com/Yachiyo-5i/xLyra/commit/48fb46d783cbedc19ff94973ea89d2dee2d4abbd))
+* 🐛 修复站点与 API 密钥提交阻塞并完善后台同步体验 ([7516eb4](https://github.com/Yachiyo-5i/xLyra/commit/7516eb4ab429314d32de423e8c32671b9c51e38d))
+* 🐛 修正订阅限额冷却校准的查询写法以符合项目数据库访问规范 ([a7e48d4](https://github.com/Yachiyo-5i/xLyra/commit/a7e48d4906918fe018d93db744c768dc80481f95))
+* 🐛 修复 TokenPlan 周限额冷却时间计算错误 ([5d963e1](https://github.com/Yachiyo-5i/xLyra/commit/5d963e1151884e61acdc381ce6bb8d9e24e73622))
+
 ## [1.2.3](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.2...v1.2.3) (2026-08-23)
 
 
