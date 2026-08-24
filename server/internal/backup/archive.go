@@ -33,7 +33,7 @@ type archivePayload struct {
 func writeArchive(payload archivePayload, writeDatabase func(*zip.Writer) (map[string]int, error), dst io.Writer) error {
 	zw := zip.NewWriter(dst)
 	zw.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
-		return flate.NewWriter(out, flate.BestSpeed)
+		return flate.NewWriter(out, flate.DefaultCompression)
 	})
 
 	if err := writeArchiveJSONFile(zw, "manifest.json", payload.Manifest); err != nil {

@@ -215,6 +215,35 @@ func TestImportDatabaseAdjustsProgressTotalForFilteredRows(t *testing.T) {
 	}
 }
 
+func TestImportDatabaseRunsCommitGuardInsideTransaction(t *testing.T) {
+	db, state := backupTransactionGormWithState(t, nil)
+	originalDeleteOrder := importDeleteOrder
+	importDeleteOrder = nil
+	t.Cleanup(func() {
+		importDeleteOrder = originalDeleteOrder
+	})
+	called := false
+	dump := databaseDump{
+		Tables: make(map[string][]map[string]any, len(backupTables)),
+		beforeCommit: func() error {
+			called = true
+			return context.Canceled
+		},
+	}
+	for _, table := range backupTables {
+		dump.Tables[table.Name] = nil
+	}
+
+	_, _, err := importDatabase(context.Background(), db, "master-key", dump)
+	if !called || !errors.Is(err, context.Canceled) {
+		t.Fatalf("commit guard called=%v error=%v", called, err)
+	}
+	commits, rollbacks := state.counts()
+	if commits != 0 || rollbacks != 1 {
+		t.Fatalf("transaction commits=%d rollbacks=%d, want 0/1", commits, rollbacks)
+	}
+}
+
 func TestForEachArchiveTableChunkMissingEntryErrors(t *testing.T) {
 	t.Parallel()
 

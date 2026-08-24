@@ -1,10 +1,11 @@
 package settings
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 
 	"xlyra/server/internal/backup"
 	"xlyra/server/internal/httpx"
@@ -90,23 +91,51 @@ func (h Handler) RestoreAutomaticBackupFile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
-		h.restoreAutomaticBackupFileSSE(w, r, req.Key)
-		return
-	}
-
-	summary, err := h.autoBackups.Restore(r.Context(), req.Key)
+	task, err := h.autoBackups.StartRestore(req.Key)
 	if err != nil {
 		h.writeAutomaticBackupError(w, r, err)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"backup": summary})
+	httpx.JSON(w, http.StatusAccepted, map[string]any{"restore": task})
 }
 
-func (h Handler) restoreAutomaticBackupFileSSE(w http.ResponseWriter, r *http.Request, key string) {
-	streamBackupRestore(w, r, "download", func(ctx context.Context, progress backup.ProgressFunc) (backup.ImportSummary, error) {
-		return h.autoBackups.RestoreWithProgress(ctx, key, progress)
-	})
+func (h Handler) GetAutomaticBackupRestoreTask(w http.ResponseWriter, r *http.Request) {
+	if h.autoBackups == nil {
+		httpx.Error(w, r, http.StatusServiceUnavailable, "backup_unavailable", "automatic backup service is not available")
+		return
+	}
+	task, err := h.autoBackups.GetRestoreTask(chi.URLParam(r, "taskID"))
+	if err != nil {
+		h.writeAutomaticBackupError(w, r, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"restore": task})
+}
+
+func (h Handler) GetActiveAutomaticBackupRestoreTask(w http.ResponseWriter, r *http.Request) {
+	if h.autoBackups == nil {
+		httpx.Error(w, r, http.StatusServiceUnavailable, "backup_unavailable", "automatic backup service is not available")
+		return
+	}
+	task, ok := h.autoBackups.GetActiveRestoreTask()
+	if !ok {
+		httpx.JSON(w, http.StatusOK, map[string]any{"restore": nil})
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"restore": task})
+}
+
+func (h Handler) CancelAutomaticBackupRestoreTask(w http.ResponseWriter, r *http.Request) {
+	if h.autoBackups == nil {
+		httpx.Error(w, r, http.StatusServiceUnavailable, "backup_unavailable", "automatic backup service is not available")
+		return
+	}
+	task, err := h.autoBackups.CancelRestoreTask(chi.URLParam(r, "taskID"))
+	if err != nil {
+		h.writeAutomaticBackupError(w, r, err)
+		return
+	}
+	httpx.JSON(w, http.StatusAccepted, map[string]any{"restore": task})
 }
 
 func (h Handler) DeleteAutomaticBackupFile(w http.ResponseWriter, r *http.Request) {
@@ -134,6 +163,12 @@ func (h Handler) writeAutomaticBackupError(w http.ResponseWriter, r *http.Reques
 	case errors.Is(err, backup.ErrAutomaticAlreadyRunning):
 		status = http.StatusConflict
 		code = "automatic_backup_running"
+	case errors.Is(err, backup.ErrRestoreTaskNotFound):
+		status = http.StatusNotFound
+		code = "automatic_restore_task_not_found"
+	case errors.Is(err, backup.ErrRestoreCannotCancel):
+		status = http.StatusConflict
+		code = "automatic_restore_cannot_cancel"
 	case strings.Contains(message, "not available"):
 		status = http.StatusServiceUnavailable
 		code = "backup_unavailable"

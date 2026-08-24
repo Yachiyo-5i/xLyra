@@ -4,10 +4,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"xlyra/server/internal/config"
@@ -17,8 +20,31 @@ import (
 const (
 	currentFormatVersion       = 2
 	backupAppName              = "xlyra"
-	MaxImportBytes       int64 = 512 << 20
+	MaxImportBytes       int64 = 4 << 30
 )
+
+var ErrOperationInProgress = errors.New("another backup or restore operation is in progress")
+
+var operationGuards sync.Map
+
+func operationGuardFor(db *store.Store) *atomic.Bool {
+	guard, _ := operationGuards.LoadOrStore(db, &atomic.Bool{})
+	return guard.(*atomic.Bool)
+}
+
+func beginSharedOperation(db *store.Store) bool {
+	if db == nil {
+		return true
+	}
+	return operationGuardFor(db).CompareAndSwap(false, true)
+}
+
+func endSharedOperation(db *store.Store) {
+	if db == nil {
+		return
+	}
+	operationGuardFor(db).Store(false)
+}
 
 type Service struct {
 	db        *store.Store
@@ -140,13 +166,32 @@ func backupTimeZone(timeZones ...config.TimeZone) config.TimeZone {
 }
 
 func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte, progress ...ProgressFunc) (ImportSummary, error) {
+	if len(encrypted) == 0 {
+		return ImportSummary{}, fmt.Errorf("backup file is required")
+	}
+	return s.ImportReader(ctx, passphrase, bytes.NewReader(encrypted), progress...)
+}
+
+func (s Service) ImportReader(ctx context.Context, passphrase string, encrypted io.Reader, progress ...ProgressFunc) (ImportSummary, error) {
+	return s.importReader(ctx, passphrase, encrypted, nil, progress...)
+}
+
+func (s Service) importReader(ctx context.Context, passphrase string, encrypted io.Reader, beforeCommit func() error, progress ...ProgressFunc) (ImportSummary, error) {
+	if !beginSharedOperation(s.db) {
+		return ImportSummary{}, ErrOperationInProgress
+	}
+	defer endSharedOperation(s.db)
+	return s.importReaderLocked(ctx, passphrase, encrypted, beforeCommit, progress...)
+}
+
+func (s Service) importReaderLocked(ctx context.Context, passphrase string, encrypted io.Reader, beforeCommit func() error, progress ...ProgressFunc) (ImportSummary, error) {
 	if err := s.ready(); err != nil {
 		return ImportSummary{}, err
 	}
 	if strings.TrimSpace(passphrase) == "" {
 		return ImportSummary{}, fmt.Errorf("backup passphrase is required")
 	}
-	if len(encrypted) == 0 {
+	if encrypted == nil {
 		return ImportSummary{}, fmt.Errorf("backup file is required")
 	}
 
@@ -168,7 +213,7 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 	archivePath := archiveFile.Name()
 	defer os.Remove(archivePath)
 
-	err = decryptStream(passphrase, bytes.NewReader(encrypted), archiveFile)
+	err = decryptStream(passphrase, &backupContextReader{ctx: ctx, reader: encrypted}, archiveFile)
 	closeErr := archiveFile.Close()
 	if err != nil {
 		return ImportSummary{}, err
@@ -187,6 +232,7 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 	if err := validateManifest(payload.Manifest); err != nil {
 		return ImportSummary{}, err
 	}
+	dbDump.beforeCommit = beforeCommit
 	preparedConfig, err := s.confFile.PrepareReplace(config.MergeImportedConfig(s.confFile.Data(), payload.Config))
 	if err != nil {
 		return ImportSummary{}, fmt.Errorf("prepare config replacement: %w", err)
@@ -216,6 +262,18 @@ func (s Service) Import(ctx context.Context, passphrase string, encrypted []byte
 	emit(ProgressEvent{Step: "complete", Status: "complete", Rows: importedRows, TotalRows: totalRows, Summary: &summary})
 
 	return summary, nil
+}
+
+type backupContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *backupContextReader) Read(data []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(data)
 }
 
 func (s Service) ready() error {

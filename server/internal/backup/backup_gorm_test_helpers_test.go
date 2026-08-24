@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -37,9 +38,15 @@ func backupOfflineGorm(t *testing.T) *gorm.DB {
 }
 
 func backupTransactionGorm(t *testing.T, beginErr error) *gorm.DB {
+	db, _ := backupTransactionGormWithState(t, beginErr)
+	return db
+}
+
+func backupTransactionGormWithState(t *testing.T, beginErr error) (*gorm.DB, *backupTransactionState) {
 	t.Helper()
 
-	sqlDB := sql.OpenDB(backupTransactionConnector{beginErr: beginErr})
+	state := &backupTransactionState{}
+	sqlDB := sql.OpenDB(backupTransactionConnector{beginErr: beginErr, state: state})
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
 	})
@@ -54,7 +61,7 @@ func backupTransactionGorm(t *testing.T, beginErr error) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open transaction gorm db: %v", err)
 	}
-	return db
+	return db, state
 }
 
 func backupStoreWithGorm(t *testing.T, db *gorm.DB) *store.Store {
@@ -145,30 +152,37 @@ func backupImportExportService(t *testing.T) Service {
 
 type backupTransactionConnector struct {
 	beginErr error
+	state    *backupTransactionState
 }
 
 func (c backupTransactionConnector) Connect(context.Context) (driver.Conn, error) {
-	return backupTransactionConn{beginErr: c.beginErr}, nil
+	return backupTransactionConn{beginErr: c.beginErr, state: c.state}, nil
 }
 
 func (c backupTransactionConnector) Driver() driver.Driver {
-	return backupTransactionDriver{beginErr: c.beginErr}
+	return backupTransactionDriver{beginErr: c.beginErr, state: c.state}
 }
 
 type backupTransactionDriver struct {
 	beginErr error
+	state    *backupTransactionState
 }
 
 func (d backupTransactionDriver) Open(string) (driver.Conn, error) {
-	return backupTransactionConn{beginErr: d.beginErr}, nil
+	return backupTransactionConn{beginErr: d.beginErr, state: d.state}, nil
 }
 
 type backupTransactionConn struct {
 	beginErr error
+	state    *backupTransactionState
 }
 
 func (c backupTransactionConn) Prepare(string) (driver.Stmt, error) {
 	return nil, errors.New("fake driver only supports transactions")
+}
+
+func (c backupTransactionConn) Exec(string, []driver.Value) (driver.Result, error) {
+	return driver.RowsAffected(0), nil
 }
 
 func (c backupTransactionConn) Close() error {
@@ -179,22 +193,46 @@ func (c backupTransactionConn) Begin() (driver.Tx, error) {
 	if c.beginErr != nil {
 		return nil, c.beginErr
 	}
-	return backupTransactionTx{}, nil
+	return backupTransactionTx{state: c.state}, nil
 }
 
 func (c backupTransactionConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
 	if c.beginErr != nil {
 		return nil, c.beginErr
 	}
-	return backupTransactionTx{}, nil
+	return backupTransactionTx{state: c.state}, nil
 }
 
-type backupTransactionTx struct{}
+type backupTransactionState struct {
+	mu        sync.Mutex
+	commits   int
+	rollbacks int
+}
 
-func (backupTransactionTx) Commit() error {
+type backupTransactionTx struct {
+	state *backupTransactionState
+}
+
+func (tx backupTransactionTx) Commit() error {
+	if tx.state != nil {
+		tx.state.mu.Lock()
+		tx.state.commits++
+		tx.state.mu.Unlock()
+	}
 	return nil
 }
 
-func (backupTransactionTx) Rollback() error {
+func (tx backupTransactionTx) Rollback() error {
+	if tx.state != nil {
+		tx.state.mu.Lock()
+		tx.state.rollbacks++
+		tx.state.mu.Unlock()
+	}
 	return nil
+}
+
+func (s *backupTransactionState) counts() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.commits, s.rollbacks
 }

@@ -24,8 +24,9 @@ import (
 )
 
 type databaseDump struct {
-	Tables    map[string][]map[string]any `json:"tables"`
-	TotalRows int
+	Tables       map[string][]map[string]any `json:"tables"`
+	TotalRows    int
+	beforeCommit func() error
 	// archivePath, when set, points at the on-disk archive so the large detail
 	// tables (streamedImportTables) can be streamed from it during import instead
 	// of being held in Tables. Empty means everything lives in Tables (tests).
@@ -272,6 +273,11 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 					}
 				}
 				total += len(rows)
+			}
+		}
+		if dump.beforeCommit != nil {
+			if err := dump.beforeCommit(); err != nil {
+				return err
 			}
 		}
 		return nil

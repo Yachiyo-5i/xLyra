@@ -241,16 +241,39 @@ export type RestoreProgressEvent = {
   message?: string
 }
 
-export async function* restoreAutomaticBackupFileSSE(key: string, signal?: AbortSignal): AsyncGenerator<RestoreProgressEvent> {
-  const response = await apiFetchResponse('/api/v1/settings/backup/automatic/files/restore', {
+export type AutomaticRestoreTask = {
+  id: string
+  key: string
+  filename: string
+  status: 'running' | 'canceling' | 'canceled' | 'completed' | 'failed'
+  started_at: string
+  finished_at?: string
+  progress: RestoreProgressEvent
+  summary?: BackupImportSummary
+  error?: string
+  cancellable: boolean
+}
+
+export async function startAutomaticBackupRestore(key: string, signal?: AbortSignal) {
+  return apiFetch<{ restore: AutomaticRestoreTask }>('/api/v1/settings/backup/automatic/files/restore', {
     method: 'POST',
-    headers: { Accept: 'text/event-stream' },
     body: { key },
     signal,
   })
-  for await (const event of readRestoreProgress(response)) {
-    yield event
-  }
+}
+
+export async function fetchAutomaticBackupRestoreTask(taskID: string, signal?: AbortSignal) {
+  return apiFetch<{ restore: AutomaticRestoreTask }>(`/api/v1/settings/backup/automatic/files/restore/${encodeURIComponent(taskID)}`, { signal })
+}
+
+export async function fetchActiveAutomaticBackupRestoreTask(signal?: AbortSignal) {
+  return apiFetch<{ restore: AutomaticRestoreTask | null }>('/api/v1/settings/backup/automatic/files/restore/active', { signal })
+}
+
+export async function cancelAutomaticBackupRestoreTask(taskID: string) {
+  return apiFetch<{ restore: AutomaticRestoreTask }>(`/api/v1/settings/backup/automatic/files/restore/${encodeURIComponent(taskID)}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function* importBackupSSE(input: { file: File; passphrase: string }, signal?: AbortSignal): AsyncGenerator<RestoreProgressEvent> {

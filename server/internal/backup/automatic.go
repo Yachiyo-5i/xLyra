@@ -1,7 +1,6 @@
 package backup
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -17,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	automaticBackupTimeout = 10 * time.Minute
-	automaticTaskRetention = time.Hour
+	automaticBackupTimeout  = 10 * time.Minute
+	automaticRestoreTimeout = 30 * time.Minute
+	automaticTaskRetention  = time.Hour
 )
 
 type AutomaticConfigInput struct {
@@ -93,6 +94,27 @@ type AutomaticRunTask struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
+type AutomaticRestoreTask struct {
+	ID          string         `json:"id"`
+	Key         string         `json:"key"`
+	Filename    string         `json:"filename"`
+	Status      string         `json:"status"`
+	StartedAt   time.Time      `json:"started_at"`
+	FinishedAt  *time.Time     `json:"finished_at,omitempty"`
+	Progress    ProgressEvent  `json:"progress"`
+	Summary     *ImportSummary `json:"summary,omitempty"`
+	Error       string         `json:"error,omitempty"`
+	Cancellable bool           `json:"cancellable"`
+}
+
+type restoreTaskControl struct {
+	mu          sync.Mutex
+	ctx         context.Context
+	cancel      context.CancelFunc
+	cancellable bool
+	canceled    bool
+}
+
 type automaticBackupVersion struct {
 	Key            string
 	VersionID      string
@@ -101,18 +123,25 @@ type automaticBackupVersion struct {
 }
 
 type AutomaticService struct {
-	base        Service
-	credentials credential.Service
-	running     atomic.Bool
-	tasksMu     sync.Mutex
-	tasks       map[string]AutomaticBackupFile
+	base            Service
+	credentials     credential.Service
+	operationMu     sync.Mutex
+	running         atomic.Bool
+	restoring       atomic.Bool
+	tasksMu         sync.Mutex
+	tasks           map[string]AutomaticBackupFile
+	restoreTasksMu  sync.Mutex
+	restoreTasks    map[string]AutomaticRestoreTask
+	restoreControls map[string]*restoreTaskControl
 }
 
 func NewAutomaticService(base Service, masterKey string) *AutomaticService {
 	return &AutomaticService{
-		base:        base,
-		credentials: credential.NewService(masterKey),
-		tasks:       make(map[string]AutomaticBackupFile),
+		base:            base,
+		credentials:     credential.NewService(masterKey),
+		tasks:           make(map[string]AutomaticBackupFile),
+		restoreTasks:    make(map[string]AutomaticRestoreTask),
+		restoreControls: make(map[string]*restoreTaskControl),
 	}
 }
 
@@ -189,18 +218,18 @@ func (s *AutomaticService) ListFiles(ctx context.Context) ([]AutomaticBackupFile
 }
 
 func (s *AutomaticService) RunNow() (AutomaticRunTask, error) {
-	if !s.running.CompareAndSwap(false, true) {
+	if !s.beginBackup() {
 		return AutomaticRunTask{}, ErrAutomaticAlreadyRunning
 	}
 
 	cfg, client, err := s.readyClient()
 	if err != nil {
-		s.running.Store(false)
+		s.endBackup()
 		return AutomaticRunTask{}, err
 	}
 	passphrase, err := s.decryptBackupPassphrase(cfg)
 	if err != nil {
-		s.running.Store(false)
+		s.endBackup()
 		return AutomaticRunTask{}, err
 	}
 
@@ -216,7 +245,7 @@ func (s *AutomaticService) RunNow() (AutomaticRunTask, error) {
 	s.storeTaskFile(taskFile)
 
 	go func() {
-		defer s.running.Store(false)
+		defer s.endBackup()
 		ctx, cancel := context.WithTimeout(context.Background(), automaticBackupTimeout)
 		defer cancel()
 		_, err := s.run(ctx, cfg, client, passphrase, startedAt)
@@ -238,10 +267,10 @@ func (s *AutomaticService) RunNow() (AutomaticRunTask, error) {
 }
 
 func (s *AutomaticService) RunScheduled(ctx context.Context) (AutomaticRunResult, error) {
-	if !s.running.CompareAndSwap(false, true) {
+	if !s.beginBackup() {
 		return AutomaticRunResult{}, ErrAutomaticAlreadyRunning
 	}
-	defer s.running.Store(false)
+	defer s.endBackup()
 
 	cfg, client, err := s.readyClient()
 	if err != nil {
@@ -317,12 +346,142 @@ func (s *AutomaticService) run(ctx context.Context, cfg config.AutomaticBackupCo
 	return result, nil
 }
 
-func (s *AutomaticService) Restore(ctx context.Context, key string) (ImportSummary, error) {
-	return s.restore(ctx, key, nil)
+func (s *AutomaticService) StartRestore(key string) (AutomaticRestoreTask, error) {
+	cfg, client, err := s.readyClient()
+	if err != nil {
+		return AutomaticRestoreTask{}, err
+	}
+	key, err = normalizeBackupObjectKey(cfg.Storage.Prefix, key)
+	if err != nil {
+		return AutomaticRestoreTask{}, err
+	}
+	passphrase, err := s.decryptBackupPassphrase(cfg)
+	if err != nil {
+		return AutomaticRestoreTask{}, err
+	}
+	task := AutomaticRestoreTask{
+		ID:          uuid.NewString(),
+		Key:         key,
+		Filename:    path.Base(key),
+		Status:      "running",
+		StartedAt:   time.Now().UTC(),
+		Progress:    ProgressEvent{Step: "download", Status: "in_progress"},
+		Cancellable: true,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), automaticRestoreTimeout)
+	control := &restoreTaskControl{ctx: ctx, cancel: cancel, cancellable: true}
+	result, started, err := s.beginRestoreTask(task, control)
+	if err != nil {
+		cancel()
+		return AutomaticRestoreTask{}, err
+	}
+	if !started {
+		cancel()
+		return result, nil
+	}
+
+	go func() {
+		defer cancel()
+		progress := func(event ProgressEvent) {
+			s.updateRestoreTask(task.ID, func(current *AutomaticRestoreTask) {
+				current.Progress = event
+			})
+		}
+		beforeCommit := func() error {
+			err := control.disable()
+			s.updateRestoreTask(task.ID, func(current *AutomaticRestoreTask) {
+				current.Cancellable = false
+			})
+			return err
+		}
+		summary, restoreErr := s.restoreWithClient(ctx, cfg, client, key, passphrase, beforeCommit, progress)
+		wasCanceled := control.finish()
+		s.finishRestoreTask(task.ID, summary, restoreErr, wasCanceled)
+	}()
+
+	return result, nil
 }
 
-func (s *AutomaticService) RestoreWithProgress(ctx context.Context, key string, progress ProgressFunc) (ImportSummary, error) {
-	return s.restore(ctx, key, progress)
+func (s *AutomaticService) finishRestoreTask(id string, summary ImportSummary, restoreErr error, wasCanceled bool) {
+	finishedAt := time.Now().UTC()
+	s.updateRestoreTask(id, func(current *AutomaticRestoreTask) {
+		current.FinishedAt = &finishedAt
+		current.Cancellable = false
+		if restoreErr != nil {
+			current.Status = "failed"
+			current.Error = restoreErr.Error()
+			current.Progress.Status = "error"
+			current.Progress.Message = restoreErr.Error()
+			if wasCanceled {
+				current.Status = "canceled"
+				current.Error = "restore canceled; database changes were rolled back"
+				current.Progress.Message = current.Error
+			}
+		} else {
+			current.Status = "completed"
+			current.Summary = &summary
+		}
+	})
+	s.removeRestoreControl(id)
+	s.endRestore()
+}
+
+func (s *AutomaticService) CancelRestoreTask(id string) (AutomaticRestoreTask, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return AutomaticRestoreTask{}, ErrRestoreTaskNotFound
+	}
+	s.restoreTasksMu.Lock()
+	_, ok := s.restoreTasks[id]
+	control := s.restoreControls[id]
+	s.restoreTasksMu.Unlock()
+	if !ok {
+		return AutomaticRestoreTask{}, ErrRestoreTaskNotFound
+	}
+	if control == nil || !control.requestCancel() {
+		return AutomaticRestoreTask{}, ErrRestoreCannotCancel
+	}
+	s.updateRestoreTask(id, func(current *AutomaticRestoreTask) {
+		current.Status = "canceling"
+		current.Cancellable = false
+	})
+	return s.GetRestoreTask(id)
+}
+
+func (s *AutomaticService) GetRestoreTask(id string) (AutomaticRestoreTask, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return AutomaticRestoreTask{}, ErrRestoreTaskNotFound
+	}
+	s.restoreTasksMu.Lock()
+	defer s.restoreTasksMu.Unlock()
+	now := time.Now().UTC()
+	for taskID, task := range s.restoreTasks {
+		if task.FinishedAt != nil && now.Sub(*task.FinishedAt) > automaticTaskRetention {
+			delete(s.restoreTasks, taskID)
+		}
+	}
+	task, ok := s.restoreTasks[id]
+	if !ok {
+		return AutomaticRestoreTask{}, ErrRestoreTaskNotFound
+	}
+	return cloneAutomaticRestoreTask(task), nil
+}
+
+func (s *AutomaticService) GetActiveRestoreTask() (AutomaticRestoreTask, bool) {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if !s.restoring.Load() {
+		return AutomaticRestoreTask{}, false
+	}
+	s.restoreTasksMu.Lock()
+	defer s.restoreTasksMu.Unlock()
+	for _, task := range s.restoreTasks {
+		if task.FinishedAt == nil && (task.Status == "running" || task.Status == "canceling") {
+			return cloneAutomaticRestoreTask(task), true
+		}
+	}
+	return AutomaticRestoreTask{}, false
 }
 
 type restoreDownloadCounter struct {
@@ -341,21 +500,7 @@ func (c *restoreDownloadCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (s *AutomaticService) restore(ctx context.Context, key string, progress ProgressFunc) (ImportSummary, error) {
-	cfg, client, err := s.readyClient()
-	if err != nil {
-		return ImportSummary{}, err
-	}
-	key, err = normalizeBackupObjectKey(cfg.Storage.Prefix, key)
-	if err != nil {
-		return ImportSummary{}, err
-	}
-	passphrase, err := s.decryptBackupPassphrase(cfg)
-	if err != nil {
-		return ImportSummary{}, err
-	}
-	ctx, cancel := context.WithTimeout(ctx, automaticBackupTimeout)
-	defer cancel()
+func (s *AutomaticService) restoreWithClient(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, key string, passphrase string, beforeCommit func() error, progress ProgressFunc) (ImportSummary, error) {
 
 	if progress != nil {
 		progress(ProgressEvent{Step: "download", Status: "in_progress", Message: "Downloading backup file from storage"})
@@ -377,24 +522,24 @@ func (s *AutomaticService) restore(ctx context.Context, key string, progress Pro
 		progress(ProgressEvent{Step: "download", Status: "in_progress", Total: stat.Size})
 	}
 	counter := &restoreDownloadCounter{progress: progress, total: stat.Size, next: 4 << 20}
-	var dataBuffer bytes.Buffer
-	if stat.Size > 0 && stat.Size <= int64(^uint(0)>>1) {
-		dataBuffer.Grow(int(stat.Size))
+	importProgress := progress
+	if progress != nil {
+		importProgress = func(event ProgressEvent) {
+			if event.Step == "decrypt" && event.Status == "complete" {
+				progress(ProgressEvent{Step: "download", Status: "complete", Bytes: counter.read, Total: stat.Size})
+			}
+			progress(event)
+		}
 	}
-	_, err = io.Copy(&dataBuffer, io.TeeReader(io.LimitReader(object, MaxImportBytes+1), counter))
+	reader := io.TeeReader(io.LimitReader(object, MaxImportBytes+1), counter)
+	summary, err := s.base.importReaderLocked(ctx, passphrase, reader, beforeCommit, importProgress)
 	if err != nil {
-		return ImportSummary{}, fmt.Errorf("read backup from S3: %w", err)
+		return ImportSummary{}, err
 	}
 	if err := validateRestoreObjectSize(counter.read); err != nil {
 		return ImportSummary{}, err
 	}
-	data := dataBuffer.Bytes()
-
-	if progress != nil {
-		progress(ProgressEvent{Step: "download", Status: "complete", Bytes: counter.read, Total: stat.Size})
-	}
-
-	return s.base.Import(ctx, passphrase, data, progress)
+	return summary, nil
 }
 
 func validateRestoreObjectSize(size int64) error {
@@ -402,6 +547,148 @@ func validateRestoreObjectSize(size int64) error {
 		return fmt.Errorf("backup file size %d exceeds maximum %d", size, MaxImportBytes)
 	}
 	return nil
+}
+
+func (s *AutomaticService) beginBackup() bool {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if s.running.Load() || s.restoring.Load() {
+		return false
+	}
+	if !beginSharedOperation(s.base.db) {
+		return false
+	}
+	s.running.Store(true)
+	return true
+}
+
+func (s *AutomaticService) endBackup() {
+	s.operationMu.Lock()
+	s.running.Store(false)
+	endSharedOperation(s.base.db)
+	s.operationMu.Unlock()
+}
+
+func (s *AutomaticService) beginRestore() bool {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if s.running.Load() || s.restoring.Load() {
+		return false
+	}
+	if !beginSharedOperation(s.base.db) {
+		return false
+	}
+	s.restoring.Store(true)
+	return true
+}
+
+func (s *AutomaticService) beginRestoreTask(task AutomaticRestoreTask, control *restoreTaskControl) (AutomaticRestoreTask, bool, error) {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
+	if s.running.Load() {
+		return AutomaticRestoreTask{}, false, ErrAutomaticAlreadyRunning
+	}
+	if s.restoring.Load() {
+		s.restoreTasksMu.Lock()
+		defer s.restoreTasksMu.Unlock()
+		for _, current := range s.restoreTasks {
+			if current.FinishedAt == nil && current.Key == task.Key && (current.Status == "running" || current.Status == "canceling") {
+				return cloneAutomaticRestoreTask(current), false, nil
+			}
+		}
+		return AutomaticRestoreTask{}, false, ErrAutomaticAlreadyRunning
+	}
+	if !beginSharedOperation(s.base.db) {
+		return AutomaticRestoreTask{}, false, ErrAutomaticAlreadyRunning
+	}
+	s.restoring.Store(true)
+	s.storeRestoreTask(task, control)
+	return cloneAutomaticRestoreTask(task), true, nil
+}
+
+func (s *AutomaticService) endRestore() {
+	s.operationMu.Lock()
+	s.restoring.Store(false)
+	endSharedOperation(s.base.db)
+	s.operationMu.Unlock()
+}
+
+func (s *AutomaticService) storeRestoreTask(task AutomaticRestoreTask, control *restoreTaskControl) {
+	s.restoreTasksMu.Lock()
+	defer s.restoreTasksMu.Unlock()
+	if s.restoreTasks == nil {
+		s.restoreTasks = make(map[string]AutomaticRestoreTask)
+	}
+	if s.restoreControls == nil {
+		s.restoreControls = make(map[string]*restoreTaskControl)
+	}
+	s.restoreTasks[task.ID] = cloneAutomaticRestoreTask(task)
+	s.restoreControls[task.ID] = control
+}
+
+func (s *AutomaticService) updateRestoreTask(id string, update func(*AutomaticRestoreTask)) {
+	s.restoreTasksMu.Lock()
+	defer s.restoreTasksMu.Unlock()
+	task, ok := s.restoreTasks[id]
+	if !ok {
+		return
+	}
+	update(&task)
+	s.restoreTasks[id] = cloneAutomaticRestoreTask(task)
+}
+
+func (s *AutomaticService) removeRestoreControl(id string) {
+	s.restoreTasksMu.Lock()
+	delete(s.restoreControls, id)
+	s.restoreTasksMu.Unlock()
+}
+
+func (c *restoreTaskControl) requestCancel() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.cancellable {
+		return false
+	}
+	c.cancellable = false
+	c.canceled = true
+	c.cancel()
+	return true
+}
+
+func (c *restoreTaskControl) disable() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cancellable = false
+	return c.ctx.Err()
+}
+
+func (c *restoreTaskControl) wasCanceled() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.canceled
+}
+
+func (c *restoreTaskControl) finish() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cancellable = false
+	return c.canceled
+}
+
+func cloneAutomaticRestoreTask(task AutomaticRestoreTask) AutomaticRestoreTask {
+	if task.FinishedAt != nil {
+		finishedAt := *task.FinishedAt
+		task.FinishedAt = &finishedAt
+	}
+	if task.Summary != nil {
+		summary := *task.Summary
+		task.Summary = &summary
+	}
+	if task.Progress.Summary != nil {
+		summary := *task.Progress.Summary
+		task.Progress.Summary = &summary
+	}
+	return task
 }
 
 func (s *AutomaticService) Delete(ctx context.Context, key string) error {
@@ -917,4 +1204,6 @@ func IsAlreadyRunningError(err error) bool {
 	return err != nil && errors.Is(err, ErrAutomaticAlreadyRunning)
 }
 
-var ErrAutomaticAlreadyRunning = errors.New("automatic backup is already running")
+var ErrAutomaticAlreadyRunning = errors.New("automatic backup or restore is already running")
+var ErrRestoreTaskNotFound = errors.New("automatic restore task not found")
+var ErrRestoreCannotCancel = errors.New("automatic restore can no longer be canceled")
