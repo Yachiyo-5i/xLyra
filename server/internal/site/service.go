@@ -56,6 +56,7 @@ type CreateSiteParams struct {
 	RequestHeaders  map[string]string
 	Credential      *CredentialInput
 	Credentials     []CredentialInput
+	QueueSync       bool
 }
 
 type UpdateSiteParams struct {
@@ -516,10 +517,6 @@ func (s *Service) Create(ctx context.Context, params CreateSiteParams) (store.Si
 		}
 
 		created = site
-		if len(credentials) == 0 {
-			return nil
-		}
-
 		for index, input := range credentials {
 			credential, err := s.saveCredentialInput(ctx, credentialRepo, site.ID, input)
 			if err != nil {
@@ -537,6 +534,20 @@ func (s *Service) Create(ctx context.Context, params CreateSiteParams) (store.Si
 			}
 			if index == 0 {
 				savedCredential = &credential
+			}
+		}
+		if params.QueueSync {
+			if _, err := store.NewSiteStateRepository(tx).Upsert(ctx, store.UpsertSiteStateParams{
+				SiteID:     site.ID,
+				SyncStatus: "pending",
+			}); err != nil {
+				return err
+			}
+			if _, err := store.NewSiteSyncJobRepository(tx).Enqueue(ctx, store.EnqueueSiteSyncJobParams{
+				Kind:   store.SiteSyncJobKindSiteRefresh,
+				SiteID: site.ID,
+			}); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -855,6 +866,7 @@ type CreateAPIKeyInput struct {
 	RoutingPriority        *float64
 	UpstreamCostMultiplier *float64
 	CacheDomain            string
+	QueueSync              bool
 }
 
 type UpdateAPIKeyInput struct {
@@ -942,6 +954,20 @@ func (s *Service) CreateAPIKey(ctx context.Context, siteID uuid.UUID, input Crea
 			return err
 		}
 		created = credential
+		if input.QueueSync {
+			enabled := credentialEnabledFromMeta(credential.Meta)
+			if _, err := store.NewSiteAPIKeyStateRepository(tx).MarkSyncPending(ctx, siteID, credential.ID, enabled); err != nil {
+				return err
+			}
+			credentialID := credential.ID
+			if _, err := store.NewSiteSyncJobRepository(tx).Enqueue(ctx, store.EnqueueSiteSyncJobParams{
+				Kind:             store.SiteSyncJobKindAPIKeyRefresh,
+				SiteID:           siteID,
+				SiteCredentialID: &credentialID,
+			}); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -1918,10 +1944,28 @@ func (s *Service) SetAPIKeySecret(ctx context.Context, siteID uuid.UUID, credent
 	meta["manually_completed"] = true
 	delete(meta, "upstream_masked_key")
 
-	updated, err := s.saveCredentialInput(ctx, store.NewSiteCredentialRepository(s.db.DB()), siteID, CredentialInput{
-		Type:   credential.CredentialType,
-		Secret: secret,
-		Meta:   meta,
+	var updated store.SiteCredential
+	err = s.db.WithinTx(ctx, func(tx store.Tx) error {
+		saved, err := s.saveCredentialInput(ctx, store.NewSiteCredentialRepository(tx), siteID, CredentialInput{
+			Type:   credential.CredentialType,
+			Secret: secret,
+			Meta:   meta,
+		})
+		if err != nil {
+			return err
+		}
+		updated = saved
+		enabled := credentialEnabledFromMeta(saved.Meta)
+		if _, err := store.NewSiteAPIKeyStateRepository(tx).MarkSyncPending(ctx, siteID, saved.ID, enabled); err != nil {
+			return err
+		}
+		queuedCredentialID := saved.ID
+		_, err = store.NewSiteSyncJobRepository(tx).Enqueue(ctx, store.EnqueueSiteSyncJobParams{
+			Kind:             store.SiteSyncJobKindAPIKeyRefresh,
+			SiteID:           siteID,
+			SiteCredentialID: &queuedCredentialID,
+		})
+		return err
 	})
 	if err != nil {
 		return APIKeyCredential{}, err

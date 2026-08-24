@@ -31,7 +31,8 @@
       "refreshPartialFailed": "一部のサイト更新に失敗しました",
       "refreshPartialDesc": "{{count}} サイトの更新に失敗しました",
       "refreshPartialDescFallback": "一部のサイト更新に失敗しました",
-      "statusFailed": "サイト状態の更新に失敗しました"
+      "statusFailed": "サイト状態の更新に失敗しました",
+      "syncQueued": "保存しました。バックグラウンドで同期しています"
     }
   },
   "table": {
@@ -51,7 +52,9 @@
     "health": {
       "unchecked": "未確認",
       "healthy": "正常",
-      "abnormal": "Abnormal"
+      "abnormal": "Abnormal",
+      "pending": "同期待ち",
+      "syncing": "同期中"
     },
     "quotaDetails": {
       "keyAvailable": "キーの利用可能枠",
@@ -229,6 +232,7 @@
     "toast": {
       "createFailed": "API キー作成に失敗しました",
       "created": "API キーを作成しました",
+      "syncQueued": "API キーを保存しました。バックグラウンドで同期しています",
       "deleteFailed": "API キー削除に失敗しました",
       "deleted": "API キーを削除しました",
       "updateFailed": "API キー更新に失敗しました",
@@ -250,7 +254,9 @@
       "failed": "失敗",
       "partial": "一部",
       "stale": "上流で削除済み",
-      "unknown": "未同期"
+      "unknown": "未同期",
+      "pending": "同期待ち",
+      "syncing": "同期中"
     }
   },
   "grokAccounts": {

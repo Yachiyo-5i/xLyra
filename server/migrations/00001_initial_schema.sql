@@ -271,6 +271,25 @@ CREATE TABLE site_api_key_states (
 CREATE INDEX site_api_key_states_site_id_idx ON site_api_key_states (site_id);
 CREATE INDEX site_api_key_states_upstream_id_idx ON site_api_key_states (site_id, upstream_id);
 
+CREATE TABLE site_sync_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind TEXT NOT NULL,
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  site_credential_id UUID REFERENCES site_credentials(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  active_key TEXT UNIQUE,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  rerun_requested BOOLEAN NOT NULL DEFAULT FALSE,
+  error TEXT,
+  started_at TIMESTAMPTZ,
+  finished_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX site_sync_jobs_status_created_idx ON site_sync_jobs (status, created_at);
+CREATE INDEX site_sync_jobs_site_id_idx ON site_sync_jobs (site_id);
+
 CREATE TABLE canonical_models (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   model_key TEXT NOT NULL,
