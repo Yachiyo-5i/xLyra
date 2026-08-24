@@ -148,6 +148,36 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure request_usage_hourly_summaries table: %w", err)
 		}
 	}
+	for _, model := range []any{
+		&PlaygroundConversation{},
+		&PlaygroundRun{},
+		&PlaygroundTurnIndex{},
+		&PlaygroundAsset{},
+	} {
+		if migrator.HasTable(model) {
+			continue
+		}
+		if err := migrator.CreateTable(model); err != nil {
+			return fmt.Errorf("ensure playground persistence table: %w", err)
+		}
+	}
+	for _, index := range []struct {
+		model any
+		name  string
+	}{
+		{&PlaygroundConversation{}, "playground_conversations_admin_updated_idx"},
+		{&PlaygroundRun{}, "playground_runs_conversation_idempotency_idx"},
+		{&PlaygroundRun{}, "playground_runs_conversation_created_idx"},
+		{&PlaygroundRun{}, "idx_playground_runs_status"},
+		{&PlaygroundTurnIndex{}, "idx_playground_turn_indexes_conversation_id"},
+		{&PlaygroundTurnIndex{}, "idx_playground_turn_indexes_run_id"},
+		{&PlaygroundAsset{}, "idx_playground_assets_conversation_id"},
+		{&PlaygroundAsset{}, "idx_playground_assets_run_id"},
+	} {
+		if err := ensureSchemaIndex(migrator, index.model, index.name); err != nil {
+			return err
+		}
+	}
 	if err := ensureSchemaIndex(migrator, &RequestUsageDailySummary{}, "request_usage_daily_summaries_bucket_idx"); err != nil {
 		return err
 	}

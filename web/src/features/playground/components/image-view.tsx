@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, Download, ImagePlus, Loader2, Paperclip, Pencil } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button'
 import { TextArea } from '@/components/ui/textarea'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { APIError } from '@/lib/http'
-import { editImage, generateImage } from '@/features/playground/api/playground'
+import {
+  cancelServerRun,
+  followServerConversation,
+  getServerConversation,
+  startServerTurn,
+  type PlaygroundRolloutEvent,
+  type ServerConversationView,
+} from '@/features/playground/api/playground'
 import { Composer } from '@/features/playground/components/composer'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { ModelParameterPicker } from '@/features/playground/components/model-parameter-picker'
@@ -19,7 +26,6 @@ import { CollapsibleUserMessage } from '@/features/playground/components/collaps
 import { newId } from '@/features/playground/lib/storage'
 import {
   formatResponseDuration,
-  RESPONSE_TIMER_REVEAL_MS,
   RESPONSE_TIMER_TICK_MS,
   responseTimestamp,
 } from '@/features/playground/lib/response-timing'
@@ -27,7 +33,6 @@ import { useStickToBottom } from '@/hooks/use-stick-to-bottom'
 import type { GatewayModel, ImageConversation, ImageHistoryEntry } from '@/features/playground/lib/types'
 
 type ImageViewProps = {
-  apiKey: string | null
   apiKeys: Array<{ id: string; name: string }>
   apiKeyId: string | null
   onAPIKeyChange: (id: string) => void
@@ -96,8 +101,19 @@ function ImageAttachment({
   )
 }
 
+async function resyncServerConversation(
+  id: string,
+  apply: (view: ServerConversationView) => void,
+): Promise<'ok' | 'missing' | 'error'> {
+  try {
+    apply(await getServerConversation(id))
+    return 'ok'
+  } catch (lookup) {
+    return lookup instanceof APIError && lookup.status === 404 ? 'missing' : 'error'
+  }
+}
+
 export function ImageView({
-  apiKey,
   apiKeys,
   apiKeyId,
   onAPIKeyChange,
@@ -111,20 +127,29 @@ export function ImageView({
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState('auto')
   const [files, setFiles] = useState<File[]>([])
-  const [submitting, setSubmitting] = useState(false)
-  const [submittingEntryId, setSubmittingEntryId] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [submittingElapsedMs, setSubmittingElapsedMs] = useState<number | null>(null)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
+  const [stopRequested, setStopRequested] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { handleScroll, scrollToBottom, scrollToBottomIfStuck } = useStickToBottom(scrollRef)
 
   const isEmpty = conversation.entries.length === 0
-  const canSubmit = Boolean(apiKey && model && prompt.trim() && !submitting)
+  const runActive = conversation.activeRun?.status === 'queued' || conversation.activeRun?.status === 'running'
+  const submitting = starting || runActive
+  const submittingEntryId = submitting ? conversation.entries[conversation.entries.length - 1]?.id ?? null : null
+  const canSubmit = Boolean(apiKeyId && model && prompt.trim() && !submitting)
   const modelsById = useMemo(() => new Map(models.map((item) => [item.id, item])), [models])
+  const subscriptionState = useEffectEvent(() => ({
+    id: conversation.id,
+    lastOrdinal: conversation.lastOrdinal ?? 0,
+    run: conversation.activeRun,
+  }))
 
   const lastImageSrc = useMemo(() => {
     for (let index = conversation.entries.length - 1; index >= 0; index -= 1) {
@@ -134,8 +159,7 @@ export function ImageView({
     return null
   }, [conversation.entries])
 
-  const carrySource =
-    files.length === 0 && lastImageSrc && lastImageSrc.startsWith('data:') ? lastImageSrc : null
+  const carrySource = files.length === 0 ? lastImageSrc : null
 
   useEffect(() => {
     scrollToBottom()
@@ -146,6 +170,31 @@ export function ImageView({
   }, [conversation.entries, submitting, scrollToBottomIfStuck])
 
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  useEffect(() => {
+    if (!stopRequested) return
+    const run = conversation.activeRun
+    if (!run) return
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      if (run.status === 'queued' || run.status === 'running') {
+        void cancelServerRun(run.id)
+      }
+      setStopRequested(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [stopRequested, conversation.activeRun])
+
+  useEffect(() => {
+    if (!submitting) return
+    const startedAt = conversation.activeRun?.created_at ?? Date.now()
+    const update = () => setSubmittingElapsedMs(Math.max(0, Date.now() - startedAt))
+    const interval = window.setInterval(update, RESPONSE_TIMER_TICK_MS)
+    return () => window.clearInterval(interval)
+  }, [submitting, conversation.activeRun?.created_at])
 
   const addFiles = (list: FileList | File[] | null) => {
     if (!list) return
@@ -169,28 +218,97 @@ export function ImageView({
     }))
   }
 
+  const applyServerView = useCallback((view: ServerConversationView) => {
+    if (!view.image) return
+    const next = {
+      ...view.image,
+      serverPersisted: true,
+      lastOrdinal: view.last_ordinal,
+      activeRun: view.run,
+    }
+    onChange(() => next)
+  }, [onChange])
+
+  const applyRolloutEvent = useCallback((event: PlaygroundRolloutEvent) => {
+    onChange((current) => {
+      let entries = current.entries
+      if (event.type === 'image_final') {
+        const final = event.payload as ImageHistoryEntry
+        entries = entries.map((entry) => entry.id === final.id ? final : entry)
+      }
+      if (event.type === 'turn_failed' || event.type === 'turn_cancelled' || event.type === 'turn_interrupted') {
+        const payload = event.payload as { entry_id?: string; error?: string; response_duration_ms?: number }
+        entries = entries.map((entry) => entry.id === payload.entry_id ? {
+          ...entry,
+          pending: false,
+          error: payload.error,
+          responseDurationMs: payload.response_duration_ms,
+        } : entry)
+      }
+      return { ...current, entries, lastOrdinal: event.ordinal, updatedAt: Date.now() }
+    })
+  }, [onChange])
+
+  useEffect(() => {
+    const current = subscriptionState()
+    const run = current.run
+    const active = run?.status === 'queued' || run?.status === 'running'
+    if (!active || !run) return
+    const controller = new AbortController()
+    abortRef.current?.abort()
+    abortRef.current = controller
+    let cursor = current.lastOrdinal ?? 0
+    let terminal = false
+    const follow = async () => {
+      while (!controller.signal.aborted && !terminal) {
+        try {
+          await followServerConversation(
+            current.id,
+            cursor,
+            controller.signal,
+            (event) => {
+              cursor = Math.max(cursor, event.ordinal)
+              applyRolloutEvent(event)
+            },
+            (nextRun) => {
+              terminal = nextRun.status !== 'queued' && nextRun.status !== 'running'
+            },
+          )
+          const view = await getServerConversation(current.id)
+          applyServerView(view)
+          terminal = view.run?.status !== 'queued' && view.run?.status !== 'running'
+        } catch {
+          if (controller.signal.aborted) return
+          await new Promise((resolve) => window.setTimeout(resolve, 750))
+        }
+      }
+    }
+    void follow()
+    return () => controller.abort()
+  }, [conversation.id, conversation.activeRun?.id, conversation.activeRun?.status, applyRolloutEvent, applyServerView])
+
   const runEntry = async ({
     entryId,
     text,
     requestModel,
     requestSize,
     mode,
-    sourceFiles,
     sourceImages,
     append,
     startedAt,
+    createdAt,
   }: {
     entryId: string
     text: string
     requestModel: string
     requestSize: string
     mode: ImageHistoryEntry['mode']
-    sourceFiles: File[]
     sourceImages: string[]
     append: boolean
     startedAt: number
+    createdAt: number
   }) => {
-    if (!apiKey || submitting) return
+    if (!apiKeyId || submitting) return
 
     if (append) {
       onChange((current) => ({
@@ -227,64 +345,69 @@ export function ImageView({
       })
     }
 
-    setSubmittingEntryId(entryId)
-    setSubmittingElapsedMs(null)
-    setSubmitting(true)
+    setStarting(true)
+    setSendError(null)
     scrollToBottom()
 
-    let elapsedIntervalId: number | null = null
-    const updateElapsed = () => setSubmittingElapsedMs(Math.round(responseTimestamp() - startedAt))
-    const revealTimerId = window.setTimeout(() => {
-      updateElapsed()
-      elapsedIntervalId = window.setInterval(updateElapsed, RESPONSE_TIMER_TICK_MS)
-    }, RESPONSE_TIMER_REVEAL_MS)
-
-    const controller = new AbortController()
-    abortRef.current = controller
     try {
-      const result =
-        mode === 'generation'
-          ? await generateImage({ apiKey, model: requestModel, prompt: text, size: requestSize, signal: controller.signal })
-          : await editImage({ apiKey, model: requestModel, prompt: text, images: sourceFiles, size: requestSize, signal: controller.signal })
-      patchEntry(entryId, { images: result.images, siteName: result.siteName, pending: false })
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        if (append) {
-          onChange((current) => ({
-            ...current,
-            entries: current.entries.filter((entry) => entry.id !== entryId),
-          }))
-        } else {
-          patchEntry(entryId, { pending: false, error: t('image.errorGeneric') })
-        }
-      } else {
-        const messageText =
-          err instanceof APIError || err instanceof Error ? err.message : t('image.errorGeneric')
-        patchEntry(entryId, { pending: false, error: messageText })
+      const nextEntry: ImageHistoryEntry = {
+        id: entryId,
+        mode,
+        model: requestModel,
+        prompt: text,
+        size: requestSize,
+        sourceImages,
+        images: [],
+        pending: true,
+        createdAt,
       }
-    } finally {
-      window.clearTimeout(revealTimerId)
-      if (elapsedIntervalId !== null) window.clearInterval(elapsedIntervalId)
-      patchEntry(entryId, { responseDurationMs: Math.round(responseTimestamp() - startedAt) })
-      setSubmittingElapsedMs(null)
-      setSubmittingEntryId(null)
-      setSubmitting(false)
-      abortRef.current = null
+      const entries = append
+        ? [...conversation.entries, nextEntry]
+        : conversation.entries.map((entry) => entry.id === entryId ? nextEntry : entry)
+      const requestConversation: ImageConversation = {
+        ...conversation,
+        title: conversation.title || text.slice(0, 40),
+        entries,
+        updatedAt: createdAt,
+      }
+      const view = await startServerTurn(conversation.id, {
+        mode: 'image',
+        api_key_id: apiKeyId,
+        model: requestModel,
+        idempotency_key: newId(),
+        legacy_import: !conversation.serverPersisted,
+        image: requestConversation,
+      })
+      applyServerView(view)
+      setStarting(false)
+    } catch (err) {
+      setStarting(false)
+      setStopRequested(false)
+      const messageText = err instanceof APIError || err instanceof Error ? err.message : t('image.errorGeneric')
+      const outcome = await resyncServerConversation(conversation.id, applyServerView)
+      if (outcome === 'missing') {
+        onChange((current) => ({ ...current, serverPersisted: false }))
+        patchEntry(entryId, { pending: false, error: messageText, responseDurationMs: Math.round(responseTimestamp() - startedAt) })
+      } else {
+        setSendError(messageText)
+      }
     }
   }
 
   const handleSubmit = async () => {
-    if (!apiKey || !model || !prompt.trim() || submitting) return
+    if (!apiKeyId || !model || !prompt.trim() || submitting) return
     const startedAt = responseTimestamp()
     const text = prompt.trim()
     const sourceFiles =
       files.length > 0
         ? files
-        : carrySource
+        : carrySource?.startsWith('data:')
           ? [dataURLToFile(carrySource, 'source.png')]
           : []
-    const sourceImages = await Promise.all(sourceFiles.map(fileToDataURL))
-    const mode = sourceFiles.length > 0 ? 'edit' : 'generation'
+    const sourceImages = sourceFiles.length > 0
+      ? await Promise.all(sourceFiles.map(fileToDataURL))
+      : carrySource ? [carrySource] : []
+    const mode = sourceImages.length > 0 ? 'edit' : 'generation'
     setPrompt('')
     setFiles([])
     await runEntry({
@@ -293,10 +416,10 @@ export function ImageView({
       requestModel: model,
       requestSize: size,
       mode,
-      sourceFiles,
       sourceImages,
       append: true,
       startedAt,
+      createdAt: Date.now(),
     })
   }
 
@@ -313,10 +436,8 @@ export function ImageView({
       }
     }
     const fallbackImages = previousImages.length > 0 ? previousImages : entry.images.map((image) => image.src)
-    const sourceImages = (entry.sourceImages?.length ? entry.sourceImages : fallbackImages)
-      .filter((source) => source.startsWith('data:'))
-    const sourceFiles = sourceImages.map((source, index) => dataURLToFile(source, `source-${index + 1}.png`))
-    const mode = entry.mode === 'edit' && sourceFiles.length > 0 ? 'edit' : 'generation'
+    const sourceImages = entry.sourceImages?.length ? entry.sourceImages : fallbackImages
+    const mode = entry.mode === 'edit' && sourceImages.length > 0 ? 'edit' : 'generation'
     setEditingEntryId(null)
     await runEntry({
       entryId: entry.id,
@@ -324,24 +445,29 @@ export function ImageView({
       requestModel: entry.model,
       requestSize: entry.size ?? 'auto',
       mode,
-      sourceFiles,
       sourceImages,
       append: false,
       startedAt,
+      createdAt: entry.createdAt,
     })
   }
 
   const attachments =
-    files.length > 0 ? (
-      <div className="flex flex-wrap gap-2">
-        {files.map((file, index) => (
-          <ImageAttachment
-            key={`${file.name}-${index}`}
-            file={file}
-            removeLabel={t('image.removeFile')}
-            onRemove={() => setFiles((current) => current.filter((_, i) => i !== index))}
-          />
-        ))}
+    files.length > 0 || sendError ? (
+      <div className="space-y-2">
+        {files.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {files.map((file, index) => (
+              <ImageAttachment
+                key={`${file.name}-${index}`}
+                file={file}
+                removeLabel={t('image.removeFile')}
+                onRemove={() => setFiles((current) => current.filter((_, i) => i !== index))}
+              />
+            ))}
+          </div>
+        ) : null}
+        {sendError ? <p className="px-1 text-xs text-red-500">{sendError}</p> : null}
       </div>
     ) : null
 
@@ -386,7 +512,7 @@ export function ImageView({
           parameterValue={size}
           parameterOptions={sizeOptions}
           onParameterChange={setSize}
-          disabled={!apiKey}
+          disabled={!apiKeyId}
         />
       </div>
       <div className="min-w-0 md:hidden">
@@ -413,7 +539,14 @@ export function ImageView({
       value={prompt}
       onChange={setPrompt}
       onSubmit={() => void handleSubmit()}
-      onStop={() => abortRef.current?.abort()}
+      onStop={() => {
+        const runId = conversation.activeRun?.id
+        if (runId && runActive) {
+          void cancelServerRun(runId)
+        } else if (starting) {
+          setStopRequested(true)
+        }
+      }}
       streaming={submitting}
       canSubmit={canSubmit}
       placeholder={t('image.promptPlaceholder')}

@@ -6,6 +6,8 @@ export type ChatAttachment = {
   mimeType: string
   size: number
   dataURL?: string
+  assetId?: string
+  src?: string
 }
 
 export type ChatMessage = {
@@ -36,6 +38,9 @@ export type Conversation = {
   messages: ChatMessage[]
   createdAt: number
   updatedAt: number
+  serverPersisted?: boolean
+  lastOrdinal?: number
+  activeRun?: PlaygroundRun
 }
 
 export type GatewayModel = {
@@ -54,6 +59,7 @@ export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ult
 export type ImageResultItem = {
   id: string
   src: string
+  assetId?: string
 }
 
 export type ImageHistoryEntry = {
@@ -63,6 +69,7 @@ export type ImageHistoryEntry = {
   prompt: string
   size?: string
   sourceImages?: string[]
+  sourceAssetIds?: string[]
   images: ImageResultItem[]
   siteName?: string
   responseDurationMs?: number
@@ -77,6 +84,17 @@ export type ImageConversation = {
   entries: ImageHistoryEntry[]
   createdAt: number
   updatedAt: number
+  serverPersisted?: boolean
+  lastOrdinal?: number
+  activeRun?: PlaygroundRun
+}
+
+export type PlaygroundRun = {
+  id: string
+  status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled' | 'interrupted' | string
+  error?: string
+  created_at: number
+  completed_at?: number
 }
 
 export type PlaygroundMode = 'chat' | 'image'

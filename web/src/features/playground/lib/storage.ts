@@ -45,6 +45,8 @@ export function saveConversations(items: Conversation[]) {
         name: attachment.name,
         mimeType: attachment.mimeType,
         size: attachment.size,
+        assetId: attachment.assetId,
+        src: attachment.src,
       })),
     })),
   })))
