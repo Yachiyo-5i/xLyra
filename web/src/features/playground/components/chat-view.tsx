@@ -435,7 +435,7 @@ export function ChatView({
               disabled={!apiKeyId}
             />
           </div>
-          <div className="min-w-0 md:hidden">
+          <div className="md:hidden">
             <ModelReasoningPicker
               apiKeys={apiKeys}
               apiKeyId={apiKeyId}
@@ -446,7 +446,7 @@ export function ChatView({
               effort={effort}
               onEffortChange={onEffortChange}
               disabled={apiKeys.length === 0}
-              triggerClassName="h-11 min-w-0 w-[min(13.5rem,calc(100vw-7rem))] max-w-full"
+              triggerClassName="h-11"
             />
           </div>
         </>

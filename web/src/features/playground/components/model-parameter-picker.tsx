@@ -178,7 +178,7 @@ export function ModelParameterPicker<T extends string>({
           type="button"
           disabled={disabled}
           className={cn(
-            'inline-flex h-8 w-[15rem] max-w-[15rem] items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
+            'inline-flex h-8 w-max max-w-none items-center justify-end gap-1 rounded-full px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
             triggerClassName,
           )}
         >
@@ -189,7 +189,7 @@ export function ModelParameterPicker<T extends string>({
               ownedBy={selectedModel.ownedBy}
             />
           ) : null}
-          <span className="min-w-0 truncate text-foreground">{modelLabel}</span>
+          <span className="shrink-0 whitespace-nowrap text-foreground">{modelLabel}</span>
           <span className="shrink-0 opacity-60">· {selectedParameter?.label ?? parameterValue}</span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
         </button>
@@ -197,7 +197,7 @@ export function ModelParameterPicker<T extends string>({
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           side="top"
-          align="start"
+          align="end"
           sideOffset={8}
           collisionPadding={12}
           onClick={(event) => event.stopPropagation()}
