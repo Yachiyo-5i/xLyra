@@ -19,7 +19,7 @@ import {
   type BackupImportSummary,
 } from '@/features/settings/api/settings'
 
-type StepId = 'download' | 'decrypt' | 'parse' | 'import'
+type StepId = 'download' | 'decrypt' | 'parse' | 'import' | 'files'
 type StepState = 'pending' | 'in_progress' | 'complete' | 'error'
 type Outcome = 'running' | 'success' | 'error'
 
@@ -32,6 +32,7 @@ const STEPS: { id: StepId; tKey: string }[] = [
   { id: 'decrypt', tKey: 'backup.automatic.restoreProgress.stepDecrypt' },
   { id: 'parse', tKey: 'backup.automatic.restoreProgress.stepParse' },
   { id: 'import', tKey: 'backup.automatic.restoreProgress.stepImport' },
+  { id: 'files', tKey: 'backup.automatic.restoreProgress.stepFiles' },
 ]
 
 type RestoreProgressDialogProps = {
@@ -51,6 +52,7 @@ function initialSteps(task: RestoreTask): Record<StepId, StepState> {
     decrypt: 'pending',
     parse: 'pending',
     import: 'pending',
+    files: 'pending',
   }
 }
 

@@ -77,22 +77,23 @@ func parseArchiveContext(ctx context.Context, filename string) (archivePayload, 
 	}
 
 	dump := databaseDump{Tables: make(map[string][]map[string]any, len(exportTables)), archivePath: filename}
+	strict := payload.Manifest.FormatVersion == currentFormatVersion
 	for _, table := range backupTables {
 		if _, streamed := streamedImportTables[table.Name]; streamed {
 			// Large detail tables are streamed from the archive during import;
 			// only verify the entry exists so validation still fails fast.
-			if archiveFile(zr.File, path.Join("database", table.Name+".jsonl")) == nil {
+			if strict && archiveFile(zr.File, path.Join("database", table.Name+".jsonl")) == nil {
 				return archivePayload{}, databaseDump{}, fmt.Errorf("backup archive missing %s", path.Join("database", table.Name+".jsonl"))
 			}
 			continue
 		}
-		rows, err := decodeArchiveTable(zr.File, table.Name)
+		rows, err := decodeArchiveTable(zr.File, table.Name, strict)
 		if err != nil {
 			return archivePayload{}, databaseDump{}, err
 		}
 		dump.Tables[table.Name] = rows
 	}
-	totalRows, err := archiveTotalRows(ctx, zr.File, dump.Tables)
+	totalRows, err := archiveTotalRows(ctx, zr.File, dump.Tables, strict)
 	if err != nil {
 		return archivePayload{}, databaseDump{}, err
 	}
@@ -100,7 +101,7 @@ func parseArchiveContext(ctx context.Context, filename string) (archivePayload, 
 	return payload, dump, nil
 }
 
-func archiveTotalRows(ctx context.Context, files []*zip.File, loaded map[string][]map[string]any) (int, error) {
+func archiveTotalRows(ctx context.Context, files []*zip.File, loaded map[string][]map[string]any, strict bool) (int, error) {
 	if archiveFile(files, archiveRowCountsFile) != nil {
 		rowCounts := map[string]int{}
 		if err := decodeArchiveJSON(files, archiveRowCountsFile, &rowCounts); err != nil {
@@ -109,7 +110,13 @@ func archiveTotalRows(ctx context.Context, files []*zip.File, loaded map[string]
 		total := 0
 		for _, table := range backupTables {
 			rows, ok := rowCounts[table.Name]
-			if !ok || rows < 0 {
+			if !ok {
+				if strict {
+					return 0, fmt.Errorf("invalid row count for %s", table.Name)
+				}
+				continue
+			}
+			if rows < 0 {
 				return 0, fmt.Errorf("invalid row count for %s", table.Name)
 			}
 			total += rows
@@ -124,6 +131,12 @@ func archiveTotalRows(ctx context.Context, files []*zip.File, loaded map[string]
 		}
 		name := path.Join("database", table.Name+".jsonl")
 		file := archiveFile(files, name)
+		if file == nil {
+			if strict {
+				return 0, fmt.Errorf("backup archive missing %s", name)
+			}
+			continue
+		}
 		rows, err := countArchiveRowsContext(ctx, file)
 		if err != nil {
 			return 0, fmt.Errorf("count %s: %w", name, err)
@@ -173,19 +186,27 @@ func countArchiveRowsContext(ctx context.Context, file *zip.File) (int, error) {
 }
 
 func writeArchiveJSONFile(zw *zip.Writer, name string, value any) error {
-	w, err := zw.CreateHeader(&zip.FileHeader{
-		Name:     name,
-		Method:   zip.Deflate,
-		Modified: time.Now().UTC(),
-	})
+	w, err := createArchiveEntry(zw, name, zip.Deflate)
 	if err != nil {
-		return fmt.Errorf("write zip header %s: %w", name, err)
+		return err
 	}
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(value); err != nil {
 		return fmt.Errorf("encode %s: %w", name, err)
 	}
 	return nil
+}
+
+func createArchiveEntry(zw *zip.Writer, name string, method uint16) (io.Writer, error) {
+	w, err := zw.CreateHeader(&zip.FileHeader{
+		Name:     name,
+		Method:   method,
+		Modified: time.Now().UTC(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("write zip header %s: %w", name, err)
+	}
+	return w, nil
 }
 
 func decodeArchiveJSON(files []*zip.File, name string, dst any) error {
@@ -207,11 +228,14 @@ func decodeArchiveJSON(files []*zip.File, name string, dst any) error {
 	return nil
 }
 
-func decodeArchiveTable(files []*zip.File, table string) ([]map[string]any, error) {
+func decodeArchiveTable(files []*zip.File, table string, required bool) ([]map[string]any, error) {
 	name := path.Join("database", table+".jsonl")
 	file := archiveFile(files, name)
 	if file == nil {
-		return nil, fmt.Errorf("backup archive missing %s", name)
+		if required {
+			return nil, fmt.Errorf("backup archive missing %s", name)
+		}
+		return []map[string]any{}, nil
 	}
 	reader, err := file.Open()
 	if err != nil {

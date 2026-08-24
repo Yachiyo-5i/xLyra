@@ -182,24 +182,28 @@ func TestArchivePayloadDecodersPreserveNumbersAndReportMalformedEntries(t *testi
 		t.Fatalf("expected malformed JSON error, got %v", err)
 	}
 
-	rows, err := decodeArchiveTable(files, "sites")
+	rows, err := decodeArchiveTable(files, "sites", true)
 	if err != nil {
 		t.Fatalf("decode archive table: %v", err)
 	}
 	if len(rows) != 2 || rows[0]["id"] != "site-1" || rows[0]["priority"] != json.Number("1") {
 		t.Fatalf("unexpected decoded rows: %#v", rows)
 	}
-	emptyRows, err := decodeArchiveTable(files, "empty_table")
+	emptyRows, err := decodeArchiveTable(files, "empty_table", true)
 	if err != nil {
 		t.Fatalf("decode empty archive table: %v", err)
 	}
 	if len(emptyRows) != 0 {
 		t.Fatalf("expected empty table, got %#v", emptyRows)
 	}
-	if _, err := decodeArchiveTable(files, "missing_table"); err == nil || !strings.Contains(err.Error(), "missing database/missing_table.jsonl") {
-		t.Fatalf("expected missing table error, got %v", err)
+	missingRows, err := decodeArchiveTable(files, "missing_table", false)
+	if err != nil {
+		t.Fatalf("expected missing table to decode as empty, got %v", err)
 	}
-	if _, err := decodeArchiveTable(files, "malformed"); err == nil || !strings.Contains(err.Error(), "decode database/malformed.jsonl") {
+	if len(missingRows) != 0 {
+		t.Fatalf("expected missing table to decode as empty, got %#v", missingRows)
+	}
+	if _, err := decodeArchiveTable(files, "malformed", true); err == nil || !strings.Contains(err.Error(), "decode database/malformed.jsonl") {
 		t.Fatalf("expected malformed table error, got %v", err)
 	}
 }

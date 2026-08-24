@@ -78,7 +78,7 @@ func TestDecodeArchiveTableAcceptsEmptyFile(t *testing.T) {
 
 	rows, err := decodeArchiveTable(archivePayloadZipFiles(t, map[string]string{
 		"database/sites.jsonl": "",
-	}), "sites")
+	}), "sites", true)
 	if err != nil {
 		t.Fatalf("decodeArchiveTable empty file: %v", err)
 	}

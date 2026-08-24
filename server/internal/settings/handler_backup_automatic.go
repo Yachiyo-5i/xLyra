@@ -95,7 +95,7 @@ func (h Handler) RestoreAutomaticBackupFile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	summary, err := h.autoBackups.Restore(r.Context(), req.Key)
+	summary, err := h.autoBackups.Restore(r.Context(), req.Key, backup.ImportOptions{AdminID: adminIDFromRequest(r)})
 	if err != nil {
 		h.writeAutomaticBackupError(w, r, err)
 		return
@@ -105,7 +105,7 @@ func (h Handler) RestoreAutomaticBackupFile(w http.ResponseWriter, r *http.Reque
 
 func (h Handler) restoreAutomaticBackupFileSSE(w http.ResponseWriter, r *http.Request, key string) {
 	streamBackupRestore(w, r, "download", func(ctx context.Context, progress backup.ProgressFunc) (backup.ImportSummary, error) {
-		return h.autoBackups.RestoreWithProgress(ctx, key, progress)
+		return h.autoBackups.RestoreWithProgress(ctx, key, backup.ImportOptions{AdminID: adminIDFromRequest(r)}, progress)
 	})
 }
 

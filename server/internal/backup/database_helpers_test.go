@@ -57,8 +57,12 @@ func TestValidateDumpTablesRequiresRegisteredTables(t *testing.T) {
 	for _, table := range backupTables[1:] {
 		dump.Tables[table.Name] = nil
 	}
-	if err := validateDumpTables(dump); err == nil || !strings.Contains(err.Error(), backupTables[0].Name) {
-		t.Fatalf("expected missing registered table to be named, got %v", err)
+	if err := validateDumpTables(dump); err != nil {
+		t.Fatalf("expected missing registered table to be tolerated, got %v", err)
+	}
+	filled, ok := dump.Tables[backupTables[0].Name]
+	if !ok || filled == nil || len(filled) != 0 {
+		t.Fatalf("expected missing table to be filled with empty rows, got %#v", filled)
 	}
 
 	dump.Tables[backupTables[0].Name] = nil

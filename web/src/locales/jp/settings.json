@@ -303,6 +303,7 @@
         "stepDecrypt": "バックアップファイルを復号",
         "stepParse": "バックアップ内容を検証",
         "stepImport": "バックアップデータを書き込み",
+        "stepFiles": "セッションファイルを書き込み",
         "status": {
           "pending": "待機中",
           "in_progress": "進行中",
