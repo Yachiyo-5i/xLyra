@@ -14,7 +14,7 @@
 * 🐛 修复大文件备份还原限制并完善后台恢复体验 ([48fb46d](https://github.com/Yachiyo-5i/xLyra/commit/48fb46d783cbedc19ff94973ea89d2dee2d4abbd))
 * 🐛 修复站点与 API 密钥提交阻塞并完善后台同步体验 ([7516eb4](https://github.com/Yachiyo-5i/xLyra/commit/7516eb4ab429314d32de423e8c32671b9c51e38d))
 * 🐛 修正订阅限额冷却校准的查询写法以符合项目数据库访问规范 ([a7e48d4](https://github.com/Yachiyo-5i/xLyra/commit/a7e48d4906918fe018d93db744c768dc80481f95))
-* 修复 TokenPlan 周限额冷却时间计算错误 ([5d963e1](https://github.com/Yachiyo-5i/xLyra/commit/5d963e1151884e61acdc381ce6bb8d9e24e73622))
+* 🐛 修复 TokenPlan 周限额冷却时间计算错误 ([5d963e1](https://github.com/Yachiyo-5i/xLyra/commit/5d963e1151884e61acdc381ce6bb8d9e24e73622))
 
 ## [1.2.3](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.2...v1.2.3) (2026-08-23)
 
