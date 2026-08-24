@@ -357,7 +357,7 @@ func TestAutomaticServiceReadyClientAndRunEarlyFailures(t *testing.T) {
 		{
 			name: "restore",
 			call: func() error {
-				_, err := missingConfig.Restore(context.Background(), "xlyra/prod/xlyra-backup-20260621-030000.zip.xlyra")
+				_, err := missingConfig.StartRestore("xlyra/prod/xlyra-backup-20260621-030000.zip.xlyra")
 				return err
 			},
 		},
@@ -370,8 +370,6 @@ func TestAutomaticServiceReadyClientAndRunEarlyFailures(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			if err := tc.call(); err == nil || !strings.Contains(err.Error(), "automatic backup config") {
 				t.Fatalf("%s missing config error = %v", tc.name, err)
 			}

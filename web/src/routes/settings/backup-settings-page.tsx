@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +39,9 @@ import {
   backupDownloadURL,
   deleteAutomaticBackupFile,
   exportBackup,
+  fetchActiveAutomaticBackupRestoreTask,
   fetchAutomaticBackupConfig,
+  fetchAutomaticBackupRestoreTask,
   listAutomaticBackupFiles,
   runAutomaticBackup,
   testAutomaticBackupConfig,
@@ -49,6 +51,7 @@ import {
   type AutomaticBackupFile,
 } from '@/features/settings/api/settings'
 import {
+  type BackgroundRestoreTask,
   RestoreProgressDialog,
   type RestoreTask,
 } from '@/features/settings/components/backup/restore-progress-dialog'
@@ -105,12 +108,46 @@ export function BackupSettingsPage() {
   const [restoreTarget, setRestoreTarget] = useState<AutomaticBackupFile | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AutomaticBackupFile | null>(null)
   const [restoreTask, setRestoreTask] = useState<RestoreTask | null>(null)
+  const [backgroundRestoreTask, setBackgroundRestoreTask] = useState<BackgroundRestoreTask | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const automaticQuery = useQuery({
     queryKey: automaticBackupConfigKey,
     queryFn: fetchAutomaticBackupConfig,
   })
+  const activeRestoreQuery = useQuery({
+    queryKey: ['settings', 'backup', 'automatic', 'restore', 'active'],
+    queryFn: ({ signal }) => fetchActiveAutomaticBackupRestoreTask(signal),
+    refetchInterval: 3000,
+  })
+  const activeRestore = activeRestoreQuery.data?.restore
+  useEffect(() => {
+    if (!activeRestore) return
+    const update = window.setTimeout(() => {
+      setBackgroundRestoreTask((current) => current ?? {
+        type: 'automatic',
+        key: activeRestore.key,
+        filename: activeRestore.filename,
+        taskID: activeRestore.id,
+      })
+    }, 0)
+    return () => window.clearTimeout(update)
+  }, [activeRestore])
+  const backgroundRestoreQuery = useQuery({
+    queryKey: ['settings', 'backup', 'automatic', 'restore', backgroundRestoreTask?.taskID],
+    queryFn: ({ signal }) => fetchAutomaticBackupRestoreTask(backgroundRestoreTask!.taskID, signal),
+    enabled: Boolean(backgroundRestoreTask),
+    refetchInterval: (query) => {
+      const status = query.state.data?.restore.status
+      return status === 'completed' || status === 'canceled' || status === 'failed' ? false : 1000
+    },
+  })
+  useEffect(() => {
+    if (backgroundRestoreQuery.data?.restore.status === 'completed') window.location.reload()
+  }, [backgroundRestoreQuery.data?.restore.status])
+  const visibleBackgroundRestoreTask: BackgroundRestoreTask | null = backgroundRestoreTask ?? (activeRestore
+    ? { type: 'automatic', key: activeRestore.key, filename: activeRestore.filename, taskID: activeRestore.id }
+    : null)
   const cronLocale = i18n.language?.startsWith('zh') ? 'zh_CN' : i18n.language?.startsWith('jp') || i18n.language?.startsWith('ja') ? 'ja' : 'en'
   const automaticConfig = automaticQuery.data?.automatic_backup
   const savedAutomaticDraft = automaticConfig ? automaticConfigToDraft(automaticConfig) : DEFAULT_AUTOMATIC_BACKUP_DRAFT
@@ -243,6 +280,7 @@ export function BackupSettingsPage() {
   }
 
   function handleImport() {
+    if (visibleBackgroundRestoreTask) return
     if (!importFile) {
       toast.error(t('backup.validation.fileRequired'))
       return
@@ -282,11 +320,11 @@ export function BackupSettingsPage() {
       toast.error(t('backup.automatic.validation.required'), { description: t('backup.automatic.storage.title') })
       return
     }
-    if (!automaticCron.valid) {
+    if (automaticDraft.enabled && !automaticCron.valid) {
       toast.error(t('backup.automatic.validation.cronInvalid'), { description: automaticCron.text })
       return
     }
-    if (retentionError) {
+    if (automaticDraft.enabled && retentionError) {
       toast.error(t('backup.automatic.validation.retentionInvalid'), { description: retentionError })
       return
     }
@@ -348,7 +386,7 @@ export function BackupSettingsPage() {
                 t('backup.import.noticePreserved'),
                 t('backup.import.noticeRestart'),
               ]} />
-              <Button variant="destructive" onClick={() => setImportOpen(true)}>
+              <Button variant="destructive" onClick={() => setImportOpen(true)} disabled={Boolean(visibleBackgroundRestoreTask)}>
                 <DatabaseBackup className="h-4 w-4" />
                 {t('backup.import.action')}
               </Button>
@@ -446,34 +484,38 @@ export function BackupSettingsPage() {
                       checked={automaticDraft.enabled}
                       onCheckedChange={(enabled) => patchAutomaticDraft({ enabled })}
                     />
-                    <FormField label={t('backup.automatic.schedule.cron')} description={automaticCron.valid ? automaticCron.text : undefined} error={automaticCron.valid ? undefined : automaticCron.text} required>
-                      <Input
-                        value={automaticDraft.cron}
-                        onChange={(event) => patchAutomaticDraft({ cron: event.target.value })}
-                        spellCheck={false}
-                        className="font-mono"
-                      />
-                    </FormField>
-                    <FormField label={t('backup.automatic.schedule.retention')} error={retentionError}>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={automaticDraft.retentionCount}
-                        onChange={(event) => patchAutomaticDraft({ retentionCount: event.target.value })}
-                      />
-                    </FormField>
-                    <FormField
-                      label={t('backup.automatic.schedule.passphrase')}
-                      description={automaticConfig?.has_backup_passphrase ? t('backup.automatic.schedule.passphraseSaved', { value: automaticConfig.backup_passphrase_masked }) : t('backup.automatic.schedule.passphraseDesc')}
-                      required={!automaticConfig?.has_backup_passphrase}
-                    >
-                      <Input
-                        type="password"
-                        autoComplete="new-password"
-                        value={automaticDraft.backupPassphrase}
-                        onChange={(event) => patchAutomaticDraft({ backupPassphrase: event.target.value })}
-                      />
-                    </FormField>
+                    {automaticDraft.enabled ? (
+                      <>
+                        <FormField label={t('backup.automatic.schedule.cron')} description={automaticCron.valid ? automaticCron.text : undefined} error={automaticCron.valid ? undefined : automaticCron.text} required>
+                          <Input
+                            value={automaticDraft.cron}
+                            onChange={(event) => patchAutomaticDraft({ cron: event.target.value })}
+                            spellCheck={false}
+                            className="font-mono"
+                          />
+                        </FormField>
+                        <FormField label={t('backup.automatic.schedule.retention')} error={retentionError}>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={automaticDraft.retentionCount}
+                            onChange={(event) => patchAutomaticDraft({ retentionCount: event.target.value })}
+                          />
+                        </FormField>
+                        <FormField
+                          label={t('backup.automatic.schedule.passphrase')}
+                          description={automaticConfig?.has_backup_passphrase ? t('backup.automatic.schedule.passphraseSaved', { value: automaticConfig.backup_passphrase_masked }) : t('backup.automatic.schedule.passphraseDesc')}
+                          required={!automaticConfig?.has_backup_passphrase}
+                        >
+                          <Input
+                            type="password"
+                            autoComplete="new-password"
+                            value={automaticDraft.backupPassphrase}
+                            onChange={(event) => patchAutomaticDraft({ backupPassphrase: event.target.value })}
+                          />
+                        </FormField>
+                      </>
+                    ) : null}
                   </div>
                   <Notice items={[
                     t('backup.automatic.noticeNoSecrets'),
@@ -484,7 +526,7 @@ export function BackupSettingsPage() {
                       {saveScheduleMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       {t('common:actions.save', { ns: 'common' })}
                     </Button>
-                    <Button variant="outline" onClick={() => runAutomaticMutation.mutate()} disabled={!savedAutomaticBackupReady || runAutomaticMutation.isPending}>
+                    <Button variant="outline" onClick={() => runAutomaticMutation.mutate()} disabled={!savedAutomaticBackupReady || runAutomaticMutation.isPending || Boolean(visibleBackgroundRestoreTask)}>
                       {runAutomaticMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                       {t('backup.automatic.runAction')}
                     </Button>
@@ -494,10 +536,18 @@ export function BackupSettingsPage() {
                 <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-7">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <SectionTitle icon={<FileArchive className="h-4 w-4" />} title={t('backup.automatic.files.title')} />
-                    <Button variant="outline" size="sm" onClick={() => filesQuery.refetch()} disabled={!savedAutomaticBackupReady || filesQuery.isFetching}>
-                      {filesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      {t('backup.automatic.files.refresh')}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {visibleBackgroundRestoreTask ? (
+                        <Button variant="outline" size="sm" onClick={() => setRestoreTask(visibleBackgroundRestoreTask)}>
+                          <DatabaseBackup className="h-4 w-4" />
+                          {t('backup.automatic.restoreProgress.viewStatus')}
+                        </Button>
+                      ) : null}
+                      <Button variant="outline" size="sm" onClick={() => filesQuery.refetch()} disabled={!savedAutomaticBackupReady || filesQuery.isFetching}>
+                        {filesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        {t('backup.automatic.files.refresh')}
+                      </Button>
+                    </div>
                   </div>
                   {!savedAutomaticBackupReady ? (
                     <div className="rounded-md border border-[hsl(var(--divider))] bg-[hsl(var(--surface-subtle))] px-4 py-6 text-sm text-muted-soft">
@@ -525,7 +575,7 @@ export function BackupSettingsPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => setRestoreTarget(file)} disabled={file.status === 'running' || file.status === 'failed'}>
+                              <Button variant="outline" size="sm" onClick={() => setRestoreTarget(file)} disabled={file.status === 'running' || file.status === 'failed' || Boolean(visibleBackgroundRestoreTask)}>
                                 <DatabaseBackup className="h-4 w-4" />
                                 {t('backup.automatic.files.restore')}
                               </Button>
@@ -653,7 +703,7 @@ export function BackupSettingsPage() {
             <Button variant="outline" onClick={closeImportDialog}>
               {t('common:actions.cancel', { ns: 'common' })}
             </Button>
-            <Button variant="destructive" onClick={handleImport}>
+            <Button variant="destructive" onClick={handleImport} disabled={Boolean(visibleBackgroundRestoreTask)}>
               <DatabaseBackup className="h-4 w-4" />
               {t('backup.import.confirmAction')}
             </Button>
@@ -678,10 +728,16 @@ export function BackupSettingsPage() {
       />
 
       <RestoreProgressDialog
+        key={restoreTask?.type === 'automatic' ? restoreTask.taskID ?? restoreTask.key : restoreTask ? `${restoreTask.file.name}:${restoreTask.file.lastModified}` : 'none'}
         task={restoreTask}
         onClose={() => {
           setRestoreTask(null)
+          setBackgroundRestoreTask(null)
           void queryClient.invalidateQueries()
+        }}
+        onBackground={(task) => {
+          setBackgroundRestoreTask(task)
+          setRestoreTask(null)
         }}
       />
 
@@ -834,8 +890,8 @@ function automaticStorageDraftToInput(draft: AutomaticBackupDraft, saved: Automa
 function automaticScheduleDraftToInput(draft: AutomaticBackupDraft, saved: AutomaticBackupDraft): AutomaticBackupConfigInput {
   return {
     enabled: draft.enabled,
-    cron: draft.cron.trim(),
-    retention_count: Number(draft.retentionCount.trim()),
+    cron: (draft.enabled ? draft.cron : saved.cron).trim(),
+    retention_count: Number((draft.enabled ? draft.retentionCount : saved.retentionCount).trim()),
     endpoint: saved.endpoint.trim(),
     region: saved.region.trim(),
     bucket: saved.bucket.trim(),

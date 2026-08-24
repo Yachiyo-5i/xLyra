@@ -483,6 +483,9 @@ func TestAutomaticBackupHandlersRequireService(t *testing.T) {
 		{name: "list files", method: http.MethodGet, target: "/settings/backup/automatic/files", handle: h.ListAutomaticBackupFiles},
 		{name: "run", method: http.MethodPost, target: "/settings/backup/automatic/run", handle: h.RunAutomaticBackup},
 		{name: "restore", method: http.MethodPost, target: "/settings/backup/automatic/files/restore", body: `{"key":"backup.xlyra"}`, handle: h.RestoreAutomaticBackupFile},
+		{name: "active restore", method: http.MethodGet, target: "/settings/backup/automatic/files/restore/active", handle: h.GetActiveAutomaticBackupRestoreTask},
+		{name: "restore status", method: http.MethodGet, target: "/settings/backup/automatic/files/restore/task-id", handle: h.GetAutomaticBackupRestoreTask},
+		{name: "cancel restore", method: http.MethodDelete, target: "/settings/backup/automatic/files/restore/task-id", handle: h.CancelAutomaticBackupRestoreTask},
 		{name: "delete", method: http.MethodDelete, target: "/settings/backup/automatic/files", body: `{"key":"backup.xlyra"}`, handle: h.DeleteAutomaticBackupFile},
 	}
 
@@ -545,6 +548,8 @@ func TestWriteAutomaticBackupErrorMapsMessages(t *testing.T) {
 		code   string
 	}{
 		{name: "running", err: backup.ErrAutomaticAlreadyRunning, status: http.StatusConflict, code: "automatic_backup_running"},
+		{name: "restore task not found", err: backup.ErrRestoreTaskNotFound, status: http.StatusNotFound, code: "automatic_restore_task_not_found"},
+		{name: "restore cannot cancel", err: backup.ErrRestoreCannotCancel, status: http.StatusConflict, code: "automatic_restore_cannot_cancel"},
 		{name: "unavailable", err: errors.New("storage is not available"), status: http.StatusServiceUnavailable, code: "backup_unavailable"},
 		{name: "disabled", err: errors.New("automatic backup is disabled"), status: http.StatusBadRequest, code: "automatic_backup_disabled"},
 		{name: "required", err: errors.New("bucket is required"), status: http.StatusBadRequest, code: "automatic_backup_config_required"},

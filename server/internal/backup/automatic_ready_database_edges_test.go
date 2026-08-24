@@ -204,7 +204,7 @@ func TestAutomaticFileMutationsRejectBlankObjectKey(t *testing.T) {
 		{
 			name: "restore",
 			call: func() error {
-				_, err := service.Restore(context.Background(), " ")
+				_, err := service.StartRestore(" ")
 				return err
 			},
 		},
@@ -254,6 +254,201 @@ func TestValidateRestoreObjectSizeRejectsOversizedBackup(t *testing.T) {
 	if err := validateRestoreObjectSize(MaxImportBytes + 1); err == nil || !strings.Contains(err.Error(), "exceeds maximum") {
 		t.Fatalf("oversized backup error = %v", err)
 	}
+}
+
+func TestAutomaticOperationsAreMutuallyExclusive(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	if !service.beginRestore() {
+		t.Fatal("beginRestore rejected idle service")
+	}
+	if service.beginBackup() {
+		t.Fatal("beginBackup accepted while restore was running")
+	}
+	service.endRestore()
+	if !service.beginBackup() {
+		t.Fatal("beginBackup rejected idle service")
+	}
+	if service.beginRestore() {
+		t.Fatal("beginRestore accepted while backup was running")
+	}
+	service.endBackup()
+}
+
+func TestManualImportRejectedWhileAutomaticRestoreRuns(t *testing.T) {
+	t.Parallel()
+
+	service := NewAutomaticService(backupReadyService(t), "master-key")
+	if !service.beginRestore() {
+		t.Fatal("beginRestore rejected idle service")
+	}
+	if _, err := service.base.Import(context.Background(), "secret", []byte("encrypted")); !errors.Is(err, ErrOperationInProgress) {
+		t.Fatalf("Import error = %v, want operation in progress", err)
+	}
+	service.endRestore()
+	if _, err := service.base.Import(context.Background(), "secret", []byte("encrypted")); errors.Is(err, ErrOperationInProgress) {
+		t.Fatalf("Import error = %v after restore ended, want payload failure", err)
+	}
+}
+
+func TestAutomaticOperationsRejectedWhileManualImportHoldsGuard(t *testing.T) {
+	t.Parallel()
+
+	base := backupReadyService(t)
+	if !beginSharedOperation(base.db) {
+		t.Fatal("shared operation rejected idle database")
+	}
+	defer endSharedOperation(base.db)
+	service := NewAutomaticService(base, "master-key")
+	if service.beginBackup() {
+		t.Fatal("beginBackup accepted while manual import held the database guard")
+	}
+	if service.beginRestore() {
+		t.Fatal("beginRestore accepted while manual import held the database guard")
+	}
+}
+
+func TestDuplicateRestoreStartReconnectsToRunningTask(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	firstCtx, firstCancel := context.WithCancel(context.Background())
+	defer firstCancel()
+	first := AutomaticRestoreTask{
+		ID:       "first-task",
+		Key:      "xlyra/prod/backup.xlyra",
+		Status:   "running",
+		Progress: ProgressEvent{Step: "download", Status: "in_progress"},
+	}
+	startedTask, started, err := service.beginRestoreTask(first, &restoreTaskControl{ctx: firstCtx, cancel: firstCancel, cancellable: true})
+	if err != nil || !started || startedTask.ID != first.ID {
+		t.Fatalf("first start task=%#v started=%v error=%v", startedTask, started, err)
+	}
+	active, ok := service.GetActiveRestoreTask()
+	if !ok || active.ID != first.ID {
+		t.Fatalf("active task=%#v found=%v", active, ok)
+	}
+
+	duplicateCtx, duplicateCancel := context.WithCancel(context.Background())
+	defer duplicateCancel()
+	duplicate := first
+	duplicate.ID = "duplicate-task"
+	reconnected, started, err := service.beginRestoreTask(duplicate, &restoreTaskControl{ctx: duplicateCtx, cancel: duplicateCancel, cancellable: true})
+	if err != nil || started || reconnected.ID != first.ID {
+		t.Fatalf("duplicate start task=%#v started=%v error=%v", reconnected, started, err)
+	}
+
+	different := duplicate
+	different.ID = "different-task"
+	different.Key = "xlyra/prod/other-backup.xlyra"
+	if _, _, err := service.beginRestoreTask(different, nil); !errors.Is(err, ErrAutomaticAlreadyRunning) {
+		t.Fatalf("different backup error = %v", err)
+	}
+	service.endRestore()
+	if _, ok := service.GetActiveRestoreTask(); ok {
+		t.Fatal("active task remained after restore ended")
+	}
+}
+
+func TestAutomaticRestoreTaskSnapshotsAreIsolated(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	finishedAt := time.Now().UTC()
+	summary := ImportSummary{Tables: 22, Rows: 800000, FormatVersion: 2}
+	task := AutomaticRestoreTask{
+		ID:         "task-id",
+		Status:     "completed",
+		FinishedAt: &finishedAt,
+		Summary:    &summary,
+		Progress:   ProgressEvent{Step: "complete", Status: "complete", Summary: &summary},
+	}
+	service.storeRestoreTask(task, nil)
+
+	first, err := service.GetRestoreTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetRestoreTask: %v", err)
+	}
+	first.Summary.Rows = 1
+	first.Progress.Summary.Rows = 2
+	first.FinishedAt = nil
+	second, err := service.GetRestoreTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetRestoreTask second read: %v", err)
+	}
+	if second.Summary == nil || second.Summary.Rows != summary.Rows || second.Progress.Summary == nil || second.Progress.Summary.Rows != summary.Rows || second.FinishedAt == nil {
+		t.Fatalf("stored task changed through returned snapshot: %#v", second)
+	}
+	if _, err := service.GetRestoreTask("missing"); !errors.Is(err, ErrRestoreTaskNotFound) {
+		t.Fatalf("missing task error = %v", err)
+	}
+}
+
+func TestCancelRestoreTaskCancelsOnlyBeforeCommit(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	ctx, cancel := context.WithCancel(context.Background())
+	control := &restoreTaskControl{ctx: ctx, cancel: cancel, cancellable: true}
+	task := AutomaticRestoreTask{
+		ID:          "cancel-task",
+		Status:      "running",
+		Cancellable: true,
+		Progress:    ProgressEvent{Step: "import", Status: "in_progress"},
+	}
+	service.storeRestoreTask(task, control)
+
+	canceled, err := service.CancelRestoreTask(task.ID)
+	if err != nil {
+		t.Fatalf("CancelRestoreTask: %v", err)
+	}
+	if canceled.Status != "canceling" || canceled.Cancellable {
+		t.Fatalf("canceled task = %#v", canceled)
+	}
+	if !errors.Is(ctx.Err(), context.Canceled) || !control.wasCanceled() {
+		t.Fatalf("restore context was not canceled: %v", ctx.Err())
+	}
+	if err := control.disable(); !errors.Is(err, context.Canceled) {
+		t.Fatalf("disable after cancel error = %v", err)
+	}
+	if _, err := service.CancelRestoreTask(task.ID); !errors.Is(err, ErrRestoreCannotCancel) {
+		t.Fatalf("second cancel error = %v", err)
+	}
+}
+
+func TestRestoreControlRejectsCancellationAfterCommitGate(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	control := &restoreTaskControl{ctx: ctx, cancel: cancel, cancellable: true}
+	if err := control.disable(); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	if control.requestCancel() {
+		t.Fatal("cancel accepted after commit gate")
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("context canceled after commit gate: %v", ctx.Err())
+	}
+}
+
+func TestFinishedRestoreTaskAllowsImmediateRetry(t *testing.T) {
+	service := NewAutomaticService(Service{}, "master-key")
+	if !service.beginRestore() {
+		t.Fatal("beginRestore rejected idle service")
+	}
+	task := AutomaticRestoreTask{
+		ID:          "finished-cancel-task",
+		Status:      "canceling",
+		Cancellable: false,
+		Progress:    ProgressEvent{Step: "import", Status: "in_progress"},
+	}
+	service.storeRestoreTask(task, nil)
+	service.finishRestoreTask(task.ID, ImportSummary{}, context.Canceled, true)
+
+	finished, err := service.GetRestoreTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetRestoreTask: %v", err)
+	}
+	if finished.Status != "canceled" {
+		t.Fatalf("finished status = %q, want canceled", finished.Status)
+	}
+	if !service.beginRestore() {
+		t.Fatal("retry rejected after canceled task became visible")
+	}
+	service.endRestore()
 }
 
 func TestImportDatabaseRejectsUnregisteredDeleteOrderTable(t *testing.T) {

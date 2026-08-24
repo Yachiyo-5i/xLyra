@@ -124,8 +124,8 @@ func TestRestoreAndDeleteValidateObjectKeysBeforeRemoteCall(t *testing.T) {
 	cfg.Storage.UseSSL = true
 	service := NewAutomaticService(Service{confFile: automaticConfigFile(t, cfg)}, "master-key")
 
-	if _, err := service.Restore(context.Background(), "other/xlyra-backup-20260621-030000.zip.xlyra"); err == nil || !strings.Contains(err.Error(), "outside configured prefix") {
-		t.Fatalf("Restore error = %v, want prefix validation", err)
+	if _, err := service.StartRestore("other/xlyra-backup-20260621-030000.zip.xlyra"); err == nil || !strings.Contains(err.Error(), "outside configured prefix") {
+		t.Fatalf("StartRestore error = %v, want prefix validation", err)
 	}
 	if err := service.Delete(context.Background(), "prod/notes.txt"); err == nil || !strings.Contains(err.Error(), "format") {
 		t.Fatalf("Delete error = %v, want object format validation", err)

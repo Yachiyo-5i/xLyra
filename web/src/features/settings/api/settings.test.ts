@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { restoreAutomaticBackupFileSSE } from '@/features/settings/api/settings'
+import { cancelAutomaticBackupRestoreTask, fetchActiveAutomaticBackupRestoreTask, fetchAutomaticBackupRestoreTask, startAutomaticBackupRestore } from '@/features/settings/api/settings'
 import { setCSRFToken } from '@/lib/http'
 
 afterEach(() => {
@@ -8,43 +8,78 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('restoreAutomaticBackupFileSSE', () => {
-  it('uses the authenticated request path and parses progress events', async () => {
+describe('automatic backup restore tasks', () => {
+  it('starts an authenticated background restore task', async () => {
     setCSRFToken('csrf-token')
-    const fetchMock = vi.fn().mockResolvedValue(new Response(
-      'data: {"step":"download","status":"complete"}\n\n' +
-      'data: {"step":"complete","status":"complete","rows":800000,"total_rows":800000,"summary":{"tables":22,"rows":800000,"config_keys":3,"format_version":2}}\n\n',
-      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
-    ))
+    const restore = {
+      id: 'task-id',
+      key: 'backups/latest.xlyra',
+      filename: 'latest.xlyra',
+      status: 'running',
+      started_at: '2026-08-24T00:00:00Z',
+      progress: { step: 'download', status: 'in_progress' },
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ restore }), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const events = []
-    for await (const event of restoreAutomaticBackupFileSSE('backups/latest.xlyra')) {
-      events.push(event)
-    }
+    const result = await startAutomaticBackupRestore('backups/latest.xlyra')
 
     const [, request] = fetchMock.mock.calls[0]
     const headers = new Headers(request.headers)
     expect(headers.get('X-CSRF-Token')).toBe('csrf-token')
-    expect(headers.get('Accept')).toBe('text/event-stream')
     expect(JSON.parse(request.body)).toEqual({ key: 'backups/latest.xlyra' })
-    expect(events).toHaveLength(2)
-    expect(events[1].summary?.rows).toBe(800000)
-    expect(events[1].total_rows).toBe(800000)
+    expect(result.restore.id).toBe('task-id')
   })
 
-  it('accepts CRLF frames and rejects a stream without a terminal event', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
-      'data: {"step":"download","status":"in_progress"}\r\n\r\n',
-      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
-    )))
+  it('loads the latest restore task progress', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      restore: {
+        id: 'task/id',
+        status: 'completed',
+        progress: { step: 'complete', status: 'complete' },
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
 
-    const consume = async () => {
-      for await (const event of restoreAutomaticBackupFileSSE('backups/latest.xlyra')) {
-        expect(event.step).toBe('download')
-      }
-    }
+    const result = await fetchAutomaticBackupRestoreTask('task/id')
 
-    await expect(consume()).rejects.toThrow('restore response stream ended unexpectedly')
+    expect(fetchMock.mock.calls[0][0]).toContain('/restore/task%2Fid')
+    expect(result.restore.status).toBe('completed')
+  })
+
+  it('loads the active restore task after a page refresh', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ restore: null }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchActiveAutomaticBackupRestoreTask()
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/restore/active')
+    expect(result.restore).toBeNull()
+  })
+
+  it('requests cancellation for a running restore task', async () => {
+    setCSRFToken('csrf-token')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      restore: {
+        id: 'task-id',
+        status: 'canceling',
+        cancellable: false,
+        progress: { step: 'import', status: 'in_progress' },
+      },
+    }), { status: 202, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await cancelAutomaticBackupRestoreTask('task-id')
+
+    const [, request] = fetchMock.mock.calls[0]
+    expect(request.method).toBe('DELETE')
+    expect(new Headers(request.headers).get('X-CSRF-Token')).toBe('csrf-token')
+    expect(result.restore.status).toBe('canceling')
   })
 })
