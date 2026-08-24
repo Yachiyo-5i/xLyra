@@ -15,6 +15,7 @@ import (
 	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/config"
 	routeengine "xlyra/server/internal/router"
+	sitepkg "xlyra/server/internal/site"
 	"xlyra/server/internal/store"
 	"xlyra/server/internal/upstream"
 )
@@ -321,6 +322,9 @@ func subscriptionLimitResetAt(result gatewayAttemptResult, failure upstream.Fail
 	}
 	if failure.ResetAt.After(now) {
 		return failure.ResetAt, int64(math.Ceil(failure.ResetAt.Sub(now).Seconds()))
+	}
+	if resetAt, ok := sitepkg.CredentialQuotaProbeResetAt(result.credentialMeta, failure.LimitWindow, now); ok {
+		return resetAt, int64(math.Ceil(resetAt.Sub(now).Seconds()))
 	}
 	resetAt := subscriptionLimitCalendarResetAt(now, failure.LimitWindow, timeZone)
 	return resetAt, int64(math.Ceil(resetAt.Sub(now).Seconds()))

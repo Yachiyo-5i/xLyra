@@ -135,13 +135,14 @@ func TestForwardGatewayRequestReturnsPayloadEncodeFailureAfterCredentialSelectio
 		t.Fatalf("encrypt credential: %v", err)
 	}
 	db := gatewayOfflineGorm(t)
+	credentialMeta := store.JSON(`{"enabled":true,"quota_probe":{"status":"ok"}}`)
 	installGatewayCredentialQueries(t, db, siteID, siteModelID, store.SiteCredential{
 		ID:              credentialID,
 		SiteID:          siteID,
 		CredentialType:  "api_key",
 		EncryptedSecret: encrypted,
 		MaskedSecret:    masked,
-		Meta:            store.JSON(`{"enabled":true}`),
+		Meta:            credentialMeta,
 		CreatedAt:       time.Unix(10, 0),
 	})
 
@@ -179,6 +180,9 @@ func TestForwardGatewayRequestReturnsPayloadEncodeFailureAfterCredentialSelectio
 	}
 	if result.credentialID != credentialID || result.credentialMasked != masked || result.credentialAttempt != 1 || result.credentialTotal != 1 {
 		t.Fatalf("credential metadata = %#v", result)
+	}
+	if string(result.credentialMeta) != string(credentialMeta) {
+		t.Fatalf("credential quota metadata = %s, want %s", result.credentialMeta, credentialMeta)
 	}
 }
 

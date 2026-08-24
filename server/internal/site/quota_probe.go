@@ -192,15 +192,43 @@ func (s *Service) recoverSub2APISubscriptionCooldown(ctx context.Context, siteID
 		if json.Unmarshal(item.Metadata, &metadata) != nil {
 			continue
 		}
-		if !sub2APISubscriptionQuotaRecovered(result, anyString(metadata["limit_window"])) {
+		limitWindow := anyString(metadata["limit_window"])
+		entry, ok := sub2APISubscriptionQuotaEntry(result, limitWindow)
+		if !ok {
+			if sub2APISubscriptionQuotaRecovered(result, limitWindow) {
+				_, _ = repo.ClearActiveMatching(ctx, store.ClearActiveCooldownFilter{
+					SiteID:           siteID,
+					SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
+					Reasons:          []string{store.CooldownReasonUpstreamSubscriptionLimitExceeded},
+				})
+				return
+			}
 			continue
 		}
-		_, _ = repo.ClearActiveMatching(ctx, store.ClearActiveCooldownFilter{
-			SiteID:           siteID,
-			SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
-			Reasons:          []string{store.CooldownReasonUpstreamSubscriptionLimitExceeded},
-		})
-		return
+		if entry.Remaining != nil && *entry.Remaining > 0 {
+			_, _ = repo.ClearActiveMatching(ctx, store.ClearActiveCooldownFilter{
+				SiteID:           siteID,
+				SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
+				Reasons:          []string{store.CooldownReasonUpstreamSubscriptionLimitExceeded},
+			})
+			return
+		}
+		if entry.Remaining == nil {
+			continue
+		}
+		resetAt, ok := quotaProbeResetAt(result, limitWindow, time.Now())
+		if !ok {
+			continue
+		}
+		metadata["reset_at"] = resetAt.UTC().Format(time.RFC3339)
+		encodedMetadata, err := json.Marshal(metadata)
+		if err != nil {
+			continue
+		}
+		if item.ActiveUntil.Equal(resetAt) && string(item.Metadata) == string(encodedMetadata) {
+			continue
+		}
+		_ = repo.UpdateActiveUntil(ctx, item.ID, resetAt, store.JSON(encodedMetadata))
 	}
 }
 
@@ -232,6 +260,19 @@ func sub2APISubscriptionQuotaRecovered(result QuotaProbeResult, limitWindow stri
 		}
 	}
 	return foundWindow
+}
+
+func sub2APISubscriptionQuotaEntry(result QuotaProbeResult, limitWindow string) (QuotaProbeEntry, bool) {
+	limitWindow = strings.ToLower(strings.TrimSpace(limitWindow))
+	if limitWindow != "daily" && limitWindow != "weekly" && limitWindow != "monthly" {
+		return QuotaProbeEntry{}, false
+	}
+	for _, entry := range result.Entries {
+		if strings.EqualFold(strings.TrimSpace(entry.Label), limitWindow) {
+			return entry, true
+		}
+	}
+	return QuotaProbeEntry{}, false
 }
 
 func quotaProbeCredentialEligible(credentialType string) bool {
@@ -269,6 +310,52 @@ func preserveQuotaProbeResult(credentialMeta store.JSON, result QuotaProbeResult
 	result.Entries = previous.Entries
 	result.FetchedAt = previous.FetchedAt
 	return result
+}
+
+// CredentialQuotaProbeResetAt returns the future reset for a specific quota
+// window from the latest successful probe stored on a credential.
+func CredentialQuotaProbeResetAt(credentialMeta store.JSON, limitWindow string, now time.Time) (time.Time, bool) {
+	if len(credentialMeta) == 0 {
+		return time.Time{}, false
+	}
+	meta := map[string]json.RawMessage{}
+	if err := json.Unmarshal(credentialMeta, &meta); err != nil {
+		return time.Time{}, false
+	}
+	raw, ok := meta[QuotaProbeCredentialMetaKey]
+	if !ok {
+		return time.Time{}, false
+	}
+	var result QuotaProbeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return time.Time{}, false
+	}
+	return quotaProbeResetAt(result, limitWindow, now)
+}
+
+func quotaProbeResetAt(result QuotaProbeResult, limitWindow string, now time.Time) (time.Time, bool) {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if !strings.EqualFold(strings.TrimSpace(result.Status), "ok") || result.FetchedAt.IsZero() || result.FetchedAt.After(now) {
+		return time.Time{}, false
+	}
+	limitWindow = strings.ToLower(strings.TrimSpace(limitWindow))
+	switch limitWindow {
+	case "daily", "weekly", "monthly":
+	default:
+		return time.Time{}, false
+	}
+	for _, entry := range result.Entries {
+		if !strings.EqualFold(strings.TrimSpace(entry.Label), limitWindow) || entry.Remaining == nil || *entry.Remaining > 0 || entry.ResetAt == nil {
+			continue
+		}
+		resetAt, err := time.Parse(time.RFC3339, strings.TrimSpace(*entry.ResetAt))
+		if err == nil && resetAt.After(now) {
+			return resetAt, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func preserveQuotaSummaryValues(siteMeta map[string]any, summary map[string]any) {
