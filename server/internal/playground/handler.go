@@ -260,5 +260,9 @@ func (h Handler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusRequestTimeout
 		code = "request_cancelled"
 	}
+	if errors.Is(err, ErrPlaygroundRestoring) {
+		status = http.StatusConflict
+		code = "playground_restoring"
+	}
 	httpx.Error(w, r, status, code, err.Error())
 }

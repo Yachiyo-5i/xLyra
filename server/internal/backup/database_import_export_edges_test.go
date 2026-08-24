@@ -19,7 +19,7 @@ import (
 func TestImportDatabaseRejectsInvalidDumpBeforeTransaction(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := importDatabase(context.Background(), nil, "master-key", databaseDump{})
+	_, _, err := importDatabase(context.Background(), nil, "master-key", databaseDump{}, uuid.Nil)
 	assertBackupErrorContains(t, "importDatabase invalid dump", err, "missing tables")
 }
 

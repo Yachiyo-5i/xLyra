@@ -116,7 +116,7 @@ func run() int {
 	siteService := site.NewServiceWithTimeZone(db, masterKey, appTimeZone, confFile)
 	syncService := catalog.NewSyncService(db, logger.With("thread", "models-dev-sync"), confFile)
 	usageSummaryService := usage.NewSummaryService(db, confFile, appTimeZone)
-	backupService := backup.NewService(db, confFile, masterKey, appTimeZone)
+	backupService := backup.NewService(db, confFile, masterKey, filepath.Join(config.ResolveWorkdir(), "playground"), appTimeZone)
 	automaticBackupService := backup.NewAutomaticService(backupService, masterKey)
 	reconcileCtx, reconcileCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	if err := catalog.ReconcileCategories(reconcileCtx, db.DB()); err != nil {

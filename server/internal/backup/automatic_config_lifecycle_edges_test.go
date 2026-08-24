@@ -203,7 +203,7 @@ func TestServiceReadyAndBackupFilenameUseConfiguredTimezone(t *testing.T) {
 	}
 
 	loc := time.FixedZone("UTC+2", 2*60*60)
-	service := NewService(nil, nil, "master", config.TimeZone{Name: "UTC+2", Location: loc})
+	service := NewService(nil, nil, "master", "", config.TimeZone{Name: "UTC+2", Location: loc})
 	createdAt := time.Date(2026, 6, 21, 23, 30, 5, 0, time.UTC)
 
 	if got := service.backupFilename(createdAt); got != "xlyra-backup-20260622-013005.zip.xlyra" {
@@ -229,10 +229,12 @@ func TestValidateManifestRejectsMismatches(t *testing.T) {
 		mutate func(*manifest)
 	}{
 		{name: "app", mutate: func(m *manifest) { m.App = "other" }},
-		{name: "version", mutate: func(m *manifest) { m.FormatVersion++ }},
+		{name: "version above supported", mutate: func(m *manifest) { m.FormatVersion = currentFormatVersion + 1 }},
+		{name: "version below supported", mutate: func(m *manifest) { m.FormatVersion = minImportFormatVersion - 1 }},
 		{name: "payload", mutate: func(m *manifest) { m.Payload = "other" }},
-		{name: "table count", mutate: func(m *manifest) { m.Tables = m.Tables[:len(m.Tables)-1] }},
-		{name: "table order", mutate: func(m *manifest) { m.Tables[0], m.Tables[1] = m.Tables[1], m.Tables[0] }},
+		{name: "unknown table", mutate: func(m *manifest) { m.Tables = append(m.Tables, "not_a_backup_table") }},
+		{name: "current version table count", mutate: func(m *manifest) { m.Tables = m.Tables[:len(m.Tables)-1] }},
+		{name: "current version table order", mutate: func(m *manifest) { m.Tables[0], m.Tables[1] = m.Tables[1], m.Tables[0] }},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -247,6 +249,27 @@ func TestValidateManifestRejectsMismatches(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("older version table subset", func(t *testing.T) {
+		t.Parallel()
+
+		value := valid
+		value.FormatVersion = minImportFormatVersion
+		value.Tables = append([]string(nil), exportTables[:len(exportTables)-4]...)
+		if err := validateManifest(value); err != nil {
+			t.Fatalf("expected older table subset to be accepted, got %v", err)
+		}
+	})
+	t.Run("older version unknown table", func(t *testing.T) {
+		t.Parallel()
+
+		value := valid
+		value.FormatVersion = minImportFormatVersion
+		value.Tables = append(append([]string(nil), valid.Tables...), "not_a_backup_table")
+		if err := validateManifest(value); err == nil {
+			t.Fatal("expected unknown table to be rejected")
+		}
+	})
 }
 
 func TestIsAlreadyRunningError(t *testing.T) {
@@ -357,7 +380,7 @@ func TestAutomaticServiceReadyClientAndRunEarlyFailures(t *testing.T) {
 		{
 			name: "restore",
 			call: func() error {
-				_, err := missingConfig.StartRestore("xlyra/prod/xlyra-backup-20260621-030000.zip.xlyra")
+				_, err := missingConfig.StartRestore("xlyra/prod/xlyra-backup-20260621-030000.zip.xlyra", ImportOptions{})
 				return err
 			},
 		},

@@ -72,7 +72,8 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	downloadService := downloads.NewService()
 	gatewayHandler := gateway.NewHandlerWithTimeZone(logger.With("thread", "gateway"), authService, routerService, db, masterKey, appTimeZone, confFile)
 	playgroundGatewayHandler := gatewayHandler.WithRouteSiteHeader()
-	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, filepath.Join(config.ResolveWorkdir(), "playground"))
+	playgroundRoot := filepath.Join(config.ResolveWorkdir(), "playground")
+	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, playgroundRoot)
 	playgroundHandler := playground.NewHandler(playgroundService)
 	if db != nil {
 		go func() {
@@ -83,7 +84,12 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	}
 	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db).WithAnalyticsService(analyticsService)
 	healthHandler := health.NewHandler(cfg, db)
-	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, appTimeZone)
+	var preRestore, postRestore func(context.Context) error
+	if playgroundService != nil {
+		preRestore = playgroundService.QuiesceForRestore
+		postRestore = playgroundService.RecoverAfterRestore
+	}
+	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, playgroundRoot, preRestore, postRestore, appTimeZone)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)

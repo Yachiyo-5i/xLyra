@@ -346,7 +346,7 @@ func (s *AutomaticService) run(ctx context.Context, cfg config.AutomaticBackupCo
 	return result, nil
 }
 
-func (s *AutomaticService) StartRestore(key string) (AutomaticRestoreTask, error) {
+func (s *AutomaticService) StartRestore(key string, opts ImportOptions) (AutomaticRestoreTask, error) {
 	cfg, client, err := s.readyClient()
 	if err != nil {
 		return AutomaticRestoreTask{}, err
@@ -394,7 +394,7 @@ func (s *AutomaticService) StartRestore(key string) (AutomaticRestoreTask, error
 			})
 			return err
 		}
-		summary, restoreErr := s.restoreWithClient(ctx, cfg, client, key, passphrase, beforeCommit, progress)
+		summary, restoreErr := s.restoreWithClient(ctx, cfg, client, key, passphrase, opts, beforeCommit, progress)
 		wasCanceled := control.finish()
 		s.finishRestoreTask(task.ID, summary, restoreErr, wasCanceled)
 	}()
@@ -500,7 +500,7 @@ func (c *restoreDownloadCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (s *AutomaticService) restoreWithClient(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, key string, passphrase string, beforeCommit func() error, progress ProgressFunc) (ImportSummary, error) {
+func (s *AutomaticService) restoreWithClient(ctx context.Context, cfg config.AutomaticBackupConfig, client *minio.Client, key string, passphrase string, opts ImportOptions, beforeCommit func() error, progress ProgressFunc) (ImportSummary, error) {
 
 	if progress != nil {
 		progress(ProgressEvent{Step: "download", Status: "in_progress", Message: "Downloading backup file from storage"})
@@ -532,7 +532,7 @@ func (s *AutomaticService) restoreWithClient(ctx context.Context, cfg config.Aut
 		}
 	}
 	reader := io.TeeReader(io.LimitReader(object, MaxImportBytes+1), counter)
-	summary, err := s.base.importReaderLocked(ctx, passphrase, reader, beforeCommit, importProgress)
+	summary, err := s.base.importReaderLocked(ctx, passphrase, reader, opts, beforeCommit, importProgress)
 	if err != nil {
 		return ImportSummary{}, err
 	}

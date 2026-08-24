@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/config"
@@ -150,7 +151,7 @@ func TestDatabaseImportExportWrapTransactionBeginFailures(t *testing.T) {
 
 	txErr := errors.New("transaction begin failed")
 	db := backupTransactionGorm(t, txErr)
-	_, err := exportDatabase(context.Background(), db, "master-key", nil)
+	_, err := exportDatabase(context.Background(), db, "master-key", "", nil)
 	if !errors.Is(err, txErr) {
 		t.Fatalf("exportDatabase err=%v, want transaction begin failure", err)
 	}
@@ -159,7 +160,7 @@ func TestDatabaseImportExportWrapTransactionBeginFailures(t *testing.T) {
 	for _, table := range backupTables {
 		dump.Tables[table.Name] = nil
 	}
-	_, _, err = importDatabase(context.Background(), db, "master-key", dump)
+	_, _, err = importDatabase(context.Background(), db, "master-key", dump, uuid.Nil)
 	if !errors.Is(err, txErr) {
 		t.Fatalf("importDatabase err=%v, want transaction begin failure", err)
 	}
@@ -204,7 +205,7 @@ func TestAutomaticFileMutationsRejectBlankObjectKey(t *testing.T) {
 		{
 			name: "restore",
 			call: func() error {
-				_, err := service.StartRestore(" ")
+				_, err := service.StartRestore(" ", ImportOptions{})
 				return err
 			},
 		},
@@ -281,11 +282,11 @@ func TestManualImportRejectedWhileAutomaticRestoreRuns(t *testing.T) {
 	if !service.beginRestore() {
 		t.Fatal("beginRestore rejected idle service")
 	}
-	if _, err := service.base.Import(context.Background(), "secret", []byte("encrypted")); !errors.Is(err, ErrOperationInProgress) {
+	if _, err := service.base.Import(context.Background(), "secret", []byte("encrypted"), ImportOptions{}); !errors.Is(err, ErrOperationInProgress) {
 		t.Fatalf("Import error = %v, want operation in progress", err)
 	}
 	service.endRestore()
-	if _, err := service.base.Import(context.Background(), "secret", []byte("encrypted")); errors.Is(err, ErrOperationInProgress) {
+	if _, err := service.base.Import(context.Background(), "secret", []byte("encrypted"), ImportOptions{}); errors.Is(err, ErrOperationInProgress) {
 		t.Fatalf("Import error = %v after restore ended, want payload failure", err)
 	}
 }
@@ -462,7 +463,7 @@ func TestImportDatabaseRejectsUnregisteredDeleteOrderTable(t *testing.T) {
 		importDeleteOrder = original
 	})
 
-	_, _, err := importDatabase(context.Background(), backupTransactionGorm(t, nil), "master-key", dump)
+	_, _, err := importDatabase(context.Background(), backupTransactionGorm(t, nil), "master-key", dump, uuid.Nil)
 	if err == nil || !strings.Contains(err.Error(), "backup table not_registered was not registered") {
 		t.Fatalf("importDatabase err=%v, want unregistered table error", err)
 	}
