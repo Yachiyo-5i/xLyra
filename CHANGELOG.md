@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.3.1...v1.4.0) (2026-08-27)
+
+
+### Features
+
+* 🎸 API 密钥轮换与分钟级到期 ([e61b215](https://github.com/Yachiyo-5i/xLyra/commit/e61b21526ae78e8c8f44779cb14c10629e551bef))
+* 🎸 支持轮换 API 密钥，一键更换密钥并保留站点模型用量等全部配置 ([078bdc5](https://github.com/Yachiyo-5i/xLyra/commit/078bdc5c4dce849ed4a403f5a00224af7724fd72))
+
+
+### Bug Fixes
+
+* 🐛 密钥到期时间支持精确到分钟，到期后自动置为停用状态 ([02f3244](https://github.com/Yachiyo-5i/xLyra/commit/02f324498592502ca0b843a747cd1673e79a372f))
+
 ## [1.3.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.3.0...v1.3.1) (2026-08-27)
 
 
