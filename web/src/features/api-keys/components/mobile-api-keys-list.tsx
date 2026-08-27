@@ -15,6 +15,7 @@ import {
   formatSitePolicy,
   hasResettableQuota,
   isAPIKeyActive,
+  isAPIKeyExpired,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
 
@@ -99,6 +100,7 @@ function MobileAPIKeyCard({
 }) {
   const { t, i18n } = useTranslation('api-keys')
   const active = isAPIKeyActive(apiKey)
+  const expired = isAPIKeyExpired(apiKey)
   const lastUsedLabel = apiKey.last_used_at
     ? lastUsedMode === 'absolute'
       ? formatDateTime(apiKey.last_used_at)
@@ -122,7 +124,8 @@ function MobileAPIKeyCard({
         </div>
         <Switch
           checked={active}
-          disabled={isToggling}
+          disabled={isToggling || expired}
+          title={expired ? t('table.expiredToggleHint') : undefined}
           onCheckedChange={() => onToggleKey(apiKey)}
           aria-label={t('table.headers.status')}
         />
@@ -148,6 +151,8 @@ function MobileAPIKeyCard({
         <MobileMetric
           label={t('table.headers.expiresAt')}
           value={apiKey.expires_at ? formatDateTime(apiKey.expires_at) : t('table.permanent')}
+          valueClassName={expired ? 'text-[hsl(var(--destructive))]' : undefined}
+          valueTitle={expired ? t('table.expired') : undefined}
         />
       </div>
 
@@ -202,11 +207,13 @@ function MobileAPIKeyCard({
 }
 
 
-function MobileMetric({ label, value }: { label: string; value: string }) {
+function MobileMetric({ label, value, valueClassName, valueTitle }: { label: string; value: string; valueClassName?: string; valueTitle?: string }) {
   return (
     <div className="min-w-0 px-2 py-2">
       <span className="block text-[11px] text-muted-soft">{label}</span>
-      <span className="mt-1 block truncate font-medium text-foreground tabular-nums" title={value}>{value}</span>
+      <span className={cn('mt-1 block truncate font-medium text-foreground tabular-nums', valueClassName)} title={valueTitle ?? value}>
+        {value}
+      </span>
     </div>
   )
 }

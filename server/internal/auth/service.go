@@ -762,11 +762,20 @@ func (s *Service) createGatewayAPIKeyValue(ctx context.Context, customKey string
 	return "", "", fmt.Errorf("generate unique api key: too many collisions")
 }
 
+// disableExpiredAPIKeys persists the disabled status for keys whose expiry
+// has passed, so the admin console shows the toggle as off. Best-effort: read
+// paths must not fail because of this sweep.
+func (s *Service) disableExpiredAPIKeys(ctx context.Context) {
+	_, _ = s.apiKeys.DisableExpiredAPIKeys(ctx, time.Now())
+}
+
 func (s *Service) ListAPIKeys(ctx context.Context) ([]store.APIKey, error) {
+	s.disableExpiredAPIKeys(ctx)
 	return s.apiKeys.List(ctx)
 }
 
 func (s *Service) ListAPIKeyDetails(ctx context.Context) ([]APIKeyDetails, error) {
+	s.disableExpiredAPIKeys(ctx)
 	apiKeys, err := s.apiKeys.List(ctx)
 	if err != nil {
 		return nil, err
@@ -870,6 +879,7 @@ func (s *Service) ListAPIKeyDetails(ctx context.Context) ([]APIKeyDetails, error
 }
 
 func (s *Service) GetAPIKey(ctx context.Context, id uuid.UUID) (store.APIKey, error) {
+	s.disableExpiredAPIKeys(ctx)
 	return s.apiKeys.GetByID(ctx, id)
 }
 
@@ -916,6 +926,17 @@ func (s *Service) UpdateAPIKey(ctx context.Context, id uuid.UUID, input UpdateAP
 	status := strings.TrimSpace(input.Status)
 	if status == "" {
 		status = current.Status
+	}
+	// Re-enabling is only meaningful while the key is within its validity
+	// window; an expired key must have its expiration extended first.
+	if status == "active" && current.Status != "active" {
+		effectiveExpiresAt := input.ExpiresAt
+		if effectiveExpiresAt == nil {
+			effectiveExpiresAt = current.ExpiresAt
+		}
+		if effectiveExpiresAt != nil && !effectiveExpiresAt.After(time.Now()) {
+			return store.APIKey{}, fmt.Errorf("cannot enable an expired api key; extend the expiration time first")
+		}
 	}
 	modelPolicy := normalizeModelPolicy(input.ModelPolicy)
 	if input.ModelPolicy == "" {

@@ -16,6 +16,7 @@ import {
   formatSitePolicy,
   hasResettableQuota,
   isAPIKeyActive,
+  isAPIKeyExpired,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
 
@@ -137,11 +138,17 @@ export function DownstreamAPIKeysTable({
       {
         id: 'expires_at',
         header: t('table.headers.expiresAt'),
-        cell: ({ row }) => (
-          <span className="text-muted-soft text-sm">
-            {row.original.expires_at ? formatDateTime(row.original.expires_at) : t('table.permanent')}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const expired = isAPIKeyExpired(row.original)
+          return (
+            <span
+              className={expired ? 'text-sm text-[hsl(var(--destructive))]' : 'text-muted-soft text-sm'}
+              title={expired ? t('table.expired') : undefined}
+            >
+              {row.original.expires_at ? formatDateTime(row.original.expires_at) : t('table.permanent')}
+            </span>
+          )
+        },
         meta: {
           className: 'w-[12%]',
           align: 'center',
@@ -152,11 +159,13 @@ export function DownstreamAPIKeysTable({
         header: t('table.headers.status'),
         cell: ({ row }) => {
           const active = isAPIKeyActive(row.original)
+          const expired = isAPIKeyExpired(row.original)
           const toggling = togglingKeyId === row.original.id
           return (
             <Switch
               checked={active}
-              disabled={toggling}
+              disabled={toggling || expired}
+              title={expired ? t('table.expiredToggleHint') : undefined}
               onCheckedChange={() => onToggleKey(row.original)}
             />
           )

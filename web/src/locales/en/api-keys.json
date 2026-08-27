@@ -60,7 +60,9 @@
       "description": "Create a key to start calling the unified gateway."
     },
     "rotate": "Rotate key",
-    "rotateCustomDisabled": "Custom keys cannot be rotated"
+    "rotateCustomDisabled": "Custom keys cannot be rotated",
+    "expired": "Expired",
+    "expiredToggleHint": "Expired — extend the expiration time first"
   },
   "workspace": {
     "loadFailed": "Failed to load API keys",
@@ -177,8 +179,8 @@
       "brandAll": "All brands",
       "noModels": "No models",
       "neverExpire": "Never expire",
-      "expiresDate": "Expires date",
-      "pickDate": "Pick a date",
+      "expiresDate": "Expires at",
+      "pickDate": "Pick expiration date and time",
       "quotaLimit": "Total quota",
       "quotaDesc": "Unit: USD ($) · Empty or 0 means unlimited · Used ${{used}} since the last manual reset",
       "quotaDailyLimit": "Daily quota limit",

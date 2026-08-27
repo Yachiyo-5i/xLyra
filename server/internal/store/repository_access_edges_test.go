@@ -64,14 +64,20 @@ func TestAPIKeyRepositoryGetActiveByHashRejectsInactiveExpiredAndTouchesGenerate
 		tx.Statement.RowsAffected = 1
 	})
 	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
-		saveCalls++
 		updates, ok := tx.Statement.Dest.(map[string]any)
 		if !ok {
 			tx.AddError(errors.New("unexpected api key update destination"))
 			return
 		}
 		ts, ok := updates["last_used_at"].(time.Time)
-		if !ok || !ts.Equal(now) {
+		if !ok {
+			// Expired keys trigger a status write-back sweep instead of a
+			// last-used touch; it is not what this test counts.
+			tx.Statement.RowsAffected = 1
+			return
+		}
+		saveCalls++
+		if !ts.Equal(now) {
 			tx.AddError(errors.New("last used timestamp was not updated"))
 			return
 		}
