@@ -515,7 +515,7 @@ export function ImageView({
           disabled={!apiKeyId}
         />
       </div>
-      <div className="min-w-0 md:hidden">
+      <div className="md:hidden">
         <ModelParameterPicker
           apiKeys={apiKeys}
           apiKeyId={apiKeyId}
@@ -528,7 +528,7 @@ export function ImageView({
           parameterOptions={sizeOptions}
           onParameterChange={setSize}
           disabled={apiKeys.length === 0}
-          triggerClassName="h-11 min-w-0 w-[min(13.5rem,calc(100vw-7rem))] max-w-full"
+          triggerClassName="h-11"
         />
       </div>
     </>
@@ -721,6 +721,8 @@ export function ImageView({
                       ownedBy={entryModel?.ownedBy}
                     />
                     <span className="truncate">{entry.model}</span>
+                    {entry.siteName ? <span>|</span> : null}
+                    {entry.siteName ? <span className="truncate">{entry.siteName}</span> : null}
                     {displayedDuration ? <span>·</span> : null}
                     {displayedDuration ? (
                       <span className="whitespace-nowrap tabular-nums">
@@ -729,8 +731,6 @@ export function ImageView({
                         })}
                       </span>
                     ) : null}
-                    {entry.siteName ? <span>|</span> : null}
-                    {entry.siteName ? <span className="truncate">{entry.siteName}</span> : null}
                     {entry.size && entry.size !== 'auto' ? <span>· {entry.size}</span> : null}
                   </div>
                 </div>
