@@ -146,6 +146,9 @@ export function MultiSelect({
           sideOffset={8}
           collisionPadding={16}
           onOpenAutoFocus={(event) => event.preventDefault()}
+          // 阻止滚轮/触摸事件冒泡到 document，否则弹层在 Dialog/Sheet 内打开时滚动会被其滚动锁拦截
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
           className={cn(
             'glass-panel-strong z-[120] flex max-h-[min(var(--radix-popover-content-available-height),32rem)] flex-col overflow-hidden rounded-xl shadow-xl',
             useContentWidth

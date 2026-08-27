@@ -282,6 +282,9 @@ export function DateTimePicker(props: DateTimePickerProps) {
         <PopoverPrimitive.Content
           align="start"
           sideOffset={8}
+          // 阻止滚轮/触摸事件冒泡到 document，否则弹层在 Dialog/Sheet 内打开时滚动会被其滚动锁拦截
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
           className="glass-panel-strong z-[120] w-[min(644px,calc(100vw-2rem))] rounded-xl p-3"
         >
           <div className="grid gap-4 min-[620px]:grid-cols-[320px_1fr]">

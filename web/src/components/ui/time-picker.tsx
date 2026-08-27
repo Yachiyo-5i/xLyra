@@ -178,6 +178,9 @@ export function TimePicker({
         <PopoverPrimitive.Content
           align="start"
           sideOffset={8}
+          // 阻止滚轮/触摸事件冒泡到 document，否则弹层在 Dialog/Sheet 内打开时滚动会被其滚动锁拦截
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
           className="glass-panel-strong z-[120] w-[280px] rounded-xl p-3"
         >
           <div className="grid grid-cols-2 gap-3">
