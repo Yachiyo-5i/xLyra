@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.3.0...v1.3.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* 🐛 优化 Playground 操作布局并完善代码复制与生图结果信息展示 ([1d37ac0](https://github.com/Yachiyo-5i/xLyra/commit/1d37ac03d37fd058bd691c764697f2f1ad68797a))
+* 🐛 修复弹窗面板内下拉列表无法滚动导致选项显示不全的问题 ([8b71f29](https://github.com/Yachiyo-5i/xLyra/commit/8b71f291c60b97c93d8cf8aae9e364145836b942))
+
 ## [1.3.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.2.3...v1.3.0) (2026-08-24)
 
 
