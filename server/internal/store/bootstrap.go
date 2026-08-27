@@ -279,6 +279,17 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure api_keys quota column %s: %w", field, err)
 		}
 	}
+	for _, field := range []string{"AutoResetOAuthConnectionID", "AutoResetLastResetAt"} {
+		if migrator.HasColumn(&APIKey{}, field) {
+			continue
+		}
+		if err := migrator.AddColumn(&APIKey{}, field); err != nil {
+			return fmt.Errorf("ensure api_keys auto reset column %s: %w", field, err)
+		}
+	}
+	if err := ensureSchemaIndex(migrator, &APIKey{}, "api_keys_auto_reset_oauth_connection_id_idx"); err != nil {
+		return err
+	}
 	if err := ensureAPIKeyTotalQuotaBackfill(ctx, db, time.Now()); err != nil {
 		return err
 	}

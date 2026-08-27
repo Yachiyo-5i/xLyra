@@ -62,7 +62,9 @@
     "rotate": "轮换密钥",
     "rotateCustomDisabled": "自定义密钥不支持轮换",
     "expired": "已过期",
-    "expiredToggleHint": "已到期，请先修改到期时间"
+    "expiredToggleHint": "已到期，请先修改到期时间",
+    "autoReset": "自动重置",
+    "autoResetHint": "OAuth 周额度重置时会重置此密钥的总额度"
   },
   "workspace": {
     "loadFailed": "加载 API 密钥失败",
@@ -186,7 +188,11 @@
       "quotaDailyLimit": "日额度上限",
       "quotaDailyDesc": "空或 0 表示不限 · 每天自动重置 · 当前周期已用 ${{used}}",
       "quotaWeeklyLimit": "周额度上限",
-      "quotaWeeklyDesc": "空或 0 表示不限 · 每周一自动重置 · 当前周期已用 ${{used}}"
+      "quotaWeeklyDesc": "空或 0 表示不限 · 每周一自动重置 · 当前周期已用 ${{used}}",
+      "autoReset": "自动重置总额度",
+      "autoResetDesc": "所选 OAuth 账号的周额度重置后，自动重置此密钥的总额度。",
+      "autoResetNone": "不启用",
+      "autoResetSummary": "OAuth 周额度重置 → 此密钥总额度重置；本地日额度和周额度不受影响。"
     },
     "advanced": {
       "modelMapping": "模型映射",
@@ -230,6 +236,7 @@
       "quotaDailyTooLow": "日额度不能低于当前周期已使用金额 (${{used}})",
       "quotaWeeklyInvalid": "请输入有效的周额度",
       "quotaWeeklyTooLow": "周额度不能低于当前周期已使用金额 (${{used}})",
+      "autoResetQuotaRequired": "启用自动重置需要设置有限的总额度",
       "rateLimitRequired": "启用调用频率限制时，至少填写一项上限",
       "rpmInvalid": "在途请求上限必须是大于 0 的整数",
       "tpmInvalid": "每分钟 Token 数必须是大于 0 的整数",

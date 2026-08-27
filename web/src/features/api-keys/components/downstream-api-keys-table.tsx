@@ -3,6 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { DataTable } from '@/components/common/data-table'
 import { EmptyState } from '@/components/common/empty-state'
+import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import type { DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
 import { APIKeyActionsMenu } from '@/features/api-keys/components/api-key-actions-menu'
@@ -56,8 +57,15 @@ export function DownstreamAPIKeysTable({
         header: t('table.headers.key'),
         cell: ({ row }) => (
           <div className="min-w-0 space-y-1">
-            <div className="truncate font-medium text-foreground" title={row.original.name}>
-              {row.original.name}
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="truncate font-medium text-foreground" title={row.original.name}>
+                {row.original.name}
+              </div>
+              {row.original.auto_reset_oauth_connection_id ? (
+                <Badge variant="info" className="px-1.5 py-0 text-[10px]" title={t('table.autoResetHint')}>
+                  {t('table.autoReset')}
+                </Badge>
+              ) : null}
             </div>
             <APIKeyCopyMenu apiKey={row.original} />
           </div>

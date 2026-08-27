@@ -698,7 +698,16 @@ func (s *Service) Delete(ctx context.Context, siteID uuid.UUID) error {
 	}
 
 	if err := s.db.WithinTx(ctx, func(tx store.Tx) error {
-		if err := store.NewOAuthConnectionRepository(tx).DeleteBySiteID(ctx, siteID); err != nil {
+		oauthRepo := store.NewOAuthConnectionRepository(tx)
+		connection, err := oauthRepo.GetBySiteID(ctx, siteID)
+		if err == nil {
+			if err := store.NewAPIKeyRepository(tx).ClearAutoResetOAuthConnection(ctx, connection.ID); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := oauthRepo.DeleteBySiteID(ctx, siteID); err != nil {
 			return err
 		}
 		if err := cleanupDeletedSiteRelations(ctx, tx, siteID); err != nil {

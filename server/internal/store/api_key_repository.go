@@ -18,37 +18,39 @@ import (
 )
 
 type APIKey struct {
-	ID                     uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	Name                   string
-	KeyPrefix              string
-	KeyHash                string `gorm:"column:key_hash"`
-	EncryptedSecret        sql.NullString
-	MaskedKey              string
-	KeyKind                string `gorm:"default:generated;not null"`
-	Scope                  string
-	Status                 string
-	ModelPolicy            string
-	SitePolicy             string
-	ModelMappings          JSON `gorm:"type:jsonb;default:'[]'::jsonb"`
-	ImageToolBridge        JSON `gorm:"type:jsonb;default:'{}'::jsonb"`
-	QuotaLimit             sql.NullFloat64
-	QuotaUsed              float64
-	QuotaTotalUsed         float64 `gorm:"type:numeric(18,8);default:0;not null"`
-	QuotaTotalResetAt      *time.Time
-	QuotaUnlimited         bool
-	QuotaDailyLimit        sql.NullFloat64 `gorm:"type:numeric(18,8)"`
-	QuotaDailyUsed         float64         `gorm:"type:numeric(18,8);default:0;not null"`
-	QuotaDailyUnlimited    bool            `gorm:"default:true;not null"`
-	QuotaDailyWindowStart  *time.Time
-	QuotaWeeklyLimit       sql.NullFloat64 `gorm:"type:numeric(18,8)"`
-	QuotaWeeklyUsed        float64         `gorm:"type:numeric(18,8);default:0;not null"`
-	QuotaWeeklyUnlimited   bool            `gorm:"default:true;not null"`
-	QuotaWeeklyWindowStart *time.Time
-	CreatedByAdminID       *uuid.UUID
-	LastUsedAt             *time.Time
-	ExpiresAt              *time.Time
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	ID                         uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	Name                       string
+	KeyPrefix                  string
+	KeyHash                    string `gorm:"column:key_hash"`
+	EncryptedSecret            sql.NullString
+	MaskedKey                  string
+	KeyKind                    string `gorm:"default:generated;not null"`
+	Scope                      string
+	Status                     string
+	ModelPolicy                string
+	SitePolicy                 string
+	ModelMappings              JSON `gorm:"type:jsonb;default:'[]'::jsonb"`
+	ImageToolBridge            JSON `gorm:"type:jsonb;default:'{}'::jsonb"`
+	QuotaLimit                 sql.NullFloat64
+	QuotaUsed                  float64
+	QuotaTotalUsed             float64 `gorm:"type:numeric(18,8);default:0;not null"`
+	QuotaTotalResetAt          *time.Time
+	QuotaUnlimited             bool
+	QuotaDailyLimit            sql.NullFloat64 `gorm:"type:numeric(18,8)"`
+	QuotaDailyUsed             float64         `gorm:"type:numeric(18,8);default:0;not null"`
+	QuotaDailyUnlimited        bool            `gorm:"default:true;not null"`
+	QuotaDailyWindowStart      *time.Time
+	QuotaWeeklyLimit           sql.NullFloat64 `gorm:"type:numeric(18,8)"`
+	QuotaWeeklyUsed            float64         `gorm:"type:numeric(18,8);default:0;not null"`
+	QuotaWeeklyUnlimited       bool            `gorm:"default:true;not null"`
+	QuotaWeeklyWindowStart     *time.Time
+	AutoResetOAuthConnectionID *uuid.UUID
+	AutoResetLastResetAt       *time.Time
+	CreatedByAdminID           *uuid.UUID
+	LastUsedAt                 *time.Time
+	ExpiresAt                  *time.Time
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
 }
 
 type APIKeyListOption struct {
@@ -99,43 +101,46 @@ type APIKeySitePermission struct {
 }
 
 type CreateAPIKeyParams struct {
-	Name                 string
-	KeyPrefix            string
-	KeyHash              string
-	EncryptedSecret      any
-	MaskedKey            string
-	KeyKind              string
-	Scope                string
-	Status               string
-	ModelPolicy          string
-	SitePolicy           string
-	ModelMappings        any
-	ImageToolBridge      any
-	QuotaLimit           any
-	QuotaUnlimited       bool
-	QuotaDailyLimit      any
-	QuotaDailyUnlimited  bool
-	QuotaWeeklyLimit     any
-	QuotaWeeklyUnlimited bool
-	ExpiresAt            any
-	CreatedByAdminID     uuid.UUID
+	Name                       string
+	KeyPrefix                  string
+	KeyHash                    string
+	EncryptedSecret            any
+	MaskedKey                  string
+	KeyKind                    string
+	Scope                      string
+	Status                     string
+	ModelPolicy                string
+	SitePolicy                 string
+	ModelMappings              any
+	ImageToolBridge            any
+	QuotaLimit                 any
+	QuotaUnlimited             bool
+	QuotaDailyLimit            any
+	QuotaDailyUnlimited        bool
+	QuotaWeeklyLimit           any
+	QuotaWeeklyUnlimited       bool
+	AutoResetOAuthConnectionID *uuid.UUID
+	ExpiresAt                  any
+	CreatedByAdminID           uuid.UUID
 }
 
 type UpdateAPIKeyParams struct {
-	ID                   uuid.UUID
-	Name                 string
-	Status               string
-	ModelPolicy          string
-	SitePolicy           string
-	ModelMappings        any
-	ImageToolBridge      any
-	QuotaLimit           any
-	QuotaUnlimited       bool
-	QuotaDailyLimit      any
-	QuotaDailyUnlimited  bool
-	QuotaWeeklyLimit     any
-	QuotaWeeklyUnlimited bool
-	ExpiresAt            any
+	ID                         uuid.UUID
+	Name                       string
+	Status                     string
+	ModelPolicy                string
+	SitePolicy                 string
+	ModelMappings              any
+	ImageToolBridge            any
+	QuotaLimit                 any
+	QuotaUnlimited             bool
+	QuotaDailyLimit            any
+	QuotaDailyUnlimited        bool
+	QuotaWeeklyLimit           any
+	QuotaWeeklyUnlimited       bool
+	AutoResetOAuthConnectionID *uuid.UUID
+	AutoResetLastResetAt       *time.Time
+	ExpiresAt                  any
 }
 
 type APIKeyRepository struct {
@@ -345,19 +350,21 @@ func (r APIKeyRepository) Update(ctx context.Context, params UpdateAPIKeyParams)
 		return APIKey{}, err
 	}
 	updates := map[string]any{
-		"name":                   params.Name,
-		"status":                 params.Status,
-		"model_policy":           params.ModelPolicy,
-		"site_policy":            params.SitePolicy,
-		"model_mappings":         jsonDefault(jsonFromAny(params.ModelMappings, string(apiKey.ModelMappings)), "[]"),
-		"image_tool_bridge":      jsonDefault(jsonFromAny(params.ImageToolBridge, string(apiKey.ImageToolBridge)), "{}"),
-		"quota_limit":            nullFloatFromAny(params.QuotaLimit),
-		"quota_unlimited":        params.QuotaUnlimited,
-		"quota_daily_limit":      nullFloatFromAny(params.QuotaDailyLimit),
-		"quota_daily_unlimited":  params.QuotaDailyUnlimited,
-		"quota_weekly_limit":     nullFloatFromAny(params.QuotaWeeklyLimit),
-		"quota_weekly_unlimited": params.QuotaWeeklyUnlimited,
-		"expires_at":             timePtrFromAny(params.ExpiresAt),
+		"name":                           params.Name,
+		"status":                         params.Status,
+		"model_policy":                   params.ModelPolicy,
+		"site_policy":                    params.SitePolicy,
+		"model_mappings":                 jsonDefault(jsonFromAny(params.ModelMappings, string(apiKey.ModelMappings)), "[]"),
+		"image_tool_bridge":              jsonDefault(jsonFromAny(params.ImageToolBridge, string(apiKey.ImageToolBridge)), "{}"),
+		"quota_limit":                    nullFloatFromAny(params.QuotaLimit),
+		"quota_unlimited":                params.QuotaUnlimited,
+		"quota_daily_limit":              nullFloatFromAny(params.QuotaDailyLimit),
+		"quota_daily_unlimited":          params.QuotaDailyUnlimited,
+		"quota_weekly_limit":             nullFloatFromAny(params.QuotaWeeklyLimit),
+		"quota_weekly_unlimited":         params.QuotaWeeklyUnlimited,
+		"auto_reset_oauth_connection_id": params.AutoResetOAuthConnectionID,
+		"auto_reset_last_reset_at":       params.AutoResetLastResetAt,
+		"expires_at":                     timePtrFromAny(params.ExpiresAt),
 	}
 	if err := r.db.WithContext(ctx).Model(&APIKey{ID: params.ID}).Updates(updates).Error; err != nil {
 		return APIKey{}, fmt.Errorf("update api key: %w", err)
@@ -367,6 +374,66 @@ func (r APIKeyRepository) Update(ctx context.Context, params UpdateAPIKeyParams)
 		return APIKey{}, fmt.Errorf("load updated api key: %w", err)
 	}
 	return updated, nil
+}
+
+// ResetTotalForOAuthWeeklyReset applies one observed upstream weekly reset to
+// every bound key. The row lock and reset timestamp make repeated site
+// refreshes and concurrent manual refreshes idempotent.
+func (r APIKeyRepository) ResetTotalForOAuthWeeklyReset(ctx context.Context, oauthConnectionID uuid.UUID, upstreamResetAt time.Time, now time.Time) (int, error) {
+	if oauthConnectionID == uuid.Nil || upstreamResetAt.IsZero() {
+		return 0, nil
+	}
+
+	var apiKeys []APIKey
+	if err := r.db.WithContext(ctx).Where("auto_reset_oauth_connection_id = ?", oauthConnectionID).Find(&apiKeys).Error; err != nil {
+		return 0, fmt.Errorf("list api keys for oauth weekly reset: %w", err)
+	}
+	resetCount := 0
+	for _, item := range apiKeys {
+		reset := false
+		err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var apiKey APIKey
+			if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Where(&APIKey{ID: item.ID}).First(&apiKey).Error; err != nil {
+				return err
+			}
+			if apiKey.AutoResetLastResetAt != nil && !upstreamResetAt.After(*apiKey.AutoResetLastResetAt) {
+				return nil
+			}
+			updates := map[string]any{"auto_reset_last_reset_at": upstreamResetAt}
+			if !apiKey.QuotaUnlimited && apiKey.QuotaLimit.Valid && apiKey.QuotaLimit.Float64 > 0 {
+				resetAt := now
+				updates["quota_total_used"] = 0
+				updates["quota_total_reset_at"] = &resetAt
+				reset = true
+			}
+			if err := tx.Model(&apiKey).Updates(updates).Error; err != nil {
+				return fmt.Errorf("reset api key total quota: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return resetCount, err
+		}
+		if reset {
+			resetCount++
+		}
+	}
+	return resetCount, nil
+}
+
+func (r APIKeyRepository) ClearAutoResetOAuthConnection(ctx context.Context, oauthConnectionID uuid.UUID) error {
+	if oauthConnectionID == uuid.Nil {
+		return nil
+	}
+	if err := r.db.WithContext(ctx).Model(&APIKey{}).
+		Where("auto_reset_oauth_connection_id = ?", oauthConnectionID).
+		Updates(map[string]any{
+			"auto_reset_oauth_connection_id": nil,
+			"auto_reset_last_reset_at":       nil,
+		}).Error; err != nil {
+		return fmt.Errorf("clear api key oauth auto reset: %w", err)
+	}
+	return nil
 }
 
 type RotateAPIKeySecretParams struct {

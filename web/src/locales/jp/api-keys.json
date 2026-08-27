@@ -62,7 +62,9 @@
     "rotate": "キーをローテーション",
     "rotateCustomDisabled": "カスタムキーはローテーションできません",
     "expired": "期限切れ",
-    "expiredToggleHint": "期限切れです。先に有効期限を延長してください"
+    "expiredToggleHint": "期限切れです。先に有効期限を延長してください",
+    "autoReset": "自動リセット",
+    "autoResetHint": "OAuth の週次リセット時にこのキーの合計クォータをリセットします"
   },
   "workspace": {
     "loadFailed": "API キーの読み込みに失敗しました",
@@ -186,7 +188,11 @@
       "quotaDailyLimit": "日次クォータ上限",
       "quotaDailyDesc": "空欄または 0 は無制限 · 毎日リセット · 現在の期間で ${{used}} 使用済み",
       "quotaWeeklyLimit": "週次クォータ上限",
-      "quotaWeeklyDesc": "空欄または 0 は無制限 · 毎週月曜日にリセット · 現在の期間で ${{used}} 使用済み"
+      "quotaWeeklyDesc": "空欄または 0 は無制限 · 毎週月曜日にリセット · 現在の期間で ${{used}} 使用済み",
+      "autoReset": "合計クォータの自動リセット",
+      "autoResetDesc": "選択した OAuth アカウントの週次クォータがリセットされたら、このキーの合計クォータをリセットします。",
+      "autoResetNone": "無効",
+      "autoResetSummary": "OAuth 週次リセット → このキーの合計クォータをリセット。日次・週次のローカルクォータは変更しません。"
     },
     "advanced": {
       "modelMapping": "モデルマッピング",
@@ -230,6 +236,7 @@
       "quotaDailyTooLow": "日次クォータは現在の期間の使用額 (${{used}}) 未満にはできません",
       "quotaWeeklyInvalid": "有効な週次クォータを入力してください",
       "quotaWeeklyTooLow": "週次クォータは現在の期間の使用額 (${{used}}) 未満にはできません",
+      "autoResetQuotaRequired": "自動リセットには制限付きの合計クォータが必要です",
       "rateLimitRequired": "レート制限を有効にする場合、少なくとも 1 つの上限が必要です",
       "rpmInvalid": "処理中リクエスト上限は 0 より大きい整数で指定してください",
       "tpmInvalid": "TPM は正の整数である必要があります",

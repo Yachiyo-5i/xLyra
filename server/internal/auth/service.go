@@ -103,43 +103,45 @@ type CreateAPIKeyResult struct {
 }
 
 type CreateAPIKeyInput struct {
-	Name                 string
-	CustomKey            string
-	ModelPolicy          string
-	SiteModelIDs         []uuid.UUID
-	SitePolicy           string
-	SiteIDs              []uuid.UUID
-	SiteGroupIDs         []uuid.UUID
-	ModelRules           []store.APIKeyModelRule
-	ImageToolBridge      *ImageToolBridgeInput
-	QuotaLimit           *float64
-	QuotaUnlimited       bool
-	QuotaDailyLimit      *float64
-	QuotaDailyUnlimited  *bool
-	QuotaWeeklyLimit     *float64
-	QuotaWeeklyUnlimited *bool
-	ExpiresAt            *time.Time
-	RateLimit            *RateLimitInput
+	Name                       string
+	CustomKey                  string
+	ModelPolicy                string
+	SiteModelIDs               []uuid.UUID
+	SitePolicy                 string
+	SiteIDs                    []uuid.UUID
+	SiteGroupIDs               []uuid.UUID
+	ModelRules                 []store.APIKeyModelRule
+	ImageToolBridge            *ImageToolBridgeInput
+	QuotaLimit                 *float64
+	QuotaUnlimited             bool
+	QuotaDailyLimit            *float64
+	QuotaDailyUnlimited        *bool
+	QuotaWeeklyLimit           *float64
+	QuotaWeeklyUnlimited       *bool
+	AutoResetOAuthConnectionID *uuid.UUID
+	ExpiresAt                  *time.Time
+	RateLimit                  *RateLimitInput
 }
 
 type UpdateAPIKeyInput struct {
-	Name                 string
-	Status               string
-	ModelPolicy          string
-	SiteModelIDs         []uuid.UUID
-	SitePolicy           string
-	SiteIDs              []uuid.UUID
-	SiteGroupIDs         []uuid.UUID
-	ModelRules           []store.APIKeyModelRule
-	ImageToolBridge      *ImageToolBridgeInput
-	QuotaLimit           *float64
-	QuotaUnlimited       bool
-	QuotaDailyLimit      *float64
-	QuotaDailyUnlimited  *bool
-	QuotaWeeklyLimit     *float64
-	QuotaWeeklyUnlimited *bool
-	ExpiresAt            *time.Time
-	RateLimit            *RateLimitInput
+	Name                       string
+	Status                     string
+	ModelPolicy                string
+	SiteModelIDs               []uuid.UUID
+	SitePolicy                 string
+	SiteIDs                    []uuid.UUID
+	SiteGroupIDs               []uuid.UUID
+	ModelRules                 []store.APIKeyModelRule
+	ImageToolBridge            *ImageToolBridgeInput
+	QuotaLimit                 *float64
+	QuotaUnlimited             bool
+	QuotaDailyLimit            *float64
+	QuotaDailyUnlimited        *bool
+	QuotaWeeklyLimit           *float64
+	QuotaWeeklyUnlimited       *bool
+	AutoResetOAuthConnectionID *uuid.UUID
+	ExpiresAt                  *time.Time
+	RateLimit                  *RateLimitInput
 }
 
 type APIKeyDetails struct {
@@ -629,6 +631,9 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput, adm
 	if err := validateAPIKeyQuota("quota_weekly_limit", input.QuotaWeeklyLimit, weeklyUnlimited, 0); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
+	if err := s.validateAPIKeyAutoReset(ctx, input.AutoResetOAuthConnectionID, quotaUnlimited); err != nil {
+		return CreateAPIKeyResult{}, err
+	}
 
 	modelPolicy := normalizeModelPolicy(input.ModelPolicy)
 	siteModelIDs, err := s.normalizeExistingSiteModelIDs(ctx, input.SiteModelIDs)
@@ -663,26 +668,27 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput, adm
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		apiKeyRepo := store.NewAPIKeyRepository(tx)
 		created, err := apiKeyRepo.Create(ctx, store.CreateAPIKeyParams{
-			Name:                 name,
-			KeyPrefix:            keyPrefix,
-			KeyHash:              hashToken(key),
-			EncryptedSecret:      encrypted,
-			MaskedKey:            masked,
-			KeyKind:              keyKind,
-			Scope:                "gateway",
-			Status:               "active",
-			ModelPolicy:          modelPolicy,
-			SitePolicy:           sitePolicy,
-			ModelMappings:        modelRules,
-			ImageToolBridge:      imageToolBridge,
-			QuotaLimit:           nullableFloat(input.QuotaLimit),
-			QuotaUnlimited:       quotaUnlimited,
-			QuotaDailyLimit:      nullableFloat(input.QuotaDailyLimit),
-			QuotaDailyUnlimited:  dailyUnlimited,
-			QuotaWeeklyLimit:     nullableFloat(input.QuotaWeeklyLimit),
-			QuotaWeeklyUnlimited: weeklyUnlimited,
-			ExpiresAt:            nullableTime(input.ExpiresAt),
-			CreatedByAdminID:     adminID,
+			Name:                       name,
+			KeyPrefix:                  keyPrefix,
+			KeyHash:                    hashToken(key),
+			EncryptedSecret:            encrypted,
+			MaskedKey:                  masked,
+			KeyKind:                    keyKind,
+			Scope:                      "gateway",
+			Status:                     "active",
+			ModelPolicy:                modelPolicy,
+			SitePolicy:                 sitePolicy,
+			ModelMappings:              modelRules,
+			ImageToolBridge:            imageToolBridge,
+			QuotaLimit:                 nullableFloat(input.QuotaLimit),
+			QuotaUnlimited:             quotaUnlimited,
+			QuotaDailyLimit:            nullableFloat(input.QuotaDailyLimit),
+			QuotaDailyUnlimited:        dailyUnlimited,
+			QuotaWeeklyLimit:           nullableFloat(input.QuotaWeeklyLimit),
+			QuotaWeeklyUnlimited:       weeklyUnlimited,
+			AutoResetOAuthConnectionID: input.AutoResetOAuthConnectionID,
+			ExpiresAt:                  nullableTime(input.ExpiresAt),
+			CreatedByAdminID:           adminID,
 		})
 		if err != nil {
 			return err
@@ -918,6 +924,9 @@ func (s *Service) UpdateAPIKey(ctx context.Context, id uuid.UUID, input UpdateAP
 	if err := validateAPIKeyQuota("quota_weekly_limit", weeklyLimit, weeklyUnlimited, current.EffectiveWeeklyQuotaUsed(time.Now(), s.timeZone)); err != nil {
 		return store.APIKey{}, err
 	}
+	if err := s.validateAPIKeyAutoReset(ctx, input.AutoResetOAuthConnectionID, quotaUnlimited); err != nil {
+		return store.APIKey{}, err
+	}
 
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
@@ -983,23 +992,29 @@ func (s *Service) UpdateAPIKey(ctx context.Context, id uuid.UUID, input UpdateAP
 	}
 
 	var updated store.APIKey
+	autoResetLastResetAt := current.AutoResetLastResetAt
+	if !sameUUID(current.AutoResetOAuthConnectionID, input.AutoResetOAuthConnectionID) {
+		autoResetLastResetAt = nil
+	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
 		updated, err = store.NewAPIKeyRepository(tx).Update(ctx, store.UpdateAPIKeyParams{
-			ID:                   id,
-			Name:                 name,
-			Status:               status,
-			ModelPolicy:          modelPolicy,
-			SitePolicy:           sitePolicy,
-			ModelMappings:        modelRules,
-			ImageToolBridge:      imageToolBridge,
-			QuotaLimit:           nullableFloat(input.QuotaLimit),
-			QuotaUnlimited:       quotaUnlimited,
-			QuotaDailyLimit:      nullableFloat(dailyLimit),
-			QuotaDailyUnlimited:  dailyUnlimited,
-			QuotaWeeklyLimit:     nullableFloat(weeklyLimit),
-			QuotaWeeklyUnlimited: weeklyUnlimited,
-			ExpiresAt:            nullableTime(input.ExpiresAt),
+			ID:                         id,
+			Name:                       name,
+			Status:                     status,
+			ModelPolicy:                modelPolicy,
+			SitePolicy:                 sitePolicy,
+			ModelMappings:              modelRules,
+			ImageToolBridge:            imageToolBridge,
+			QuotaLimit:                 nullableFloat(input.QuotaLimit),
+			QuotaUnlimited:             quotaUnlimited,
+			QuotaDailyLimit:            nullableFloat(dailyLimit),
+			QuotaDailyUnlimited:        dailyUnlimited,
+			QuotaWeeklyLimit:           nullableFloat(weeklyLimit),
+			QuotaWeeklyUnlimited:       weeklyUnlimited,
+			AutoResetOAuthConnectionID: input.AutoResetOAuthConnectionID,
+			AutoResetLastResetAt:       autoResetLastResetAt,
+			ExpiresAt:                  nullableTime(input.ExpiresAt),
 		})
 		if err != nil {
 			return err
@@ -1155,19 +1170,21 @@ func (s *Service) SetAPIKeySiteModels(ctx context.Context, id uuid.UUID, siteMod
 		}
 		if strings.TrimSpace(modelPolicy) != "" && normalizeModelPolicy(modelPolicy) != current.ModelPolicy {
 			current, err = apiKeyRepo.Update(ctx, store.UpdateAPIKeyParams{
-				ID:                   id,
-				Name:                 current.Name,
-				Status:               current.Status,
-				ModelPolicy:          normalizeModelPolicy(modelPolicy),
-				SitePolicy:           current.SitePolicy,
-				ModelMappings:        current.ModelMappings,
-				QuotaLimit:           nullFloatAsAny(current.QuotaLimit),
-				QuotaUnlimited:       current.QuotaUnlimited,
-				QuotaDailyLimit:      nullFloatAsAny(current.QuotaDailyLimit),
-				QuotaDailyUnlimited:  current.QuotaDailyUnlimited,
-				QuotaWeeklyLimit:     nullFloatAsAny(current.QuotaWeeklyLimit),
-				QuotaWeeklyUnlimited: current.QuotaWeeklyUnlimited,
-				ExpiresAt:            timePtrAsAny(current.ExpiresAt),
+				ID:                         id,
+				Name:                       current.Name,
+				Status:                     current.Status,
+				ModelPolicy:                normalizeModelPolicy(modelPolicy),
+				SitePolicy:                 current.SitePolicy,
+				ModelMappings:              current.ModelMappings,
+				QuotaLimit:                 nullFloatAsAny(current.QuotaLimit),
+				QuotaUnlimited:             current.QuotaUnlimited,
+				QuotaDailyLimit:            nullFloatAsAny(current.QuotaDailyLimit),
+				QuotaDailyUnlimited:        current.QuotaDailyUnlimited,
+				QuotaWeeklyLimit:           nullFloatAsAny(current.QuotaWeeklyLimit),
+				QuotaWeeklyUnlimited:       current.QuotaWeeklyUnlimited,
+				AutoResetOAuthConnectionID: current.AutoResetOAuthConnectionID,
+				AutoResetLastResetAt:       current.AutoResetLastResetAt,
+				ExpiresAt:                  timePtrAsAny(current.ExpiresAt),
 			})
 			return err
 		}
@@ -1395,18 +1412,20 @@ func (s *Service) SetAPIKeySites(ctx context.Context, id uuid.UUID, siteIDs []uu
 		}
 		if strings.TrimSpace(sitePolicy) != "" && normalizeSitePolicy(sitePolicy) != current.SitePolicy {
 			current, err = apiKeyRepo.Update(ctx, store.UpdateAPIKeyParams{
-				ID:                   id,
-				Name:                 current.Name,
-				Status:               current.Status,
-				ModelPolicy:          current.ModelPolicy,
-				SitePolicy:           normalizeSitePolicy(sitePolicy),
-				QuotaLimit:           nullFloatAsAny(current.QuotaLimit),
-				QuotaUnlimited:       current.QuotaUnlimited,
-				QuotaDailyLimit:      nullFloatAsAny(current.QuotaDailyLimit),
-				QuotaDailyUnlimited:  current.QuotaDailyUnlimited,
-				QuotaWeeklyLimit:     nullFloatAsAny(current.QuotaWeeklyLimit),
-				QuotaWeeklyUnlimited: current.QuotaWeeklyUnlimited,
-				ExpiresAt:            timePtrAsAny(current.ExpiresAt),
+				ID:                         id,
+				Name:                       current.Name,
+				Status:                     current.Status,
+				ModelPolicy:                current.ModelPolicy,
+				SitePolicy:                 normalizeSitePolicy(sitePolicy),
+				QuotaLimit:                 nullFloatAsAny(current.QuotaLimit),
+				QuotaUnlimited:             current.QuotaUnlimited,
+				QuotaDailyLimit:            nullFloatAsAny(current.QuotaDailyLimit),
+				QuotaDailyUnlimited:        current.QuotaDailyUnlimited,
+				QuotaWeeklyLimit:           nullFloatAsAny(current.QuotaWeeklyLimit),
+				QuotaWeeklyUnlimited:       current.QuotaWeeklyUnlimited,
+				AutoResetOAuthConnectionID: current.AutoResetOAuthConnectionID,
+				AutoResetLastResetAt:       current.AutoResetLastResetAt,
+				ExpiresAt:                  timePtrAsAny(current.ExpiresAt),
 			})
 			return err
 		}
@@ -1442,19 +1461,21 @@ func (s *Service) SetAPIKeyModelMappings(ctx context.Context, id uuid.UUID, rule
 		return store.APIKey{}, err
 	}
 	return s.apiKeys.Update(ctx, store.UpdateAPIKeyParams{
-		ID:                   id,
-		Name:                 current.Name,
-		Status:               current.Status,
-		ModelPolicy:          current.ModelPolicy,
-		SitePolicy:           current.SitePolicy,
-		ModelMappings:        modelRules,
-		QuotaLimit:           nullFloatAsAny(current.QuotaLimit),
-		QuotaUnlimited:       current.QuotaUnlimited,
-		QuotaDailyLimit:      nullFloatAsAny(current.QuotaDailyLimit),
-		QuotaDailyUnlimited:  current.QuotaDailyUnlimited,
-		QuotaWeeklyLimit:     nullFloatAsAny(current.QuotaWeeklyLimit),
-		QuotaWeeklyUnlimited: current.QuotaWeeklyUnlimited,
-		ExpiresAt:            timePtrAsAny(current.ExpiresAt),
+		ID:                         id,
+		Name:                       current.Name,
+		Status:                     current.Status,
+		ModelPolicy:                current.ModelPolicy,
+		SitePolicy:                 current.SitePolicy,
+		ModelMappings:              modelRules,
+		QuotaLimit:                 nullFloatAsAny(current.QuotaLimit),
+		QuotaUnlimited:             current.QuotaUnlimited,
+		QuotaDailyLimit:            nullFloatAsAny(current.QuotaDailyLimit),
+		QuotaDailyUnlimited:        current.QuotaDailyUnlimited,
+		QuotaWeeklyLimit:           nullFloatAsAny(current.QuotaWeeklyLimit),
+		QuotaWeeklyUnlimited:       current.QuotaWeeklyUnlimited,
+		AutoResetOAuthConnectionID: current.AutoResetOAuthConnectionID,
+		AutoResetLastResetAt:       current.AutoResetLastResetAt,
+		ExpiresAt:                  timePtrAsAny(current.ExpiresAt),
 	})
 }
 
@@ -1864,6 +1885,32 @@ func normalizeSitePolicy(value string) string {
 	default:
 		return "allow_all"
 	}
+}
+
+func (s *Service) validateAPIKeyAutoReset(ctx context.Context, connectionID *uuid.UUID, quotaUnlimited bool) error {
+	if connectionID == nil || *connectionID == uuid.Nil {
+		return nil
+	}
+	if quotaUnlimited {
+		return fmt.Errorf("oauth weekly auto reset requires a limited total quota")
+	}
+	connection, err := store.NewOAuthConnectionRepository(s.db).GetByID(ctx, *connectionID)
+	if err != nil {
+		return fmt.Errorf("auto reset oauth connection was not found")
+	}
+	switch strings.TrimSpace(connection.Provider) {
+	case "codex", "claude_code":
+		return nil
+	default:
+		return fmt.Errorf("oauth provider %q does not expose a supported weekly quota", connection.Provider)
+	}
+}
+
+func sameUUID(left *uuid.UUID, right *uuid.UUID) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func validateAPIKeyQuota(field string, limit *float64, unlimited bool, used float64) error {

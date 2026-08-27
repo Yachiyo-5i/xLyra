@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -966,13 +967,67 @@ func (s *Service) UpdateConnectionSync(ctx context.Context, connectionID uuid.UU
 	if len(connection.Metadata) > 0 {
 		_ = json.Unmarshal(connection.Metadata, &meta)
 	}
+	previousWeeklyResetAt, previousWeeklyResetOK := oauthWeeklyQuotaResetAt(meta)
 	for key, value := range metadataPatch {
 		meta[key] = value
+	}
+	currentWeeklyResetAt, currentWeeklyResetOK := oauthWeeklyQuotaResetAt(meta)
+	if weeklyResetOccurred(previousWeeklyResetAt, previousWeeklyResetOK, currentWeeklyResetAt, currentWeeklyResetOK, time.Now()) {
+		if _, err := store.NewAPIKeyRepository(s.db.DB()).ResetTotalForOAuthWeeklyReset(ctx, connectionID, currentWeeklyResetAt, time.Now()); err != nil {
+			return err
+		}
 	}
 	connection.Metadata = jsonBytes(meta)
 	connection.LastSyncAt = sql.NullTime{Time: time.Now(), Valid: true}
 	_, err = repo.Save(ctx, connection)
 	return err
+}
+
+func oauthWeeklyQuotaResetAt(metadata map[string]any) (time.Time, bool) {
+	quota, ok := metadata["quota"].(map[string]any)
+	if !ok {
+		return time.Time{}, false
+	}
+	weekly, ok := quota["weekly"].(map[string]any)
+	if !ok {
+		return time.Time{}, false
+	}
+	return oauthQuotaResetAt(weekly["reset_at"])
+}
+
+func oauthQuotaResetAt(value any) (time.Time, bool) {
+	var number float64
+	switch item := value.(type) {
+	case float64:
+		number = item
+	case int:
+		number = float64(item)
+	case int64:
+		number = float64(item)
+	case string:
+		text := strings.TrimSpace(item)
+		if parsed, err := time.Parse(time.RFC3339Nano, text); err == nil {
+			return parsed, true
+		}
+		parsed, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return time.Time{}, false
+		}
+		number = parsed
+	default:
+		return time.Time{}, false
+	}
+	if number <= 0 {
+		return time.Time{}, false
+	}
+	if number >= 1e12 {
+		return time.UnixMilli(int64(number)), true
+	}
+	return time.Unix(int64(number), 0), true
+}
+
+func weeklyResetOccurred(previous time.Time, previousOK bool, current time.Time, currentOK bool, now time.Time) bool {
+	return previousOK && currentOK && !previous.After(now) && current.After(previous)
 }
 
 func (s *Service) MarkConnectionAccessTokenOnly(ctx context.Context, connectionID uuid.UUID) error {

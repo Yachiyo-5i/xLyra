@@ -62,7 +62,9 @@
     "rotate": "Rotate key",
     "rotateCustomDisabled": "Custom keys cannot be rotated",
     "expired": "Expired",
-    "expiredToggleHint": "Expired — extend the expiration time first"
+    "expiredToggleHint": "Expired — extend the expiration time first",
+    "autoReset": "Auto reset",
+    "autoResetHint": "OAuth weekly reset resets this key's total quota"
   },
   "workspace": {
     "loadFailed": "Failed to load API keys",
@@ -186,7 +188,11 @@
       "quotaDailyLimit": "Daily quota limit",
       "quotaDailyDesc": "Empty or 0 means unlimited · Resets daily · Used ${{used}} in the current period",
       "quotaWeeklyLimit": "Weekly quota limit",
-      "quotaWeeklyDesc": "Empty or 0 means unlimited · Resets every Monday · Used ${{used}} in the current period"
+      "quotaWeeklyDesc": "Empty or 0 means unlimited · Resets every Monday · Used ${{used}} in the current period",
+      "autoReset": "Automatic total quota reset",
+      "autoResetDesc": "Reset this key's total quota when the selected OAuth account's weekly quota resets.",
+      "autoResetNone": "Disabled",
+      "autoResetSummary": "OAuth weekly reset → this key's total quota. Daily and weekly local quotas are unchanged."
     },
     "advanced": {
       "modelMapping": "Model mapping",
@@ -230,6 +236,7 @@
       "quotaDailyTooLow": "Daily quota cannot be less than current-period usage (${{used}})",
       "quotaWeeklyInvalid": "Please enter a valid weekly quota",
       "quotaWeeklyTooLow": "Weekly quota cannot be less than current-period usage (${{used}})",
+      "autoResetQuotaRequired": "A limited total quota is required for automatic reset",
       "rateLimitRequired": "At least one limit is required when rate limiting is enabled",
       "rpmInvalid": "In-flight limit must be an integer greater than 0",
       "tpmInvalid": "TPM must be a positive integer",

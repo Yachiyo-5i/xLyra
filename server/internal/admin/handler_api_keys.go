@@ -461,24 +461,25 @@ func (h Handler) CheckAPIKeyModel(w http.ResponseWriter, r *http.Request) {
 }
 
 type apiKeyRequest struct {
-	Name                 string                  `json:"name"`
-	CustomKey            string                  `json:"custom_key"`
-	Status               string                  `json:"status"`
-	ModelPolicy          string                  `json:"model_policy"`
-	SiteModelIDs         []string                `json:"site_model_ids"`
-	SitePolicy           string                  `json:"site_policy"`
-	SiteIDs              []string                `json:"site_ids"`
-	SiteGroupIDs         []string                `json:"site_group_ids"`
-	ModelMappings        []modelRuleRequest      `json:"model_mappings"`
-	ImageToolBridge      *imageToolBridgeRequest `json:"image_tool_bridge"`
-	QuotaLimit           *float64                `json:"quota_limit"`
-	QuotaUnlimited       *bool                   `json:"quota_unlimited"`
-	QuotaDailyLimit      *float64                `json:"quota_daily_limit"`
-	QuotaDailyUnlimited  *bool                   `json:"quota_daily_unlimited"`
-	QuotaWeeklyLimit     *float64                `json:"quota_weekly_limit"`
-	QuotaWeeklyUnlimited *bool                   `json:"quota_weekly_unlimited"`
-	ExpiresAt            json.RawMessage         `json:"expires_at"`
-	RateLimit            *rateLimitRequest       `json:"rate_limit"`
+	Name                       string                  `json:"name"`
+	CustomKey                  string                  `json:"custom_key"`
+	Status                     string                  `json:"status"`
+	ModelPolicy                string                  `json:"model_policy"`
+	SiteModelIDs               []string                `json:"site_model_ids"`
+	SitePolicy                 string                  `json:"site_policy"`
+	SiteIDs                    []string                `json:"site_ids"`
+	SiteGroupIDs               []string                `json:"site_group_ids"`
+	ModelMappings              []modelRuleRequest      `json:"model_mappings"`
+	ImageToolBridge            *imageToolBridgeRequest `json:"image_tool_bridge"`
+	QuotaLimit                 *float64                `json:"quota_limit"`
+	QuotaUnlimited             *bool                   `json:"quota_unlimited"`
+	QuotaDailyLimit            *float64                `json:"quota_daily_limit"`
+	QuotaDailyUnlimited        *bool                   `json:"quota_daily_unlimited"`
+	QuotaWeeklyLimit           *float64                `json:"quota_weekly_limit"`
+	QuotaWeeklyUnlimited       *bool                   `json:"quota_weekly_unlimited"`
+	AutoResetOAuthConnectionID json.RawMessage         `json:"auto_reset_oauth_connection_id"`
+	ExpiresAt                  json.RawMessage         `json:"expires_at"`
+	RateLimit                  *rateLimitRequest       `json:"rate_limit"`
 }
 
 type modelRuleRequest struct {
@@ -562,6 +563,10 @@ func apiKeyInputFromRequest(w http.ResponseWriter, r *http.Request, payload apiK
 	if payload.QuotaWeeklyUnlimited != nil {
 		weeklyUnlimited = *payload.QuotaWeeklyUnlimited
 	}
+	autoResetOAuthConnectionID, _, ok := parseOptionalUUID(w, r, payload.AutoResetOAuthConnectionID, "auto_reset_oauth_connection_id")
+	if !ok {
+		return auth.CreateAPIKeyInput{}, false
+	}
 
 	siteIDs, ok := parseSiteIDs(w, r, payload.SiteIDs)
 	if !ok {
@@ -581,23 +586,24 @@ func apiKeyInputFromRequest(w http.ResponseWriter, r *http.Request, payload apiK
 	}
 
 	return auth.CreateAPIKeyInput{
-		Name:                 payload.Name,
-		CustomKey:            payload.CustomKey,
-		ModelPolicy:          payload.ModelPolicy,
-		SiteModelIDs:         siteModelIDs,
-		SitePolicy:           payload.SitePolicy,
-		SiteIDs:              siteIDs,
-		SiteGroupIDs:         siteGroupIDs,
-		ModelRules:           authModelRules(payload.ModelMappings),
-		ImageToolBridge:      imageToolBridge,
-		QuotaLimit:           payload.QuotaLimit,
-		QuotaUnlimited:       quotaUnlimited,
-		QuotaDailyLimit:      payload.QuotaDailyLimit,
-		QuotaDailyUnlimited:  &dailyUnlimited,
-		QuotaWeeklyLimit:     payload.QuotaWeeklyLimit,
-		QuotaWeeklyUnlimited: &weeklyUnlimited,
-		ExpiresAt:            expiresAt,
-		RateLimit:            authRateLimitInput(payload.RateLimit),
+		Name:                       payload.Name,
+		CustomKey:                  payload.CustomKey,
+		ModelPolicy:                payload.ModelPolicy,
+		SiteModelIDs:               siteModelIDs,
+		SitePolicy:                 payload.SitePolicy,
+		SiteIDs:                    siteIDs,
+		SiteGroupIDs:               siteGroupIDs,
+		ModelRules:                 authModelRules(payload.ModelMappings),
+		ImageToolBridge:            imageToolBridge,
+		QuotaLimit:                 payload.QuotaLimit,
+		QuotaUnlimited:             quotaUnlimited,
+		QuotaDailyLimit:            payload.QuotaDailyLimit,
+		QuotaDailyUnlimited:        &dailyUnlimited,
+		QuotaWeeklyLimit:           payload.QuotaWeeklyLimit,
+		QuotaWeeklyUnlimited:       &weeklyUnlimited,
+		AutoResetOAuthConnectionID: autoResetOAuthConnectionID,
+		ExpiresAt:                  expiresAt,
+		RateLimit:                  authRateLimitInput(payload.RateLimit),
 	}, true
 }
 
@@ -638,6 +644,13 @@ func apiKeyUpdateInputFromRequest(w http.ResponseWriter, r *http.Request, payloa
 	if payload.QuotaWeeklyUnlimited != nil {
 		weeklyUnlimited = *payload.QuotaWeeklyUnlimited
 	}
+	autoResetOAuthConnectionID, autoResetProvided, ok := parseOptionalUUID(w, r, payload.AutoResetOAuthConnectionID, "auto_reset_oauth_connection_id")
+	if !ok {
+		return auth.UpdateAPIKeyInput{}, false
+	}
+	if !autoResetProvided {
+		autoResetOAuthConnectionID = current.AutoResetOAuthConnectionID
+	}
 
 	var siteIDs []uuid.UUID
 	if payload.SiteIDs != nil {
@@ -667,23 +680,24 @@ func apiKeyUpdateInputFromRequest(w http.ResponseWriter, r *http.Request, payloa
 	}
 
 	return auth.UpdateAPIKeyInput{
-		Name:                 payload.Name,
-		Status:               payload.Status,
-		ModelPolicy:          payload.ModelPolicy,
-		SiteModelIDs:         siteModelIDs,
-		SitePolicy:           payload.SitePolicy,
-		SiteIDs:              siteIDs,
-		SiteGroupIDs:         siteGroupIDs,
-		ModelRules:           authModelRules(payload.ModelMappings),
-		ImageToolBridge:      imageToolBridge,
-		QuotaLimit:           quotaLimit,
-		QuotaUnlimited:       quotaUnlimited,
-		QuotaDailyLimit:      dailyLimit,
-		QuotaDailyUnlimited:  &dailyUnlimited,
-		QuotaWeeklyLimit:     weeklyLimit,
-		QuotaWeeklyUnlimited: &weeklyUnlimited,
-		ExpiresAt:            expiresAt,
-		RateLimit:            authRateLimitInput(payload.RateLimit),
+		Name:                       payload.Name,
+		Status:                     payload.Status,
+		ModelPolicy:                payload.ModelPolicy,
+		SiteModelIDs:               siteModelIDs,
+		SitePolicy:                 payload.SitePolicy,
+		SiteIDs:                    siteIDs,
+		SiteGroupIDs:               siteGroupIDs,
+		ModelRules:                 authModelRules(payload.ModelMappings),
+		ImageToolBridge:            imageToolBridge,
+		QuotaLimit:                 quotaLimit,
+		QuotaUnlimited:             quotaUnlimited,
+		QuotaDailyLimit:            dailyLimit,
+		QuotaDailyUnlimited:        &dailyUnlimited,
+		QuotaWeeklyLimit:           weeklyLimit,
+		QuotaWeeklyUnlimited:       &weeklyUnlimited,
+		AutoResetOAuthConnectionID: autoResetOAuthConnectionID,
+		ExpiresAt:                  expiresAt,
+		RateLimit:                  authRateLimitInput(payload.RateLimit),
 	}, true
 }
 
@@ -739,6 +753,27 @@ func parseOptionalTime(w http.ResponseWriter, r *http.Request, raw json.RawMessa
 	return &parsed, true, true
 }
 
+func parseOptionalUUID(w http.ResponseWriter, r *http.Request, raw json.RawMessage, field string) (*uuid.UUID, bool, bool) {
+	if len(raw) == 0 {
+		return nil, false, true
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, true, true
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil || strings.TrimSpace(value) == "" {
+		httpx.Error(w, r, http.StatusBadRequest, "invalid_"+field, field+" must be a UUID or null")
+		return nil, true, false
+	}
+	id, err := uuid.Parse(strings.TrimSpace(value))
+	if err != nil {
+		httpx.Error(w, r, http.StatusBadRequest, "invalid_"+field, field+" must be a UUID or null")
+		return nil, true, false
+	}
+	return &id, true, true
+}
+
 func (h Handler) apiKeyPayload(ctx context.Context, item store.APIKey, models []store.APIKeySiteModelPermissionDetail, sites []store.APIKeySitePermission, groups []store.APIKeySiteGroupPermission, includePlaintext bool) map[string]any {
 	return h.apiKeyPayloadWithRateLimit(item, models, sites, groups, includePlaintext, h.apiKeyRateLimit(ctx, item.ID))
 }
@@ -755,43 +790,47 @@ func (h Handler) apiKeyPayloadWithRateLimit(item store.APIKey, models []store.AP
 	weeklyUsed := item.EffectiveWeeklyQuotaUsed(now, h.timeZone)
 
 	return map[string]any{
-		"id":                     item.ID.String(),
-		"name":                   item.Name,
-		"key":                    plaintext,
-		"key_prefix":             item.KeyPrefix,
-		"masked_key":             item.MaskedKey,
-		"key_kind":               item.KeyKind,
-		"scope":                  item.Scope,
-		"status":                 item.Status,
-		"model_policy":           item.ModelPolicy,
-		"site_policy":            item.SitePolicy,
-		"model_mappings":         modelMappingsPayload(item.ModelMappings),
-		"image_tool_bridge":      imageToolBridgePayload(item),
-		"quota_limit":            nullFloat64Value(item.QuotaLimit),
-		"quota_used":             item.QuotaUsed,
-		"quota_total_used":       item.EffectiveTotalQuotaUsed(),
-		"quota_available":        apiKeyQuotaAvailable(item),
-		"quota_total_available":  apiKeyQuotaAvailable(item),
-		"quota_total_reset_at":   timePtrValue(item.QuotaTotalResetAt),
-		"quota_unlimited":        item.QuotaUnlimited,
-		"quota_daily_limit":      nullFloat64Value(item.QuotaDailyLimit),
-		"quota_daily_used":       dailyUsed,
-		"quota_daily_available":  quotaAvailable(item.QuotaDailyLimit, dailyUsed, item.QuotaDailyUnlimited),
-		"quota_daily_unlimited":  item.QuotaDailyUnlimited,
-		"quota_daily_reset_at":   quotaResetAt(h.timeZone.StartOfDay(now).AddDate(0, 0, 1), item.QuotaDailyUnlimited),
-		"quota_weekly_limit":     nullFloat64Value(item.QuotaWeeklyLimit),
-		"quota_weekly_used":      weeklyUsed,
-		"quota_weekly_available": quotaAvailable(item.QuotaWeeklyLimit, weeklyUsed, item.QuotaWeeklyUnlimited),
-		"quota_weekly_unlimited": item.QuotaWeeklyUnlimited,
-		"quota_weekly_reset_at":  quotaResetAt(h.timeZone.StartOfWeek(now).AddDate(0, 0, 7), item.QuotaWeeklyUnlimited),
-		"rate_limit":             apiKeyRateLimitPayload(rateLimit),
-		"expires_at":             timePtrValue(item.ExpiresAt),
-		"last_used_at":           timePtrValue(item.LastUsedAt),
-		"site_models":            apiKeySiteModelPayloads(models),
-		"sites":                  apiKeySitePayloads(sites),
-		"site_groups":            apiKeySiteGroupPayloads(groups),
-		"created_at":             timeString(item.CreatedAt),
-		"updated_at":             timeString(item.UpdatedAt),
+		"id":                             item.ID.String(),
+		"name":                           item.Name,
+		"key":                            plaintext,
+		"key_prefix":                     item.KeyPrefix,
+		"masked_key":                     item.MaskedKey,
+		"key_kind":                       item.KeyKind,
+		"scope":                          item.Scope,
+		"status":                         item.Status,
+		"model_policy":                   item.ModelPolicy,
+		"site_policy":                    item.SitePolicy,
+		"model_mappings":                 modelMappingsPayload(item.ModelMappings),
+		"image_tool_bridge":              imageToolBridgePayload(item),
+		"quota_limit":                    nullFloat64Value(item.QuotaLimit),
+		"quota_used":                     item.QuotaUsed,
+		"quota_total_used":               item.EffectiveTotalQuotaUsed(),
+		"quota_available":                apiKeyQuotaAvailable(item),
+		"quota_total_available":          apiKeyQuotaAvailable(item),
+		"quota_total_reset_at":           timePtrValue(item.QuotaTotalResetAt),
+		"quota_unlimited":                item.QuotaUnlimited,
+		"quota_daily_limit":              nullFloat64Value(item.QuotaDailyLimit),
+		"quota_daily_used":               dailyUsed,
+		"quota_daily_available":          quotaAvailable(item.QuotaDailyLimit, dailyUsed, item.QuotaDailyUnlimited),
+		"quota_daily_unlimited":          item.QuotaDailyUnlimited,
+		"quota_daily_reset_at":           quotaResetAt(h.timeZone.StartOfDay(now).AddDate(0, 0, 1), item.QuotaDailyUnlimited),
+		"quota_weekly_limit":             nullFloat64Value(item.QuotaWeeklyLimit),
+		"quota_weekly_used":              weeklyUsed,
+		"quota_weekly_available":         quotaAvailable(item.QuotaWeeklyLimit, weeklyUsed, item.QuotaWeeklyUnlimited),
+		"quota_weekly_unlimited":         item.QuotaWeeklyUnlimited,
+		"quota_weekly_reset_at":          quotaResetAt(h.timeZone.StartOfWeek(now).AddDate(0, 0, 7), item.QuotaWeeklyUnlimited),
+		"auto_reset_oauth_connection_id": pointerUUIDValue(item.AutoResetOAuthConnectionID),
+		"auto_reset_last_reset_at":       timePtrValue(item.AutoResetLastResetAt),
+		"auto_reset_window":              apiKeyAutoResetWindow(item),
+		"auto_reset_scope":               apiKeyAutoResetScope(item),
+		"rate_limit":                     apiKeyRateLimitPayload(rateLimit),
+		"expires_at":                     timePtrValue(item.ExpiresAt),
+		"last_used_at":                   timePtrValue(item.LastUsedAt),
+		"site_models":                    apiKeySiteModelPayloads(models),
+		"sites":                          apiKeySitePayloads(sites),
+		"site_groups":                    apiKeySiteGroupPayloads(groups),
+		"created_at":                     timeString(item.CreatedAt),
+		"updated_at":                     timeString(item.UpdatedAt),
 	}
 }
 
@@ -800,33 +839,51 @@ func (h Handler) apiKeySyncPayload(item store.APIKey) map[string]any {
 	dailyUsed := item.EffectiveDailyQuotaUsed(now, h.timeZone)
 	weeklyUsed := item.EffectiveWeeklyQuotaUsed(now, h.timeZone)
 	return map[string]any{
-		"id":                     item.ID.String(),
-		"name":                   item.Name,
-		"key":                    nil,
-		"key_prefix":             item.KeyPrefix,
-		"masked_key":             item.MaskedKey,
-		"key_kind":               item.KeyKind,
-		"scope":                  item.Scope,
-		"status":                 item.Status,
-		"quota_limit":            nullFloat64Value(item.QuotaLimit),
-		"quota_used":             item.QuotaUsed,
-		"quota_total_used":       item.EffectiveTotalQuotaUsed(),
-		"quota_available":        apiKeyQuotaAvailable(item),
-		"quota_total_available":  apiKeyQuotaAvailable(item),
-		"quota_total_reset_at":   timePtrValue(item.QuotaTotalResetAt),
-		"quota_unlimited":        item.QuotaUnlimited,
-		"quota_daily_limit":      nullFloat64Value(item.QuotaDailyLimit),
-		"quota_daily_used":       dailyUsed,
-		"quota_daily_available":  quotaAvailable(item.QuotaDailyLimit, dailyUsed, item.QuotaDailyUnlimited),
-		"quota_daily_unlimited":  item.QuotaDailyUnlimited,
-		"quota_weekly_limit":     nullFloat64Value(item.QuotaWeeklyLimit),
-		"quota_weekly_used":      weeklyUsed,
-		"quota_weekly_available": quotaAvailable(item.QuotaWeeklyLimit, weeklyUsed, item.QuotaWeeklyUnlimited),
-		"quota_weekly_unlimited": item.QuotaWeeklyUnlimited,
-		"expires_at":             timePtrValue(item.ExpiresAt),
-		"created_at":             timeString(item.CreatedAt),
-		"updated_at":             timeString(item.UpdatedAt),
+		"id":                             item.ID.String(),
+		"name":                           item.Name,
+		"key":                            nil,
+		"key_prefix":                     item.KeyPrefix,
+		"masked_key":                     item.MaskedKey,
+		"key_kind":                       item.KeyKind,
+		"scope":                          item.Scope,
+		"status":                         item.Status,
+		"quota_limit":                    nullFloat64Value(item.QuotaLimit),
+		"quota_used":                     item.QuotaUsed,
+		"quota_total_used":               item.EffectiveTotalQuotaUsed(),
+		"quota_available":                apiKeyQuotaAvailable(item),
+		"quota_total_available":          apiKeyQuotaAvailable(item),
+		"quota_total_reset_at":           timePtrValue(item.QuotaTotalResetAt),
+		"quota_unlimited":                item.QuotaUnlimited,
+		"quota_daily_limit":              nullFloat64Value(item.QuotaDailyLimit),
+		"quota_daily_used":               dailyUsed,
+		"quota_daily_available":          quotaAvailable(item.QuotaDailyLimit, dailyUsed, item.QuotaDailyUnlimited),
+		"quota_daily_unlimited":          item.QuotaDailyUnlimited,
+		"quota_weekly_limit":             nullFloat64Value(item.QuotaWeeklyLimit),
+		"quota_weekly_used":              weeklyUsed,
+		"quota_weekly_available":         quotaAvailable(item.QuotaWeeklyLimit, weeklyUsed, item.QuotaWeeklyUnlimited),
+		"quota_weekly_unlimited":         item.QuotaWeeklyUnlimited,
+		"auto_reset_oauth_connection_id": pointerUUIDValue(item.AutoResetOAuthConnectionID),
+		"auto_reset_last_reset_at":       timePtrValue(item.AutoResetLastResetAt),
+		"auto_reset_window":              apiKeyAutoResetWindow(item),
+		"auto_reset_scope":               apiKeyAutoResetScope(item),
+		"expires_at":                     timePtrValue(item.ExpiresAt),
+		"created_at":                     timeString(item.CreatedAt),
+		"updated_at":                     timeString(item.UpdatedAt),
 	}
+}
+
+func apiKeyAutoResetWindow(item store.APIKey) any {
+	if item.AutoResetOAuthConnectionID == nil {
+		return nil
+	}
+	return "weekly"
+}
+
+func apiKeyAutoResetScope(item store.APIKey) any {
+	if item.AutoResetOAuthConnectionID == nil {
+		return nil
+	}
+	return "total"
 }
 
 func imageToolBridgePayload(item store.APIKey) any {

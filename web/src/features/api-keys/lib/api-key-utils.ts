@@ -26,6 +26,7 @@ const defaultFormValues: APIKeyFormValues = {
   quotaLimit: '',
   quotaDailyLimit: '',
   quotaWeeklyLimit: '',
+  autoResetOAuthConnectionId: '',
   rateLimitEnabled: false,
   rpmLimit: '',
   tpmLimit: '',
@@ -59,6 +60,7 @@ export function formValuesFromAPIKey(apiKey: DownstreamAPIKey | null): APIKeyFor
     quotaLimit: apiKey.quota_unlimited || apiKey.quota_limit == null ? '' : String(apiKey.quota_limit),
     quotaDailyLimit: apiKey.quota_daily_unlimited || apiKey.quota_daily_limit == null ? '' : String(apiKey.quota_daily_limit),
     quotaWeeklyLimit: apiKey.quota_weekly_unlimited || apiKey.quota_weekly_limit == null ? '' : String(apiKey.quota_weekly_limit),
+    autoResetOAuthConnectionId: apiKey.auto_reset_oauth_connection_id ?? '',
     rateLimitEnabled: apiKey.rate_limit?.status === 'enabled',
     rpmLimit: apiKey.rate_limit?.rpm_limit == null ? '' : String(apiKey.rate_limit.rpm_limit),
     tpmLimit: apiKey.rate_limit?.tpm_limit == null ? '' : String(apiKey.rate_limit.tpm_limit),
@@ -178,6 +180,7 @@ export function toUpdateInput(
     quotaDailyUnlimited: apiKey.quota_daily_unlimited || apiKey.quota_daily_limit == null,
     quotaWeeklyLimit: apiKey.quota_weekly_limit ?? null,
     quotaWeeklyUnlimited: apiKey.quota_weekly_unlimited || apiKey.quota_weekly_limit == null,
+    autoResetOAuthConnectionId: apiKey.auto_reset_oauth_connection_id ?? null,
     rateLimit: {
       status: apiKey.rate_limit?.status === 'enabled' ? 'enabled' : 'disabled',
       rpm_limit: apiKey.rate_limit?.rpm_limit ?? null,

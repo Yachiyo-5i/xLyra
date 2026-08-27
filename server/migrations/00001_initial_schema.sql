@@ -108,6 +108,8 @@ CREATE TABLE api_keys (
   quota_weekly_used NUMERIC(18,8) NOT NULL DEFAULT 0,
   quota_weekly_unlimited BOOLEAN NOT NULL DEFAULT TRUE,
   quota_weekly_window_start TIMESTAMPTZ,
+  auto_reset_oauth_connection_id UUID,
+  auto_reset_last_reset_at TIMESTAMPTZ,
   created_by_admin_id UUID REFERENCES admins(id) ON DELETE SET NULL,
   last_used_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
@@ -117,6 +119,7 @@ CREATE TABLE api_keys (
 
 CREATE INDEX api_keys_status_idx ON api_keys (status);
 CREATE INDEX api_keys_scope_status_idx ON api_keys (scope, status);
+CREATE INDEX api_keys_auto_reset_oauth_connection_id_idx ON api_keys (auto_reset_oauth_connection_id);
 
 CREATE TABLE sites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

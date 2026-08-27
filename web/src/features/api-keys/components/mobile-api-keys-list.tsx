@@ -119,6 +119,11 @@ function MobileAPIKeyCard({
             >
               {active ? t('workspace.status.active') : t('workspace.status.disabled')}
             </Badge>
+            {apiKey.auto_reset_oauth_connection_id ? (
+              <Badge variant="info" className="px-1.5 py-0 text-[10px]" title={t('table.autoResetHint')}>
+                {t('table.autoReset')}
+              </Badge>
+            ) : null}
           </div>
           <APIKeyCopyMenu apiKey={apiKey} triggerClassName="mt-1.5" />
         </div>

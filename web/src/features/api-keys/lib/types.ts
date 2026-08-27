@@ -17,6 +17,7 @@ export type APIKeyFormValues = {
   quotaLimit: string
   quotaDailyLimit: string
   quotaWeeklyLimit: string
+  autoResetOAuthConnectionId: string
   rateLimitEnabled: boolean
   rpmLimit: string
   tpmLimit: string

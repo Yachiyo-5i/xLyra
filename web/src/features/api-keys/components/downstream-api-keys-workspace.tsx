@@ -61,12 +61,14 @@ import {
   type Site,
 } from '@/features/sites/api/sites'
 import { listSiteGroups, siteGroupQueryKeys, type SiteGroup } from '@/features/settings/api/site-groups'
+import { listOAuthConnections, oauthQueryKeys, type OAuthConnectionListItem } from '@/features/oauth/api/oauth'
 import { useMobileLayout } from '@/hooks/use-media-query'
 
 const EMPTY_API_KEYS: DownstreamAPIKey[] = []
 const EMPTY_MODELS: CanonicalModelItem[] = []
 const EMPTY_SITES: Site[] = []
 const EMPTY_SITE_GROUPS: SiteGroup[] = []
+const EMPTY_OAUTH_CONNECTIONS: OAuthConnectionListItem[] = []
 
 export function DownstreamAPIKeysWorkspace() {
   const { t } = useTranslation('api-keys')
@@ -107,6 +109,10 @@ export function DownstreamAPIKeysWorkspace() {
     queryKey: siteGroupQueryKeys.list(),
     queryFn: listSiteGroups,
   })
+  const oauthConnectionsQuery = useQuery({
+    queryKey: oauthQueryKeys.connections(),
+    queryFn: listOAuthConnections,
+  })
 
   const apiKeys = apiKeysQuery.data?.items ?? EMPTY_API_KEYS
   const canonicalModels = useMemo(
@@ -115,6 +121,7 @@ export function DownstreamAPIKeysWorkspace() {
   )
   const sites = sitesQuery.data?.items ?? EMPTY_SITES
   const siteGroups = siteGroupsQuery.data?.items ?? EMPTY_SITE_GROUPS
+  const oauthConnections = oauthConnectionsQuery.data?.items ?? EMPTY_OAUTH_CONNECTIONS
 
   const filteredAPIKeys = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -273,6 +280,8 @@ export function DownstreamAPIKeysWorkspace() {
           sitesLoading={sitesQuery.isLoading}
           siteGroups={siteGroups}
           siteGroupsLoading={siteGroupsQuery.isLoading}
+          oauthConnections={oauthConnections}
+          oauthConnectionsLoading={oauthConnectionsQuery.isLoading}
           pending={saveMutation.isPending && (saveMutation.variables?.id ?? null) === (editingKey?.id ?? null)}
           onOpenChange={(open) => {
             if (!open && !saveMutation.isPending) {

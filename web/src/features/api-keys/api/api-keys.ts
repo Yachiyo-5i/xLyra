@@ -89,6 +89,10 @@ export type DownstreamAPIKey = {
   quota_weekly_available?: number | null
   quota_weekly_unlimited?: boolean
   quota_weekly_reset_at?: string | null
+  auto_reset_oauth_connection_id?: string | null
+  auto_reset_last_reset_at?: string | null
+  auto_reset_window?: 'weekly' | string | null
+  auto_reset_scope?: 'total' | string | null
   rate_limit?: RateLimitConfig | null
   expires_at?: string | null
   last_used_at?: string | null
@@ -117,6 +121,7 @@ export type APIKeyUpsertInput = {
   quotaDailyUnlimited: boolean
   quotaWeeklyLimit?: number | null
   quotaWeeklyUnlimited: boolean
+  autoResetOAuthConnectionId?: string | null
   rateLimit?: RateLimitConfig
   expiresAt?: string | null
 }
@@ -272,6 +277,7 @@ function apiKeyUpsertBody(input: APIKeyUpsertInput) {
     quota_daily_unlimited: input.quotaDailyUnlimited,
     quota_weekly_limit: input.quotaWeeklyUnlimited ? null : input.quotaWeeklyLimit,
     quota_weekly_unlimited: input.quotaWeeklyUnlimited,
+    auto_reset_oauth_connection_id: input.autoResetOAuthConnectionId ?? null,
     rate_limit: input.rateLimit,
     expires_at: input.expiresAt ?? null,
   }
