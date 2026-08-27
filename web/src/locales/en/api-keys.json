@@ -58,7 +58,9 @@
     "empty": {
       "title": "No API keys",
       "description": "Create a key to start calling the unified gateway."
-    }
+    },
+    "rotate": "Rotate key",
+    "rotateCustomDisabled": "Custom keys cannot be rotated"
   },
   "workspace": {
     "loadFailed": "Failed to load API keys",
@@ -93,6 +95,18 @@
       "cancel": "Cancel",
       "confirm": "Reset quota"
     },
+    "rotateDialog": {
+      "title": "Rotate key",
+      "description": "Generate a new secret for \"{{name}}\"? The current key stops working immediately; all configuration such as sites, models, and usage stays unchanged.",
+      "cancel": "Cancel",
+      "confirm": "Rotate"
+    },
+    "rotateResultDialog": {
+      "title": "Key rotated",
+      "description": "A new secret for \"{{name}}\" has been generated and the old one is now invalid. Copy and store the new key right away.",
+      "copy": "Copy new key",
+      "close": "Done"
+    },
     "deleteDialog": {
       "title": "Delete key",
       "confirm": "Delete「{{name}}」? This action cannot be undone.",
@@ -108,7 +122,9 @@
       "keyDeleted": "Key deleted",
       "deleteFailed": "Delete failed",
       "quotaReset": "Quota reset",
-      "quotaResetFailed": "Failed to reset quota"
+      "quotaResetFailed": "Failed to reset quota",
+      "keyRotated": "Key rotated",
+      "rotateFailed": "Rotation failed"
     }
   },
   "form": {

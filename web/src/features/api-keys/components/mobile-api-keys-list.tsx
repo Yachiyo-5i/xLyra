@@ -1,4 +1,4 @@
-import { LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react'
+import { LoaderCircle, PencilLine, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ export function MobileAPIKeysList({
   onToggleKey,
   onEditKey,
   onDeleteKey,
+  onRotateKey,
   onResetQuota,
   onShowModels,
   onToggleLastUsedMode,
@@ -40,6 +41,7 @@ export function MobileAPIKeysList({
   onToggleKey: (apiKey: DownstreamAPIKey) => void
   onEditKey: (apiKey: DownstreamAPIKey) => void
   onDeleteKey: (apiKey: DownstreamAPIKey) => void
+  onRotateKey: (apiKey: DownstreamAPIKey) => void
   onResetQuota: (apiKey: DownstreamAPIKey) => void
   onShowModels: (apiKey: DownstreamAPIKey) => void
   onToggleLastUsedMode: () => void
@@ -58,6 +60,7 @@ export function MobileAPIKeysList({
           onToggleKey={onToggleKey}
           onEditKey={onEditKey}
           onDeleteKey={onDeleteKey}
+          onRotateKey={onRotateKey}
           onResetQuota={onResetQuota}
           onShowModels={onShowModels}
           onToggleLastUsedMode={onToggleLastUsedMode}
@@ -76,6 +79,7 @@ function MobileAPIKeyCard({
   onToggleKey,
   onEditKey,
   onDeleteKey,
+  onRotateKey,
   onResetQuota,
   onShowModels,
   onToggleLastUsedMode,
@@ -88,6 +92,7 @@ function MobileAPIKeyCard({
   onToggleKey: (apiKey: DownstreamAPIKey) => void
   onEditKey: (apiKey: DownstreamAPIKey) => void
   onDeleteKey: (apiKey: DownstreamAPIKey) => void
+  onRotateKey: (apiKey: DownstreamAPIKey) => void
   onResetQuota: (apiKey: DownstreamAPIKey) => void
   onShowModels: (apiKey: DownstreamAPIKey) => void
   onToggleLastUsedMode: () => void
@@ -157,6 +162,17 @@ function MobileAPIKeyCard({
           title={t('table.edit')}
         >
           <PencilLine className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-foreground/60 hover:text-foreground"
+          disabled={isDeleting || apiKey.key_kind === 'custom'}
+          onClick={() => onRotateKey(apiKey)}
+          aria-label={t('table.rotate')}
+          title={apiKey.key_kind === 'custom' ? t('table.rotateCustomDisabled') : t('table.rotate')}
+        >
+          <RefreshCw className="h-4 w-4" />
         </Button>
         <Button
           size="icon"

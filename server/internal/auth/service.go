@@ -1009,6 +1009,49 @@ func (s *Service) UpdateAPIKey(ctx context.Context, id uuid.UUID, input UpdateAP
 	return updated, err
 }
 
+// RotateAPIKey replaces the credential of an existing key with a freshly
+// generated one. All configuration and usage counters stay attached to the
+// same row; only the secret material changes. Custom keys are rejected
+// because their value is user-chosen rather than generated.
+func (s *Service) RotateAPIKey(ctx context.Context, id uuid.UUID) (CreateAPIKeyResult, error) {
+	current, err := s.apiKeys.GetByID(ctx, id)
+	if err != nil {
+		return CreateAPIKeyResult{}, err
+	}
+	if current.KeyKind == apiKeyCustomKind {
+		return CreateAPIKeyResult{}, fmt.Errorf("custom api keys do not support rotation")
+	}
+
+	key, keyKind, err := s.createGatewayAPIKeyValue(ctx, "")
+	if err != nil {
+		return CreateAPIKeyResult{}, err
+	}
+
+	encrypted, masked, err := s.credentials.Encrypt(key)
+	if err != nil {
+		return CreateAPIKeyResult{}, err
+	}
+
+	keyPrefix := apiKeyStoragePrefix(key, keyKind)
+	updated, err := s.apiKeys.RotateSecret(ctx, store.RotateAPIKeySecretParams{
+		ID:              id,
+		KeyPrefix:       keyPrefix,
+		KeyHash:         hashToken(key),
+		EncryptedSecret: encrypted,
+		MaskedKey:       masked,
+		KeyKind:         keyKind,
+	})
+	if err != nil {
+		return CreateAPIKeyResult{}, err
+	}
+
+	return CreateAPIKeyResult{
+		Key:       key,
+		KeyPrefix: keyPrefix,
+		APIKey:    updated,
+	}, nil
+}
+
 func (s *Service) DeleteAPIKey(ctx context.Context, id uuid.UUID) error {
 	return s.apiKeys.Delete(ctx, id)
 }

@@ -148,6 +148,19 @@ export async function createDownstreamAPIKey(input: APIKeyUpsertInput) {
   })
 }
 
+// Rotates the credential in place: the old secret stops working immediately,
+// all configuration and usage counters are preserved. The new plaintext is
+// returned exactly once in this response. Custom keys are rejected server-side.
+export async function rotateDownstreamAPIKey(apiKeyId: string) {
+  return apiFetch<{
+    key: string
+    key_prefix: string
+    api_key: DownstreamAPIKey
+  }>(`/api/v1/api-keys/${apiKeyId}/rotate`, {
+    method: 'POST',
+  })
+}
+
 export async function updateDownstreamAPIKey(apiKeyId: string, input: APIKeyUpsertInput) {
   return apiFetch<{ api_key: DownstreamAPIKey }>(`/api/v1/api-keys/${apiKeyId}`, {
     method: 'PUT',

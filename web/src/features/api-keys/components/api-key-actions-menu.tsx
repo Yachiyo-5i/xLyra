@@ -1,19 +1,23 @@
 import { useState, type ComponentType } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { Ellipsis, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react'
+import { Ellipsis, LoaderCircle, PencilLine, RefreshCw, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 export function APIKeyActionsMenu({
   busy,
   resetDisabled,
+  rotateDisabled,
   onEdit,
+  onRotate,
   onReset,
   onDelete,
 }: {
   busy?: boolean
   resetDisabled?: boolean
+  rotateDisabled?: boolean
   onEdit: () => void
+  onRotate: () => void
   onReset: () => void
   onDelete: () => void
 }) {
@@ -46,6 +50,13 @@ export function APIKeyActionsMenu({
         >
           <ActionItem icon={PencilLine} label={t('table.edit')} onClick={() => run(onEdit)} />
           <ActionItem
+            icon={RefreshCw}
+            label={t('table.rotate')}
+            disabled={rotateDisabled}
+            title={rotateDisabled ? t('table.rotateCustomDisabled') : undefined}
+            onClick={() => run(onRotate)}
+          />
+          <ActionItem
             icon={RotateCcw}
             label={t('table.resetQuota')}
             disabled={resetDisabled}
@@ -63,18 +74,21 @@ function ActionItem({
   label,
   disabled,
   destructive,
+  title,
   onClick,
 }: {
   icon: ComponentType<{ className?: string }>
   label: string
   disabled?: boolean
   destructive?: boolean
+  title?: string
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      title={title}
       onClick={onClick}
       className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-subtle))] disabled:cursor-not-allowed disabled:opacity-40 ${destructive ? 'text-destructive' : 'text-foreground'}`}
     >

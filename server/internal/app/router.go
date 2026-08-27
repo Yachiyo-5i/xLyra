@@ -190,6 +190,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 				protected.Post("/api-keys", adminHandler.CreateAPIKey)
 				protected.Get("/api-keys/{apiKeyID}", adminHandler.GetAPIKey)
 				protected.Get("/api-keys/{apiKeyID}/reveal", adminHandler.RevealAPIKey)
+				protected.Post("/api-keys/{apiKeyID}/rotate", adminHandler.RotateAPIKey)
 				protected.Put("/api-keys/{apiKeyID}", adminHandler.UpdateAPIKey)
 				protected.Post("/api-keys/{apiKeyID}/quota/increase", adminHandler.IncreaseAPIKeyQuota)
 				protected.Post("/api-keys/{apiKeyID}/quota/reset", adminHandler.ResetAPIKeyQuota)

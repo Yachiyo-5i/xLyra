@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Link, LoaderCircle, Plus, RotateCcw, Search } from 'lucide-react'
+import { Copy, Link, LoaderCircle, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { EmptyState } from '@/components/common/empty-state'
@@ -32,6 +32,7 @@ import {
   downstreamAPIKeyQueryKeys,
   listDownstreamAPIKeys,
   resetDownstreamAPIKeyQuota,
+  rotateDownstreamAPIKey,
   updateDownstreamAPIKey,
   type APIKeyUpsertInput,
   type DownstreamAPIKey,
@@ -77,6 +78,8 @@ export function DownstreamAPIKeysWorkspace() {
   const [editingKey, setEditingKey] = useState<DownstreamAPIKey | null>(null)
   const [modelsKey, setModelsKey] = useState<DownstreamAPIKey | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DownstreamAPIKey | null>(null)
+  const [rotateTarget, setRotateTarget] = useState<DownstreamAPIKey | null>(null)
+  const [rotatedKey, setRotatedKey] = useState<{ name: string; key: string } | null>(null)
   const [resetTarget, setResetTarget] = useState<DownstreamAPIKey | null>(null)
   const [resetScopes, setResetScopes] = useState<QuotaResetScope[]>([])
   const [lastUsedMode, setLastUsedMode] = useState<TimeDisplayMode>(readLastUsedMode)
@@ -195,6 +198,19 @@ export function DownstreamAPIKeysWorkspace() {
     },
   })
 
+  const rotateMutation = useMutation({
+    mutationFn: (apiKeyId: string) => rotateDownstreamAPIKey(apiKeyId),
+    onSuccess: async (result) => {
+      setRotateTarget(null)
+      setRotatedKey({ name: result.api_key.name, key: result.key })
+      await queryClient.invalidateQueries({ queryKey: downstreamAPIKeyQueryKeys.list() })
+      toast.success(t('workspace.toast.keyRotated'))
+    },
+    onError: (error) => {
+      toast.error(t('workspace.toast.rotateFailed'), { description: error.message })
+    },
+  })
+
   if (apiKeysQuery.isLoading) {
     return <APIKeysSkeleton />
   }
@@ -239,6 +255,7 @@ export function DownstreamAPIKeysWorkspace() {
     onToggleKey: (apiKey: DownstreamAPIKey) => toggleMutation.mutate(apiKey),
     onEditKey: openEditKey,
     onDeleteKey: setDeleteTarget,
+    onRotateKey: setRotateTarget,
     onResetQuota: openResetQuota,
     onShowModels: setModelsKey,
     onToggleLastUsedMode: () => setLastUsedMode((current) => (current === 'absolute' ? 'relative' : 'absolute')),
@@ -350,6 +367,88 @@ export function DownstreamAPIKeysWorkspace() {
             >
               {resetQuotaMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
               {t('workspace.resetQuotaDialog.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(rotateTarget)}
+        onOpenChange={(open) => {
+          if (!open && !rotateMutation.isPending) {
+            setRotateTarget(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+          <DialogHeader className="border-b-0 pb-2">
+            <DialogTitle>{t('workspace.rotateDialog.title')}</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="pt-0">
+            <DialogDescription className="mt-0">
+              {rotateTarget ? t('workspace.rotateDialog.description', { name: rotateTarget.name }) : null}
+            </DialogDescription>
+          </DialogBody>
+          <DialogFooter className="border-t-0 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setRotateTarget(null)}
+              disabled={rotateMutation.isPending}
+            >
+              {t('workspace.rotateDialog.cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                if (rotateTarget) {
+                  rotateMutation.mutate(rotateTarget.id)
+                }
+              }}
+              disabled={rotateMutation.isPending}
+            >
+              {rotateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {t('workspace.rotateDialog.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(rotatedKey)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRotatedKey(null)
+          }
+        }}
+      >
+        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+          <DialogHeader className="border-b-0 pb-2">
+            <DialogTitle>{t('workspace.rotateResultDialog.title')}</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="min-w-0 space-y-4 pt-0">
+            <DialogDescription className="mt-0">
+              {rotatedKey ? t('workspace.rotateResultDialog.description', { name: rotatedKey.name }) : null}
+            </DialogDescription>
+            <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-3 py-2.5">
+              <code className="min-w-0 flex-1 break-all font-mono text-sm leading-6 text-foreground">{rotatedKey?.key}</code>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 shrink-0"
+                aria-label={t('workspace.rotateResultDialog.copy')}
+                title={t('workspace.rotateResultDialog.copy')}
+                onClick={() => {
+                  if (rotatedKey) {
+                    void copyToClipboard(rotatedKey.key, t('table.copySuccess'), t('table.copyFailed'))
+                  }
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogBody>
+          <DialogFooter className="border-t-0 pt-2">
+            <Button onClick={() => setRotatedKey(null)}>
+              {t('workspace.rotateResultDialog.close')}
             </Button>
           </DialogFooter>
         </DialogContent>

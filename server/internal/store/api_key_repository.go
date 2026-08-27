@@ -351,6 +351,35 @@ func (r APIKeyRepository) Update(ctx context.Context, params UpdateAPIKeyParams)
 	return updated, nil
 }
 
+type RotateAPIKeySecretParams struct {
+	ID              uuid.UUID
+	KeyPrefix       string
+	KeyHash         string
+	EncryptedSecret any
+	MaskedKey       string
+	KeyKind         string
+}
+
+// RotateSecret replaces only the credential material of an existing key,
+// leaving all configuration (permissions, quota, expiry) untouched.
+func (r APIKeyRepository) RotateSecret(ctx context.Context, params RotateAPIKeySecretParams) (APIKey, error) {
+	updates := map[string]any{
+		"key_prefix":       params.KeyPrefix,
+		"key_hash":         params.KeyHash,
+		"encrypted_secret": nullStringFromAny(params.EncryptedSecret),
+		"masked_key":       params.MaskedKey,
+		"key_kind":         params.KeyKind,
+	}
+	if err := r.db.WithContext(ctx).Model(&APIKey{ID: params.ID}).Updates(updates).Error; err != nil {
+		return APIKey{}, fmt.Errorf("rotate api key secret: %w", err)
+	}
+	updated, err := r.GetByID(ctx, params.ID)
+	if err != nil {
+		return APIKey{}, fmt.Errorf("load rotated api key: %w", err)
+	}
+	return updated, nil
+}
+
 func (r APIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	result := r.db.WithContext(ctx).Where(&APIKey{ID: id}).Delete(&APIKey{})
 	if result.Error != nil {

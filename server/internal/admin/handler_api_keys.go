@@ -132,6 +132,37 @@ func (h Handler) RevealAPIKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// RotateAPIKey generates a fresh credential for an existing key while keeping
+// every piece of configuration (sites, models, quota, expiry) intact. The old
+// secret stops working as soon as the hash is replaced; the new plaintext is
+// returned exactly once in this response.
+func (h Handler) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
+	apiKey, ok := h.apiKeyByParam(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.auth.RotateAPIKey(r.Context(), apiKey.ID)
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "api_key_rotate_failed", err.Error())
+		return
+	}
+
+	actor, _ := auth.AdminActorFromContext(r.Context())
+	h.recordAudit(r, actor, "api_key.rotate", "api_key", apiKey.ID.String(), true, "", map[string]any{"name": apiKey.Name})
+	h.logInfo("api key rotated", "api_key_id", apiKey.ID, "name", apiKey.Name)
+	h.invalidateGatewayModelsCacheForAPIKey(result.APIKey.ID)
+	h.prewarmGatewayModelsCacheForAPIKey(result.APIKey)
+	models, _ := h.auth.APIKeyEffectiveSiteModels(r.Context(), result.APIKey)
+	sites, _ := h.auth.APIKeySites(r.Context(), result.APIKey.ID)
+	groups, _ := h.auth.APIKeySiteGroups(r.Context(), result.APIKey.ID)
+	h.writePayload(w, http.StatusOK, map[string]any{
+		"key":        result.Key,
+		"key_prefix": result.KeyPrefix,
+		"api_key":    h.apiKeyPayload(r.Context(), result.APIKey, models, sites, groups, false),
+	})
+}
+
 func (h Handler) UpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 	apiKey, ok := h.apiKeyByParam(w, r)
 	if !ok {
