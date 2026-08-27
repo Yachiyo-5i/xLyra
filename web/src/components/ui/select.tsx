@@ -76,6 +76,9 @@ const SelectContent = React.forwardRef<
           position={position}
           sideOffset={8}
           onCloseAutoFocus={() => setSearch('')}
+          // 阻止滚轮/触摸事件冒泡到 document，否则弹层在 Dialog/Sheet 内打开时滚动会被其滚动锁拦截
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
           className={cn(
             'glass-panel-strong relative z-[120] max-h-[min(var(--radix-select-content-available-height),32rem)] overflow-hidden rounded-xl',
             position === 'popper' && 'translate-y-1',
