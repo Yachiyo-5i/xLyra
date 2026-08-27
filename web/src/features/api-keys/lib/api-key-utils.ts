@@ -434,13 +434,17 @@ function parseAPIKeyExpiresAt(value?: string | null) {
   return date
 }
 
-export function dateToEndOfDayRFC3339(value?: Date) {
+export function dateToRFC3339(value?: Date) {
   if (!value) return null
   if (Number.isNaN(value.getTime())) return null
 
-  const date = new Date(value)
-  date.setHours(23, 59, 59, 999)
-  return date.toISOString()
+  return value.toISOString()
+}
+
+export function isAPIKeyExpired(apiKey: DownstreamAPIKey) {
+  if (!apiKey.expires_at) return false
+  const time = new Date(apiKey.expires_at).getTime()
+  return !Number.isNaN(time) && time <= Date.now()
 }
 
 export function sortCanonicalModels(items: CanonicalModelItem[]) {

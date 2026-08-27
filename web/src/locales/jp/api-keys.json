@@ -58,7 +58,11 @@
     "empty": {
       "title": "API キーがありません",
       "description": "統合ゲートウェイを呼び出すにはキーを作成してください。"
-    }
+    },
+    "rotate": "キーをローテーション",
+    "rotateCustomDisabled": "カスタムキーはローテーションできません",
+    "expired": "期限切れ",
+    "expiredToggleHint": "期限切れです。先に有効期限を延長してください"
   },
   "workspace": {
     "loadFailed": "API キーの読み込みに失敗しました",
@@ -93,6 +97,18 @@
       "cancel": "キャンセル",
       "confirm": "リセット"
     },
+    "rotateDialog": {
+      "title": "キーをローテーション",
+      "description": "「{{name}}」の新しいキーを生成しますか？現在のキーは直ちに無効になります。サイト・モデル・使用量などの設定はすべて維持されます。",
+      "cancel": "キャンセル",
+      "confirm": "ローテーション"
+    },
+    "rotateResultDialog": {
+      "title": "ローテーション完了",
+      "description": "「{{name}}」の新しいキーが生成され、古いキーは無効になりました。新しいキーを今すぐコピーして安全に保管してください。",
+      "copy": "新しいキーをコピー",
+      "close": "完了"
+    },
     "deleteDialog": {
       "title": "キーを削除",
       "confirm": "「{{name}}」を削除しますか？この操作は元に戻せません。",
@@ -108,7 +124,9 @@
       "keyDeleted": "キーを削除しました",
       "deleteFailed": "削除に失敗しました",
       "quotaReset": "クォータをリセットしました",
-      "quotaResetFailed": "クォータのリセットに失敗しました"
+      "quotaResetFailed": "クォータのリセットに失敗しました",
+      "keyRotated": "キーをローテーションしました",
+      "rotateFailed": "ローテーションに失敗しました"
     }
   },
   "form": {
@@ -161,8 +179,8 @@
       "brandAll": "すべてのブランド",
       "noModels": "モデルがありません",
       "neverExpire": "期限なし",
-      "expiresDate": "有効期限日",
-      "pickDate": "日付を選択",
+      "expiresDate": "有効期限",
+      "pickDate": "有効期限を選択（分単位）",
       "quotaLimit": "合計クォータ上限",
       "quotaDesc": "単位: USD ($) · 空欄または 0 は無制限 · 前回の手動リセット以降に ${{used}} 使用済み",
       "quotaDailyLimit": "日次クォータ上限",

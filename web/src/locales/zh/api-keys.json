@@ -58,7 +58,11 @@
     "empty": {
       "title": "暂无 API 密钥",
       "description": "创建一个密钥以开始调用统一网关。"
-    }
+    },
+    "rotate": "轮换密钥",
+    "rotateCustomDisabled": "自定义密钥不支持轮换",
+    "expired": "已过期",
+    "expiredToggleHint": "已到期，请先修改到期时间"
   },
   "workspace": {
     "loadFailed": "加载 API 密钥失败",
@@ -93,6 +97,18 @@
       "cancel": "取消",
       "confirm": "确认重置"
     },
+    "rotateDialog": {
+      "title": "轮换密钥",
+      "description": "为「{{name}}」生成一个新密钥？原密钥将立即失效，站点、模型、用量等所有配置保持不变。",
+      "cancel": "取消",
+      "confirm": "确认轮换"
+    },
+    "rotateResultDialog": {
+      "title": "轮换成功",
+      "description": "「{{name}}」的新密钥已生成，原密钥已失效。请立即复制并妥善保存新密钥。",
+      "copy": "复制新密钥",
+      "close": "完成"
+    },
     "deleteDialog": {
       "title": "删除密钥",
       "confirm": "确定删除「{{name}}」？此操作不可撤销。",
@@ -108,7 +124,9 @@
       "keyDeleted": "密钥已删除",
       "deleteFailed": "删除失败",
       "quotaReset": "限额已重置",
-      "quotaResetFailed": "重置限额失败"
+      "quotaResetFailed": "重置限额失败",
+      "keyRotated": "密钥已轮换",
+      "rotateFailed": "轮换失败"
     }
   },
   "form": {
@@ -161,8 +179,8 @@
       "brandAll": "全部品牌",
       "noModels": "暂无模型",
       "neverExpire": "永不过期",
-      "expiresDate": "到期日期",
-      "pickDate": "选择日期",
+      "expiresDate": "到期时间",
+      "pickDate": "选择到期时间（精确到分钟）",
       "quotaLimit": "总额度",
       "quotaDesc": "单位：美元 ($) · 空或 0 表示不限 · 自上次手动重置以来已用 ${{used}}",
       "quotaDailyLimit": "日额度上限",

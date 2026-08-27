@@ -4,7 +4,7 @@ import { ChevronDown, LoaderCircle, Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DatePicker } from '@/components/ui/date-picker'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from '@/lib/toast'
 import type { APIKeyUpsertInput, DownstreamAPIKey, ModelRule } from '@/features/api-keys/api/api-keys'
 import {
-  dateToEndOfDayRFC3339,
+  dateToRFC3339,
   buildMappingModelKeys,
   formValuesFromAPIKey,
   formatSiteTypeLabel,
@@ -434,7 +434,7 @@ export function APIKeyFormDraw({
       return
     }
 
-    const expiresAt = values.expiresPermanent ? null : dateToEndOfDayRFC3339(values.expiresAt)
+    const expiresAt = values.expiresPermanent ? null : dateToRFC3339(values.expiresAt)
     if (!values.expiresPermanent && !expiresAt) {
       toast.error(t('form.validation.expiresRequired'))
       return
@@ -810,11 +810,21 @@ export function APIKeyFormDraw({
 
             {!values.expiresPermanent ? (
               <FormField label={t('form.fields.expiresDate')} required>
-                <DatePicker
+                <DateTimePicker
                   value={values.expiresAt}
-                  onValueChange={(date) => setValues((current) => ({ ...current, expiresAt: date }))}
+                  onValueChange={(date) => setValues((current) => {
+                    // First day selection starts at 00:00; keep the previous
+                    // end-of-day default so picking only a date behaves as before.
+                    if (date && !current.expiresAt && date.getHours() === 0 && date.getMinutes() === 0) {
+                      const endOfDay = new Date(date)
+                      endOfDay.setHours(23, 59, 0, 0)
+                      return { ...current, expiresAt: endOfDay }
+                    }
+                    return { ...current, expiresAt: date }
+                  })}
                   placeholder={t('form.fields.pickDate')}
                   disablePastDates
+                  minuteStep={1}
                 />
               </FormField>
             ) : null}

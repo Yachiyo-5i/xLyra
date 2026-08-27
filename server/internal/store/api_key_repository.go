@@ -245,6 +245,9 @@ func (r APIKeyRepository) lookupActive(ctx context.Context, keyHash string, now 
 		return APIKey{}, gorm.ErrRecordNotFound
 	}
 	if apiKey.ExpiresAt != nil && !apiKey.ExpiresAt.After(now) {
+		// Best-effort: persist the disabled status so admin views reflect the
+		// expired state; the key is rejected as not found either way.
+		_, _ = r.DisableExpiredAPIKeys(ctx, now)
 		return APIKey{}, gorm.ErrRecordNotFound
 	}
 	if opts.RequireQuota {
@@ -261,6 +264,21 @@ func (r APIKeyRepository) lookupActive(ctx context.Context, keyHash string, now 
 		apiKey.LastUsedAt = &now
 	}
 	return apiKey, nil
+}
+
+// DisableExpiredAPIKeys flips still-active keys whose expiry has passed to
+// disabled, so the persisted status matches the request-time enforcement and
+// admin views show the switch as off. Rows with a NULL expires_at never
+// satisfy the <= comparison and are left untouched.
+func (r APIKeyRepository) DisableExpiredAPIKeys(ctx context.Context, now time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&APIKey{}).
+		Where(clause.Eq{Column: "status", Value: "active"}).
+		Where(clause.Lte{Column: "expires_at", Value: now}).
+		Update("status", "disabled")
+	if result.Error != nil {
+		return 0, fmt.Errorf("disable expired api keys: %w", result.Error)
+	}
+	return result.RowsAffected, nil
 }
 
 func (r APIKeyRepository) ExistsByHash(ctx context.Context, keyHash string) (bool, error) {
@@ -347,6 +365,35 @@ func (r APIKeyRepository) Update(ctx context.Context, params UpdateAPIKeyParams)
 	updated, err := r.GetByID(ctx, params.ID)
 	if err != nil {
 		return APIKey{}, fmt.Errorf("load updated api key: %w", err)
+	}
+	return updated, nil
+}
+
+type RotateAPIKeySecretParams struct {
+	ID              uuid.UUID
+	KeyPrefix       string
+	KeyHash         string
+	EncryptedSecret any
+	MaskedKey       string
+	KeyKind         string
+}
+
+// RotateSecret replaces only the credential material of an existing key,
+// leaving all configuration (permissions, quota, expiry) untouched.
+func (r APIKeyRepository) RotateSecret(ctx context.Context, params RotateAPIKeySecretParams) (APIKey, error) {
+	updates := map[string]any{
+		"key_prefix":       params.KeyPrefix,
+		"key_hash":         params.KeyHash,
+		"encrypted_secret": nullStringFromAny(params.EncryptedSecret),
+		"masked_key":       params.MaskedKey,
+		"key_kind":         params.KeyKind,
+	}
+	if err := r.db.WithContext(ctx).Model(&APIKey{ID: params.ID}).Updates(updates).Error; err != nil {
+		return APIKey{}, fmt.Errorf("rotate api key secret: %w", err)
+	}
+	updated, err := r.GetByID(ctx, params.ID)
+	if err != nil {
+		return APIKey{}, fmt.Errorf("load rotated api key: %w", err)
 	}
 	return updated, nil
 }

@@ -16,6 +16,7 @@ import {
   formatSitePolicy,
   hasResettableQuota,
   isAPIKeyActive,
+  isAPIKeyExpired,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
 
@@ -28,6 +29,7 @@ export function DownstreamAPIKeysTable({
   onToggleKey,
   onEditKey,
   onDeleteKey,
+  onRotateKey,
   onResetQuota,
   onShowModels,
   onToggleLastUsedMode,
@@ -40,6 +42,7 @@ export function DownstreamAPIKeysTable({
   onToggleKey: (apiKey: DownstreamAPIKey) => void
   onEditKey: (apiKey: DownstreamAPIKey) => void
   onDeleteKey: (apiKey: DownstreamAPIKey) => void
+  onRotateKey: (apiKey: DownstreamAPIKey) => void
   onResetQuota: (apiKey: DownstreamAPIKey) => void
   onShowModels: (apiKey: DownstreamAPIKey) => void
   onToggleLastUsedMode: () => void
@@ -135,11 +138,17 @@ export function DownstreamAPIKeysTable({
       {
         id: 'expires_at',
         header: t('table.headers.expiresAt'),
-        cell: ({ row }) => (
-          <span className="text-muted-soft text-sm">
-            {row.original.expires_at ? formatDateTime(row.original.expires_at) : t('table.permanent')}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const expired = isAPIKeyExpired(row.original)
+          return (
+            <span
+              className={expired ? 'text-sm text-[hsl(var(--destructive))]' : 'text-muted-soft text-sm'}
+              title={expired ? t('table.expired') : undefined}
+            >
+              {row.original.expires_at ? formatDateTime(row.original.expires_at) : t('table.permanent')}
+            </span>
+          )
+        },
         meta: {
           className: 'w-[12%]',
           align: 'center',
@@ -150,11 +159,13 @@ export function DownstreamAPIKeysTable({
         header: t('table.headers.status'),
         cell: ({ row }) => {
           const active = isAPIKeyActive(row.original)
+          const expired = isAPIKeyExpired(row.original)
           const toggling = togglingKeyId === row.original.id
           return (
             <Switch
               checked={active}
-              disabled={toggling}
+              disabled={toggling || expired}
+              title={expired ? t('table.expiredToggleHint') : undefined}
               onCheckedChange={() => onToggleKey(row.original)}
             />
           )
@@ -174,7 +185,9 @@ export function DownstreamAPIKeysTable({
             <APIKeyActionsMenu
               busy={deleting}
               resetDisabled={!hasResettableQuota(row.original)}
+              rotateDisabled={row.original.key_kind === 'custom'}
               onEdit={() => onEditKey(row.original)}
+              onRotate={() => onRotateKey(row.original)}
               onReset={() => onResetQuota(row.original)}
               onDelete={() => onDeleteKey(row.original)}
             />
@@ -185,7 +198,7 @@ export function DownstreamAPIKeysTable({
         },
       },
     ],
-    [t, i18n.language, deletingKeyId, lastUsedMode, now, onDeleteKey, onEditKey, onResetQuota, onShowModels, onToggleKey, onToggleLastUsedMode, togglingKeyId],
+    [t, i18n.language, deletingKeyId, lastUsedMode, now, onDeleteKey, onEditKey, onResetQuota, onRotateKey, onShowModels, onToggleKey, onToggleLastUsedMode, togglingKeyId],
   )
 
   return (
