@@ -14,10 +14,12 @@ function lazyNamed<T extends ComponentType>(
 
 const APIKeysPage = lazyNamed(() => import('@/routes/api-keys'), 'APIKeysPage')
 const AnalyticsPage = lazyNamed(() => import('@/routes/analytics'), 'AnalyticsPage')
+const AgentPage = lazyNamed(() => import('@/routes/agent'), 'AgentPage')
 const AuditLogsPage = lazyNamed(() => import('@/routes/audit-logs-page'), 'AuditLogsPage')
 const BackupSettingsPage = lazyNamed(() => import('@/routes/settings/backup-settings-page'), 'BackupSettingsPage')
 const DashboardPage = lazyNamed(() => import('@/routes/dashboard'), 'DashboardPage')
 const GeneralSettingsPage = lazyNamed(() => import('@/routes/settings/global/general-settings-page'), 'GeneralSettingsPage')
+const AgentSettingsPage = lazyNamed(() => import('@/routes/settings/agent-settings-page'), 'AgentSettingsPage')
 const GlobalConfigPage = lazyNamed(() => import('@/routes/settings/global-config-page'), 'GlobalConfigPage')
 const LoginPage = lazyNamed(() => import('@/routes/login'), 'LoginPage')
 const ModelsPage = lazyNamed(() => import('@/routes/models'), 'ModelsPage')
@@ -59,6 +61,7 @@ export const appRouter = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'playground', element: lazyElement(<PlaygroundPage />) },
+      { path: 'agent', element: lazyElement(<AgentPage />) },
       { path: 'dashboard', element: lazyElement(<DashboardPage />) },
       { path: 'analytics', element: lazyElement(<AnalyticsPage />) },
       { path: 'sites', element: lazyElement(<SitesPage />) },
@@ -79,11 +82,13 @@ export const appRouter = createBrowserRouter([
               { index: true, element: <Navigate to="/settings/global/general" replace /> },
               { path: 'profile', element: lazyElement(<ProfileSettingsPage />) },
               { path: 'general', element: lazyElement(<GeneralSettingsPage />) },
-              { path: 'system-proxy', element: lazyElement(<SystemProxySettingsPage />) },              { path: 'rate-limit', element: lazyElement(<RateLimitSettingsPage />) },
+              { path: 'system-proxy', element: lazyElement(<SystemProxySettingsPage />) },
+              { path: 'rate-limit', element: lazyElement(<RateLimitSettingsPage />) },
               { path: 'site-groups', element: lazyElement(<SiteGroupsSettingsPage />) },
               { path: 'portal', element: lazyElement(<PortalSettingsPage />) },
             ],
           },
+          { path: 'agent', element: lazyElement(<AgentSettingsPage />) },
           { path: 'models-price', element: lazyElement(<ModelsPriceSettingsPage />) },
           { path: 'backup', element: lazyElement(<BackupSettingsPage />) },
         ],

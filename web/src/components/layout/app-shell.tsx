@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppTopbar } from '@/components/layout/app-topbar'
 import { MobileAppShell } from '@/components/layout/mobile-app-shell'
@@ -21,7 +22,19 @@ export function AppShell({ children }: PropsWithChildren) {
 
 function DesktopAppShell({ children }: PropsWithChildren) {
   const { t } = useTranslation('components')
+  const location = useLocation()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const isAgentWorkspace = location.pathname === '/agent' || location.pathname.startsWith('/agent/')
+
+  if (isAgentWorkspace) {
+    return (
+      <div className="app-viewport">
+        <div className="ambient-background" />
+        <div className="noise-overlay" />
+        <main className="relative z-10 h-full min-h-0 overflow-hidden">{children}</main>
+      </div>
+    )
+  }
 
   return (
     <div className="app-viewport">

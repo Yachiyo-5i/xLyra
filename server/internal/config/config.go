@@ -38,6 +38,8 @@ type Config struct {
 	SiteHealthTimeout   time.Duration `env:"SITE_HEALTH_TIMEOUT" envDefault:"10s"`
 	SiteHealthWorkers   int           `env:"SITE_HEALTH_WORKERS" envDefault:"4"`
 	StaticDir           string        `env:"STATIC_DIR" envDefault:"/app/dist"`
+	AgentRunnerBaseURL  string        `env:"AGENT_RUNNER_BASE_URL"`
+	AgentRunnerToken    string        `env:"AGENT_RUNNER_INTERNAL_TOKEN"`
 }
 
 func Load() (Config, error) {

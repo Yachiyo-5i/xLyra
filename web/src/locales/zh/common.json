@@ -47,6 +47,8 @@
     "requests": "请求",
     "trafficFlow": "实时流图",
     "playground": "模型体验",
+    "agent": "Agent",
+    "agentSettings": "Agent 设置",
     "audit": "审计",
     "settings": "设置",
     "globalSettings": "全局设置",

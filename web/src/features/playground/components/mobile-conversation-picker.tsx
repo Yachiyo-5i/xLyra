@@ -3,7 +3,7 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { History, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { ConfirmPopover } from '@/features/playground/components/confirm-popover'
+import { ConfirmPopover } from '@/components/common/confirm-popover'
 
 type ConversationOption = {
   id: string

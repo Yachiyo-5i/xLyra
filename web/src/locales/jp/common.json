@@ -47,6 +47,8 @@
     "requests": "リクエスト",
     "trafficFlow": "トラフィックフロー",
     "playground": "モデルプレイグラウンド",
+    "agent": "Agent",
+    "agentSettings": "Agent 設定",
     "audit": "監査",
     "settings": "設定",
     "globalSettings": "グローバル設定",

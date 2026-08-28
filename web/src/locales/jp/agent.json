@@ -1,0 +1,63 @@
+{
+  "sidebar": {
+    "new": "新しいチャット",
+    "empty": "チャットはまだありません",
+    "untitled": "新しいチャット",
+    "recent": "最近のチャット",
+    "delete": "チャットを削除",
+    "deleteConfirm": "このチャットを削除しますか？",
+    "menu": "チャットメニュー"
+  },
+  "header": {
+    "back": "戻る"
+  },
+  "chat": {
+    "emptyTitle": "何かお手伝いしましょうか？",
+    "thinking": "Agent が処理中…",
+    "inputPlaceholder": "タスクを入力…",
+    "hint": "Enter で送信 · Shift+Enter で改行",
+    "sendFailed": "送信に失敗しました"
+  },
+  "composer": {
+    "permissionMode": "権限モード",
+    "permissionAsk": "確認",
+    "permissionFull": "フルアクセス",
+    "permissionAskHint": "重要な操作は確認を求めます",
+    "permissionFullHint": "Agent がすべての操作を直接実行します",
+    "fullConfirmTitle": "フルアクセスを有効にしますか？",
+    "fullConfirmDescription": "Agent は許可を求めずに、このコンピューター上の任意の場所でコマンドを実行し、インターネットを使用し、ファイルを作成・編集できるようになります。これには以下が含まれますが、これらに限定されません：",
+    "fullConfirmFiles": "ファイルとフォルダー",
+    "fullConfirmFilesDesc": "このコンピューター上の任意の場所にあるファイルの読み取り、作成、変更、アップロード、削除",
+    "fullConfirmCommands": "ターミナルコマンド",
+    "fullConfirmCommandsDesc": "コマンドの実行、ソフトウェアのインストール、システム設定の変更",
+    "fullConfirmNetwork": "インターネットと接続されたアプリ",
+    "fullConfirmNetworkDesc": "ウェブサイトへのアクセス、データの送信、有効なプラグインの使用",
+    "fullConfirmRisk": "機密データの損失や漏洩、プロンプトインジェクションなどのリスクがあります。いつでもオフにできます。",
+    "fullConfirmCancel": "キャンセル",
+    "fullConfirmAccept": "確認"
+  },
+  "work": {
+    "running": "実行中（{{count}} ステップ）",
+    "summary": "{{count}} ステップ完了",
+    "errors": "{{count}} 件失敗",
+    "failed": "タスクの実行に失敗しました",
+    "cancelled": "停止しました",
+    "categories": {
+      "command": "コマンド実行",
+      "fileEdit": "ファイル更新",
+      "network": "ネットワークアクセス",
+      "fileRead": "ファイル読み取り",
+      "search": "検索",
+      "other": "ツール呼び出し"
+    }
+  },
+  "permission": {
+    "title": "権限リクエスト",
+    "description": "Agent が {{tool}} の使用を求めています",
+    "allow": "許可",
+    "deny": "拒否",
+    "allowed": "許可済み",
+    "denied": "拒否済み",
+    "failed": "権限の更新に失敗しました"
+  }
+}

@@ -18,6 +18,7 @@ const namespaces = [
   'components',
   'portal',
   'playground',
+  'agent',
   'traffic-flow',
 ] as const
 
@@ -42,6 +43,7 @@ const resourceLoaders: Record<Locale, Record<Namespace, () => Promise<ResourceMo
     components: () => import('./zh/components.json'),
     portal: () => import('./zh/portal.json'),
     playground: () => import('./zh/playground.json'),
+    agent: () => import('./zh/agent.json'),
     'traffic-flow': () => import('./zh/traffic-flow.json'),
   },
   en: {
@@ -60,6 +62,7 @@ const resourceLoaders: Record<Locale, Record<Namespace, () => Promise<ResourceMo
     components: () => import('./en/components.json'),
     portal: () => import('./en/portal.json'),
     playground: () => import('./en/playground.json'),
+    agent: () => import('./en/agent.json'),
     'traffic-flow': () => import('./en/traffic-flow.json'),
   },
   jp: {
@@ -78,6 +81,7 @@ const resourceLoaders: Record<Locale, Record<Namespace, () => Promise<ResourceMo
     components: () => import('./jp/components.json'),
     portal: () => import('./jp/portal.json'),
     playground: () => import('./jp/playground.json'),
+    agent: () => import('./jp/agent.json'),
     'traffic-flow': () => import('./jp/traffic-flow.json'),
   },
 }

@@ -78,6 +78,9 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		}
 		payloadItems := make([]map[string]any, 0, len(items))
 		for _, item := range items {
+			if item.KeyKind == store.APIKeyKindAgentInternal {
+				continue
+			}
 			payloadItems = append(payloadItems, h.apiKeySyncPayload(item))
 		}
 		h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems), "view": "sync"})
@@ -91,6 +94,9 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	payloadItems := make([]map[string]any, 0, len(items))
 	for _, item := range items {
+		if item.APIKey.KeyKind == store.APIKeyKindAgentInternal {
+			continue
+		}
 		payloadItems = append(payloadItems, h.apiKeyPayloadWithRateLimit(item.APIKey, item.Models, item.Sites, item.Groups, false, item.RateLimit))
 	}
 	h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems)})
@@ -527,7 +533,7 @@ func (h Handler) apiKeyByParam(w http.ResponseWriter, r *http.Request) (store.AP
 	}
 
 	apiKey, err := h.auth.GetAPIKey(r.Context(), apiKeyID)
-	if err != nil {
+	if err != nil || apiKey.KeyKind == store.APIKeyKindAgentInternal {
 		h.writeError(w, r, http.StatusNotFound, "api_key_not_found", "api key was not found")
 		return store.APIKey{}, false
 	}

@@ -1,6 +1,7 @@
 import {
   Activity,
   BadgeDollarSign,
+  Bot,
   Cable,
   ChartColumn,
   ChartNoAxesCombined,
@@ -44,6 +45,13 @@ export function getAppNavSections(t: TFunction): AppNavSection[] {
           label: t('nav.playground'),
           icon: MessagesSquare,
           description: 'Test chat and image models end-to-end through the gateway.',
+        },
+        {
+          to: '/agent',
+          label: t('nav.agent'),
+          icon: Bot,
+          description: 'Run an agent session with tools, approvals and live events.',
+          desktopOnly: true,
         },
       ],
     },
@@ -135,6 +143,12 @@ export function getAppNavSections(t: TFunction): AppNavSection[] {
               label: t('nav.globalSettings'),
               icon: Settings,
               description: 'Global gateway configuration and defaults.',
+            },
+            {
+              to: '/settings/agent',
+              label: t('nav.agentSettings'),
+              icon: Bot,
+              description: 'Configure Agent runtime, runner and model channels.',
             },
             {
               to: '/settings/models-price',

@@ -1,0 +1,63 @@
+{
+  "sidebar": {
+    "new": "新建对话",
+    "empty": "暂无对话",
+    "untitled": "新对话",
+    "recent": "最近对话",
+    "delete": "删除对话",
+    "deleteConfirm": "删除该对话？",
+    "menu": "会话菜单"
+  },
+  "header": {
+    "back": "返回"
+  },
+  "chat": {
+    "emptyTitle": "有什么可以帮你的？",
+    "thinking": "Agent 正在处理…",
+    "inputPlaceholder": "输入你的任务…",
+    "hint": "Enter 发送 · Shift+Enter 换行",
+    "sendFailed": "发送失败"
+  },
+  "composer": {
+    "permissionMode": "权限模式",
+    "permissionAsk": "询问",
+    "permissionFull": "完全访问",
+    "permissionAskHint": "关键操作会请求你的确认",
+    "permissionFullHint": "Agent 可直接执行全部操作",
+    "fullConfirmTitle": "要开启完整访问权限吗？",
+    "fullConfirmDescription": "Agent 将能够在未经你许可的情况下，在这台计算机上的任何位置运行命令、使用互联网，以及创建和编辑文件。这包括但不限于：",
+    "fullConfirmFiles": "文件和文件夹",
+    "fullConfirmFilesDesc": "读取、创建、修改、上传或删除此计算机上任意位置的文件",
+    "fullConfirmCommands": "终端命令",
+    "fullConfirmCommandsDesc": "运行命令、安装软件和更改系统设置",
+    "fullConfirmNetwork": "互联网和已连接的应用",
+    "fullConfirmNetworkDesc": "访问网站、发送数据并使用已启用的插件",
+    "fullConfirmRisk": "这会带来敏感数据丢失或泄露、提示注入等风险。你可以随时将其关闭。",
+    "fullConfirmCancel": "取消",
+    "fullConfirmAccept": "确认"
+  },
+  "work": {
+    "running": "正在执行（{{count}} 步）",
+    "summary": "已完成 {{count}} 步工作",
+    "errors": "{{count}} 步失败",
+    "failed": "任务执行失败",
+    "cancelled": "已停止",
+    "categories": {
+      "command": "执行命令",
+      "fileEdit": "更新文件",
+      "network": "网络访问",
+      "fileRead": "读取文件",
+      "search": "搜索",
+      "other": "工具调用"
+    }
+  },
+  "permission": {
+    "title": "权限请求",
+    "description": "Agent 请求使用 {{tool}}",
+    "allow": "允许",
+    "deny": "拒绝",
+    "allowed": "已允许",
+    "denied": "已拒绝",
+    "failed": "权限操作失败"
+  }
+}

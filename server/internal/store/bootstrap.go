@@ -163,6 +163,8 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		&PlaygroundRun{},
 		&PlaygroundTurnIndex{},
 		&PlaygroundAsset{},
+		&AgentRun{},
+		&AgentLLMToken{},
 	} {
 		if migrator.HasTable(model) {
 			continue
@@ -222,6 +224,16 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		if err := migrator.AddColumn(&APIKey{}, "KeyKind"); err != nil {
 			return fmt.Errorf("ensure api_keys.key_kind column: %w", err)
 		}
+	}
+	// Widen the key_kind CHECK constraint for the agent infrastructure key kind.
+	// Existing databases were created by the goose bootstrap with only
+	// ('generated','custom'); GORM never touches CHECK constraints, so the
+	// agent internal key insert would fail until this runs. Idempotent.
+	if err := widenAPIKeyKindConstraint(ctx, db); err != nil {
+		return err
+	}
+	if err := dropAgentTokenVersionColumn(ctx, db); err != nil {
+		return err
 	}
 	hadUpstreamCostMultiplier := migrator.HasColumn(&SiteCredential{}, "UpstreamCostMultiplier")
 	for _, field := range []string{"DisplayName", "RoutingPriority", "UpstreamCostMultiplier"} {
@@ -495,6 +507,55 @@ func migrateLegacyModelMappings(data JSON) (JSON, bool) {
 		return nil, false
 	}
 	return JSON(encoded), true
+}
+
+// widenAPIKeyKindConstraint replaces the api_keys.key_kind CHECK constraint
+// with one that also admits 'agent_internal'. Skipped when the constraint is
+// already wide enough (fresh installs get the wide version from the bootstrap
+// migration).
+func widenAPIKeyKindConstraint(ctx context.Context, db *gorm.DB) error {
+	var allowsAgentInternal bool
+	if err := db.WithContext(ctx).Raw(`
+		SELECT pg_get_constraintdef(oid) ILIKE '%agent_internal%'
+		FROM pg_constraint
+		WHERE conrelid = 'api_keys'::regclass AND conname = 'api_keys_key_kind_check'
+	`).Scan(&allowsAgentInternal).Error; err != nil {
+		return fmt.Errorf("inspect api_keys key_kind constraint: %w", err)
+	}
+	if allowsAgentInternal {
+		return nil
+	}
+	if err := db.WithContext(ctx).Exec(`
+		ALTER TABLE api_keys DROP CONSTRAINT IF EXISTS api_keys_key_kind_check
+	`).Error; err != nil {
+		return fmt.Errorf("drop api_keys key_kind constraint: %w", err)
+	}
+	if err := db.WithContext(ctx).Exec(`
+		ALTER TABLE api_keys ADD CONSTRAINT api_keys_key_kind_check
+		CHECK (key_kind IN ('generated', 'custom', 'agent_internal'))
+	`).Error; err != nil {
+		return fmt.Errorf("widen api_keys key_kind constraint: %w", err)
+	}
+	return nil
+}
+
+// dropAgentTokenVersionColumn removes the retired agent_llm_tokens.version
+// column. AutoMigrate never drops columns, so databases created while the
+// column existed keep it as NOT NULL without a default and reject every token
+// insert once the Go struct stopped setting it.
+func dropAgentTokenVersionColumn(ctx context.Context, db *gorm.DB) error {
+	if !db.Migrator().HasTable(&AgentLLMToken{}) {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&AgentLLMToken{}, "version") {
+		return nil
+	}
+	if err := db.WithContext(ctx).Exec(`
+		ALTER TABLE agent_llm_tokens DROP COLUMN IF EXISTS version
+	`).Error; err != nil {
+		return fmt.Errorf("drop agent_llm_tokens version column: %w", err)
+	}
+	return nil
 }
 
 func ensureOAuthConnectionEmailIdentity(db *gorm.DB, migrator gorm.Migrator) error {
