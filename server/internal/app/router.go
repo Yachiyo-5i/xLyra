@@ -14,6 +14,8 @@ import (
 	"github.com/go-chi/cors"
 
 	"xlyra/server/internal/admin"
+	"xlyra/server/internal/agentllm"
+	"xlyra/server/internal/agentproxy"
 	"xlyra/server/internal/analytics"
 	"xlyra/server/internal/auth"
 	"xlyra/server/internal/catalog"
@@ -51,6 +53,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 
 	httpClients := httpclient.NewManager(confFile)
 	defaultHTTPClient, _ := httpClients.Client(httpclient.DefaultProfile())
+	streamingHTTPClient, _ := httpClients.Client(httpclient.StreamingProfile(httpclient.DefaultProfile()))
 	newAPIService := newapi.NewServiceWithHTTPClient(defaultHTTPClient)
 	var oauthService *oauthsvc.Service
 	var siteService *site.Service
@@ -75,12 +78,39 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	playgroundRoot := filepath.Join(config.ResolveWorkdir(), "playground")
 	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, playgroundRoot)
 	playgroundHandler := playground.NewHandler(playgroundService)
+	agentLLMHandler := agentllm.NewHandler(logger.With("thread", "agent-llm"), db, gatewayHandler)
+	agentProxyHandler := agentproxy.NewHandler(cfg.AgentRunnerBaseURL, cfg.AgentRunnerToken, streamingHTTPClient, logger.With("thread", "agent-proxy"))
+	if confFile != nil {
+		if value, ok := confFile.Get("agent.runner_base_url"); ok {
+			if baseURL, valid := value.(string); valid && strings.TrimSpace(baseURL) != "" {
+				agentProxyHandler.SetBaseURL(baseURL)
+			}
+		}
+		if value, ok := confFile.Get("agent.runner_internal_token"); ok {
+			if token, valid := value.(string); valid && strings.TrimSpace(token) != "" {
+				agentProxyHandler.SetToken(token)
+			}
+		}
+	}
+	syncAgentAccessPolicy := func() {
+		if db == nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		sitePolicy, modelPolicy, siteIDs, siteModelIDs := agentproxy.AccessPolicyFromConfig(confFile)
+		if err := agentLLMHandler.SyncAccessPolicy(ctx, agentllm.AccessPolicy{SitePolicy: sitePolicy, ModelPolicy: modelPolicy, SiteIDs: siteIDs, SiteModelIDs: siteModelIDs}); err != nil {
+			logger.Warn("failed to sync agent access policy", "error", err)
+		}
+	}
+	agentProxyHandler.SetOnSettingsUpdated(syncAgentAccessPolicy)
 	if db != nil {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			gatewayHandler.PrewarmModelsCache(ctx)
 		}()
+		go syncAgentAccessPolicy()
 	}
 	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db).WithAnalyticsService(analyticsService)
 	healthHandler := health.NewHandler(cfg, db)
@@ -138,6 +168,29 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 				protected.Use(requireAdmin(authService))
 				protected.Use(requireAdminCSRF(authService))
 				protected.Use(adminHandler.AuditAdminMutation)
+				protected.Route("/agent", func(agentRouter chi.Router) {
+					agentRouter.Get("/settings", func(w http.ResponseWriter, r *http.Request) {
+						agentProxyHandler.GetSettings(w, r, confFile)
+					})
+					agentRouter.Put("/settings", func(w http.ResponseWriter, r *http.Request) {
+						agentProxyHandler.UpdateSettings(w, r, confFile)
+					})
+					agentRouter.Get("/health", agentProxyHandler.Forward)
+					agentRouter.Get("/meta", agentProxyHandler.Forward)
+					agentRouter.Get("/model-memory", agentLLMHandler.ModelMemory)
+					agentRouter.Get("/config", agentProxyHandler.Forward)
+					agentRouter.Put("/config", agentProxyHandler.Forward)
+					agentRouter.Get("/sessions", agentProxyHandler.Forward)
+					agentRouter.Post("/sessions", agentProxyHandler.Forward)
+					agentRouter.Get("/sessions/{id}/transcript", agentProxyHandler.Forward)
+					agentRouter.Patch("/sessions/{id}", agentProxyHandler.Forward)
+					agentRouter.Delete("/sessions/{id}", agentProxyHandler.Forward)
+					agentRouter.Post("/sessions/{id}/retry", agentProxyHandler.Forward)
+					agentRouter.Post("/sessions/{id}/stop", agentProxyHandler.Forward)
+					agentRouter.Post("/sessions/{id}/compact-context", agentProxyHandler.Forward)
+					agentRouter.Post("/sessions/{id}/grant-access", agentProxyHandler.Forward)
+					agentRouter.Get("/sessions/{id}/events", agentProxyHandler.Forward)
+				})
 				protected.Get("/auth/session", adminHandler.CurrentSession)
 				protected.Delete("/auth/session", adminHandler.DeleteSession)
 				protected.Route("/playground", func(playgroundRouter chi.Router) {
@@ -341,6 +394,20 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 		})
 	})
 
+	r.Route("/internal/agent-llm", func(internal chi.Router) {
+		limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
+		internal.With(limitBody).Post("/credential", agentLLMHandler.Credential)
+		internal.With(limitBody).Post("/credential/renew", agentLLMHandler.Renew)
+		internal.Group(func(runs chi.Router) {
+			runs.Use(agentProxyHandler.RunnerTokenAuth())
+			runs.With(limitBody).Post("/runs/register", agentLLMHandler.Register)
+			runs.With(limitBody).Post("/runs/end", agentLLMHandler.End)
+		})
+		internal.With(limitBody).Post("/v1/responses", agentLLMHandler.Responses)
+		internal.With(limitBody).Post("/v1/messages", agentLLMHandler.Messages)
+		internal.Get("/v1/models", agentLLMHandler.Models)
+	})
+
 	r.Route("/api/playground/v1", func(playground chi.Router) {
 		playground.Use(requireAPIKey(authService))
 		limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
@@ -426,6 +493,14 @@ func routeAwareTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 				return
 			}
 			if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/playground/conversations/") && strings.HasSuffix(r.URL.Path, "/events") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/agent/sessions/") && strings.HasSuffix(r.URL.Path, "/events") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/internal/agent-llm/v1/") {
 				next.ServeHTTP(w, r)
 				return
 			}
