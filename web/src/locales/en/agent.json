@@ -1,0 +1,63 @@
+{
+  "sidebar": {
+    "new": "New chat",
+    "empty": "No chats yet",
+    "untitled": "New chat",
+    "recent": "Recent",
+    "delete": "Delete chat",
+    "deleteConfirm": "Delete this chat?",
+    "menu": "Chat actions"
+  },
+  "header": {
+    "back": "Back"
+  },
+  "chat": {
+    "emptyTitle": "How can I help?",
+    "thinking": "Agent is working…",
+    "inputPlaceholder": "Describe your task…",
+    "hint": "Enter to send · Shift+Enter for a new line",
+    "sendFailed": "Failed to send"
+  },
+  "composer": {
+    "permissionMode": "Permission mode",
+    "permissionAsk": "Ask",
+    "permissionFull": "Full access",
+    "permissionAskHint": "Key actions require your confirmation",
+    "permissionFullHint": "Agent can run all actions directly",
+    "fullConfirmTitle": "Enable full access?",
+    "fullConfirmDescription": "Agent will be able to run commands anywhere on this computer, use the internet, and create or edit files without asking you first. This includes but is not limited to:",
+    "fullConfirmFiles": "Files and folders",
+    "fullConfirmFilesDesc": "Read, create, modify, upload, or delete files anywhere on this computer",
+    "fullConfirmCommands": "Terminal commands",
+    "fullConfirmCommandsDesc": "Run commands, install software, and change system settings",
+    "fullConfirmNetwork": "Internet and connected apps",
+    "fullConfirmNetworkDesc": "Visit websites, send data, and use enabled integrations",
+    "fullConfirmRisk": "This carries risks such as sensitive data loss or leaks and prompt injection. You can turn it off at any time.",
+    "fullConfirmCancel": "Cancel",
+    "fullConfirmAccept": "Confirm"
+  },
+  "work": {
+    "running": "Working ({{count}} steps)",
+    "summary": "Completed {{count}} steps",
+    "errors": "{{count}} failed",
+    "failed": "Task failed",
+    "cancelled": "Stopped",
+    "categories": {
+      "command": "Run command",
+      "fileEdit": "Edit file",
+      "network": "Network access",
+      "fileRead": "Read file",
+      "search": "Search",
+      "other": "Tool call"
+    }
+  },
+  "permission": {
+    "title": "Permission request",
+    "description": "Agent wants to use {{tool}}",
+    "allow": "Allow",
+    "deny": "Deny",
+    "allowed": "Allowed",
+    "denied": "Denied",
+    "failed": "Permission update failed"
+  }
+}
