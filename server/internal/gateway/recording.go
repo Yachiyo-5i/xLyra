@@ -26,6 +26,7 @@ func (h Handler) recordAttempt(
 
 	attemptRequestID := fmt.Sprintf("%s:%d:%s", requestID, result.attempt, uuid.NewString())
 	metadata := attemptMetadata(ctx, attemptRequestID, requestID, apiKeyID, canonicalModelID, candidate, result)
+	mergeInternalRequestMetadata(metadata, ctx)
 	h.appendCacheObservationMetadata(ctx, metadata, candidate, result)
 	internal, parentLogID := bridgeRecordingFromContext(ctx)
 	requestLog, _, err := h.recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
@@ -91,6 +92,7 @@ func (h Handler) recordRequestFailure(
 	defer cancel()
 
 	metadata := requestFailureMetadata(ctx, requestID, apiKeyID, statusCode, errorType, errorMessage, requestedModel, stream, stage, endpoint)
+	mergeInternalRequestMetadata(metadata, ctx)
 	failureRequestID := fmt.Sprintf("%s:gateway:%s", requestID, uuid.NewString())
 	if _, _, err := recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
 		RequestID:       failureRequestID,
@@ -114,6 +116,25 @@ func (h Handler) recordRequestFailure(
 type recordingContextKey struct{}
 
 type bridgeRecordingContextKey struct{}
+
+type internalRequestMetadataContextKey struct{}
+
+func WithInternalRequestMetadata(ctx context.Context, metadata map[string]any) context.Context {
+	if len(metadata) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, internalRequestMetadataContextKey{}, metadata)
+}
+
+func mergeInternalRequestMetadata(metadata map[string]any, ctx context.Context) {
+	values, ok := ctx.Value(internalRequestMetadataContextKey{}).(map[string]any)
+	if !ok {
+		return
+	}
+	for key, value := range values {
+		metadata[key] = value
+	}
+}
 
 func withBridgeRecording(ctx context.Context, parentRequestLogID uuid.UUID) context.Context {
 	return context.WithValue(ctx, bridgeRecordingContextKey{}, parentRequestLogID)

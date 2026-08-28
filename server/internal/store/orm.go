@@ -135,6 +135,8 @@ func (SiteModelPricing) TableName() string    { return "site_model_pricings" }
 func (HealthSnapshot) TableName() string      { return "health_snapshots" }
 func (SiteHealthState) TableName() string     { return "site_health_states" }
 func (RouteCooldown) TableName() string       { return "route_cooldowns" }
+func (AgentRun) TableName() string            { return "agent_runs" }
+func (AgentLLMToken) TableName() string       { return "agent_llm_tokens" }
 func (RequestLog) TableName() string          { return "request_logs" }
 func (UsageRecord) TableName() string         { return "usage_records" }
 func (RequestUsageDailySummary) TableName() string {
