@@ -13,7 +13,8 @@ export function GlobalConfigPage() {
   const globalSettingsNav = [
     { to: '/settings/global/general', label: t('global.nav.general'), icon: SlidersHorizontal },
     { to: '/settings/global/profile', label: t('global.nav.profile'), icon: UserRound },
-    { to: '/settings/global/system-proxy', label: t('global.nav.systemProxy'), icon: SystemProxyIcon },    { to: '/settings/global/rate-limit', label: t('global.nav.rateLimit'), icon: Gauge },
+    { to: '/settings/global/system-proxy', label: t('global.nav.systemProxy'), icon: SystemProxyIcon },
+    { to: '/settings/global/rate-limit', label: t('global.nav.rateLimit'), icon: Gauge },
     { to: '/settings/global/site-groups', label: t('global.nav.siteGroups'), icon: Tags },
     { to: '/settings/global/portal', label: t('global.nav.portal'), icon: ExternalLink },
   ] as const

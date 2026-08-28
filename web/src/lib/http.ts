@@ -4,6 +4,8 @@ type APIErrorEnvelope = {
     message?: string
     request_id?: string
   }
+  message?: string
+  code?: string | number
 }
 
 type CurrentSessionResponse = {
@@ -99,8 +101,8 @@ async function toAPIError(response: Response) {
 
   if (isJSON) {
     const payload = (await response.json()) as APIErrorEnvelope
-    message = payload.error?.message ?? message
-    code = payload.error?.code
+    message = payload.error?.message ?? payload.message ?? message
+    code = payload.error?.code ?? (payload.code !== undefined ? String(payload.code) : undefined)
     requestId = payload.error?.request_id
   } else {
     const text = (await response.text()).trim()
