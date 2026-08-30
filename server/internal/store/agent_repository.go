@@ -101,12 +101,6 @@ func (r AgentRepository) Register(ctx context.Context, input AgentRunInput, now 
 	return run, nil
 }
 
-func (r AgentRepository) CreatePending(ctx context.Context, input AgentRunInput, expiresAt time.Time) (AgentRun, error) {
-	run := AgentRun{AgentInstanceID: input.AgentInstanceID, SessionID: input.SessionID, RunID: input.RunID, Model: input.Model, Status: AgentRunPending, PendingExpiresAt: &expiresAt}
-	err := r.db.WithContext(ctx).Create(&run).Error
-	return run, err
-}
-
 func (r AgentRepository) End(ctx context.Context, input AgentRunInput, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var run AgentRun
@@ -157,7 +151,7 @@ func (r AgentRepository) FindUsableToken(ctx context.Context, token string, now 
 
 // AgentTokenUsable reports whether a token may authenticate a new LLM request:
 // not revoked, not expired, superseded only within the grace period, and the
-// owning run must be active (or still inside the pending registration window).
+// owning run must be active (registered by the runner via /runs/register).
 func AgentTokenUsable(item AgentLLMToken, run AgentRun, now time.Time) bool {
 	if item.RevokedAt != nil || !item.ExpiresAt.After(now) {
 		return false
@@ -165,10 +159,7 @@ func AgentTokenUsable(item AgentLLMToken, run AgentRun, now time.Time) bool {
 	if item.SupersededAt != nil && !item.SupersededAt.Add(SupersededGracePeriod).After(now) {
 		return false
 	}
-	if run.Status == AgentRunActive {
-		return true
-	}
-	return run.Status == AgentRunPending && run.PendingExpiresAt != nil && run.PendingExpiresAt.After(now)
+	return run.Status == AgentRunActive
 }
 
 // FindRenewableToken resolves a token for holder-authenticated rotation: the

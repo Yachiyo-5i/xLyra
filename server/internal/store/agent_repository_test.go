@@ -8,10 +8,7 @@ import (
 func TestAgentTokenUsable(t *testing.T) {
 	now := time.Now()
 	activeRun := AgentRun{Status: AgentRunActive}
-	pendingRun := func(window time.Duration) AgentRun {
-		expiresAt := now.Add(window)
-		return AgentRun{Status: AgentRunPending, PendingExpiresAt: &expiresAt}
-	}
+	pendingRun := AgentRun{Status: AgentRunPending}
 	liveToken := AgentLLMToken{ExpiresAt: now.Add(10 * time.Minute)}
 
 	tests := []struct {
@@ -21,8 +18,7 @@ func TestAgentTokenUsable(t *testing.T) {
 		want  bool
 	}{
 		{name: "live token on active run", token: liveToken, run: activeRun, want: true},
-		{name: "live token on pending run within window", token: liveToken, run: pendingRun(time.Minute), want: true},
-		{name: "live token on expired pending run", token: liveToken, run: pendingRun(-time.Minute), want: false},
+		{name: "live token on pending run", token: liveToken, run: pendingRun, want: false},
 		{name: "live token on ended run", token: liveToken, run: AgentRun{Status: AgentRunEnded}, want: false},
 		{name: "expired token", token: AgentLLMToken{ExpiresAt: now.Add(-time.Minute)}, run: activeRun, want: false},
 		{

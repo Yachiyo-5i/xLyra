@@ -42,10 +42,6 @@ func (f *fakeAgentRepository) FindRun(context.Context, store.AgentRunInput) (sto
 	return f.run, f.runErr
 }
 
-func (f *fakeAgentRepository) CreatePending(_ context.Context, input store.AgentRunInput, expiresAt time.Time) (store.AgentRun, error) {
-	return store.AgentRun{AgentInstanceID: input.AgentInstanceID, SessionID: input.SessionID, RunID: input.RunID, Model: input.Model, Status: store.AgentRunPending, PendingExpiresAt: &expiresAt}, nil
-}
-
 func (f *fakeAgentRepository) Register(context.Context, store.AgentRunInput, time.Time) (store.AgentRun, error) {
 	return store.AgentRun{}, nil
 }
@@ -114,8 +110,25 @@ func TestCredentialRejectsUnknownReason(t *testing.T) {
 	}
 }
 
-func TestCredentialInitialCreatesPendingAndIssuesToken(t *testing.T) {
+func TestCredentialUnknownRunIsInactive(t *testing.T) {
 	repo := &fakeAgentRepository{runErr: gorm.ErrRecordNotFound}
+	handler := newTestHandler(repo)
+	req := httptest.NewRequest(http.MethodPost, "/internal/agent-llm/credential", credentialBody("initial"))
+	rec := httptest.NewRecorder()
+	handler.Credential(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if payload := decodeCredentialResponse(t, rec); payload.Active {
+		t.Fatal("unknown run must not receive a credential: issuance is anchored on runner registration")
+	}
+	if repo.createdInput != nil {
+		t.Fatal("no token should be created for an unknown run")
+	}
+}
+
+func TestCredentialActiveRunIssuesToken(t *testing.T) {
+	repo := &fakeAgentRepository{run: store.AgentRun{AgentInstanceID: "agent-1", SessionID: "sess-1", RunID: "run-1", Model: "gpt-5", Status: store.AgentRunActive}}
 	handler := newTestHandler(repo)
 	req := httptest.NewRequest(http.MethodPost, "/internal/agent-llm/credential", credentialBody("initial"))
 	rec := httptest.NewRecorder()
@@ -132,6 +145,23 @@ func TestCredentialInitialCreatesPendingAndIssuesToken(t *testing.T) {
 	}
 	if repo.supersededInput == nil {
 		t.Fatal("issuance must supersede previous tokens")
+	}
+}
+
+func TestCredentialPendingRunIsInactive(t *testing.T) {
+	repo := &fakeAgentRepository{run: store.AgentRun{AgentInstanceID: "agent-1", SessionID: "sess-1", RunID: "run-1", Model: "gpt-5", Status: store.AgentRunPending}}
+	handler := newTestHandler(repo)
+	req := httptest.NewRequest(http.MethodPost, "/internal/agent-llm/credential", credentialBody("initial"))
+	rec := httptest.NewRecorder()
+	handler.Credential(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if payload := decodeCredentialResponse(t, rec); payload.Active {
+		t.Fatal("pending run must not receive a credential: only runner-registered (active) runs qualify")
+	}
+	if repo.createdInput != nil {
+		t.Fatal("no token should be created for a pending run")
 	}
 }
 

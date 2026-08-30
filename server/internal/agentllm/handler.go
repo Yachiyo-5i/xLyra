@@ -24,7 +24,6 @@ import (
 
 const (
 	DefaultTokenTTL    = 30 * time.Minute
-	PendingRunWindow   = 30 * time.Second
 	TokenReasonInitial = "initial"
 )
 
@@ -37,7 +36,6 @@ type Handler struct {
 
 type agentRepository interface {
 	FindRun(ctx context.Context, input store.AgentRunInput) (store.AgentRun, error)
-	CreatePending(ctx context.Context, input store.AgentRunInput, expiresAt time.Time) (store.AgentRun, error)
 	Register(ctx context.Context, input store.AgentRunInput, now time.Time) (store.AgentRun, error)
 	End(ctx context.Context, input store.AgentRunInput, now time.Time) error
 	FindUsableToken(ctx context.Context, token string, now time.Time) (store.AgentLLMToken, error)
@@ -94,13 +92,18 @@ func (h Handler) Credential(w http.ResponseWriter, r *http.Request) {
 	runInput := store.AgentRunInput{AgentInstanceID: input.AgentInstanceID, SessionID: input.SessionID, RunID: input.RunID, Model: input.Model}
 	run, err := h.repo.FindRun(r.Context(), runInput)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		run, err = h.repo.CreatePending(r.Context(), runInput, now.Add(PendingRunWindow))
+		// This endpoint is unauthenticated: admission is anchored on the run
+		// being registered by the runner (runner-key authenticated). Unknown
+		// runs are rejected; the agent retries briefly on active:false while
+		// its first issuance races with registration.
+		h.writeCredential(w, credentialResponse{Active: false})
+		return
 	}
 	if err != nil {
 		h.fail(w, r, http.StatusInternalServerError, "agent_credential_unavailable", "unable to resolve agent run")
 		return
 	}
-	if run.AgentInstanceID != input.AgentInstanceID || run.Model != input.Model || run.Status == store.AgentRunEnded || (run.Status == store.AgentRunPending && (run.PendingExpiresAt == nil || !run.PendingExpiresAt.After(now))) {
+	if run.AgentInstanceID != input.AgentInstanceID || run.Model != input.Model || run.Status != store.AgentRunActive {
 		h.writeCredential(w, credentialResponse{Active: false})
 		return
 	}
