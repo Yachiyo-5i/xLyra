@@ -34,7 +34,13 @@ export type AppNavSection = {
 
 type TFunction = (key: string) => string
 
-export function getAppNavSections(t: TFunction): AppNavSection[] {
+/** Feature gates for nav entries; the /agent entry hides while the runner is unconfigured. */
+export type NavFeatures = {
+  agent?: boolean
+}
+
+export function getAppNavSections(t: TFunction, features: NavFeatures = {}): AppNavSection[] {
+  const showAgent = features.agent ?? true
   return [
     {
       key: 'workspace',
@@ -46,13 +52,13 @@ export function getAppNavSections(t: TFunction): AppNavSection[] {
           icon: MessagesSquare,
           description: 'Test chat and image models end-to-end through the gateway.',
         },
-        {
+        ...(showAgent ? [{
           to: '/agent',
           label: t('nav.agent'),
           icon: Bot,
           description: 'Run an agent session with tools, approvals and live events.',
           desktopOnly: true,
-        },
+        }] : []),
       ],
     },
     {

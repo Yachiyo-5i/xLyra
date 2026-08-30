@@ -6,6 +6,7 @@ import { MobileTabbar, type MobileTabbarItem } from '@/components/layout/mobile-
 import { MobileTopbar } from '@/components/layout/mobile-topbar'
 import { useIOSViewportBounceLock } from '@/hooks/use-ios-viewport-bounce-lock'
 import { getAppNavSections, type AppNavItem, type AppNavSection } from '@/lib/navigation'
+import { useAgentAvailability } from '@/features/agent/lib/use-agent-availability'
 
 const mobilePrimaryPaths = ['/dashboard', '/sites', '/requests', '/api-keys']
 
@@ -14,7 +15,8 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   const [moreOpen, setMoreOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement>(null)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
-  const navSections = useMemo(() => getAppNavSections(t), [t])
+  const agentAvailable = useAgentAvailability()
+  const navSections = useMemo(() => getAppNavSections(t, { agent: agentAvailable }), [t, agentAvailable])
   const primaryItems = useMemo(() => getMobilePrimaryItems(navSections), [navSections])
   const dockItems = useMemo(() => getMobileDockItems(navSections, primaryItems), [navSections, primaryItems])
 

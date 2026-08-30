@@ -7,6 +7,7 @@ import { getAppNavSections } from '@/lib/navigation'
 import { useMobileDevice } from '@/hooks/use-media-query'
 import { AppLogo } from '@/components/common/app-logo'
 import { UserAccountMenu } from '@/components/layout/user-account-menu'
+import { useAgentAvailability } from '@/features/agent/lib/use-agent-availability'
 
 type AppSidebarProps = {
   className?: string
@@ -17,6 +18,7 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
   const { t } = useTranslation('common')
   const location = useLocation()
   const isMobileDevice = useMobileDevice()
+  const agentAvailable = useAgentAvailability()
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
 
   function handleNavigate() {
@@ -28,7 +30,7 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
     'text-muted-soft relative flex w-full appearance-none items-center gap-3 rounded-lg px-3 py-3 text-left font-sans text-sm font-medium leading-5 transition-all duration-150 group'
   const navLabelClass = 'truncate text-sm font-medium leading-5'
 
-  const navSections = getAppNavSections(t).map((section) => ({
+  const navSections = getAppNavSections(t, { agent: agentAvailable }).map((section) => ({
     ...section,
     items: section.items.filter((item) => !item.desktopOnly || !isMobileDevice),
   }))

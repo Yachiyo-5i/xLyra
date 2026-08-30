@@ -5,6 +5,7 @@ import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAppNavSections, type AppNavItem } from '@/lib/navigation'
 import { useMobileDevice, useMobileLayout } from '@/hooks/use-media-query'
+import { useAgentAvailability } from '@/features/agent/lib/use-agent-availability'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
   const { t } = useTranslation('common')
   const isMobileLayout = useMobileLayout()
   const isMobileDevice = useMobileDevice()
+  const agentAvailable = useAgentAvailability()
   const [openState, setOpenState] = useState(false)
   const open = openProp ?? openState
   const setOpen = onOpenChangeProp ?? setOpenState
@@ -31,7 +33,7 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
   const listRef = useRef<HTMLDivElement>(null)
 
   const allCommandItems = useMemo<CommandItem[]>(() => {
-    const sections = getAppNavSections(t)
+    const sections = getAppNavSections(t, { agent: agentAvailable })
     return sections.flatMap((section) =>
       section.items.filter((item) => !item.desktopOnly || (!isMobileLayout && !isMobileDevice)).flatMap((item) => {
         const self: CommandItem = { ...item, section: section.label }
@@ -41,7 +43,7 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
         return [self, ...kids]
       }),
     )
-  }, [isMobileDevice, isMobileLayout, t])
+  }, [isMobileDevice, isMobileLayout, t, agentAvailable])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
