@@ -54,11 +54,11 @@ describe('reduceAgentEvent', () => {
 
   it('maps runner wire events: nested tool_call/tool_result payloads, deltas skipped', () => {
     const timeline = reduceAll([
-      // 参数流式分片：不得产生步骤
+      // Streaming argument chunks must not produce steps.
       { type: 'tool_call_start', data: { tool_call: { id: 'call_1', name: 'read_file' } } },
       { type: 'tool_call_delta', data: { tool_call_id: 'call_1', delta: '{"path":' } },
       { type: 'tool_call_delta', data: { tool_call_id: 'call_1', delta: '"/a.ts"}' } },
-      // 完结事件带全量参数：补齐详情，不重复建步骤
+      // The completion event carries full arguments: backfill detail without duplicating the step.
       { type: 'tool_call', data: { tool_call: { id: 'call_1', name: 'read_file', raw_arguments: '{"path":"/a.ts"}' } } },
       { type: 'tool_result', data: { tool_result: { tool_call_id: 'call_1', name: 'read_file', output: 'file body', is_error: false } } },
       { type: 'agent_done', data: { result: { text: '读完了' } } },
@@ -202,7 +202,7 @@ describe('timelineFromTranscript', () => {
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
     expect(run.run.finalText).toBe('文件没问题')
-    // thinking 步骤 + 工具步骤（tool_call 后紧跟的 tool_result 把它关闭）
+    // thinking step + tool step (the tool_result right after tool_call closes it)
     const thinking = run.run.steps.find((step) => step.kind === 'thinking')
     expect(thinking?.detail).toBe('先读文件')
     const tool = run.run.steps.find((step) => step.kind === 'tool')
@@ -243,7 +243,7 @@ describe('timelineFromTranscript', () => {
     expect(run.run.steps.find((step) => step.kind === 'tool')?.status).toBe('error')
     expect(run.run.steps.find((step) => step.kind === 'status')).toMatchObject({ title: 'compaction', detail: '前文摘要' })
     expect(run.run.permissions[0]).toMatchObject({ id: 'e1', tool: 'bash', detail: 'rm -rf /tmp/x', decision: 'denied' })
-    // 未裁决的提权（granted: null）保持可交互，不得显示为已拒绝
+    // An undecided escalation (granted: null) stays interactive and must not render as denied.
     expect(run.run.permissions[1]).toMatchObject({ id: 'e2', tool: 'read_file', resolvedPath: '/Users/x/secrets' })
     expect(run.run.permissions[1].decision).toBeUndefined()
   })
@@ -256,7 +256,7 @@ describe('timelineFromTranscript', () => {
         message: { role: 'assistant', content: '', tool_calls: [{ id: 'c1', name: 'exec_command', raw_arguments: '{"command":["git","clone"]}' }] },
       },
       { type: 'escalation', escalation_id: 'e1', tool_name: 'exec_command', requested_command: ['git', 'clone'], resolved_path: 'capability://exec_command', granted: true },
-      // 旧版本在提权暂停时写入的错误回执：不应标为失败
+      // Error receipts written by older versions during an escalation pause must not be marked failed.
       { type: 'message', message: { role: 'tool', tool_call_id: 'c1', name: 'exec_command', content: '操作已被中断，工具未执行完成。', is_error: true } },
     ])
     const run = timeline[1]
@@ -264,7 +264,7 @@ describe('timelineFromTranscript', () => {
     const step = run.run.steps.find((s) => s.kind === 'tool')
     expect(step?.status).toBe('done')
     expect(step?.detail).toBe('等待用户授权，工具暂停执行。')
-    // 无提权的普通取消仍按失败展示
+    // A plain cancellation without escalation still renders as failed.
     const cancelled = timelineFromTranscript([
       { type: 'message', message: { role: 'user', content: '跑一下' } },
       {

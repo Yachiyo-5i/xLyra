@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchResponse, APIError } from '@/lib/http'
+import { apiFetch, apiFetchResponse, apiURL, APIError } from '@/lib/http'
 import { listCanonicalModels, listSiteModels, listSitesWithOAuth, type SiteModel } from '@/features/sites/api/sites'
 
 export type AgentSession = {
@@ -9,20 +9,14 @@ export type AgentSession = {
   running?: boolean
 }
 
-export type AgentMeta = {
-  runner?: string
-  agent?: string
-  version?: string
-  package?: string
-  models?: string[]
-  channels?: string[]
-  [key: string]: unknown
-}
-
 export type AgentHealth = {
-  status: string
+  status?: string
   runner?: string
   agent?: string
+  /** Runner version, injected at image build time. */
+  version?: string
+  /** Installed xlyra-agent npm version; absent when AGENT_MANAGED=false (self-managed). */
+  agent_version?: string
 }
 
 export type AgentRuntimeSettings = {
@@ -42,8 +36,51 @@ export type AgentAvailableSite = {
   models: Array<Pick<SiteModel, 'id' | 'upstream_model_name' | 'display_name' | 'canonical_model_id'> & { model_key?: string; category?: string }>
 }
 
-export async function fetchAgentHealth() {
-  return apiFetch<AgentHealth>('/api/v1/agent/health')
+// The runner returns 503 with a body that still carries version fields when
+// unhealthy, so this bypasses apiFetch (which throws on non-2xx) and parses the
+// body manually; network or proxy failures yield null.
+export async function fetchAgentHealth(): Promise<AgentHealth | null> {
+  try {
+    const response = await fetch(apiURL('/api/v1/agent/health'), { credentials: 'include' })
+    const payload: unknown = await response.json().catch(() => null)
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return { status: response.ok ? 'healthy' : 'unhealthy' }
+    }
+    return payload as AgentHealth
+  } catch {
+    return null
+  }
+}
+
+export type AgentUpgradeState = {
+  status: 'installing' | 'restarting' | 'failed'
+  target: string
+  error?: string
+}
+
+export type AgentVersionInfo = {
+  managed: boolean
+  current?: string
+  latest: string | null
+  update_available: boolean
+  checked_at: string | null
+  check_error: string | null
+  active_runs: number
+  upgrade: AgentUpgradeState | null
+}
+
+// Older runners lack this endpoint (404) or may be unreachable; null degrades the UI to the current version only.
+export async function fetchAgentVersion(refresh = false): Promise<AgentVersionInfo | null> {
+  try {
+    return await apiFetch<AgentVersionInfo>(`/api/v1/agent/version${refresh ? '?refresh=true' : ''}`)
+  } catch {
+    return null
+  }
+}
+
+// Business rejections (agent_busy, upgrade_in_progress, ...) surface as APIError with the runner-proxied error code.
+export async function upgradeAgent(input: { force?: boolean } = {}) {
+  return apiFetch<{ success?: boolean; target?: string }>('/api/v1/agent/upgrade', { method: 'POST', body: input })
 }
 
 export async function fetchAgentRuntimeSettings() {
@@ -51,12 +88,29 @@ export async function fetchAgentRuntimeSettings() {
   return response.data ?? { runner_base_url: '', runner_token_configured: false, allowed_site_ids: [], allowed_site_model_ids: [], site_policy: 'allow_all', model_policy: 'allow_all' }
 }
 
-export async function updateAgentRuntimeSettings(settings: { runner_base_url: string; runner_token?: string; allowed_site_ids: string[]; allowed_site_model_ids: string[]; site_policy: 'allow_all' | 'allow_list'; model_policy: 'allow_all' | 'allow_list' }) {
+// The settings endpoint is a partial update: absent fields stay unchanged, so runner connection and site/model scope are saved independently.
+export async function updateAgentRunnerSettings(settings: { runner_base_url: string; runner_token?: string }) {
   const response = await apiFetch<{ data?: AgentRuntimeSettings }>('/api/v1/agent/settings', {
     method: 'PUT',
     body: settings,
   })
-  return response.data ?? { ...settings, runner_token_configured: Boolean(settings.runner_token) }
+  return response.data
+}
+
+export async function clearAgentRunnerSettings() {
+  const response = await apiFetch<{ data?: AgentRuntimeSettings }>('/api/v1/agent/settings', {
+    method: 'PUT',
+    body: { clear_runner: true },
+  })
+  return response.data
+}
+
+export async function updateAgentScopeSettings(settings: { site_policy: 'allow_all' | 'allow_list'; model_policy: 'allow_all' | 'allow_list'; allowed_site_ids: string[]; allowed_site_model_ids: string[] }) {
+  const response = await apiFetch<{ data?: AgentRuntimeSettings }>('/api/v1/agent/settings', {
+    method: 'PUT',
+    body: settings,
+  })
+  return response.data
 }
 
 export async function fetchAgentAvailableModels(): Promise<AgentAvailableSite[]> {
@@ -85,8 +139,111 @@ export async function fetchAgentAvailableModels(): Promise<AgentAvailableSite[]>
   return rows.filter((site) => !site.enabled || site.models.length > 0)
 }
 
-export async function fetchAgentMeta() {
-  return apiFetch<AgentMeta>('/api/v1/agent/meta')
+// ---- Capabilities: Skills / AGENTS.md (xLyra → runner → agent) ----
+
+export type AgentSkill = {
+  name: string
+  description: string
+  /** Project scope is editable/deletable (stored in the workspace); user/extra scopes can only be toggled. */
+  scope?: 'project' | 'user' | 'extra'
+  enabled: boolean
+  path?: string
+  license?: string
+}
+
+export type AgentSkillsInfo = {
+  /** Global toggle (agent enable_skills). */
+  enabled: boolean
+  skills: AgentSkill[]
+  warnings?: string[]
+}
+
+// Older runners/agents lack this endpoint (404) or may be unreachable; null degrades the UI.
+export async function listAgentSkills(): Promise<AgentSkillsInfo | null> {
+  try {
+    const response = await apiFetch<{ data?: AgentSkillsInfo }>('/api/v1/agent/skills')
+    return response.data ?? { enabled: true, skills: [] }
+  } catch {
+    return null
+  }
+}
+
+/** Reads a workspace file; null when the file does not exist. */
+export async function fetchWorkspaceFile(path: string): Promise<string | null> {
+  try {
+    const response = await apiFetch<{ data?: { content?: string } }>(`/api/v1/agent/workspace/file?path=${encodeURIComponent(path)}`)
+    return response.data?.content ?? ''
+  } catch (error) {
+    if (error instanceof APIError && error.status === 404) return null
+    throw error
+  }
+}
+
+export async function putWorkspaceFile(path: string, content: string) {
+  return apiFetch<{ success?: boolean }>('/api/v1/agent/workspace/file', { method: 'PUT', body: { path, content } })
+}
+
+export async function deleteWorkspaceFile(path: string) {
+  return apiFetch<{ success?: boolean }>(`/api/v1/agent/workspace/file?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+}
+
+export type AgentSkillDetail = AgentSkill & {
+  metadata?: Record<string, string>
+  /** Full SKILL.md including frontmatter. */
+  content: string
+  contentTruncated?: boolean
+  /** Resource file paths relative to the skill root. */
+  resources: string[]
+}
+
+// Older runners/agents lack this endpoint; returns null.
+export async function fetchAgentSkillDetail(name: string): Promise<AgentSkillDetail | null> {
+  try {
+    const response = await apiFetch<{ data?: AgentSkillDetail }>(`/api/v1/agent/skills/${encodeURIComponent(name)}`)
+    return response.data ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Reads a single resource file inside a skill directory (doc/script preview). */
+export async function fetchAgentSkillFile(name: string, path: string): Promise<{ content: string; truncated?: boolean } | null> {
+  try {
+    const response = await apiFetch<{ data?: { content: string; truncated?: boolean } }>(
+      `/api/v1/agent/skills/${encodeURIComponent(name)}/file?path=${encodeURIComponent(path)}`,
+    )
+    return response.data ?? null
+  } catch {
+    return null
+  }
+}
+
+export type AgentCapabilitiesConfig = {
+  enable_agents_md?: boolean
+  enable_skills?: boolean
+  disabled_skills?: string[]
+}
+
+type AgentConfigEnvelope = {
+  endpoints?: unknown[]
+  agent?: AgentCapabilitiesConfig & Record<string, unknown>
+}
+
+export async function fetchAgentCapabilities(): Promise<AgentCapabilitiesConfig | null> {
+  try {
+    const response = await apiFetch<{ data?: AgentConfigEnvelope }>('/api/v1/agent/config')
+    return response.data?.agent ?? {}
+  } catch {
+    return null
+  }
+}
+
+// agent /config saves as a whole: read the full config, merge the agent section, write back (masked credentials are preserved server-side).
+export async function updateAgentCapabilities(patch: AgentCapabilitiesConfig) {
+  const current = await apiFetch<{ data?: AgentConfigEnvelope }>('/api/v1/agent/config')
+  const data = current.data ?? {}
+  const agent = { ...(data.agent ?? {}), ...patch }
+  await apiFetch('/api/v1/agent/config', { method: 'PUT', body: { endpoints: data.endpoints ?? [], agent } })
 }
 
 export async function listAgentSessions() {
@@ -125,12 +282,12 @@ export async function fetchAgentTranscript(sessionId: string) {
 
 export type AgentTranscriptEntry = {
   type?: string
-  /** 早期扁平格式字段（兼容） */
+  /** Early flat-format fields (compat). */
   role?: string
   content?: string
   payload?: unknown
   timestamp?: string
-  /** runner 转录格式：type === 'message' 时的消息信封 */
+  /** Runner transcript envelope when type === 'message'. */
   message?: {
     role?: 'system' | 'user' | 'assistant' | 'tool'
     content?: string

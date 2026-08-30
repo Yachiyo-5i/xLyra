@@ -85,7 +85,7 @@ function RunBlock({ run, onPermissionDecision }: { run: AgentRun; onPermissionDe
       {run.status === 'error' ? (
         <p className="text-xs text-red-500">{t('work.failed')}</p>
       ) : null}
-      {/* 提权协商暂停（有待裁决的权限请求）时不显示「已停止」，避免误导 */}
+      {/* A cancellation caused by a pending escalation is a pause, not a stop — hide the label to avoid misleading. */}
       {run.status === 'cancelled' && !run.permissions.some((request) => !request.decision) ? (
         <p className="text-xs text-muted-soft">{t('work.cancelled')}</p>
       ) : null}
@@ -95,7 +95,7 @@ function RunBlock({ run, onPermissionDecision }: { run: AgentRun; onPermissionDe
 
 type ToolCategory = 'command' | 'fileEdit' | 'network' | 'fileRead' | 'search' | 'other'
 
-/** 按工具名归类工作步骤：执行命令 / 更新文件 / 网络访问 / 读取文件 / 搜索 / 其他 */
+/** Bucket work steps by tool name: command / file edit / network / file read / search / other. */
 function toolCategory(name: string): ToolCategory {
   const n = name.toLowerCase()
   if (n.includes('exec') || n.includes('command') || n.includes('stdin') || n.includes('shell') || n.includes('bash') || n.includes('process')) return 'command'

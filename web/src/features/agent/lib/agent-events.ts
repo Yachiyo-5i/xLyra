@@ -15,7 +15,7 @@ export type AgentPermissionRequest = {
   id: string
   tool: string
   detail?: string
-  /** 授权登记的解析路径/能力键（grant-access 接口的回传参数） */
+  /** Resolved path/capability key recorded by the grant, echoed back to the grant-access API. */
   resolvedPath?: string
   decision?: 'allowed' | 'denied'
 }
@@ -105,9 +105,9 @@ export function extractEventText(data: unknown): string {
 
 function classifyEvent(type: string, data: unknown): EventKind {
   const normalized = type.toLowerCase()
-  // 提权协商事件即权限请求（载荷嵌套在 data.escalation）
+  // Escalation negotiation events are permission requests (payload nested under data.escalation).
   if (normalized.includes('escalation')) return 'permission'
-  // 工具参数流式分片不参与时间线（步骤由 start/end/result 三个事件表达）
+  // Streaming tool-argument chunks are ignored; steps are expressed by start/end/result events.
   if (normalized === 'tool_call_delta' || normalized === 'toolcall_delta') return 'other'
   if (normalized.includes('permission') || normalized.includes('approval')) {
     if (normalized.includes('result') || normalized.includes('grant') || normalized.includes('decision') || normalized.includes('resolved')) {
@@ -176,11 +176,11 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       return updateLastRun(withRun, (run) => ({ ...run, finalText: run.finalText + text }))
     }
     case 'tool_call': {
-      // runner 事件的载荷嵌套在 data.tool_call；平铺的 tool_* 事件直接用 data
+      // Runner events nest the payload under data.tool_call; flat tool_* events use data directly.
       const payload = asRecord(record?.tool_call) ?? record
       const callId = pickId(payload, ['id', 'tool_call_id', 'call_id'])
       if (lastRun(timeline)?.run.steps.some((step) => step.id === callId && callId)) {
-        // 完结事件（tool_call）：补齐参数详情
+        // Completion event (tool_call): backfill the argument detail.
         const detail = pickDetail(payload, ['raw_arguments', 'arguments', 'args', 'input', 'command']) || undefined
         return updateLastRun(timeline, (run) => ({
           ...run,
@@ -198,7 +198,7 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       return updateLastRun(withRun, (run) => ({ ...run, steps: [...run.steps, step] }))
     }
     case 'tool_result': {
-      // runner 事件的载荷嵌套在 data.tool_result
+      // Runner events nest the payload under data.tool_result.
       const payload = asRecord(record?.tool_result) ?? record
       const withRun = ensureRun(timeline)
       const stepId = pickId(payload, ['tool_call_id', 'call_id', 'step_id', 'id'])
@@ -234,7 +234,7 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
     }
     case 'permission': {
       const withRun = ensureRun(timeline)
-      // escalation_request 的载荷嵌套在 data.escalation；平铺的 permission_* 事件直接用 data
+      // escalation_request nests its payload under data.escalation; flat permission_* events use data directly.
       const payload = asRecord(record?.escalation) ?? record
       const command = payload?.requested_command
       const request: AgentPermissionRequest = {
@@ -267,21 +267,21 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
 }
 
 export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTimeline {
-  // 中断收尾写入的固定回执文案（xlyra-agent sealPendingToolCalls）
+  // Fixed receipt text written on interruption teardown (xlyra-agent sealPendingToolCalls).
   const INTERRUPTED_SEAL = '操作已被中断，工具未执行完成。'
   const AWAITING_SEAL = '等待用户授权，工具暂停执行。'
   let timeline: AgentTimeline = []
-  // 当前 turn 是否包含提权请求：包含时，「中断」回执实为提权暂停，降级为中性
+  // When the turn contains an escalation, the "interrupted" receipt is actually a pause; downgrade it to neutral.
   let escalationInTurn = false
   for (const entry of entries) {
     if (entry.type === 'compaction') {
-      // 上下文压缩记录：作为状态步骤挂在当前 run 下展示
+      // Context compaction is shown as a status step on the current run.
       const summary = typeof entry.summary === 'string' ? entry.summary : ''
       timeline = appendStatusStep(timeline, 'compaction', summary || undefined)
       continue
     }
     if (entry.type === 'escalation') {
-      // 提权请求：展示为权限条目；granted 为 null 表示尚未裁决（保持可交互）
+      // Escalations render as permission entries; granted null means undecided (stays interactive).
       const withRun = ensureRun(timeline)
       const command = entry.requested_command
       const request: AgentPermissionRequest = {
@@ -299,7 +299,7 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
     }
     const message = entry.message
     if (message) {
-      // runner 的真实转录格式：{ type: 'message', message: ChatMessage, ... }
+      // The runner's transcript format: { type: 'message', message: ChatMessage, ... }
       if (message.role === 'user') {
         if (message.content) timeline = appendUserMessage(timeline, message.content)
         escalationInTurn = false
@@ -307,7 +307,7 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
       }
       if (message.role === 'system') continue
       if (message.role === 'tool') {
-        // 兼容存量数据：提权暂停前写入的「中断」回执降级为中性（不标失败）
+        // Backward compat: "interrupted" receipts written before an escalation pause downgrade to neutral (not failed).
         const pausedByEscalation = escalationInTurn && message.is_error === true && message.content === INTERRUPTED_SEAL
         timeline = reduceAgentEvent(timeline, {
           type: 'tool_result',
@@ -320,20 +320,20 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
         })
         continue
       }
-      // assistant：思考 → 工具调用 → 正文，按写入顺序还原
+      // Assistant: thinking → tool calls → text, restored in write order.
       if (message.thinking) timeline = reduceAgentEvent(timeline, { type: 'thinking', data: message.thinking })
       for (const call of message.tool_calls ?? []) {
         timeline = reduceAgentEvent(timeline, {
           type: 'tool_call',
           data: { tool_call_id: call.id, name: call.name, arguments: call.raw_arguments },
         })
-        // 历史转录里的工具调用必然已完成：紧跟一条 tool_result 关闭步骤
+        // Tool calls in a historical transcript are necessarily finished; a synthetic tool_result closes the step.
         timeline = reduceAgentEvent(timeline, { type: 'tool_result', data: { tool_call_id: call.id, name: call.name } })
       }
       if (message.content) timeline = reduceAgentEvent(timeline, { type: 'message', data: message.content })
       continue
     }
-    // 兼容早期的扁平格式：{ role, content / payload }
+    // Compat with the early flat format: { role, content / payload }.
     const role = entry.role ?? ''
     const type = entry.type ?? ''
     const data = typeof entry.content === 'string' && entry.content

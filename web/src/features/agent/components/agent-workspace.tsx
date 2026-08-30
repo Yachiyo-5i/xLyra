@@ -11,6 +11,7 @@ import { formatResponseDuration } from '@/features/playground/lib/response-timin
 import type { ChatAttachment, GatewayModel, ReasoningEffort } from '@/features/playground/lib/types'
 import { newId } from '@/features/playground/lib/storage'
 import { AgentSidebar } from '@/features/agent/components/agent-sidebar'
+import { AgentSettingsDialog } from '@/features/agent/components/agent-settings-dialog'
 import { AgentTimeline } from '@/features/agent/components/agent-timeline'
 import { TopbarUserControls } from '@/components/layout/topbar-user-controls'
 import { Button } from '@/components/ui/button'
@@ -60,7 +61,7 @@ function fileToDataURL(file: File): Promise<string> {
   })
 }
 
-/** 等待 Agent 回复的占位指示（playground 风格：脉冲光标 + 文案 + 实时耗时） */
+/** Placeholder shown while awaiting an agent reply: pulsing caret, label, live elapsed time. */
 function WaitingIndicator() {
   const { t } = useTranslation(['agent', 'playground'])
   const [startedAt] = useState(() => Date.now())
@@ -78,7 +79,7 @@ function WaitingIndicator() {
   )
 }
 
-/** 开启完全访问权限前的二次确认（风险明示 + 取消/确认） */
+/** Confirmation shown before enabling full-access permission mode. */
 function FullAccessConfirmDialog({ open, onCancel, onConfirm }: { open: boolean; onCancel: () => void; onConfirm: () => void }) {
   const { t } = useTranslation('agent')
   const items = [
@@ -124,7 +125,7 @@ export function AgentWorkspace() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const sessionsQuery = useQuery({ queryKey: ['agent', 'sessions'], queryFn: listAgentSessions, retry: false })
-  // 模型记忆在服务端（agent_runs）：新会话默认全局最后使用的模型，已有会话用该会话最后使用的模型
+  // Model memory lives server-side: a fresh session defaults to the last globally used model, an existing session to its own last model.
   const modelMemoryQuery = useQuery({ queryKey: ['agent', 'model-memory'], queryFn: fetchAgentModelMemory, retry: false })
   const availableModelsQuery = useQuery({
     queryKey: ['agent', 'available-models'],
@@ -146,15 +147,16 @@ export function AgentWorkspace() {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const eventAbort = useRef<AbortController | null>(null)
-  // 刚通过发送消息创建的会话：transcript 此刻多半还没在 runner 落盘，
-  // 跳过紧随其后的 transcript 重载，避免把乐观追加的时间线清空、跳回初始页
+  // A just-created session usually has no transcript persisted on the runner yet;
+  // skip the reload that follows so the optimistically appended timeline survives.
   const skipTranscriptLoadFor = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const sessions = sessionsQuery.data ?? []
-  // 默认停留在初始化对话页：只有显式选择会话（activeId）才进入会话视图
+  // Stay on the new-chat screen by default; only an explicit selection enters a session.
   const selectedId = newSession ? null : activeId
   const hasMessages = timeline.length > 0
 
@@ -177,7 +179,7 @@ export function AgentWorkspace() {
 
   const effectiveModel = useMemo(() => {
     const available = (id: string | null | undefined) => Boolean(id && gatewayModels.some((item) => item.id === id))
-    // 手动选择 > 该会话最后使用 > 全局最后使用 > 可用列表第一个
+    // Manual pick > session last used > global last used > first available.
     if (available(model)) return model
     const remembered = selectedId ? modelMemoryQuery.data?.sessions[selectedId] : undefined
     if (available(remembered)) return remembered ?? null
@@ -195,8 +197,9 @@ export function AgentWorkspace() {
         if (['agent_done', 'agent_error', 'agent_cancelled'].includes(event.type)) {
           setRunning(false)
           void queryClient.invalidateQueries({ queryKey: ['agent', 'sessions'] })
-          // 终态时用权威 transcript 校正时间线：补齐 SSE 连接前错过的早期事件；
-          // transcript 内容更少（落盘滞后）时保留当前时间线
+          // On terminal status, reconcile the timeline against the authoritative
+          // transcript (covers events missed before the SSE connection); keep the
+          // current timeline when the transcript lags behind.
           void fetchAgentTranscript(sessionId).then((entries) => {
             setTimeline((current) => {
               const fromTranscript = timelineFromTranscript(entries)
@@ -221,10 +224,11 @@ export function AgentWorkspace() {
     void fetchAgentTranscript(selectedId).then((entries) => {
       if (cancelled) return
       const built = timelineFromTranscript(entries)
-      // 选中仍在运行的会话：恢复 SSE 跟随，继续接收实时事件。
-      // 事件注册表按 run 隔离，重连会从当前 run 的开头重放——
-      // 为避免与转录里已落盘的当前 run 内容重复，时间线裁到最近一条
-      // 用户消息为止（当前 run 由重放重建；用户消息不在事件流里，保留它）
+      // Selecting a still-running session resumes the SSE follow. The event
+      // registry is per-run, so reconnecting replays the current run from its
+      // start; trim the timeline to the latest user message to avoid duplicating
+      // what the transcript already persisted (user messages are not in the
+      // event stream, so that entry is kept).
       const isRunning = sessions.find((item) => item.session_id === selectedId)?.running
       if (isRunning) {
         let lastUserIndex = -1
@@ -237,7 +241,7 @@ export function AgentWorkspace() {
       setTimeline(built)
     }).catch(() => setTimeline([]))
     return () => { cancelled = true }
-  }, [selectedId, followSession]) // eslint-disable-line react-hooks/exhaustive-deps -- sessions 仅用于 running 判断，跟随动作幂等
+  }, [selectedId, followSession]) // eslint-disable-line react-hooks/exhaustive-deps -- sessions only gates the running check; following is idempotent
 
   useEffect(() => () => eventAbort.current?.abort(), [])
 
@@ -267,9 +271,9 @@ export function AgentWorkspace() {
   })
 
   const canSubmit = Boolean((draft.trim() || attachments.length > 0) && !running && !sendMutation.isPending)
-  // 忙碌 = 会话创建中（isPending）或 run 进行中（running）；驱动发送按钮的停止态
+  // Busy = session creation pending or a run in flight; drives the send/stop button state.
   const awaiting = sendMutation.isPending || running
-  // 等待回复占位：忙碌且最后一个 run 还没有任何输出（无步骤、无正文）时出现
+  // Waiting indicator shows while busy and the last run has produced nothing yet.
   const lastItem = timeline[timeline.length - 1]
   const lastRunIdle = lastItem?.kind === 'run'
     && lastItem.run.status === 'running'
@@ -291,7 +295,7 @@ export function AgentWorkspace() {
     setDraft('')
     setAttachments([])
     setRunning(false)
-    setModel(null) // 回落到服务端记忆的全局最后使用模型
+    setModel(null) // fall back to the globally last-used model from server memory
   }
 
   function handleSelect(sessionId: string) {
@@ -300,7 +304,7 @@ export function AgentWorkspace() {
     setRunning(false)
     setNewSession(false)
     setActiveId(sessionId)
-    setModel(null) // 回落到该会话最后使用的模型
+    setModel(null) // fall back to the session's last-used model
   }
 
   function handleDelete(sessionId: string) {
@@ -339,8 +343,8 @@ export function AgentWorkspace() {
       granted: decision === 'allow',
       resolved_path: request.resolvedPath,
     }).then(() => {
-      // 授权/拒绝都会在 agent 侧启动续跑：重新跟随新 run 的事件流
-      // （事件注册表按 run 隔离，新连接只会回放新 run，不会与现有时间线重复）
+      // Allow/deny both resume the run agent-side; follow the new run's event
+      // stream (the registry is per-run, so only the new run replays).
       setRunning(true)
       void followSession(selectedId)
     }).catch((error: unknown) => {
@@ -357,7 +361,7 @@ export function AgentWorkspace() {
 
   function togglePermissionMode() {
     if (permissionMode === 'ask') {
-      // 切换到完全访问需要二次确认（高风险授权）
+      // Full access requires an explicit confirmation.
       setConfirmFullAccess(true)
       return
     }
@@ -496,8 +500,10 @@ export function AgentWorkspace() {
           onSelect={handleSelect}
           onNew={createNew}
           onDelete={handleDelete}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
       </aside>
+      <AgentSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         <div className="absolute right-5 top-5 z-20">

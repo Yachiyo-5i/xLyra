@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { useTranslation } from 'react-i18next'
-import { Ellipsis, MoveLeft, Plus, Trash2 } from 'lucide-react'
+import { Ellipsis, MoveLeft, Plus, Settings2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { formatRelativeTime } from '@/features/agent/lib/relative-time'
@@ -14,9 +14,10 @@ type AgentSidebarProps = {
   onSelect: (id: string) => void
   onNew: () => void
   onDelete: (id: string) => void
+  onOpenSettings: () => void
 }
 
-export function AgentSidebar({ sessions, activeId, onBack, onSelect, onNew, onDelete }: AgentSidebarProps) {
+export function AgentSidebar({ sessions, activeId, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
   const { t, i18n } = useTranslation('agent')
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
@@ -61,6 +62,15 @@ export function AgentSidebar({ sessions, activeId, onBack, onSelect, onNew, onDe
           ))
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="mt-2 flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+      >
+        <Settings2 className="h-4 w-4 shrink-0" />
+        {t('settings.entry')}
+      </button>
 
       <ConfirmDialog
         open={pendingDelete !== null}
