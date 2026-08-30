@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { LoaderCircle, RefreshCw, Save, Search, ServerCog, Settings2 } from 'lucide-react'
+import { ArrowUpCircle, Bot, LoaderCircle, Save, Search, ServerCog, Settings2 } from 'lucide-react'
 import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph, siteTypeIconPath } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
@@ -9,26 +9,86 @@ import { PageHeader } from '@/components/common/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Draw, DrawBody, DrawContent, DrawDescription, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SiteModelScopePicker, type SiteModelScopePatch, type SiteModelScopePolicy } from '@/features/api-keys/components/site-model-scope-picker'
 import { useSiteModelScope } from '@/features/api-keys/lib/use-site-model-scope'
-import { fetchAgentAvailableModels, fetchAgentHealth, fetchAgentMeta, fetchAgentRuntimeSettings, updateAgentRuntimeSettings } from '@/features/agent/api/agent'
+import { fetchAgentAvailableModels, fetchAgentHealth, fetchAgentRuntimeSettings, fetchAgentVersion, updateAgentRunnerSettings, updateAgentScopeSettings, clearAgentRunnerSettings, upgradeAgent, type AgentHealth } from '@/features/agent/api/agent'
+import { agentSettingsKey } from '@/features/agent/lib/use-agent-availability'
 import { listCanonicalModels, listSitesWithOAuth } from '@/features/sites/api/sites'
 import { formatSiteTypeLabel } from '@/features/sites/lib/site-utils'
 import { canonicalModelIconInfo, modelNameIconInfo } from '@/features/sites/lib/model-icon'
+import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
 
-const agentSettingsKey = ['settings', 'agent'] as const
-
 type ScopeView = 'sites' | 'models'
+
+/** Component status indicator: dot + label (healthy / unhealthy / unreachable / unknown). */
+function StatusIndicator({ state, className = 'text-sm' }: { state?: string | null; className?: string }) {
+  const { t } = useTranslation(['settings'])
+  const tone = statusToneClass(state)
+  const text = state === 'healthy'
+    ? t('settings:agent.status.stateHealthy')
+    : state === 'unhealthy'
+      ? t('settings:agent.status.stateUnhealthy')
+      : state === 'unreachable'
+        ? t('settings:agent.status.stateUnreachable')
+        : t('settings:agent.status.stateUnknown')
+  return (
+    <span className={`flex items-center gap-2 font-medium text-foreground ${className}`}>
+      <span className={`inline-block h-2 w-2 rounded-full ${tone}`} />
+      {text}
+    </span>
+  )
+}
+
+function statusToneClass(state?: string | null): string {
+  if (state === 'healthy') return 'bg-emerald-500'
+  if (state === 'unhealthy') return 'bg-red-500'
+  if (state === 'unreachable') return 'bg-amber-500'
+  return 'bg-foreground/30'
+}
+
+/** Header status lights for Runner / Agent; a hover card shows both states. */
+function HeaderStatusLights({ health }: { health: AgentHealth | null }) {
+  return (
+    <div className="group relative">
+      <div className="flex cursor-default items-center gap-4">
+        {(['runner', 'agent'] as const).map((key) => (
+          <span key={key} className="flex items-center gap-1.5 text-xs text-muted-soft">
+            <span className={`inline-block h-2 w-2 rounded-full ${statusToneClass(health?.[key])}`} />
+            {key === 'runner' ? 'Runner' : 'Agent'}
+          </span>
+        ))}
+      </div>
+      <div className="pointer-events-none invisible absolute right-0 top-full z-30 mt-2 w-44 rounded-xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--dialog-surface))] p-3 opacity-0 shadow-[var(--shadow-dialog)] backdrop-blur-[40px] transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+        {(['runner', 'agent'] as const).map((key) => (
+          <div key={key} className="flex items-center justify-between gap-3 text-xs first:mt-0 mt-2">
+            <span className="text-muted-soft">{key === 'runner' ? 'Runner' : 'Agent'}</span>
+            <StatusIndicator state={health?.[key]} className="text-xs" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function AgentSettingsPage() {
   const { t } = useTranslation(['settings', 'components'])
   const queryClient = useQueryClient()
   const health = useQuery({ queryKey: [...agentSettingsKey, 'health'], queryFn: fetchAgentHealth, retry: false, refetchInterval: 30_000 })
-  const meta = useQuery({ queryKey: [...agentSettingsKey, 'meta'], queryFn: fetchAgentMeta, retry: false })
+  const versionQuery = useQuery({
+    queryKey: [...agentSettingsKey, 'version'],
+    queryFn: () => fetchAgentVersion(false),
+    retry: false,
+    // Poll the upgrade state machine every 2s while upgrading; otherwise no polling (latest is cached 1h runner-side).
+    refetchInterval: (query) => {
+      const upgrade = query.state.data?.upgrade
+      return upgrade && upgrade.status !== 'failed' ? 2_000 : false
+    },
+  })
   const runtime = useQuery({ queryKey: [...agentSettingsKey, 'runtime'], queryFn: fetchAgentRuntimeSettings, retry: false })
   const sitesQuery = useQuery({ queryKey: [...agentSettingsKey, 'sites'], queryFn: listSitesWithOAuth, retry: false })
   const canonicalQuery = useQuery({ queryKey: [...agentSettingsKey, 'canonical-models'], queryFn: listCanonicalModels, retry: false })
@@ -43,6 +103,61 @@ export function AgentSettingsPage() {
   const [scopeOpen, setScopeOpen] = useState(false)
   const [scopeView, setScopeView] = useState<ScopeView | null>(null)
   const [viewSearch, setViewSearch] = useState('')
+  const [upgradeDialog, setUpgradeDialog] = useState<{ force: boolean } | null>(null)
+  const [clearRunnerOpen, setClearRunnerOpen] = useState(false)
+
+  const versionInfo = versionQuery.data ?? null
+  const upgradeState = versionInfo?.upgrade ?? null
+  const upgrading = Boolean(upgradeState && upgradeState.status !== 'failed')
+  const agentVersionText = versionInfo?.current ?? health.data?.agent_version
+    ?? (health.data ? t('settings:agent.status.agentSelfManaged') : '—')
+
+  // Force one registry check on page open (runner caches the result for 1h).
+  useEffect(() => {
+    void fetchAgentVersion(true).then((fresh) => {
+      if (fresh) queryClient.setQueryData([...agentSettingsKey, 'version'], fresh)
+    })
+  }, [queryClient])
+
+  // Toast once when the upgrade state machine leaves in-progress: null means success, failed means failure.
+  const upgradeTargetRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (upgradeState && upgradeState.status !== 'failed') {
+      upgradeTargetRef.current = upgradeState.target
+      return
+    }
+    const target = upgradeTargetRef.current
+    if (!target) return
+    upgradeTargetRef.current = null
+    if (upgradeState?.status === 'failed') {
+      toast.error(t('settings:agent.upgrade.failed'), { description: upgradeState.error })
+    } else {
+      toast.success(t('settings:agent.upgrade.succeeded', { version: target }))
+      void queryClient.invalidateQueries({ queryKey: [...agentSettingsKey, 'health'] })
+    }
+  }, [upgradeState, queryClient, t])
+
+  const upgrade = useMutation({
+    mutationFn: (force: boolean) => upgradeAgent({ force }),
+    onSuccess: () => {
+      setUpgradeDialog(null)
+      toast.success(t('settings:agent.upgrade.started'))
+      void queryClient.invalidateQueries({ queryKey: [...agentSettingsKey, 'version'] })
+    },
+    onError: (error) => {
+      // Sessions were running at submit time: escalate to the force-confirm dialog.
+      if (error instanceof APIError && error.code === 'agent_busy') {
+        setUpgradeDialog({ force: true })
+        return
+      }
+      setUpgradeDialog(null)
+      toast.error(t('settings:agent.upgrade.startFailed'), { description: error.message })
+    },
+  })
+
+  function openUpgradeConfirm() {
+    setUpgradeDialog({ force: (versionInfo?.active_runs ?? 0) > 0 })
+  }
 
   const sites = useMemo(() => sitesQuery.data?.items ?? [], [sitesQuery.data])
   const canonicalModels = useMemo(() => canonicalQuery.data?.items ?? [], [canonicalQuery.data])
@@ -75,10 +190,35 @@ export function AgentSettingsPage() {
     .filter(({ model }) => effectiveModelPolicy !== 'allow_list' || selectedSiteModelIDSet.has(model.id))
     .filter(({ site, model }) => `${site.site_name} ${model.display_name} ${model.upstream_model_name} ${model.model_key ?? ''}`.toLowerCase().includes(viewKeyword))
 
-  const save = useMutation({
-    mutationFn: () => updateAgentRuntimeSettings({
+  // Runner connection and site/model scope are saved separately (the settings endpoint is a partial update).
+  const saveRunner = useMutation({
+    mutationFn: () => updateAgentRunnerSettings({
       runner_base_url: effectiveRunnerURL.trim(),
       ...(runnerToken.trim() ? { runner_token: runnerToken.trim() } : {}),
+    }),
+    onSuccess: async () => {
+      setRunnerURL('')
+      setRunnerToken('')
+      await queryClient.invalidateQueries({ queryKey: agentSettingsKey })
+      toast.success(t('settings:agent.saveSuccess'))
+    },
+    onError: (error) => toast.error(t('settings:agent.saveFailed'), { description: error.message }),
+  })
+
+  const clearRunner = useMutation({
+    mutationFn: clearAgentRunnerSettings,
+    onSuccess: async () => {
+      setRunnerURL('')
+      setRunnerToken('')
+      setClearRunnerOpen(false)
+      await queryClient.invalidateQueries({ queryKey: agentSettingsKey })
+      toast.success(t('settings:agent.runner.cleared'))
+    },
+    onError: (error) => toast.error(t('settings:agent.runner.clearFailed'), { description: error.message }),
+  })
+
+  const saveScope = useMutation({
+    mutationFn: () => updateAgentScopeSettings({
       site_policy: effectiveSitePolicy,
       model_policy: effectiveModelPolicy,
       allowed_site_ids: effectiveSitePolicy === 'allow_list' ? selectedSiteIDs : [],
@@ -87,8 +227,6 @@ export function AgentSettingsPage() {
         : [],
     }),
     onSuccess: async () => {
-      setRunnerURL('')
-      setRunnerToken('')
       setSitePolicy(null)
       setModelPolicy(null)
       setSiteIDs(null)
@@ -129,38 +267,51 @@ export function AgentSettingsPage() {
         eyebrow={t('settings:agent.eyebrow')}
         title={t('settings:agent.title')}
         description={t('settings:agent.description')}
-        actions={(
-          <Button variant="outline" onClick={() => { void queryClient.invalidateQueries({ queryKey: agentSettingsKey }) }}>
-            <RefreshCw className="h-4 w-4" />
-            {t('settings:agent.refresh')}
-          </Button>
-        )}
+        actions={<HeaderStatusLights health={health.data ?? null} />}
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="p-5">
           <div className="flex items-center gap-2 text-sm text-muted-soft">
             <ServerCog className="h-4 w-4" />
-            {t('settings:agent.status.runner')}
+            Runner
           </div>
-          <p className="mt-3 text-lg font-semibold text-foreground">
-            {health.data?.runner === 'healthy' ? t('settings:agent.status.connected') : t('settings:agent.status.disconnected')}
-          </p>
-          <p className="mt-1 text-xs text-muted-soft">{health.data?.agent ?? t('settings:agent.status.pending')}</p>
+          {/* Fixed-height action slot keeps the card stable when actions appear/disappear. */}
+          <div className="mt-3 flex h-9 items-center justify-between gap-3">
+            <span className="text-lg font-semibold text-foreground">{health.data?.version ?? '—'}</span>
+          </div>
         </Card>
         <Card className="p-5">
-          <p className="text-sm text-muted-soft">{t('settings:agent.status.version')}</p>
-          <p className="mt-3 text-lg font-semibold text-foreground">{meta.data?.version ?? '—'}</p>
-          <p className="mt-1 text-xs text-muted-soft">{meta.data?.package ?? ''}</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm text-muted-soft">{t('settings:agent.status.modelScope')}</p>
-          <p className="mt-3 text-lg font-semibold text-foreground">
-            {effectiveModelPolicy === 'allow_all' ? t('settings:agent.status.allModels') : scope.validSelectedSiteModelCount}
-          </p>
-          <p className="mt-1 text-xs text-muted-soft">
-            {effectiveSitePolicy === 'allow_all' ? t('settings:agent.status.allSites') : t('settings:agent.status.siteCount', { count: selectedSiteIDs.length })}
-          </p>
+          <div className="flex items-center gap-2 text-sm text-muted-soft">
+            <Bot className="h-4 w-4" />
+            Agent
+          </div>
+          <div className="mt-3 flex h-9 items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-2 text-lg font-semibold text-foreground">
+              {agentVersionText}
+              {versionInfo?.update_available && versionInfo.latest && !upgrading ? (
+                <Badge variant="info">{t('settings:agent.upgrade.available', { version: versionInfo.latest })}</Badge>
+              ) : null}
+            </span>
+            {versionInfo?.managed ? (
+              upgrading || upgrade.isPending ? (
+                <Button size="sm" variant="outline" disabled>
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  {t('settings:agent.upgrade.upgrading')}
+                </Button>
+              ) : upgradeState?.status === 'failed' ? (
+                <Button size="sm" variant="outline" onClick={openUpgradeConfirm} title={upgradeState.error}>
+                  <ArrowUpCircle className="h-3.5 w-3.5" />
+                  {t('settings:agent.upgrade.retry')}
+                </Button>
+              ) : versionInfo.update_available ? (
+                <Button size="sm" variant="outline" onClick={openUpgradeConfirm}>
+                  <ArrowUpCircle className="h-3.5 w-3.5" />
+                  {t('settings:agent.upgrade.action')}
+                </Button>
+              ) : null
+            ) : null}
+          </div>
         </Card>
       </div>
 
@@ -191,6 +342,20 @@ export function AgentSettingsPage() {
               className="font-mono text-xs"
             />
           </FormField>
+        </div>
+        <div className="flex justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setClearRunnerOpen(true)}
+            disabled={clearRunner.isPending || (!runtime.data?.runner_base_url && !runtime.data?.runner_token_configured && !runnerURL && !runnerToken)}
+            className="text-destructive hover:text-destructive"
+          >
+            {t('settings:agent.runner.clear')}
+          </Button>
+          <Button onClick={() => saveRunner.mutate()} disabled={saveRunner.isPending || !effectiveRunnerURL.trim()}>
+            <Save className="h-4 w-4" />
+            {saveRunner.isPending ? t('settings:agent.saving') : t('settings:agent.save')}
+          </Button>
         </div>
       </section>
 
@@ -242,13 +407,13 @@ export function AgentSettingsPage() {
               onChange={handleScopeChange}
             />
           </DrawBody>
-          <DrawFooter className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setScopeOpen(false)}>
-              {t('settings:agent.scope.cancel')}
+          <DrawFooter>
+            <Button onClick={() => saveScope.mutate()} disabled={saveScope.isPending || (effectiveSitePolicy === 'allow_list' && scope.siteModelsLoading)}>
+              {saveScope.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {saveScope.isPending ? t('settings:agent.saving') : t('settings:agent.save')}
             </Button>
-            <Button onClick={() => save.mutate()} disabled={save.isPending || (effectiveSitePolicy === 'allow_list' && scope.siteModelsLoading)}>
-              <Save className="h-4 w-4" />
-              {save.isPending ? t('settings:agent.saving') : t('settings:agent.save')}
+            <Button variant="ghost" onClick={() => setScopeOpen(false)} disabled={saveScope.isPending}>
+              {t('settings:agent.scope.cancel')}
             </Button>
           </DrawFooter>
         </DrawContent>
@@ -319,12 +484,53 @@ export function AgentSettingsPage() {
         </DrawContent>
       </Draw>
 
-      <div className="flex justify-end border-t border-[hsl(var(--divider))] pt-5">
-        <Button onClick={() => save.mutate()} disabled={save.isPending || (effectiveSitePolicy === 'allow_list' && scope.siteModelsLoading)}>
-          <Save className="h-4 w-4" />
-          {save.isPending ? t('settings:agent.saving') : t('settings:agent.save')}
-        </Button>
-      </div>
+      <Dialog open={clearRunnerOpen} onOpenChange={(open) => { if (!open) setClearRunnerOpen(false) }}>
+        <DialogContent className="w-[min(92vw,440px)]">
+          <DialogHeader>
+            <DialogTitle>{t('settings:agent.runner.clearTitle')}</DialogTitle>
+            <DialogDescription>{t('settings:agent.runner.clearDescription')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearRunnerOpen(false)} disabled={clearRunner.isPending}>
+              {t('settings:agent.runner.clearCancel')}
+            </Button>
+            <Button variant="destructive" disabled={clearRunner.isPending} onClick={() => clearRunner.mutate()}>
+              {clearRunner.isPending ? t('settings:agent.runner.clearing') : t('settings:agent.runner.clearConfirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={upgradeDialog !== null} onOpenChange={(open) => { if (!open) setUpgradeDialog(null) }}>
+        <DialogContent className="w-[min(92vw,440px)]">
+          <DialogHeader>
+            <DialogTitle>
+              {upgradeDialog?.force ? t('settings:agent.upgrade.forceTitle') : t('settings:agent.upgrade.title')}
+            </DialogTitle>
+            <DialogDescription>
+              {upgradeDialog?.force
+                ? t('settings:agent.upgrade.forceDescription', { count: versionInfo?.active_runs ?? 0 })
+                : t('settings:agent.upgrade.description', { current: agentVersionText, target: versionInfo?.latest ?? '' })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpgradeDialog(null)}>
+              {t('settings:agent.upgrade.cancel')}
+            </Button>
+            <Button
+              variant={upgradeDialog?.force ? 'destructive' : 'default'}
+              disabled={upgrade.isPending}
+              onClick={() => upgrade.mutate(Boolean(upgradeDialog?.force))}
+            >
+              {upgrade.isPending
+                ? t('settings:agent.upgrade.starting')
+                : upgradeDialog?.force
+                  ? t('settings:agent.upgrade.forceConfirm')
+                  : t('settings:agent.upgrade.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
