@@ -38,13 +38,16 @@ type Settings struct {
 	ModelPolicy           string   `json:"model_policy"`
 }
 
+// settingsInput uses partial-update semantics: absent fields are left unchanged,
+// so runner connection and site/model scope can be saved independently.
 type settingsInput struct {
-	RunnerBaseURL       string   `json:"runner_base_url"`
-	RunnerToken         string   `json:"runner_token"`
-	AllowedSiteIDs      []string `json:"allowed_site_ids"`
-	AllowedSiteModelIDs []string `json:"allowed_site_model_ids"`
-	SitePolicy          string   `json:"site_policy"`
-	ModelPolicy         string   `json:"model_policy"`
+	RunnerBaseURL       *string   `json:"runner_base_url"`
+	RunnerToken         *string   `json:"runner_token"`
+	ClearRunner         bool      `json:"clear_runner"`
+	AllowedSiteIDs      *[]string `json:"allowed_site_ids"`
+	AllowedSiteModelIDs *[]string `json:"allowed_site_model_ids"`
+	SitePolicy          *string   `json:"site_policy"`
+	ModelPolicy         *string   `json:"model_policy"`
 }
 
 func NewHandler(baseURL, token string, client *http.Client, logger *slog.Logger) *Handler {
@@ -69,8 +72,22 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		path = "/"
 	}
-	if path == "/config" {
+	// Public xLyra paths that differ from the runner's internal paths are mapped here.
+	switch path {
+	case "/config":
 		path = "/internal/agent/config"
+	case "/version":
+		path = "/internal/agent/version"
+	case "/upgrade":
+		path = "/internal/agent/upgrade"
+	case "/skills":
+		path = "/internal/agent/skills"
+	case "/workspace/file":
+		path = "/internal/agent/workspace/file"
+	default:
+		if strings.HasPrefix(path, "/skills/") {
+			path = "/internal/agent" + path
+		}
 	}
 	target, err := url.Parse(baseURL + path)
 	if err != nil {
@@ -94,7 +111,8 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 	copyResponseHeaders(w.Header(), response.Header)
 	w.WriteHeader(response.StatusCode)
 	if strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
-		// SSE 必须逐写 flush：io.Copy 的 32KB 缓冲会把小事件攒成批，前端看上去就是卡顿
+		// SSE must flush per write; io.Copy's buffer batches small events and
+		// reads as stutter on the client.
 		flushCopy(w, response.Body)
 		return
 	}
@@ -161,48 +179,79 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request, confFil
 		httpx.Error(w, r, http.StatusBadRequest, "invalid_body", err.Error())
 		return
 	}
-	baseURL, err := validateBaseURL(input.RunnerBaseURL)
-	if err != nil {
-		httpx.Error(w, r, http.StatusBadRequest, "invalid_runner_url", err.Error())
-		return
-	}
-	if err := confFile.Set("agent.runner_base_url", baseURL); err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent runner settings")
-		return
-	}
-	h.SetBaseURL(baseURL)
-	if err := confFile.Set("agent.allowed_site_ids", normalizeStringList(input.AllowedSiteIDs)); err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent site settings")
-		return
-	}
-	if err := confFile.Set("agent.allowed_site_model_ids", normalizeStringList(input.AllowedSiteModelIDs)); err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent model settings")
-		return
-	}
-	sitePolicy := input.SitePolicy
-	if sitePolicy != "allow_list" {
-		sitePolicy = "allow_all"
-	}
-	modelPolicy := input.ModelPolicy
-	if modelPolicy != "allow_list" {
-		modelPolicy = "allow_all"
-	}
-	if err := confFile.Set("agent.site_policy", sitePolicy); err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent site policy")
-		return
-	}
-	if err := confFile.Set("agent.model_policy", modelPolicy); err != nil {
-		httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent model policy")
-		return
-	}
-	if token := strings.TrimSpace(input.RunnerToken); token != "" {
-		if err := confFile.Set("agent.runner_internal_token", token); err != nil {
-			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent runner token")
+	if input.ClearRunner {
+		if err := confFile.Delete("agent.runner_base_url"); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to clear Agent runner settings")
 			return
 		}
-		h.SetToken(token)
+		if err := confFile.Delete("agent.runner_internal_token"); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to clear Agent runner settings")
+			return
+		}
+		h.SetBaseURL("")
+		h.SetToken("")
 	}
-	h.notifySettingsUpdated()
+	if input.RunnerBaseURL != nil {
+		baseURL, err := validateBaseURL(*input.RunnerBaseURL)
+		if err != nil {
+			httpx.Error(w, r, http.StatusBadRequest, "invalid_runner_url", err.Error())
+			return
+		}
+		if err := confFile.Set("agent.runner_base_url", baseURL); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent runner settings")
+			return
+		}
+		h.SetBaseURL(baseURL)
+	}
+	if input.RunnerToken != nil {
+		if token := strings.TrimSpace(*input.RunnerToken); token != "" {
+			if err := confFile.Set("agent.runner_internal_token", token); err != nil {
+				httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent runner token")
+				return
+			}
+			h.SetToken(token)
+		}
+	}
+	scopeUpdated := false
+	if input.AllowedSiteIDs != nil {
+		if err := confFile.Set("agent.allowed_site_ids", normalizeStringList(*input.AllowedSiteIDs)); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent site settings")
+			return
+		}
+		scopeUpdated = true
+	}
+	if input.AllowedSiteModelIDs != nil {
+		if err := confFile.Set("agent.allowed_site_model_ids", normalizeStringList(*input.AllowedSiteModelIDs)); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent model settings")
+			return
+		}
+		scopeUpdated = true
+	}
+	if input.SitePolicy != nil {
+		sitePolicy := *input.SitePolicy
+		if sitePolicy != "allow_list" {
+			sitePolicy = "allow_all"
+		}
+		if err := confFile.Set("agent.site_policy", sitePolicy); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent site policy")
+			return
+		}
+		scopeUpdated = true
+	}
+	if input.ModelPolicy != nil {
+		modelPolicy := *input.ModelPolicy
+		if modelPolicy != "allow_list" {
+			modelPolicy = "allow_all"
+		}
+		if err := confFile.Set("agent.model_policy", modelPolicy); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent model policy")
+			return
+		}
+		scopeUpdated = true
+	}
+	if scopeUpdated {
+		h.notifySettingsUpdated()
+	}
 	h.GetSettings(w, r, confFile)
 }
 

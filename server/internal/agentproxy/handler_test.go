@@ -48,6 +48,43 @@ func TestForwardInjectsRunnerTokenAndPreservesSSEHeaders(t *testing.T) {
 	}
 }
 
+func TestForwardMapsVersionAndUpgradeToInternalPaths(t *testing.T) {
+	paths := make(chan string, 2)
+	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths <- r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	defer runner.Close()
+
+	h := NewHandler(runner.URL, "runner-secret", runner.Client(), slog.Default())
+	for _, tc := range []struct {
+		method   string
+		in       string
+		expected string
+	}{
+		{method: http.MethodGet, in: "/api/v1/agent/version?refresh=true", expected: "/internal/agent/version"},
+		{method: http.MethodPost, in: "/api/v1/agent/upgrade", expected: "/internal/agent/upgrade"},
+		{method: http.MethodGet, in: "/api/v1/agent/skills", expected: "/internal/agent/skills"},
+		{method: http.MethodGet, in: "/api/v1/agent/skills/demo-skill", expected: "/internal/agent/skills/demo-skill"},
+		{method: http.MethodGet, in: "/api/v1/agent/skills/demo-skill/file?path=scripts/run.sh", expected: "/internal/agent/skills/demo-skill/file"},
+		{method: http.MethodGet, in: "/api/v1/agent/workspace/file?path=AGENTS.md", expected: "/internal/agent/workspace/file"},
+		{method: http.MethodPut, in: "/api/v1/agent/workspace/file", expected: "/internal/agent/workspace/file"},
+		{method: http.MethodDelete, in: "/api/v1/agent/workspace/file?path=AGENTS.md", expected: "/internal/agent/workspace/file"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.in, nil)
+		resp := httptest.NewRecorder()
+		h.Forward(resp, req)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s %s: status = %d", tc.method, tc.in, resp.Code)
+		}
+		if got := <-paths; got != tc.expected {
+			t.Fatalf("%s %s: runner path = %q, want %q", tc.method, tc.in, got, tc.expected)
+		}
+	}
+}
+
 func TestUpdateSettingsPersistsAndAppliesRunnerURL(t *testing.T) {
 	confFile, err := config.LoadConfigFile(t.TempDir())
 	if err != nil {
@@ -84,6 +121,39 @@ func TestUpdateSettingsRejectsInvalidRunnerURL(t *testing.T) {
 	h.UpdateSettings(resp, req, confFile)
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d", resp.Code)
+	}
+}
+
+func TestUpdateSettingsPartialScopeKeepsRunnerConfig(t *testing.T) {
+	confFile, err := config.LoadConfigFile(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandler("http://old.example", "runner-secret", http.DefaultClient, slog.Default())
+
+	// Save the runner connection first, then submit scope only: runner config must stay unchanged.
+	runnerReq := httptest.NewRequest(http.MethodPut, "/api/v1/agent/settings", bytes.NewBufferString(`{"runner_base_url":"http://new.example:8787"}`))
+	runnerResp := httptest.NewRecorder()
+	h.UpdateSettings(runnerResp, runnerReq, confFile)
+	if runnerResp.Code != http.StatusOK {
+		t.Fatalf("runner save status = %d", runnerResp.Code)
+	}
+
+	scopeReq := httptest.NewRequest(http.MethodPut, "/api/v1/agent/settings", bytes.NewBufferString(`{"site_policy":"allow_list","allowed_site_ids":["s1"]}`))
+	scopeResp := httptest.NewRecorder()
+	h.UpdateSettings(scopeResp, scopeReq, confFile)
+	if scopeResp.Code != http.StatusOK {
+		t.Fatalf("scope save status = %d", scopeResp.Code)
+	}
+
+	if value, _ := confFile.Get("agent.runner_base_url"); value != "http://new.example:8787" {
+		t.Fatalf("runner URL overwritten by scope save: %#v", value)
+	}
+	if got := h.snapshotBaseURL(); got != "http://new.example:8787" {
+		t.Fatalf("active runner URL = %q", got)
+	}
+	if value, _ := confFile.Get("agent.site_policy"); value != "allow_list" {
+		t.Fatalf("site policy = %#v", value)
 	}
 }
 

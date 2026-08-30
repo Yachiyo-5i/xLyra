@@ -78,6 +78,19 @@ func (c *ConfigFile) Set(key string, value any) error {
 	return nil
 }
 
+func (c *ConfigFile) Delete(key string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	deleteByPath(c.data, key)
+	if err := c.save(); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+
+	c.notify()
+	return nil
+}
+
 func (c *ConfigFile) Merge(updates map[string]any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -310,6 +323,24 @@ func setByPath(data map[string]any, key string, value any) {
 	}
 
 	current[parts[len(parts)-1]] = value
+}
+
+func deleteByPath(data map[string]any, key string) {
+	parts := strings.Split(key, ".")
+	if len(parts) == 0 {
+		return
+	}
+
+	current := data
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := current[part].(map[string]any)
+		if !ok {
+			return
+		}
+		current = next
+	}
+
+	delete(current, parts[len(parts)-1])
 }
 
 func deepCopyMap(src map[string]any) map[string]any {

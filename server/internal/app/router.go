@@ -176,7 +176,14 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 						agentProxyHandler.UpdateSettings(w, r, confFile)
 					})
 					agentRouter.Get("/health", agentProxyHandler.Forward)
-					agentRouter.Get("/meta", agentProxyHandler.Forward)
+					agentRouter.Get("/version", agentProxyHandler.Forward)
+					agentRouter.Post("/upgrade", agentProxyHandler.Forward)
+					agentRouter.Get("/skills", agentProxyHandler.Forward)
+					agentRouter.Get("/skills/{name}", agentProxyHandler.Forward)
+					agentRouter.Get("/skills/{name}/file", agentProxyHandler.Forward)
+					agentRouter.Get("/workspace/file", agentProxyHandler.Forward)
+					agentRouter.Put("/workspace/file", agentProxyHandler.Forward)
+					agentRouter.Delete("/workspace/file", agentProxyHandler.Forward)
 					agentRouter.Get("/model-memory", agentLLMHandler.ModelMemory)
 					agentRouter.Get("/config", agentProxyHandler.Forward)
 					agentRouter.Put("/config", agentProxyHandler.Forward)
@@ -396,6 +403,8 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 
 	r.Route("/internal/agent-llm", func(internal chi.Router) {
 		limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
+		// /credential is unauthenticated: admission is anchored on the run being
+		// registered via /runs/* (runner-key authenticated), see agentllm.Handler.Credential
 		internal.With(limitBody).Post("/credential", agentLLMHandler.Credential)
 		internal.With(limitBody).Post("/credential/renew", agentLLMHandler.Renew)
 		internal.Group(func(runs chi.Router) {
