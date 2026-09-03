@@ -30,6 +30,9 @@ type ModelParameterPickerProps<T extends string> = {
   onParameterChange: (value: T) => void
   disabled?: boolean
   triggerClassName?: string
+  panelClassName?: string
+  subPanelClassName?: string
+  panelRenderer?: (children: React.ReactNode, kind: 'panel' | 'subpanel') => React.ReactNode
 }
 
 function SubPanel<T extends string>({
@@ -38,18 +41,23 @@ function SubPanel<T extends string>({
   onSelect,
   emptyLabel,
   mobile,
+  className,
+  panelRenderer,
 }: {
   items: { value: T; label: string; icon?: React.ReactNode }[]
   selected: T | null
   onSelect: (value: T) => void
   emptyLabel?: string
   mobile: boolean
+  className?: string
+  panelRenderer?: (children: React.ReactNode, kind: 'panel' | 'subpanel') => React.ReactNode
 }) {
-  return (
+  const content = (
     <div
       className={cn(
         'glass-panel-strong max-h-[min(60vh,24rem)] min-w-[10rem] overflow-y-auto overscroll-contain rounded-xl p-1.5 shadow-[var(--shadow-dialog)]',
         mobile && 'w-52 max-w-[calc(100vw-1.5rem)]',
+        className,
       )}
     >
       {items.length === 0 && emptyLabel ? (
@@ -74,6 +82,7 @@ function SubPanel<T extends string>({
       ))}
     </div>
   )
+  return panelRenderer ? panelRenderer(content, 'subpanel') : content
 }
 
 function PickerRow({
@@ -149,6 +158,9 @@ export function ModelParameterPicker<T extends string>({
   onParameterChange,
   disabled,
   triggerClassName,
+  panelClassName,
+  subPanelClassName,
+  panelRenderer,
 }: ModelParameterPickerProps<T>) {
   const { t } = useTranslation('playground')
   const isMobile = useMobileLayout()
@@ -171,7 +183,49 @@ export function ModelParameterPicker<T extends string>({
     onParameterChange(value)
   }
 
-  return (
+  const panelChildren = (
+    <>
+      {apiKeys && onAPIKeyChange ? (
+        <PickerRow
+          label={t('credential.keyLabel')}
+          value={selectedAPIKey?.name ?? t('credential.keyPlaceholder')}
+          overlap={isMobile}
+        >
+          <SubPanel
+            items={apiKeys.map((item) => ({ value: item.id, label: item.name }))}
+            selected={apiKeyId ?? null}
+            onSelect={selectAPIKey}
+            mobile={isMobile}
+            className={subPanelClassName}
+            panelRenderer={panelRenderer}
+          />
+        </PickerRow>
+      ) : null}
+      <PickerRow label={t('picker.model')} value={modelLabel} overlap={isMobile}>
+        <SubPanel
+          items={models.map((item) => ({ value: item.id, label: item.id, icon: <PlaygroundModelIcon modelId={item.id} displayName={item.displayName} ownedBy={item.ownedBy} /> }))}
+          selected={model}
+          onSelect={selectModel}
+          emptyLabel={t('picker.noModels')}
+          mobile={isMobile}
+          className={subPanelClassName}
+          panelRenderer={panelRenderer}
+        />
+      </PickerRow>
+      <PickerRow label={parameterLabel} value={selectedParameter?.label ?? parameterValue} overlap={isMobile}>
+        <SubPanel
+          items={parameterOptions}
+          selected={parameterValue}
+          onSelect={selectParameter}
+          mobile={isMobile}
+          className={subPanelClassName}
+          panelRenderer={panelRenderer}
+        />
+      </PickerRow>
+    </>
+  )
+
+  const panelContent = (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
         <button
@@ -201,55 +255,12 @@ export function ModelParameterPicker<T extends string>({
           sideOffset={8}
           collisionPadding={12}
           onClick={(event) => event.stopPropagation()}
-          className="glass-panel-strong z-[130] w-52 rounded-xl p-1.5 shadow-[var(--shadow-dialog)]"
+          className={cn('glass-panel-strong z-[130] w-52 rounded-xl p-1.5 shadow-[var(--shadow-dialog)]', panelClassName)}
         >
-          {apiKeys && onAPIKeyChange ? (
-            <PickerRow
-              label={t('credential.keyLabel')}
-              value={selectedAPIKey?.name ?? t('credential.keyPlaceholder')}
-              overlap={isMobile}
-            >
-              <SubPanel
-                items={apiKeys.map((item) => ({ value: item.id, label: item.name }))}
-                selected={apiKeyId ?? null}
-                onSelect={selectAPIKey}
-                mobile={isMobile}
-              />
-            </PickerRow>
-          ) : null}
-          <PickerRow label={t('picker.model')} value={modelLabel} overlap={isMobile}>
-            <SubPanel
-              items={models.map((item) => ({
-                value: item.id,
-                label: item.id,
-                icon: (
-                  <PlaygroundModelIcon
-                    modelId={item.id}
-                    displayName={item.displayName}
-                    ownedBy={item.ownedBy}
-                  />
-                ),
-              }))}
-              selected={model}
-              onSelect={selectModel}
-              emptyLabel={t('picker.noModels')}
-              mobile={isMobile}
-            />
-          </PickerRow>
-          <PickerRow
-            label={parameterLabel}
-            value={selectedParameter?.label ?? parameterValue}
-            overlap={isMobile}
-          >
-            <SubPanel
-              items={parameterOptions}
-              selected={parameterValue}
-              onSelect={selectParameter}
-              mobile={isMobile}
-            />
-          </PickerRow>
+          {panelRenderer ? panelRenderer(panelChildren, 'panel') : panelChildren}
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
   )
+  return panelRenderer ? <>{panelContent}</> : panelContent
 }

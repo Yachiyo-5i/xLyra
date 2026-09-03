@@ -8,6 +8,7 @@ import { formatRelativeTime } from '@/features/agent/lib/relative-time'
 import type { AgentSession } from '@/features/agent/api/agent'
 
 type AgentSidebarProps = {
+  className?: string
   sessions: AgentSession[]
   activeId: string | null
   onBack: () => void
@@ -17,12 +18,12 @@ type AgentSidebarProps = {
   onOpenSettings: () => void
 }
 
-export function AgentSidebar({ sessions, activeId, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
+export function AgentSidebar({ className, sessions, activeId, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
   const { t, i18n } = useTranslation('agent')
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
   return (
-    <div className="flex h-full flex-col p-3">
+    <div className={cn('flex h-full min-h-0 flex-col p-3', className)}>
       <button
         type="button"
         onClick={onBack}
@@ -111,6 +112,8 @@ function SessionRow({
 
   return (
     <div
+      data-agent-session-row="true"
+      data-active={active}
       className={cn(
         'group flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors',
         active
@@ -163,4 +166,3 @@ function SessionRow({
     </div>
   )
 }
-

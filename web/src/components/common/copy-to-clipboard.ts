@@ -1,10 +1,10 @@
 import { toast } from '@/lib/toast'
 
-export async function copyToClipboard(text: string, label: string, failureLabel: string | null = 'Copy failed') {
+export async function copyToClipboard(text: string, label: string | null, failureLabel: string | null = 'Copy failed') {
   if (!text) return false
   try {
     await navigator.clipboard.writeText(text)
-    toast.success(label)
+    if (label) toast.success(label)
     return true
   } catch {
     const ta = document.createElement('textarea')
@@ -15,7 +15,7 @@ export async function copyToClipboard(text: string, label: string, failureLabel:
     ta.select()
     try {
       document.execCommand('copy')
-      toast.success(label)
+      if (label) toast.success(label)
       return true
     } catch {
       if (failureLabel) toast.error(failureLabel)

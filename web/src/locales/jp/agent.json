@@ -14,9 +14,13 @@
   "chat": {
     "emptyTitle": "何かお手伝いしましょうか？",
     "thinking": "Agent が処理中…",
-    "inputPlaceholder": "タスクを入力…",
+    "inputPlaceholder": "ご自由に入力....",
     "hint": "Enter で送信 · Shift+Enter で改行",
-    "sendFailed": "送信に失敗しました"
+    "sendFailed": "送信に失敗しました",
+    "editReplayTitle": "返信を再生成しますか？",
+    "editReplayDescription": "最後の返信を置き換え、編集したメッセージから再生成します。",
+    "editReplayCancel": "キャンセル",
+    "editReplayConfirm": "再生成"
   },
   "composer": {
     "permissionMode": "権限モード",
@@ -37,7 +41,13 @@
     "fullConfirmAccept": "確認"
   },
   "work": {
-    "running": "実行中（{{count}} ステップ）",
+    "running": "処理中…",
+    "working": "実行中…",
+    "searching": "検索中…",
+    "connecting": "接続中…",
+    "thinking": "思考中…",
+    "preparingTool": "{{tool}} を準備中…",
+    "runningTool": "{{tool}} を実行中…",
     "summary": "{{count}} ステップ完了",
     "errors": "{{count}} 件失敗",
     "failed": "タスクの実行に失敗しました",
@@ -61,10 +71,11 @@
     "failed": "権限の更新に失敗しました"
   },
   "settings": {
-    "entry": "機能設定",
+    "entry": "設定",
     "title": "Agent 設定",
     "close": "閉じる",
     "tabSkills": "Skills",
+    "tabAppearance": "外観",
     "save": "保存",
     "saveFailed": "保存に失敗しました",
     "effectiveHint": "保存後、次の会話から有効になります。再起動は不要です。",
@@ -104,6 +115,37 @@
     "detailScopeUser": "ユーザー",
     "detailScopeExtra": "追加ディレクトリ",
     "detailPath": "パス",
-    "detailLicense": "ライセンス"
+    "detailLicense": "ライセンス",
+    "appearance": {
+      "backgroundTitle": "ホーム背景",
+      "backgroundHint": "新しい会話で使う背景を選択します。画像は引き伸ばさず、16:9 の中央でトリミングします。既存の会話では黒い背景に切り替わります。",
+      "defaultBackground": "デフォルト",
+      "customBackground": "カスタム {{index}}",
+      "uploadBackground": "アップロード",
+      "changeBackground": "画像を変更",
+      "removeBackground": "削除",
+      "imageTooLarge": "画像は 8 MB 以下にしてください",
+      "imageReadFailed": "画像を読み込めませんでした",
+      "materialTitle": "インターフェースの質感",
+      "materialHint": "ガラスパネルの透明度、明るさ、厚み、背景処理を調整します。",
+      "sideTransparency": "サイドバーの透明度",
+      "sideBrightness": "サイドバーの明るさ",
+      "sideThickness": "サイドバーの厚み",
+      "backdropBlur": "背景ぼかし",
+      "backdropDim": "背景の暗さ",
+      "standard": "標準",
+      "full": "最大",
+      "dark": "暗い",
+      "bright": "明るい",
+      "thin": "薄い",
+      "thick": "厚い",
+      "clear": "鮮明",
+      "blurry": "ぼかし",
+      "transparent": "明るい",
+      "saved": "外観を保存しました",
+      "savedHint": "設定は保存され、再読み込み後も保持されます。",
+      "reset": "デフォルトに戻す",
+      "cancel": "キャンセル"
+    }
   }
 }

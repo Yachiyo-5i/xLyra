@@ -14,9 +14,13 @@
   "chat": {
     "emptyTitle": "有什么可以帮你的？",
     "thinking": "Agent 正在处理…",
-    "inputPlaceholder": "输入你的任务…",
+    "inputPlaceholder": "随心输入....",
     "hint": "Enter 发送 · Shift+Enter 换行",
-    "sendFailed": "发送失败"
+    "sendFailed": "发送失败",
+    "editReplayTitle": "确认重新生成？",
+    "editReplayDescription": "这会覆盖最后一次回复，并根据编辑后的内容重新生成，原回复将被替换。",
+    "editReplayCancel": "取消",
+    "editReplayConfirm": "重新生成"
   },
   "composer": {
     "permissionMode": "权限模式",
@@ -37,7 +41,13 @@
     "fullConfirmAccept": "确认"
   },
   "work": {
-    "running": "正在执行（{{count}} 步）",
+    "running": "正在处理…",
+    "working": "正在执行…",
+    "searching": "正在搜索…",
+    "connecting": "正在连接…",
+    "thinking": "思考中…",
+    "preparingTool": "准备调用 {{tool}}…",
+    "runningTool": "正在执行 {{tool}}…",
     "summary": "已完成 {{count}} 步工作",
     "errors": "{{count}} 步失败",
     "failed": "任务执行失败",
@@ -61,10 +71,11 @@
     "failed": "权限操作失败"
   },
   "settings": {
-    "entry": "能力配置",
+    "entry": "配置",
     "title": "Agent 设置",
     "close": "关闭",
     "tabSkills": "Skills",
+    "tabAppearance": "外观",
     "save": "保存",
     "saveFailed": "保存失败",
     "effectiveHint": "保存后下一轮对话生效，无需重启。",
@@ -104,6 +115,37 @@
     "detailScopeUser": "用户级",
     "detailScopeExtra": "额外目录",
     "detailPath": "路径",
-    "detailLicense": "许可证"
+    "detailLicense": "许可证",
+    "appearance": {
+      "backgroundTitle": "主页背景",
+      "backgroundHint": "选择新建对话页面使用的背景图。图片按 16:9 居中裁切显示，不会拉伸；进入已有会话后会自动切换为纯黑背景。",
+      "defaultBackground": "默认",
+      "customBackground": "自定义 {{index}}",
+      "uploadBackground": "上传",
+      "changeBackground": "更换图片",
+      "removeBackground": "删除",
+      "imageTooLarge": "图片不能超过 8 MB",
+      "imageReadFailed": "读取图片失败",
+      "materialTitle": "界面质感",
+      "materialHint": "调整玻璃面板的透明度、明暗、厚度与背景处理效果。",
+      "sideTransparency": "侧栏透明度",
+      "sideBrightness": "侧栏明暗",
+      "sideThickness": "侧栏厚度",
+      "backdropBlur": "蒙版模糊度",
+      "backdropDim": "蒙版暗度",
+      "standard": "标准",
+      "full": "全透",
+      "dark": "暗",
+      "bright": "亮",
+      "thin": "薄",
+      "thick": "厚",
+      "clear": "清晰",
+      "blurry": "朦胧",
+      "transparent": "透亮",
+      "saved": "外观配置已保存",
+      "savedHint": "设置已保存，刷新后仍会保留。",
+      "reset": "恢复默认",
+      "cancel": "取消"
+    }
   }
 }

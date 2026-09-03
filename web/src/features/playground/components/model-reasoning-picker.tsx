@@ -14,6 +14,9 @@ type ModelReasoningPickerProps = {
   onEffortChange: (effort: ReasoningEffort) => void
   disabled?: boolean
   triggerClassName?: string
+  panelClassName?: string
+  subPanelClassName?: string
+  panelRenderer?: (children: React.ReactNode, kind: 'panel' | 'subpanel') => React.ReactNode
 }
 
 export function ModelReasoningPicker({
@@ -27,6 +30,9 @@ export function ModelReasoningPicker({
   onEffortChange,
   disabled,
   triggerClassName,
+  panelClassName,
+  subPanelClassName,
+  panelRenderer,
 }: ModelReasoningPickerProps) {
   const { t } = useTranslation('playground')
   const selectedModel = models.find((item) => item.id === model)
@@ -47,6 +53,9 @@ export function ModelReasoningPicker({
       onParameterChange={onEffortChange}
       disabled={disabled}
       triggerClassName={triggerClassName}
+      panelClassName={panelClassName}
+      subPanelClassName={subPanelClassName}
+      panelRenderer={panelRenderer}
     />
   )
 }

@@ -26,6 +26,27 @@ export type AgentRuntimeSettings = {
   allowed_site_model_ids: string[]
   site_policy: 'allow_all' | 'allow_list'
   model_policy: 'allow_all' | 'allow_list'
+  appearance: AgentAppearanceSettings
+}
+
+export type AgentAppearanceSettings = {
+  background_image: string
+  custom_background_images: string[]
+  side_transparency: number
+  side_brightness: number
+  side_thickness: number
+  backdrop_blur: number
+  backdrop_dim: number
+}
+
+export const defaultAgentAppearance: AgentAppearanceSettings = {
+  background_image: '/agent-backdrop.png',
+  custom_background_images: [],
+  side_transparency: 49,
+  side_brightness: 32,
+  side_thickness: 28,
+  backdrop_blur: 13,
+  backdrop_dim: 69,
 }
 
 export type AgentAvailableSite = {
@@ -85,7 +106,19 @@ export async function upgradeAgent(input: { force?: boolean } = {}) {
 
 export async function fetchAgentRuntimeSettings() {
   const response = await apiFetch<{ data?: AgentRuntimeSettings }>('/api/v1/agent/settings')
-  return response.data ?? { runner_base_url: '', runner_token_configured: false, allowed_site_ids: [], allowed_site_model_ids: [], site_policy: 'allow_all', model_policy: 'allow_all' }
+  return {
+    runner_base_url: response.data?.runner_base_url ?? '',
+    runner_token_configured: response.data?.runner_token_configured ?? false,
+    allowed_site_ids: response.data?.allowed_site_ids ?? [],
+    allowed_site_model_ids: response.data?.allowed_site_model_ids ?? [],
+    site_policy: response.data?.site_policy ?? 'allow_all',
+    model_policy: response.data?.model_policy ?? 'allow_all',
+    appearance: {
+      ...defaultAgentAppearance,
+      ...(response.data?.appearance ?? {}),
+      custom_background_images: response.data?.appearance?.custom_background_images ?? [],
+    },
+  }
 }
 
 // The settings endpoint is a partial update: absent fields stay unchanged, so runner connection and site/model scope are saved independently.
@@ -109,6 +142,14 @@ export async function updateAgentScopeSettings(settings: { site_policy: 'allow_a
   const response = await apiFetch<{ data?: AgentRuntimeSettings }>('/api/v1/agent/settings', {
     method: 'PUT',
     body: settings,
+  })
+  return response.data
+}
+
+export async function updateAgentAppearanceSettings(appearance: AgentAppearanceSettings) {
+  const response = await apiFetch<{ data?: AgentRuntimeSettings }>('/api/v1/agent/settings', {
+    method: 'PUT',
+    body: { appearance },
   })
   return response.data
 }
@@ -275,6 +316,14 @@ export async function createAgentSession(input: { content: string; model?: strin
   return response.data
 }
 
+export async function retryAgentSession(sessionId: string, input: { message_id: string; content?: string; model?: string; reasoning_effort?: string; permission_mode?: 'ask' | 'full' }) {
+  const response = await apiFetch<{ data: { session_id: string; message_id?: string; run_id: string } }>(`/api/v1/agent/sessions/${encodeURIComponent(sessionId)}/retry`, {
+    method: 'POST',
+    body: input,
+  })
+  return response.data
+}
+
 export async function fetchAgentTranscript(sessionId: string) {
   const response = await apiFetch<{ data?: { entries?: AgentTranscriptEntry[] } }>(`/api/v1/agent/sessions/${encodeURIComponent(sessionId)}/transcript`)
   return response.data?.entries ?? []
@@ -282,6 +331,7 @@ export async function fetchAgentTranscript(sessionId: string) {
 
 export type AgentTranscriptEntry = {
   type?: string
+  message_id?: string
   /** Early flat-format fields (compat). */
   role?: string
   content?: string

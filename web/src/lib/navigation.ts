@@ -57,7 +57,6 @@ export function getAppNavSections(t: TFunction, features: NavFeatures = {}): App
           label: t('nav.agent'),
           icon: Bot,
           description: 'Run an agent session with tools, approvals and live events.',
-          desktopOnly: true,
         }] : []),
       ],
     },

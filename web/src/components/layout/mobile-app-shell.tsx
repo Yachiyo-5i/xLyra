@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 import { MobileDockMenu, type MobileDockMenuItem } from '@/components/layout/mobile-dock-menu'
 import { MobileTabbar, type MobileTabbarItem } from '@/components/layout/mobile-tabbar'
 import { MobileTopbar } from '@/components/layout/mobile-topbar'
@@ -12,6 +13,7 @@ const mobilePrimaryPaths = ['/dashboard', '/sites', '/requests', '/api-keys']
 
 export function MobileAppShell({ children }: PropsWithChildren) {
   const { t } = useTranslation('common')
+  const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement>(null)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
@@ -21,6 +23,20 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   const dockItems = useMemo(() => getMobileDockItems(navSections, primaryItems), [navSections, primaryItems])
 
   useIOSViewportBounceLock(viewportRef)
+
+  const isAgentWorkspace = location.pathname === '/agent' || location.pathname.startsWith('/agent/')
+
+  if (isAgentWorkspace) {
+    return (
+      <div ref={viewportRef} className="app-viewport">
+        <div className="ambient-background" />
+        <div className="noise-overlay" />
+        <main data-scroll-container="true" className="relative z-0 h-full min-h-0 overflow-hidden">
+          {children}
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div ref={viewportRef} className="app-viewport">

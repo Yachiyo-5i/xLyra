@@ -15,6 +15,8 @@ type ComposerProps = {
   trailingControls?: ReactNode
   attachments?: ReactNode
   onPasteFiles?: (files: File[]) => boolean
+  stopButtonClassName?: string
+  stopIconClassName?: string
 }
 
 export function Composer({
@@ -29,6 +31,8 @@ export function Composer({
   trailingControls,
   attachments,
   onPasteFiles,
+  stopButtonClassName,
+  stopIconClassName,
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -76,10 +80,10 @@ export function Composer({
             <button
               type="button"
               onClick={onStop}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-opacity hover:opacity-90 md:h-9 md:w-9"
+              className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-opacity hover:opacity-90 md:h-9 md:w-9', stopButtonClassName)}
               aria-label="stop"
             >
-              <Square className="h-3.5 w-3.5 fill-current" />
+              <Square className={cn('h-3.5 w-3.5 fill-current', stopIconClassName)} />
             </button>
           ) : (
             <button

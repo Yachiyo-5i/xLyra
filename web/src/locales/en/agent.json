@@ -14,9 +14,13 @@
   "chat": {
     "emptyTitle": "How can I help?",
     "thinking": "Agent is working…",
-    "inputPlaceholder": "Describe your task…",
+    "inputPlaceholder": "Type freely....",
     "hint": "Enter to send · Shift+Enter for a new line",
-    "sendFailed": "Failed to send"
+    "sendFailed": "Failed to send",
+    "editReplayTitle": "Regenerate this reply?",
+    "editReplayDescription": "The last reply will be replaced and regenerated from your edited message.",
+    "editReplayCancel": "Cancel",
+    "editReplayConfirm": "Regenerate"
   },
   "composer": {
     "permissionMode": "Permission mode",
@@ -37,7 +41,13 @@
     "fullConfirmAccept": "Confirm"
   },
   "work": {
-    "running": "Working ({{count}} steps)",
+    "running": "Working…",
+    "working": "Executing…",
+    "searching": "Searching…",
+    "connecting": "Connecting…",
+    "thinking": "Thinking…",
+    "preparingTool": "Preparing {{tool}}…",
+    "runningTool": "Running {{tool}}…",
     "summary": "Completed {{count}} steps",
     "errors": "{{count}} failed",
     "failed": "Task failed",
@@ -61,10 +71,11 @@
     "failed": "Permission update failed"
   },
   "settings": {
-    "entry": "Capabilities",
+    "entry": "Settings",
     "title": "Agent Settings",
     "close": "Close",
     "tabSkills": "Skills",
+    "tabAppearance": "Appearance",
     "save": "Save",
     "saveFailed": "Save failed",
     "effectiveHint": "Takes effect from the next conversation. No restart needed.",
@@ -104,6 +115,37 @@
     "detailScopeUser": "User",
     "detailScopeExtra": "Extra dir",
     "detailPath": "Path",
-    "detailLicense": "License"
+    "detailLicense": "License",
+    "appearance": {
+      "backgroundTitle": "Home background",
+      "backgroundHint": "Choose the background for new conversations. Images use a centered 16:9 crop without stretching; existing conversations use a plain black background.",
+      "defaultBackground": "Default",
+      "customBackground": "Custom {{index}}",
+      "uploadBackground": "Upload",
+      "changeBackground": "Change image",
+      "removeBackground": "Remove",
+      "imageTooLarge": "Images must be 8 MB or smaller",
+      "imageReadFailed": "Could not read the image",
+      "materialTitle": "Interface material",
+      "materialHint": "Tune the transparency, brightness, thickness, and background treatment of glass panels.",
+      "sideTransparency": "Sidebar transparency",
+      "sideBrightness": "Sidebar brightness",
+      "sideThickness": "Sidebar thickness",
+      "backdropBlur": "Backdrop blur",
+      "backdropDim": "Backdrop dim",
+      "standard": "Standard",
+      "full": "Full",
+      "dark": "Dark",
+      "bright": "Bright",
+      "thin": "Thin",
+      "thick": "Thick",
+      "clear": "Clear",
+      "blurry": "Blurry",
+      "transparent": "Transparent",
+      "saved": "Appearance saved",
+      "savedHint": "Your settings are saved and persist after refresh.",
+      "reset": "Reset",
+      "cancel": "Cancel"
+    }
   }
 }

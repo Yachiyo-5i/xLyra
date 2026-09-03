@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   appendUserMessage,
+  canReconcileTimeline,
   extractEventText,
+  replaceFromUserMessage,
   reduceAgentEvent,
+  reconcileTimeline,
   timelineFromTranscript,
   type AgentTimeline,
 } from '@/features/agent/lib/agent-events'
@@ -52,7 +55,19 @@ describe('reduceAgentEvent', () => {
     expect(item.run.status).toBe('done')
   })
 
-  it('maps runner wire events: nested tool_call/tool_result payloads, deltas skipped', () => {
+  it('keeps the runner-provided elapsed time on completed runs', () => {
+    const timeline = appendUserMessage([], '问题', 'message-1', 1_000)
+    const completed = reduceAll([
+      { type: 'agent_start', data: {} },
+      { type: 'agent_done', data: { result: { elapsed_ms: 2_500 } } },
+    ], timeline)
+    const item = completed[1]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.startedAt).toBe(1_000)
+    expect(item.run.elapsedMs).toBe(2_500)
+  })
+
+  it('maps runner wire events: nested tool_call/tool_result payloads and argument deltas', () => {
     const timeline = reduceAll([
       // Streaming argument chunks must not produce steps.
       { type: 'tool_call_start', data: { tool_call: { id: 'call_1', name: 'read_file' } } },
@@ -67,7 +82,20 @@ describe('reduceAgentEvent', () => {
     if (item.kind !== 'run') throw new Error('expected run')
     expect(item.run.steps).toHaveLength(1)
     expect(item.run.steps[0]).toMatchObject({ title: 'read_file', status: 'done', detail: 'file body' })
+    expect(item.run.steps[0].input).toBe('{"path":"/a.ts"}')
+    expect(item.run.steps[0].output).toBe('file body')
     expect(item.run.status).toBe('done')
+  })
+
+  it('accumulates streaming tool arguments before the call is finalized', () => {
+    const timeline = reduceAll([
+      { type: 'tool_call_start', data: { tool_call: { id: 'c3', name: 'read_file' } } },
+      { type: 'tool_call_delta', data: { tool_call_id: 'c3', delta: '{"path":' } },
+      { type: 'tool_call_delta', data: { tool_call_id: 'c3', delta: '"/a.ts"}' } },
+    ])
+    const item = timeline[0]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.steps[0]).toMatchObject({ input: '{"path":"/a.ts"}', argsDone: false, status: 'running' })
   })
 
   it('marks tool errors from nested tool_result payloads', () => {
@@ -91,6 +119,59 @@ describe('reduceAgentEvent', () => {
     const last = timeline[2]
     if (last.kind !== 'run') throw new Error('expected run')
     expect(last.run.finalText).toBe('second answer')
+  })
+
+  it('continues elapsed time when an escalation-paused run resumes', () => {
+    const initial = appendUserMessage([], '需要授权的操作', 'message-1', 1_000)
+    const paused = reduceAll([
+      { type: 'agent_start', data: {} },
+      { type: 'escalation_request', data: { escalation: { escalation_id: 'esc-1', tool_name: 'exec_command', requested_path: '/tmp', resolved_path: '/tmp' } } },
+      { type: 'agent_cancelled', data: {} },
+    ], initial)
+    const pausedRun = paused[1]
+    if (pausedRun.kind !== 'run') throw new Error('expected paused run')
+    const approved = paused.map((item) => item.kind === 'run'
+      ? { ...item, run: { ...item.run, permissions: item.run.permissions.map((request) => ({ ...request, decision: 'allowed' as const })) } }
+      : item)
+    const resumed = reduceAgentEvent(approved, { type: 'agent_start', data: {} })
+    expect(resumed).toHaveLength(2)
+    const resumedRun = resumed[1]
+    if (resumedRun.kind !== 'run') throw new Error('expected resumed run')
+    expect(resumedRun.id).toBe(pausedRun.id)
+    expect(resumedRun.run.elapsedMs).toBe(pausedRun.run.elapsedMs)
+    expect(resumedRun.run.startedAt).toBeGreaterThanOrEqual(pausedRun.run.startedAt)
+    const completed = reduceAgentEvent(resumed, { type: 'agent_done', data: { result: { elapsed_ms: 500 } } })
+    const completedRun = completed[1]
+    if (completedRun.kind !== 'run') throw new Error('expected completed run')
+    expect(completedRun.run.elapsedMs).toBe((pausedRun.run.elapsedMs ?? 0) + 500)
+  })
+
+  it('truncates the timeline when replacing a user message', () => {
+    const timeline = appendUserMessage(appendUserMessage([], '第一问', 'message-1'), '第二问', 'message-2')
+    const replaced = replaceFromUserMessage(timeline, 'message-1', '改写后的问题')
+    expect(replaced).toHaveLength(1)
+    expect(replaced[0]).toMatchObject({ kind: 'user', id: 'message-1', messageId: 'message-1', text: '改写后的问题' })
+  })
+
+  it('rejects a stale transcript whose edited user message no longer matches', () => {
+    const current = appendUserMessage([], '改写后的问题', 'message-1', 1_000)
+    const stale = appendUserMessage([], '原始问题', 'message-1', 1_000)
+    expect(canReconcileTimeline(current, stale)).toBe(false)
+  })
+
+  it('preserves live elapsed time when reconciling the completed transcript', () => {
+    const current = reduceAll([
+      { type: 'agent_start', data: {} },
+      { type: 'agent_done', data: { result: { elapsed_ms: 2_500 } } },
+    ], appendUserMessage([], '问题', 'message-1', 1_000))
+    const transcript = timelineFromTranscript([
+      { type: 'message', timestamp: '1970-01-01T00:00:01.000Z', message_id: 'message-1', message: { role: 'user', content: '问题' } },
+      { type: 'message', timestamp: '1970-01-01T00:00:20.000Z', message: { role: 'assistant', content: '回答' } },
+    ])
+    const reconciled = reconcileTimeline(current, transcript)
+    const run = reconciled[1]
+    if (run.kind !== 'run') throw new Error('expected run')
+    expect(run.run.elapsedMs).toBe(2_500)
   })
 
   it('collects permission requests and resolves them', () => {
@@ -290,5 +371,28 @@ describe('timelineFromTranscript', () => {
     if (first.kind !== 'run' || second.kind !== 'run') throw new Error('expected runs')
     expect(first.run.finalText).toBe('第一答')
     expect(second.run.finalText).toBe('第二答')
+  })
+
+  it('derives stable run timing and preserves transcript message ids', () => {
+    const timeline = timelineFromTranscript([
+      { type: 'message', message_id: 'message-1', timestamp: '2026-09-03T00:00:00.000Z', message: { role: 'user', content: '第一问' } },
+      { type: 'message', timestamp: '2026-09-03T00:00:02.500Z', message: { role: 'assistant', content: '第一答' } },
+    ])
+    expect(timeline[0]).toMatchObject({ kind: 'user', messageId: 'message-1', id: 'message-1', createdAt: Date.parse('2026-09-03T00:00:00.000Z') })
+    const run = timeline[1]
+    if (run.kind !== 'run') throw new Error('expected run')
+    expect(run.run.startedAt).toBe(Date.parse('2026-09-03T00:00:00.000Z'))
+    expect(run.run.elapsedMs).toBe(2_500)
+  })
+
+  it('uses timestamps from legacy flat entries for user messages and run duration', () => {
+    const timeline = timelineFromTranscript([
+      { role: 'user', message_id: 'message-legacy', content: '第一问', timestamp: '2026-09-03T00:00:00.000Z' },
+      { role: 'assistant', content: '第一答', timestamp: '2026-09-03T00:00:02.500Z' },
+    ])
+    expect(timeline[0]).toMatchObject({ createdAt: Date.parse('2026-09-03T00:00:00.000Z'), messageId: 'message-legacy' })
+    const run = timeline[1]
+    if (run.kind !== 'run') throw new Error('expected run')
+    expect(run.run.elapsedMs).toBe(2_500)
   })
 })

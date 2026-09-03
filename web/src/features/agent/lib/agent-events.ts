@@ -7,6 +7,9 @@ export type AgentWorkStep = {
   id: string
   kind: 'tool' | 'thinking' | 'status'
   title: string
+  input?: string
+  output?: string
+  argsDone?: boolean
   detail?: string
   status: AgentStepStatus
 }
@@ -26,10 +29,13 @@ export type AgentRun = {
   steps: AgentWorkStep[]
   finalText: string
   permissions: AgentPermissionRequest[]
+  startedAt: number
+  endedAt?: number
+  elapsedMs?: number
 }
 
 export type AgentTimelineItem =
-  | { kind: 'user'; id: string; text: string }
+  | { kind: 'user'; id: string; text: string; messageId?: string; createdAt: number }
   | { kind: 'run'; id: string; run: AgentRun }
 
 export type AgentTimeline = AgentTimelineItem[]
@@ -39,6 +45,7 @@ export type AgentStreamEvent = { type: string; data: unknown }
 type EventKind =
   | 'text'
   | 'tool_call'
+  | 'tool_call_delta'
   | 'tool_result'
   | 'thinking'
   | 'permission'
@@ -96,6 +103,25 @@ function pickDetail(record: Record<string, unknown> | null, keys: string[]): str
   return ''
 }
 
+function pickDelta(record: Record<string, unknown> | null): string {
+  if (!record) return ''
+  return typeof record.delta === 'string' ? record.delta : ''
+}
+
+function pickNumber(record: Record<string, unknown> | null, keys: string[]): number | undefined {
+  if (!record) return undefined
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return undefined
+}
+
+function parseTimestamp(value?: string): number {
+  const parsed = value ? Date.parse(value) : NaN
+  return Number.isFinite(parsed) ? parsed : Date.now()
+}
+
 export function extractEventText(data: unknown): string {
   if (typeof data === 'string') return data
   const record = asRecord(data)
@@ -107,8 +133,7 @@ function classifyEvent(type: string, data: unknown): EventKind {
   const normalized = type.toLowerCase()
   // Escalation negotiation events are permission requests (payload nested under data.escalation).
   if (normalized.includes('escalation')) return 'permission'
-  // Streaming tool-argument chunks are ignored; steps are expressed by start/end/result events.
-  if (normalized === 'tool_call_delta' || normalized === 'toolcall_delta') return 'other'
+  if (normalized === 'tool_call_delta' || normalized === 'toolcall_delta') return 'tool_call_delta'
   if (normalized.includes('permission') || normalized.includes('approval')) {
     if (normalized.includes('result') || normalized.includes('grant') || normalized.includes('decision') || normalized.includes('resolved')) {
       return 'permission_result'
@@ -140,7 +165,19 @@ function lastRun(timeline: AgentTimeline): { index: number; run: AgentRun } | nu
 function ensureRun(timeline: AgentTimeline): AgentTimeline {
   const current = lastRun(timeline)
   if (current && current.run.status === 'running') return timeline
-  const run: AgentRun = { id: nextId('run'), status: 'running', steps: [], finalText: '', permissions: [] }
+  const resumedAfterEscalation = current?.run.status === 'cancelled'
+    && current.run.permissions.length > 0
+  if (resumedAfterEscalation) {
+    return updateLastRun(timeline, (run) => ({
+      ...run,
+      status: 'running',
+      startedAt: Date.now(),
+      endedAt: undefined,
+    }))
+  }
+  const lastItem = timeline[timeline.length - 1]
+  const startedAt = lastItem?.kind === 'user' ? lastItem.createdAt : Date.now()
+  const run: AgentRun = { id: nextId('run'), status: 'running', steps: [], finalText: '', permissions: [], startedAt }
   return [...timeline, { kind: 'run', id: run.id, run }]
 }
 
@@ -152,16 +189,73 @@ function updateLastRun(timeline: AgentTimeline, updater: (run: AgentRun) => Agen
   return next
 }
 
-function closeRun(run: AgentRun, status: AgentRunStatus): AgentRun {
+function markRunEndedAt(timeline: AgentTimeline, timestamp?: string): AgentTimeline {
+  const endedAt = timestamp ? Date.parse(timestamp) : NaN
+  return Number.isFinite(endedAt)
+    ? updateLastRun(timeline, (run) => ({ ...run, endedAt }))
+    : timeline
+}
+
+function finishRunAt(timeline: AgentTimeline, timestamp?: string): AgentTimeline {
+  const endedAt = timestamp ? Date.parse(timestamp) : NaN
+  if (!Number.isFinite(endedAt)) return timeline
+  return updateLastRun(timeline, (run) => run.status === 'running'
+    ? closeRun({ ...run, endedAt }, 'done')
+    : run)
+}
+
+function closeRun(run: AgentRun, status: AgentRunStatus, elapsedMs?: number): AgentRun {
+  const endedAt = run.endedAt ?? Date.now()
+  const phaseElapsedMs = elapsedMs ?? Math.max(0, endedAt - run.startedAt)
   return {
     ...run,
+    endedAt,
+    elapsedMs: (run.elapsedMs ?? 0) + phaseElapsedMs,
     status,
     steps: run.steps.map((step) => (step.status === 'running' ? { ...step, status: status === 'error' ? 'error' : 'done' } : step)),
   }
 }
 
-export function appendUserMessage(timeline: AgentTimeline, text: string): AgentTimeline {
-  return [...timeline, { kind: 'user', id: nextId('user'), text }]
+export function appendUserMessage(timeline: AgentTimeline, text: string, messageId?: string, createdAt = Date.now()): AgentTimeline {
+  return [...timeline, { kind: 'user', id: messageId ?? nextId('user'), messageId, text, createdAt }]
+}
+
+export function replaceFromUserMessage(timeline: AgentTimeline, messageId: string, text: string): AgentTimeline {
+  const index = timeline.findIndex((item) => item.kind === 'user' && (item.messageId === messageId || item.id === messageId))
+  if (index < 0) return appendUserMessage(timeline, text, messageId)
+  return [...timeline.slice(0, index), { kind: 'user', id: messageId, messageId, text, createdAt: Date.now() }]
+}
+
+export function canReconcileTimeline(current: AgentTimeline, transcript: AgentTimeline): boolean {
+  const currentUsers = current.filter((item): item is Extract<AgentTimeline[number], { kind: 'user' }> => item.kind === 'user')
+  const transcriptUsers = transcript.filter((item): item is Extract<AgentTimeline[number], { kind: 'user' }> => item.kind === 'user')
+  if (transcriptUsers.length < currentUsers.length) return false
+  return currentUsers.every((user, index) => {
+    const transcriptUser = transcriptUsers[index]
+    if (!transcriptUser || transcriptUser.text !== user.text) return false
+    return !user.messageId || !transcriptUser.messageId || user.messageId === transcriptUser.messageId
+  })
+}
+
+export function reconcileTimeline(current: AgentTimeline, transcript: AgentTimeline): AgentTimeline {
+  if (transcript.length < current.length || !canReconcileTimeline(current, transcript)) return current
+  const currentRuns = current.filter((item): item is Extract<AgentTimeline[number], { kind: 'run' }> => item.kind === 'run')
+  let runIndex = 0
+  return transcript.map((item) => {
+    if (item.kind !== 'run') return item
+    const active = currentRuns[runIndex]
+    runIndex += 1
+    if (!active || active.run.elapsedMs === undefined) return item
+    return {
+      ...item,
+      run: {
+        ...item.run,
+        startedAt: active.run.startedAt,
+        endedAt: active.run.endedAt,
+        elapsedMs: active.run.elapsedMs,
+      },
+    }
+  })
 }
 
 export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEvent): AgentTimeline {
@@ -169,6 +263,10 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
   const record = asRecord(event.data)
 
   switch (kind) {
+    case 'other': {
+      if (event.type.toLowerCase() === 'agent_start') return ensureRun(timeline)
+      return timeline
+    }
     case 'text': {
       const text = extractEventText(event.data)
       if (!text) return timeline
@@ -179,12 +277,16 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       // Runner events nest the payload under data.tool_call; flat tool_* events use data directly.
       const payload = asRecord(record?.tool_call) ?? record
       const callId = pickId(payload, ['id', 'tool_call_id', 'call_id'])
+      const normalizedType = event.type.toLowerCase()
+      const argsDone = !normalizedType.includes('start')
+      const input = pickDetail(payload, ['raw_arguments', 'arguments', 'args', 'input', 'command']) || undefined
       if (lastRun(timeline)?.run.steps.some((step) => step.id === callId && callId)) {
         // Completion event (tool_call): backfill the argument detail.
-        const detail = pickDetail(payload, ['raw_arguments', 'arguments', 'args', 'input', 'command']) || undefined
         return updateLastRun(timeline, (run) => ({
           ...run,
-          steps: run.steps.map((step) => (step.id === callId ? { ...step, detail: detail ?? step.detail } : step)),
+          steps: run.steps.map((step) => (step.id === callId
+            ? { ...step, input: input ?? step.input, argsDone: argsDone || step.argsDone }
+            : step)),
         }))
       }
       const withRun = ensureRun(timeline)
@@ -192,10 +294,26 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
         id: callId || nextId('step'),
         kind: 'tool',
         title: pickString(payload, ['name', 'tool', 'tool_name', 'title']) || 'tool',
-        detail: pickDetail(payload, ['raw_arguments', 'arguments', 'args', 'input', 'command']) || undefined,
+        input,
+        argsDone,
         status: 'running',
       }
       return updateLastRun(withRun, (run) => ({ ...run, steps: [...run.steps, step] }))
+    }
+    case 'tool_call_delta': {
+      const delta = pickDelta(record)
+      if (!delta) return timeline
+      const toolId = pickId(record, ['tool_call_id', 'call_id', 'id'])
+      return updateLastRun(timeline, (run) => {
+        const index = toolId
+          ? run.steps.findIndex((step) => step.kind === 'tool' && step.id === toolId)
+          : run.steps.map((step, position) => (step.kind === 'tool' && step.argsDone === false ? position : -1)).filter((position) => position >= 0).pop() ?? -1
+        if (index < 0) return run
+        const steps = run.steps.slice()
+        const step = steps[index]!
+        steps[index] = { ...step, input: `${step.input ?? ''}${delta}`, argsDone: false }
+        return { ...run, steps }
+      })
     }
     case 'tool_result': {
       // Runner events nest the payload under data.tool_result.
@@ -209,11 +327,11 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
           ? run.steps.findIndex((step) => step.id === stepId)
           : run.steps.map((step, position) => (step.status === 'running' ? position : -1)).filter((position) => position >= 0).pop() ?? -1
         if (index < 0) {
-          const step: AgentWorkStep = { id: stepId || nextId('step'), kind: 'tool', title: pickString(payload, ['name', 'tool', 'tool_name']) || 'tool', detail, status: isError ? 'error' : 'done' }
+          const step: AgentWorkStep = { id: stepId || nextId('step'), kind: 'tool', title: pickString(payload, ['name', 'tool', 'tool_name']) || 'tool', output: detail, detail, argsDone: true, status: isError ? 'error' : 'done' }
           return { ...run, steps: [...run.steps, step] }
         }
         const steps = run.steps.slice()
-        steps[index] = { ...steps[index], detail: detail ?? steps[index].detail, status: isError ? 'error' : 'done' }
+        steps[index] = { ...steps[index], output: detail ?? steps[index].output, detail: detail ?? steps[index].detail, argsDone: true, status: isError ? 'error' : 'done' }
         return { ...run, steps }
       })
     }
@@ -256,7 +374,10 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       }))
     }
     case 'done':
-      return updateLastRun(timeline, (run) => closeRun(run, 'done'))
+      return updateLastRun(timeline, (run) => {
+        const result = asRecord(record?.result)
+        return closeRun(run, 'done', pickNumber(result, ['elapsed_ms', 'elapsedMs']))
+      })
     case 'error':
       return updateLastRun(timeline, (run) => closeRun(run, 'error'))
     case 'cancelled':
@@ -273,11 +394,14 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
   let timeline: AgentTimeline = []
   // When the turn contains an escalation, the "interrupted" receipt is actually a pause; downgrade it to neutral.
   let escalationInTurn = false
+  const reduceAt = (event: AgentStreamEvent, timestamp?: string) => {
+    timeline = markRunEndedAt(reduceAgentEvent(timeline, event), timestamp)
+  }
   for (const entry of entries) {
     if (entry.type === 'compaction') {
       // Context compaction is shown as a status step on the current run.
       const summary = typeof entry.summary === 'string' ? entry.summary : ''
-      timeline = appendStatusStep(timeline, 'compaction', summary || undefined)
+      timeline = markRunEndedAt(appendStatusStep(timeline, 'compaction', summary || undefined), entry.timestamp)
       continue
     }
     if (entry.type === 'escalation') {
@@ -293,7 +417,7 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
         resolvedPath: entry.resolved_path || undefined,
         decision: entry.granted === true ? 'allowed' : entry.granted === false ? 'denied' : undefined,
       }
-      timeline = updateLastRun(withRun, (run) => ({ ...run, permissions: [...run.permissions, request] }))
+      timeline = markRunEndedAt(updateLastRun(withRun, (run) => ({ ...run, permissions: [...run.permissions, request] })), entry.timestamp)
       escalationInTurn = true
       continue
     }
@@ -301,7 +425,8 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
     if (message) {
       // The runner's transcript format: { type: 'message', message: ChatMessage, ... }
       if (message.role === 'user') {
-        if (message.content) timeline = appendUserMessage(timeline, message.content)
+        timeline = finishRunAt(timeline, entry.timestamp)
+        if (message.content) timeline = appendUserMessage(timeline, message.content, entry.message_id, parseTimestamp(entry.timestamp))
         escalationInTurn = false
         continue
       }
@@ -309,7 +434,7 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
       if (message.role === 'tool') {
         // Backward compat: "interrupted" receipts written before an escalation pause downgrade to neutral (not failed).
         const pausedByEscalation = escalationInTurn && message.is_error === true && message.content === INTERRUPTED_SEAL
-        timeline = reduceAgentEvent(timeline, {
+        reduceAt({
           type: 'tool_result',
           data: {
             tool_call_id: message.tool_call_id,
@@ -317,20 +442,20 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
             content: pausedByEscalation ? AWAITING_SEAL : message.content,
             is_error: pausedByEscalation ? false : message.is_error,
           },
-        })
+        }, entry.timestamp)
         continue
       }
       // Assistant: thinking → tool calls → text, restored in write order.
-      if (message.thinking) timeline = reduceAgentEvent(timeline, { type: 'thinking', data: message.thinking })
+      if (message.thinking) reduceAt({ type: 'thinking', data: message.thinking }, entry.timestamp)
       for (const call of message.tool_calls ?? []) {
-        timeline = reduceAgentEvent(timeline, {
+        reduceAt({
           type: 'tool_call',
           data: { tool_call_id: call.id, name: call.name, arguments: call.raw_arguments },
-        })
+        }, entry.timestamp)
         // Tool calls in a historical transcript are necessarily finished; a synthetic tool_result closes the step.
-        timeline = reduceAgentEvent(timeline, { type: 'tool_result', data: { tool_call_id: call.id, name: call.name } })
+        reduceAt({ type: 'tool_result', data: { tool_call_id: call.id, name: call.name } }, entry.timestamp)
       }
-      if (message.content) timeline = reduceAgentEvent(timeline, { type: 'message', data: message.content })
+      if (message.content) reduceAt({ type: 'message', data: message.content }, entry.timestamp)
       continue
     }
     // Compat with the early flat format: { role, content / payload }.
@@ -340,14 +465,22 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
       ? entry.content
       : entry.payload ?? entry.content
     if (role === 'user') {
+      timeline = finishRunAt(timeline, entry.timestamp)
       const text = typeof data === 'string' ? data : extractEventText(data)
-      if (text) timeline = appendUserMessage(timeline, text)
+      if (text) {
+        const timestamp = parseTimestamp(entry.timestamp)
+        timeline = appendUserMessage(timeline, text, entry.message_id, Number.isFinite(timestamp) ? timestamp : undefined)
+      }
       continue
     }
     const eventType = type || (role === 'tool' ? 'tool_result' : 'message')
-    timeline = reduceAgentEvent(timeline, { type: eventType, data })
+    reduceAt({ type: eventType, data }, entry.timestamp)
   }
-  return timeline.map((item) => (item.kind === 'run' && item.run.status === 'running' ? { ...item, run: closeRun(item.run, 'done') } : item))
+  return timeline.map((item) => {
+    if (item.kind !== 'run' || item.run.status !== 'running') return item
+    const status = item.run.permissions.some((request) => !request.decision) ? 'cancelled' : 'done'
+    return { ...item, run: closeRun(item.run, status) }
+  })
 }
 
 function appendStatusStep(timeline: AgentTimeline, title: string, detail?: string): AgentTimeline {
