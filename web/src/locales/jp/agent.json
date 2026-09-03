@@ -12,7 +12,7 @@
     "back": "戻る"
   },
   "chat": {
-    "emptyTitle": "何かお手伝いしましょうか？",
+    "emptyTitle": "今日は xLyra で何を作りますか？",
     "thinking": "Agent が処理中…",
     "inputPlaceholder": "ご自由に入力....",
     "hint": "Enter で送信 · Shift+Enter で改行",

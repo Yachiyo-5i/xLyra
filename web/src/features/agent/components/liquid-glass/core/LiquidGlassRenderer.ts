@@ -25,6 +25,20 @@ const loseContextExt = new WeakMap<WebGLRenderingContext, WEBGL_lose_context | n
 const guardedCanvases = new WeakSet<HTMLCanvasElement>();
 
 export class LiquidGlassRenderer {
+  /**
+   * 存活渲染器共享的观察循环。原先每个实例各自持有一条 RAF 链（每帧各自
+   * getBoundingClientRect），同页多面板（侧栏/输入框/弹层/对话框）时就有多条
+   * 并行循环在跑。现在实例构造时注册、dispose 时注销，最后一个实例离开后
+   * 循环自动停转；首个实例到来时再启动。
+   */
+  private static activeRenderers = new Set<LiquidGlassRenderer>();
+  private static tickerFrame = 0;
+  private static tickerLoop() {
+    LiquidGlassRenderer.tickerFrame = window.requestAnimationFrame(LiquidGlassRenderer.tickerLoop);
+    // 迭代中 dispose 只是把自己从集合摘除，对 for..of 是安全的
+    for (const renderer of LiquidGlassRenderer.activeRenderers) renderer.checkPosition();
+  }
+
   private canvas: HTMLCanvasElement;
   private gl: WebGLRenderingContext;
   private uniforms: Uniforms = {};
@@ -35,24 +49,13 @@ export class LiquidGlassRenderer {
   private settings: LiquidGlassSettings;
   private center = { x: 0, y: 0 };
   private size = { width: 54, height: 34 };
-  private stretch = 0;
-  private morph = 1;
-private materialMorph = 1;
-private pressed = false;
-private button = 0;
-/* 背景采样强度 0~1：0 = 纯中性玻璃底，1 = 完全采样背景图；中间值按比例混合（透明度可调） */
-private sampleBackground = 0;
-  private track = { start: 0, end: 0, y: 0, value: 0, radius: 2.5 };
-  private trackColors = {
-    base: [0.31, 0.32, 0.34] as [number, number, number],
-    fill: [0.035, 0.50, 1.0] as [number, number, number]
-  };
+  /* 背景采样强度 0~1：0 = 纯中性玻璃底，1 = 完全采样背景图；中间值按比例混合（透明度可调） */
+  private sampleBackground = 0;
   private disposed = false;
-  private positionFrame = 0;
   /**
-   * 失效标记：参数 setter 只置位，真正的绘制统一由 watchPosition 的 RAF 消费。
+   * 失效标记：参数 setter 只置位，真正的绘制统一由共享 ticker 的 RAF 消费。
    * 一次 ResizeObserver 回调里连改采样/尺寸/设置/几何四项参数时，从四次全量
-   * 绘制合并为下一帧的一次；静止页面上没有失效就完全不绘制（见 watchPosition）。
+   * 绘制合并为下一帧的一次；静止页面上没有失效就完全不绘制（见 checkPosition）。
    */
   private needsDraw = false;
   private lastViewport = { width: 0, height: 0 };
@@ -142,7 +145,11 @@ private sampleBackground = 0;
     }
     this.image = new Image();
     this.loadSource(imageUrl);
-    this.watchPosition();
+    LiquidGlassRenderer.activeRenderers.add(this);
+    if (!LiquidGlassRenderer.tickerFrame) {
+      LiquidGlassRenderer.tickerFrame = window.requestAnimationFrame(LiquidGlassRenderer.tickerLoop);
+    }
+    this.checkPosition();
   }
 
   /** 创建全部 GL 资源。构造时调用一次；上下文丢失后恢复时会再次调用重建。 */
@@ -182,10 +189,8 @@ private sampleBackground = 0;
     [
       "u_bg","u_res","u_center","u_size","u_bgScale","u_bgOffset","u_blurAmount","u_radius",
       "u_zRadius","u_refract","u_chroma","u_edgeHL","u_specular","u_fresnel","u_brightness",
-      "u_saturation","u_shadowAlpha","u_shadowSpread","u_darkTint","u_bevelMode","u_button","u_pressed"
-      ,"u_trackStart","u_trackEnd","u_trackY","u_valueX","u_distortion","u_tintStrength","u_opacity",
-      "u_sampleBackground","u_materialMorph","u_tint"
-      ,"u_tintColor","u_trackBaseColor","u_trackFillColor","u_trackRadius"
+      "u_saturation","u_darkTint","u_bevelMode",
+      "u_tintStrength","u_opacity","u_sampleBackground","u_tint","u_tintColor"
     ].forEach((name) => { this.uniforms[name] = gl.getUniformLocation(program, name); });
     const texture = gl.createTexture();
     if (!texture) throw new Error("Unable to create WebGL texture.");
@@ -237,8 +242,8 @@ private sampleBackground = 0;
     else this.image.addEventListener("load", this.handleImageLoad, { once: true });
   }
 
-  private watchPosition = () => {
-    if (this.disposed) return;
+  /** 由共享 ticker 每帧调用：检测位置/尺寸/滚动变化与脏标记，按需绘制。 */
+  private checkPosition = () => {
     const rect = this.canvas.getBoundingClientRect();
     const viewport = {
       width: window.innerWidth,
@@ -276,7 +281,6 @@ private sampleBackground = 0;
       this.needsDraw = false;
       this.draw();
     }
-    this.positionFrame = window.requestAnimationFrame(this.watchPosition);
   };
 
   /** 标记需要重绘：合并到下一帧统一执行，多次参数更新只触发一次绘制。 */
@@ -289,29 +293,8 @@ private sampleBackground = 0;
     this.loadSource(url);
   }
   setSettings(settings: LiquidGlassSettings) { this.settings = settings; this.size = { width: settings.lensWidth, height: settings.lensHeight }; this.requestDraw(); }
-  setGeometry(
-    x: number,
-    y: number,
-    stretch: number,
-    pressed: boolean,
-    morph = 1,
-    materialMorph = 1,
-    button = 0
-  ) {
+  setGeometry(x: number, y: number) {
     this.center = { x, y };
-    this.stretch = stretch;
-    this.pressed = pressed;
-    this.button = button;
-    this.morph = Math.max(0, Math.min(1, morph));
-    this.materialMorph = Math.max(0, Math.min(1, materialMorph));
-    this.requestDraw();
-  }
-  setTrack(start: number, end: number, y: number, value: number, radius = 2.5) {
-    this.track = { start, end, y, value, radius };
-    this.requestDraw();
-  }
-  setTrackColors(base: [number, number, number], fill: [number, number, number]) {
-    this.trackColors = { base, fill };
     this.requestDraw();
   }
   setBackgroundSampling(amount: boolean | number) {
@@ -322,7 +305,11 @@ private sampleBackground = 0;
   }
   dispose() {
     this.disposed = true;
-    window.cancelAnimationFrame(this.positionFrame);
+    LiquidGlassRenderer.activeRenderers.delete(this);
+    if (LiquidGlassRenderer.tickerFrame && LiquidGlassRenderer.activeRenderers.size === 0) {
+      window.cancelAnimationFrame(LiquidGlassRenderer.tickerFrame);
+      LiquidGlassRenderer.tickerFrame = 0;
+    }
     this.ready = false;
     this.image.removeEventListener("load", this.handleImageLoad);
     this.video?.removeEventListener("loadeddata", this.handleVideoReady);
@@ -400,12 +387,8 @@ private sampleBackground = 0;
     const localScaleY = rect.height / viewportHeight;
     const localOffsetX = (rect.left - backgroundRect.left) / viewportWidth;
     const localOffsetY = (backgroundRect.bottom - rect.bottom) / viewportHeight;
-    const restingWidth = this.button > .5 ? 36 : 34;
-    const restingHeight = this.button > .5 ? 24 : 22;
-    const baseWidth = restingWidth + (this.size.width - restingWidth) * this.morph;
-    const baseHeight = restingHeight + (this.size.height - restingHeight) * this.morph;
-    const width = baseWidth * (1 + this.stretch);
-    const height = baseHeight * (1 - this.stretch * .48);
+    const width = this.size.width;
+    const height = this.size.height;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0,0,0,0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -428,26 +411,13 @@ private sampleBackground = 0;
     gl.uniform1f(this.uniforms.u_fresnel, s.fresnel);
     gl.uniform1f(this.uniforms.u_brightness, s.brightness);
     gl.uniform1f(this.uniforms.u_saturation, s.saturation);
-    gl.uniform1f(this.uniforms.u_shadowAlpha, s.shadow);
-    gl.uniform1f(this.uniforms.u_shadowSpread, (12+s.shadow*18)*dpr);
     gl.uniform1f(this.uniforms.u_darkTint, s.darkTint);
-    gl.uniform1f(this.uniforms.u_distortion, s.distortion);
     gl.uniform1f(this.uniforms.u_tintStrength, s.tintStrength);
     gl.uniform1f(this.uniforms.u_tint, s.tint);
     gl.uniform3fv(this.uniforms.u_tintColor, s.tintColor);
     gl.uniform1f(this.uniforms.u_opacity, s.opacity);
     gl.uniform1f(this.uniforms.u_sampleBackground, this.sampleBackground);
-    gl.uniform1f(this.uniforms.u_materialMorph, this.materialMorph);
-    gl.uniform3f(this.uniforms.u_trackBaseColor, this.trackColors.base[0], this.trackColors.base[1], this.trackColors.base[2]);
-    gl.uniform3f(this.uniforms.u_trackFillColor, this.trackColors.fill[0], this.trackColors.fill[1], this.trackColors.fill[2]);
     gl.uniform1f(this.uniforms.u_bevelMode, s.bevel);
-    gl.uniform1f(this.uniforms.u_button, this.button);
-    gl.uniform1f(this.uniforms.u_pressed, this.pressed ? 1 : 0);
-    gl.uniform1f(this.uniforms.u_trackStart, this.track.start*dpr);
-    gl.uniform1f(this.uniforms.u_trackEnd, this.track.end*dpr);
-    gl.uniform1f(this.uniforms.u_trackY, this.track.y*dpr);
-    gl.uniform1f(this.uniforms.u_valueX, this.track.value*dpr);
-    gl.uniform1f(this.uniforms.u_trackRadius, this.track.radius*dpr);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

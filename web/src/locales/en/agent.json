@@ -12,7 +12,7 @@
     "back": "Back"
   },
   "chat": {
-    "emptyTitle": "How can I help?",
+    "emptyTitle": "What are you building with xLyra today?",
     "thinking": "Agent is working…",
     "inputPlaceholder": "Type freely....",
     "hint": "Enter to send · Shift+Enter for a new line",

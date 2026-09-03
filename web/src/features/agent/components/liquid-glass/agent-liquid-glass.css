@@ -279,6 +279,24 @@
   background: rgb(255 255 255 / 0.1);
 }
 
+/* 会话删除菜单：picker 玻璃表面的紧凑变体（去掉 13rem 宽与 8rem 最小高） */
+.agent-liquid-picker-surface--menu {
+  width: max-content;
+  min-width: 9rem;
+  min-height: 0;
+}
+
+/* 删除项用主题 destructive 红；普通态略降透明融入玻璃，hover 提亮+红色衬底 */
+.agent-liquid-picker-surface--menu [data-agent-delete] {
+  color: hsl(var(--destructive) / 0.92);
+}
+
+.agent-liquid-picker-surface--menu [data-agent-delete]:hover,
+.agent-liquid-picker-surface--menu [data-agent-delete]:focus-visible {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.12);
+}
+
 .agent-liquid-picker-panel button,
 .agent-liquid-picker-subpanel button {
   color: hsl(var(--text-muted-soft));
@@ -356,6 +374,7 @@
   z-index: 0;
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   pointer-events: none;
 }
 
@@ -442,6 +461,15 @@
 .agent-liquid-composer [data-playground-composer='true'] button.agent-stop-button:hover {
   background: #fff;
   color: #000;
+}
+
+/* 发送按钮禁用态（输入为空）：别吃主题的 --surface-subtle（浅色主题下是奶白半透明，
+   浅灰箭头落上去几乎不可见），统一为玻璃 scrim + 弱化文字。
+   启用态已由 .agent-page button.bg-primary 固定为白底黑箭头。 */
+.agent-liquid-composer [data-playground-composer='true'] button[aria-label='send']:disabled {
+  background: var(--agent-control-scrim);
+  color: hsl(var(--agent-text-faint)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
 
 .agent-liquid-user-message {

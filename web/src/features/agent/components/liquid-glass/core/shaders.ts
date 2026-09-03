@@ -24,26 +24,13 @@ uniform float u_specular;
 uniform float u_fresnel;
 uniform float u_brightness;
 uniform float u_saturation;
-uniform float u_shadowAlpha;
-uniform float u_shadowSpread;
 uniform float u_darkTint;
 uniform float u_bevelMode;
-uniform float u_button;
-uniform float u_pressed;
-uniform float u_distortion;
 uniform float u_tintStrength;
 uniform float u_tint;
 uniform float u_opacity;
 uniform float u_sampleBackground;
-uniform float u_materialMorph;
 uniform vec3 u_tintColor;
-uniform vec3 u_trackBaseColor;
-uniform vec3 u_trackFillColor;
-uniform float u_trackStart;
-uniform float u_trackEnd;
-uniform float u_trackY;
-uniform float u_valueX;
-uniform float u_trackRadius;
 varying vec2 v_uv;
 
 float rrSDF(vec2 p, vec2 b, float r) {
@@ -54,9 +41,6 @@ float lensHeight(float inside, float zR) {
   if (inside <= 0.0) return 0.0;
   if (inside >= zR) return zR;
   return sqrt(inside * (2.0 * zR - inside));
-}
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 vec2 toBackgroundUV(vec2 screenUV) {
   return screenUV * u_bgScale + u_bgOffset;
@@ -97,11 +81,6 @@ vec3 adjustColor(vec3 color) {
   float gray = dot(color, vec3(.299,.587,.114));
   return clamp(mix(vec3(gray), color, 1.0 + u_saturation), 0.0, 1.0);
 }
-float roundedTrackMask(vec2 point, float startX, float endX, float centerY, float radius) {
-  float safeEnd = max(endX, startX);
-  vec2 segment = vec2(clamp(point.x, startX, safeEnd), centerY);
-  return 1.0 - smoothstep(radius - 1.0, radius + 1.0, length(point - segment));
-}
 void main() {
   vec2 screenPx = vec2(gl_FragCoord.x, u_res.y - gl_FragCoord.y);
   vec2 localPx = screenPx - u_center;
@@ -109,11 +88,10 @@ void main() {
   float radius = min(u_radius, min(halfSize.x, halfSize.y));
   float sdf = rrSDF(localPx, halfSize, radius);
   if (sdf > 0.0) {
-    float d = max(sdf - 1.0, 0.0);
-    float shadow = exp(-d*d / max(u_shadowSpread*u_shadowSpread, 1.0)) * u_shadowAlpha;
-    if (shadow < .002) discard;
-    gl_FragColor = vec4(0.,0.,0.,shadow);
-    return;
+    // 面板外一律不画：投影由 CSS box-shadow 承担（跟随圆角、跨平台一致）。
+    // 若在此输出半透明黑，canvas 在 overflow:hidden+圆角 裁剪失效的合成路径上
+    // （Windows Chrome）会在四角漏出矩形灰色阴影。
+    discard;
   }
   float mask = 1.0 - smoothstep(-1.8, .45, sdf);
   float inside = -sdf;
@@ -144,37 +122,13 @@ void main() {
   float depth = smoothstep(0.0, u_zRadius, inside);
   float ior = mix(1.36, 1.58, clamp(u_refract, 0.0, 1.2));
   float refrPow = 1.0 - 1.0 / ior;
-  float press = u_button * u_pressed;
-float thickness = hC * mix(2.0, 1.1, press);
+  float thickness = hC * 2.0;
   float thickNorm = thickness / max(u_zRadius * 2.0, 1.0);
   vec2 centerDir = -localPx / max(halfSize, vec2(1.0));
   vec2 refrPx = (hGrad * refrPow * 2.15 + centerDir * edge * .28)
     * u_refract * (26.0 + u_zRadius * .22);
   refrPx += hGrad * refrPow * thickNorm * u_refract * 22.0;
   refrPx *= mix(edge, max(edge, .16 * (1.0 - core)), u_blurAmount);
-  refrPx *= mix(1.0, .74, press);
-
-  vec2 noisePoint = localPx * .08;
-  vec2 micro = (vec2(hash(noisePoint), hash(noisePoint + vec2(37.0))) - .5)
-    * u_distortion * 4.0;
-  vec2 refractedScreenPx = screenPx + refrPx + micro;
-  vec2 trackSamplePx = mix(refractedScreenPx, screenPx + refrPx * 1.8 + micro, u_button);
-  float trackRadius = u_trackRadius;
-  float fullTrack = roundedTrackMask(trackSamplePx, u_trackStart, u_trackEnd, u_trackY, trackRadius);
-  float fillTrack = roundedTrackMask(
-    trackSamplePx,
-    u_trackStart,
-    u_valueX,
-    u_trackY,
-    trackRadius
-  );
-  float caShift = u_chroma * 18.0 * (edge * .7 + .3) * 2.0;
-  float redTrack = roundedTrackMask(trackSamplePx + normal.xy * caShift, u_trackStart, u_trackEnd, u_trackY, trackRadius);
-  float blueTrack = roundedTrackMask(trackSamplePx - normal.xy * caShift, u_trackStart, u_trackEnd, u_trackY, trackRadius);
-  vec3 neutralTrack = mix(u_trackBaseColor, u_trackFillColor, fillTrack);
-  vec3 trackColor = neutralTrack;
-  trackColor.r *= mix(1.0, redTrack, min(1.0, u_chroma * 4.0));
-  trackColor.b *= mix(1.0, blueTrack, min(1.0, u_chroma * 4.0));
 
   float vertical = clamp(.5 - localPx.y / max(u_size.y, 1.0), 0.0, 1.0);
   float topSheen = smoothstep(.42, .98, vertical);
@@ -207,15 +161,6 @@ float thickness = hC * mix(2.0, 1.1, press);
   } else {
     color = mix(color, vec3(0.0), clamp(-u_tint, 0.0, 1.0) * .72);
   }
-  float trackTransmission = clamp(
-    .74 + core * .25 + topSheen * .07 - edge * .12,
-    .58,
-    1.04
-  );
-  vec3 transmittedTrack = trackColor * trackTransmission;
-  float surfaceVeil = (.07 + edge * .2) * (.55 + u_darkTint);
-  transmittedTrack = mix(transmittedTrack, neutralGlass, surfaceVeil);
-  color = mix(color, transmittedTrack, fullTrack * .94);
 
   vec3 lightDir = normalize(vec3(-.35, -.58, .74));
   vec3 viewDir = vec3(0.0, 0.0, 1.0);
@@ -231,13 +176,5 @@ float thickness = hC * mix(2.0, 1.1, press);
   vec3 fresColor = vec3(.90, .96, 1.0) * fres * .16;
   color += rimColor + fresColor + vec3(spec * .28);
   color = mix(color, vec3(1.0), stroke * .05);
-  vec3 staticPill = mix(
-    vec3(.93, .93, .945),
-    vec3(1.0),
-    smoothstep(-.9, .4, -localPx.y / max(halfSize.y, 1.0))
-  );
-  float materialEase = smoothstep(0.0, 1.0, u_materialMorph);
-  color = mix(staticPill, color, materialEase);
-  float materialOpacity = mix(1.0, u_opacity, materialEase);
-  gl_FragColor = vec4(color, mask * materialOpacity);
+  gl_FragColor = vec4(color, mask * u_opacity);
 }`;

@@ -69,28 +69,35 @@ function loadPermissionMode(): PermissionMode {
   }
 }
 
+/**
+ * 外观设置 → 玻璃着色器参数。bright（空会话，背景图可见）与 dark（会话中，
+ * 纯黑背景）共用同一组用户滑杆：dark 保留调好的光学常数，但模糊/压暗/厚度/
+ * 明暗/透明度仍由滑杆驱动，默认值与原手调的 dark 常数基本一致
+ * （blur 0.275↔0.3、darkTint 0.218↔0.22、depth 31.8↔32、opacity 1↔1）。
+ */
 function glassSettingsForAppearance(appearance: AgentAppearanceSettings, dark: boolean) {
-  const transparency = Math.max(0, Math.min(100, appearance.side_transparency)) / 100
-  const brightness = (Math.max(0, Math.min(100, appearance.side_brightness)) - 50) / 500
-  const blur = 0.22 + Math.max(0, Math.min(100, appearance.backdrop_blur)) / 100 * 0.42
-  const darkTint = 0.06 + Math.max(0, Math.min(100, appearance.backdrop_dim)) / 100 * 0.2
-  const depth = 20 + Math.max(0, Math.min(100, appearance.side_thickness)) * 0.42
+  const clamped = (value: number) => Math.max(0, Math.min(100, value))
+  const transparency = clamped(appearance.side_transparency) / 100
+  const brightness = (clamped(appearance.side_brightness) - 50) / 500
+  const blur = 0.22 + clamped(appearance.backdrop_blur) / 100 * 0.42
+  const darkTint = 0.06 + clamped(appearance.backdrop_dim) / 100 * 0.2
+  const depth = 20 + clamped(appearance.side_thickness) * 0.42
   return {
-    blur: dark ? 0.3 : blur,
+    blur,
     refraction: dark ? 0.88 : 0.8,
     chromaticAberration: dark ? 0.065 : 0.06,
-    distortion: dark ? 0.03 : 0.04,
-    darkTint: dark ? 0.22 : darkTint,
-    brightness: dark ? -0.03 : brightness,
+    darkTint: dark ? darkTint + 0.02 : darkTint,
+    brightness,
     saturation: dark ? 0.06 : 0.04,
     tintStrength: dark ? 0.08 : 0.14,
     edgeHighlight: dark ? 0.16 : 0.2,
-    specular: dark ? 0.2 : 0.2,
+    specular: 0.2,
     fresnel: dark ? 1.18 : 1.08,
-    shadow: dark ? 0.16 : 0.22,
     bevel: 0,
-    depth: dark ? 32 : depth,
-    opacity: dark ? 1 : 0.82 + (1 - transparency) * 0.12,
+    depth,
+    opacity: dark
+      ? Math.min(1, 0.94 + (1 - transparency) * 0.12)
+      : 0.82 + (1 - transparency) * 0.12,
   }
 }
 
@@ -144,14 +151,16 @@ function FullAccessConfirmDialog({
   onCancel,
   onConfirm,
   backgroundImage,
+  dark,
 }: {
   open: boolean
   onCancel: () => void
   onConfirm: () => void
   backgroundImage: string
+  /** 会话中为 true：与页面一致渲染深色玻璃（背景 URL 里没有可嗅探的标记，必须显式传） */
+  dark: boolean
 }) {
   const { t } = useTranslation('agent')
-  const darkBackground = backgroundImage.includes('plain')
   const items = [
     { icon: Folder, title: t('composer.fullConfirmFiles'), description: t('composer.fullConfirmFilesDesc') },
     { icon: TerminalSquare, title: t('composer.fullConfirmCommands'), description: t('composer.fullConfirmCommandsDesc') },
@@ -192,25 +201,23 @@ function FullAccessConfirmDialog({
       <DialogContent className="agent-liquid-access-dialog-host w-[min(92vw,480px)]">
         <AgentLiquidGlassPanel
           backgroundImage={backgroundImage}
-          variant={darkBackground ? 'dark' : 'frosted'}
-          sampleBackground={!darkBackground}
+          variant={dark ? 'dark' : 'frosted'}
+          sampleBackground={!dark}
           className="agent-liquid-access-dialog"
           contentClassName="agent-liquid-access-dialog__content"
           settings={{
-            blur: darkBackground ? 0.18 : 0.34,
-            refraction: darkBackground ? 0.72 : 0.38,
-            chromaticAberration: darkBackground ? 0.045 : 0.025,
-            distortion: darkBackground ? 0.015 : 0.012,
-            darkTint: darkBackground ? 0.18 : 0.12,
-            tintStrength: darkBackground ? 0.06 : 0.1,
-            edgeHighlight: darkBackground ? 0.08 : 0.1,
-            specular: darkBackground ? 0.14 : 0.12,
-            fresnel: darkBackground ? 1.08 : 0.9,
-            shadow: darkBackground ? 0.12 : 0.18,
+            blur: dark ? 0.18 : 0.34,
+            refraction: dark ? 0.72 : 0.38,
+            chromaticAberration: dark ? 0.045 : 0.025,
+            darkTint: dark ? 0.18 : 0.12,
+            tintStrength: dark ? 0.06 : 0.1,
+            edgeHighlight: dark ? 0.08 : 0.1,
+            specular: dark ? 0.14 : 0.12,
+            fresnel: dark ? 1.08 : 0.9,
             bevel: 0,
             depth: 32,
             radius: 26,
-            opacity: darkBackground ? 1 : 0.96,
+            opacity: dark ? 1 : 0.96,
           }}
         >
           {dialogBody}
@@ -652,6 +659,21 @@ export function AgentWorkspace() {
     </AgentLiquidGlassPanel>
   ), [agentBackgroundImage, hasMessages, sidebarGlassSettings])
 
+  // 会话删除菜单等小型弹层：与模型选择器共用玻璃表面模式（空会话采样背景、会话中 flat）
+  const renderMenuSurface = useCallback((children: React.ReactNode) => (
+    <AgentLiquidGlassPanel
+      backgroundImage={agentBackgroundImage}
+      variant="dark"
+      sampleBackground={hasMessages ? false : 0.82}
+      flat={hasMessages}
+      className="agent-liquid-picker-surface agent-liquid-picker-surface--menu"
+      contentClassName="agent-liquid-picker-surface__content"
+      settings={{ ...sidebarGlassSettings, radius: 14, depth: Math.min(sidebarGlassSettings.depth, 28) }}
+    >
+      {children}
+    </AgentLiquidGlassPanel>
+  ), [agentBackgroundImage, hasMessages, sidebarGlassSettings])
+
   const composerContent = (
     <Composer
       value={draft}
@@ -748,7 +770,9 @@ export function AgentWorkspace() {
     <AgentLiquidGlassPanel
       backgroundImage={agentBackgroundImage}
       variant="dark"
-      sampleBackground={hasMessages ? 0.34 : 1}
+      // 会话中页面背景是纯黑（canvas 纹理却始终是背景图），继续采样会让图片
+      // 从玻璃里透出来；与侧栏一致改为纯中性深色玻璃
+      sampleBackground={hasMessages ? false : 1}
       className="agent-liquid-composer"
       contentClassName="agent-liquid-composer__content"
       settings={{ ...sidebarGlassSettings, radius: 26, depth: Math.min(sidebarGlassSettings.depth, 30) }}
@@ -760,6 +784,7 @@ export function AgentWorkspace() {
   const sidebarContent = <AgentSidebar
     sessions={sessions}
     activeId={selectedId}
+    menuRenderer={renderMenuSurface}
     onBack={() => navigate(-1)}
     onSelect={handleSelect}
     onNew={createNew}
@@ -784,6 +809,7 @@ export function AgentWorkspace() {
           className="agent-mobile-sidebar"
           sessions={sessions}
           activeId={selectedId}
+          menuRenderer={renderMenuSurface}
           onBack={() => {
             setMobileSidebarOpen(false)
             navigate(-1)
@@ -813,6 +839,7 @@ export function AgentWorkspace() {
       <FullAccessConfirmDialog
         open={confirmFullAccess}
         backgroundImage={agentBackgroundImage}
+        dark={hasMessages}
         onCancel={() => setConfirmFullAccess(false)}
         onConfirm={() => {
           applyPermissionMode('full')
@@ -836,7 +863,7 @@ export function AgentWorkspace() {
           {sidebarContent}
         </AgentLiquidGlassPanel>
       </aside>
-      <AgentSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} backgroundImage={agentBackgroundImage} />
+      <AgentSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} backgroundImage={agentBackgroundImage} dark={hasMessages} />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         {hasMessages ? (

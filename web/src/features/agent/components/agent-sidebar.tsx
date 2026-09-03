@@ -11,6 +11,8 @@ type AgentSidebarProps = {
   className?: string
   sessions: AgentSession[]
   activeId: string | null
+  /** 弹层表面渲染器（液态玻璃面板），与模型选择器同一模式，由 workspace 提供 */
+  menuRenderer: (children: React.ReactNode) => React.ReactNode
   onBack: () => void
   onSelect: (id: string) => void
   onNew: () => void
@@ -18,7 +20,7 @@ type AgentSidebarProps = {
   onOpenSettings: () => void
 }
 
-export function AgentSidebar({ className, sessions, activeId, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
+export function AgentSidebar({ className, sessions, activeId, menuRenderer, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
   const { t, i18n } = useTranslation('agent')
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
@@ -53,6 +55,7 @@ export function AgentSidebar({ className, sessions, activeId, onBack, onSelect, 
               key={session.session_id}
               session={session}
               active={session.session_id === activeId}
+              menuRenderer={menuRenderer}
               locale={i18n.language}
               untitledLabel={t('sidebar.untitled')}
               menuLabel={t('sidebar.menu')}
@@ -92,6 +95,7 @@ export function AgentSidebar({ className, sessions, activeId, onBack, onSelect, 
 function SessionRow({
   session,
   active,
+  menuRenderer,
   locale,
   untitledLabel,
   menuLabel,
@@ -101,6 +105,7 @@ function SessionRow({
 }: {
   session: AgentSession
   active: boolean
+  menuRenderer: (children: React.ReactNode) => React.ReactNode
   locale: string
   untitledLabel: string
   menuLabel: string
@@ -147,19 +152,22 @@ function SessionRow({
             align="end"
             sideOffset={6}
             onClick={(event) => event.stopPropagation()}
-            className="z-[120] w-36 overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--dialog-surface))] py-1 shadow-[var(--shadow-dialog)] backdrop-blur-xl"
+            className="agent-liquid-picker-host z-[120]"
           >
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                onDelete(session.session_id)
-              }}
-              className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-destructive transition-colors hover:bg-[hsl(var(--surface-subtle))]"
-            >
-              <Trash2 className="h-4 w-4 text-current" />
-              {deleteLabel}
-            </button>
+            {menuRenderer(
+              <button
+                type="button"
+                data-agent-delete="true"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onDelete(session.session_id)
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors"
+              >
+                <Trash2 className="h-4 w-4 text-current" />
+                {deleteLabel}
+              </button>
+            )}
           </PopoverPrimitive.Content>
         </PopoverPrimitive.Portal>
       </PopoverPrimitive.Root>

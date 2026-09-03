@@ -58,10 +58,12 @@ type AgentSettingsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   backgroundImage?: string
+  /** 会话中为 true：与页面一致渲染深色玻璃（背景 URL 里没有可嗅探的标记，必须显式传） */
+  dark?: boolean
 }
 
 /** Agent capabilities dialog: left nav (Skills / AGENTS.md) + right content; new settings sections can extend the tabs. */
-export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/agent-backdrop.png' }: AgentSettingsDialogProps) {
+export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/agent-backdrop.png', dark = false }: AgentSettingsDialogProps) {
   const { t } = useTranslation('agent')
   const mobileLayout = useMobileLayout()
   const [tab, setTab] = useState<SettingsTab>('appearance')
@@ -81,7 +83,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
     },
     onError: (error) => toast.error(t('settings.saveFailed'), { description: error.message }),
   })
-  const darkBackground = backgroundImage.includes('plain')
+  const darkBackground = dark
 
   function resetDialogState() {
     setTab('appearance')
@@ -292,13 +294,11 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
             blur: darkBackground ? 0.18 : 0.34,
             refraction: darkBackground ? 0.72 : 0.38,
             chromaticAberration: darkBackground ? 0.045 : 0.025,
-            distortion: darkBackground ? 0.015 : 0.012,
             darkTint: darkBackground ? 0.18 : 0.24,
             tintStrength: darkBackground ? 0.06 : 0.1,
             edgeHighlight: darkBackground ? 0.08 : 0.1,
             specular: darkBackground ? 0.14 : 0.12,
             fresnel: darkBackground ? 1.08 : 0.9,
-            shadow: darkBackground ? 0.12 : 0.18,
             bevel: 0,
             depth: 32,
             radius: 28,

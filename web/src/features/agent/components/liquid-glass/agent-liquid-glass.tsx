@@ -34,7 +34,7 @@ export function AgentLiquidGlassPanel({ backgroundImage, className = '', content
     renderer.setBackgroundSampling(sampleBackground)
     renderer.resize(width, height)
     renderer.setSettings({ ...current, radius: Math.min(current.radius, height / 2), lensWidth: width, lensHeight: height })
-    renderer.setGeometry(width / 2, height / 2, 0, false, 1, 1, 0)
+    renderer.setGeometry(width / 2, height / 2)
   }, [sampleBackground])
 
   useEffect(() => {
@@ -53,7 +53,8 @@ export function AgentLiquidGlassPanel({ backgroundImage, className = '', content
 
   useEffect(() => { if (!flat) apply() }, [apply, mergedSettings, flat])
 
-  const profile = variant === 'dark' || backgroundImage.includes('plain') ? 'dark' : 'bright'
+  // 深浅文字档位跟随 variant：所有调用方在深色场景下都显式传 variant="dark"
+  const profile = variant === 'dark' ? 'dark' : 'bright'
 
   return (
     <div ref={rootRef} className={`agent-liquid-surface agent-liquid-surface--${profile} ${flat ? 'agent-liquid-surface--flat' : ''} ${className}`} style={{ borderRadius: mergedSettings.radius }}>

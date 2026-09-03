@@ -12,7 +12,7 @@
     "back": "返回"
   },
   "chat": {
-    "emptyTitle": "有什么可以帮你的？",
+    "emptyTitle": "今天要用 xLyra 构建什么？",
     "thinking": "Agent 正在处理…",
     "inputPlaceholder": "随心输入....",
     "hint": "Enter 发送 · Shift+Enter 换行",
