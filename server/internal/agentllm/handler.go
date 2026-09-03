@@ -154,6 +154,16 @@ func (h Handler) Register(w http.ResponseWriter, r *http.Request) {
 	h.runMutation(w, r, false)
 }
 
+func (h Handler) RegisterRun(ctx context.Context, agentInstanceID, sessionID, runID, model string) error {
+	_, err := h.repo.Register(ctx, store.AgentRunInput{
+		AgentInstanceID: agentInstanceID,
+		SessionID:       sessionID,
+		RunID:           runID,
+		Model:           model,
+	}, h.now())
+	return err
+}
+
 func (h Handler) End(w http.ResponseWriter, r *http.Request) {
 	h.runMutation(w, r, true)
 }

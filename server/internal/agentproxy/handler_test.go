@@ -2,6 +2,7 @@ package agentproxy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,6 +12,38 @@ import (
 
 	"xlyra/server/internal/config"
 )
+
+func TestForwardRegistersRunFromSessionResponse(t *testing.T) {
+	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sessions/s1/grant-access" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"success":true,"data":{"session_id":"s1","run_id":"run-2","model":"gpt-5","agent_instance_id":"agent-1"}}`)
+	}))
+	defer runner.Close()
+
+	h := NewHandler(runner.URL, "runner-secret", runner.Client(), slog.Default())
+	registered := make(chan RunRegistration, 1)
+	h.SetOnRunStarted(func(_ context.Context, run RunRegistration) error {
+		registered <- run
+		return nil
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/agent/sessions/s1/grant-access", bytes.NewBufferString(`{"granted":true}`))
+	resp := httptest.NewRecorder()
+	h.Forward(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status = %d", resp.Code)
+	}
+	select {
+	case run := <-registered:
+		if run.AgentInstanceID != "agent-1" || run.SessionID != "s1" || run.RunID != "run-2" || run.Model != "gpt-5" {
+			t.Fatalf("registration = %#v", run)
+		}
+	default:
+		t.Fatal("run was not registered")
+	}
+}
 
 func TestForwardInjectsRunnerTokenAndPreservesSSEHeaders(t *testing.T) {
 	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

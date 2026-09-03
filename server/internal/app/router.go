@@ -79,7 +79,10 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, playgroundRoot)
 	playgroundHandler := playground.NewHandler(playgroundService)
 	agentLLMHandler := agentllm.NewHandler(logger.With("thread", "agent-llm"), db, gatewayHandler)
-	agentProxyHandler := agentproxy.NewHandler(cfg.AgentRunnerBaseURL, cfg.AgentRunnerToken, streamingHTTPClient, logger.With("thread", "agent-proxy"))
+	agentProxyHandler := agentproxy.NewHandler(cfg.AgentRunnerBaseURL, cfg.AgentRunnerToken, streamingHTTPClient, logger.With("thread", "agent-proxy"), config.ResolveWorkdir())
+	agentProxyHandler.SetOnRunStarted(func(ctx context.Context, run agentproxy.RunRegistration) error {
+		return agentLLMHandler.RegisterRun(ctx, run.AgentInstanceID, run.SessionID, run.RunID, run.Model)
+	})
 	if confFile != nil {
 		if value, ok := confFile.Get("agent.runner_base_url"); ok {
 			if baseURL, valid := value.(string); valid && strings.TrimSpace(baseURL) != "" {
@@ -172,9 +175,10 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 					agentRouter.Get("/settings", func(w http.ResponseWriter, r *http.Request) {
 						agentProxyHandler.GetSettings(w, r, confFile)
 					})
-					agentRouter.Put("/settings", func(w http.ResponseWriter, r *http.Request) {
+					agentRouter.With(httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)).Put("/settings", func(w http.ResponseWriter, r *http.Request) {
 						agentProxyHandler.UpdateSettings(w, r, confFile)
 					})
+					agentRouter.Get("/backgrounds/{name}", agentProxyHandler.ServeBackground)
 					agentRouter.Get("/health", agentProxyHandler.Forward)
 					agentRouter.Get("/version", agentProxyHandler.Forward)
 					agentRouter.Post("/upgrade", agentProxyHandler.Forward)

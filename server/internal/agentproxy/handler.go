@@ -1,14 +1,24 @@
 package agentproxy
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/go-chi/chi/v5"
 
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/httpx"
@@ -20,38 +30,86 @@ var (
 )
 
 type Handler struct {
-	mu      sync.RWMutex
-	baseURL string
-	token   string
-	client  *http.Client
-	logger  *slog.Logger
+	mu                    sync.RWMutex
+	baseURL               string
+	token                 string
+	client                *http.Client
+	logger                *slog.Logger
+	workdir               string
+	backgroundDirFallback string
 
 	onSettingsUpdated func()
+	onRunStarted      func(context.Context, RunRegistration) error
+}
+
+type RunRegistration struct {
+	AgentInstanceID string `json:"agent_instance_id"`
+	SessionID       string `json:"session_id"`
+	RunID           string `json:"run_id"`
+	Model           string `json:"model"`
 }
 
 type Settings struct {
-	RunnerBaseURL         string   `json:"runner_base_url"`
-	RunnerTokenConfigured bool     `json:"runner_token_configured"`
-	AllowedSiteIDs        []string `json:"allowed_site_ids"`
-	AllowedSiteModelIDs   []string `json:"allowed_site_model_ids"`
-	SitePolicy            string   `json:"site_policy"`
-	ModelPolicy           string   `json:"model_policy"`
+	RunnerBaseURL         string             `json:"runner_base_url"`
+	RunnerTokenConfigured bool               `json:"runner_token_configured"`
+	AllowedSiteIDs        []string           `json:"allowed_site_ids"`
+	AllowedSiteModelIDs   []string           `json:"allowed_site_model_ids"`
+	SitePolicy            string             `json:"site_policy"`
+	ModelPolicy           string             `json:"model_policy"`
+	Appearance            AppearanceSettings `json:"appearance"`
+}
+
+type AppearanceSettings struct {
+	BackgroundImage        string   `json:"background_image"`
+	CustomBackgroundImages []string `json:"custom_background_images"`
+	SideTransparency       int      `json:"side_transparency"`
+	SideBrightness         int      `json:"side_brightness"`
+	SideThickness          int      `json:"side_thickness"`
+	BackdropBlur           int      `json:"backdrop_blur"`
+	BackdropDim            int      `json:"backdrop_dim"`
+}
+
+const (
+	defaultBackgroundImage  = "/agent-backdrop.png"
+	defaultSideTransparency = 49
+	defaultSideBrightness   = 32
+	defaultSideThickness    = 28
+	defaultBackdropBlur     = 13
+	defaultBackdropDim      = 69
+	maxBackgroundImageBytes = 8 * 1024 * 1024
+)
+
+func defaultAppearanceSettings() AppearanceSettings {
+	return AppearanceSettings{
+		BackgroundImage:        defaultBackgroundImage,
+		CustomBackgroundImages: []string{},
+		SideTransparency:       defaultSideTransparency,
+		SideBrightness:         defaultSideBrightness,
+		SideThickness:          defaultSideThickness,
+		BackdropBlur:           defaultBackdropBlur,
+		BackdropDim:            defaultBackdropDim,
+	}
 }
 
 // settingsInput uses partial-update semantics: absent fields are left unchanged,
 // so runner connection and site/model scope can be saved independently.
 type settingsInput struct {
-	RunnerBaseURL       *string   `json:"runner_base_url"`
-	RunnerToken         *string   `json:"runner_token"`
-	ClearRunner         bool      `json:"clear_runner"`
-	AllowedSiteIDs      *[]string `json:"allowed_site_ids"`
-	AllowedSiteModelIDs *[]string `json:"allowed_site_model_ids"`
-	SitePolicy          *string   `json:"site_policy"`
-	ModelPolicy         *string   `json:"model_policy"`
+	RunnerBaseURL       *string             `json:"runner_base_url"`
+	RunnerToken         *string             `json:"runner_token"`
+	ClearRunner         bool                `json:"clear_runner"`
+	AllowedSiteIDs      *[]string           `json:"allowed_site_ids"`
+	AllowedSiteModelIDs *[]string           `json:"allowed_site_model_ids"`
+	SitePolicy          *string             `json:"site_policy"`
+	ModelPolicy         *string             `json:"model_policy"`
+	Appearance          *AppearanceSettings `json:"appearance"`
 }
 
-func NewHandler(baseURL, token string, client *http.Client, logger *slog.Logger) *Handler {
-	return &Handler{baseURL: normalizeBaseURL(baseURL), token: strings.TrimSpace(token), client: client, logger: logger}
+func NewHandler(baseURL, token string, client *http.Client, logger *slog.Logger, workdirs ...string) *Handler {
+	workdir := ""
+	if len(workdirs) > 0 {
+		workdir = strings.TrimSpace(workdirs[0])
+	}
+	return &Handler{baseURL: normalizeBaseURL(baseURL), token: strings.TrimSpace(token), client: client, logger: logger, workdir: workdir}
 }
 
 func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +130,7 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		path = "/"
 	}
+	registerRun := r.Method == http.MethodPost && isRunStartPath(path)
 	// Public xLyra paths that differ from the runner's internal paths are mapped here.
 	switch path {
 	case "/config":
@@ -109,6 +168,14 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 	}
 	defer response.Body.Close()
 	copyResponseHeaders(w.Header(), response.Header)
+	if registerRun && response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices && !strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
+		body, readErr := io.ReadAll(response.Body)
+		if readErr == nil {
+			_ = response.Body.Close()
+			h.notifyRunStarted(r.Context(), body)
+			response.Body = io.NopCloser(bytes.NewReader(body))
+		}
+	}
 	w.WriteHeader(response.StatusCode)
 	if strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
 		// SSE must flush per write; io.Copy's buffer batches small events and
@@ -117,6 +184,31 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = io.Copy(w, response.Body)
+}
+
+func isRunStartPath(path string) bool {
+	return path == "/sessions" || strings.HasSuffix(path, "/retry") || strings.HasSuffix(path, "/grant-access")
+}
+
+func (h *Handler) notifyRunStarted(ctx context.Context, body []byte) {
+	var payload struct {
+		Data RunRegistration `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return
+	}
+	if payload.Data.AgentInstanceID == "" || payload.Data.SessionID == "" || payload.Data.RunID == "" || payload.Data.Model == "" {
+		return
+	}
+	h.mu.RLock()
+	hook := h.onRunStarted
+	h.mu.RUnlock()
+	if hook == nil {
+		return
+	}
+	if err := hook(ctx, payload.Data); err != nil && h.logger != nil {
+		h.logger.Warn("failed to register Agent run", "session_id", payload.Data.SessionID, "run_id", payload.Data.RunID, "error", err)
+	}
 }
 
 // flushCopy streams src to w, flushing after every write so SSE events reach
@@ -141,7 +233,10 @@ func flushCopy(w io.Writer, src io.Reader) {
 }
 
 func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request, confFile *config.ConfigFile) {
-	settings := Settings{RunnerBaseURL: h.snapshotBaseURL(), RunnerTokenConfigured: h.snapshotToken() != "", AllowedSiteIDs: []string{}, AllowedSiteModelIDs: []string{}, SitePolicy: "allow_all", ModelPolicy: "allow_all"}
+	if confFile != nil {
+		h.backgroundDir(confFile)
+	}
+	settings := Settings{RunnerBaseURL: h.snapshotBaseURL(), RunnerTokenConfigured: h.snapshotToken() != "", AllowedSiteIDs: []string{}, AllowedSiteModelIDs: []string{}, SitePolicy: "allow_all", ModelPolicy: "allow_all", Appearance: defaultAppearanceSettings()}
 	if confFile != nil {
 		if value, ok := confFile.Get("agent.runner_base_url"); ok {
 			if baseURL, valid := value.(string); valid && strings.TrimSpace(baseURL) != "" {
@@ -165,6 +260,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request, confFile *
 				settings.ModelPolicy = policy
 			}
 		}
+		settings.Appearance = readAppearance(confFile)
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"data": settings})
 }
@@ -249,10 +345,261 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request, confFil
 		}
 		scopeUpdated = true
 	}
+	if input.Appearance != nil {
+		appearance, err := normalizeAppearance(*input.Appearance)
+		if err != nil {
+			httpx.Error(w, r, http.StatusBadRequest, "invalid_appearance", err.Error())
+			return
+		}
+		appearance, err = h.persistAppearanceImages(appearance, confFile)
+		if err != nil {
+			httpx.Error(w, r, http.StatusBadRequest, "invalid_appearance", err.Error())
+			return
+		}
+		if err := confFile.Set("agent.appearance", map[string]any{
+			"background_image":         appearance.BackgroundImage,
+			"custom_background_images": appearance.CustomBackgroundImages,
+			"side_transparency":        appearance.SideTransparency,
+			"side_brightness":          appearance.SideBrightness,
+			"side_thickness":           appearance.SideThickness,
+			"backdrop_blur":            appearance.BackdropBlur,
+			"backdrop_dim":             appearance.BackdropDim,
+		}); err != nil {
+			httpx.Error(w, r, http.StatusInternalServerError, "config_write_error", "failed to save Agent appearance settings")
+			return
+		}
+		_ = cleanupBackgroundFiles(h.backgroundDir(confFile), appearance)
+	}
 	if scopeUpdated {
 		h.notifySettingsUpdated()
 	}
 	h.GetSettings(w, r, confFile)
+}
+
+func readAppearance(confFile *config.ConfigFile) AppearanceSettings {
+	appearance := defaultAppearanceSettings()
+	value, ok := confFile.Get("agent.appearance")
+	if !ok {
+		return appearance
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return appearance
+	}
+	stored := defaultAppearanceSettings()
+	if err := json.Unmarshal(encoded, &stored); err != nil {
+		return appearance
+	}
+	if normalized, err := normalizeAppearance(stored); err == nil {
+		return normalized
+	}
+	return appearance
+}
+
+func normalizeAppearance(value AppearanceSettings) (AppearanceSettings, error) {
+	if strings.TrimSpace(value.BackgroundImage) == "" {
+		value.BackgroundImage = defaultBackgroundImage
+	}
+	if isDataURLTooLarge(value.BackgroundImage) || len(value.BackgroundImage) > maxBackgroundImageBytes && !strings.HasPrefix(value.BackgroundImage, "data:image/") {
+		return AppearanceSettings{}, errors.New("background image is too large")
+	}
+	if len(value.CustomBackgroundImages) > 20 {
+		return AppearanceSettings{}, errors.New("too many custom background images")
+	}
+	for _, image := range value.CustomBackgroundImages {
+		if isDataURLTooLarge(image) || len(image) > maxBackgroundImageBytes && !strings.HasPrefix(image, "data:image/") {
+			return AppearanceSettings{}, errors.New("custom background image is too large")
+		}
+		if image != "" && !strings.HasPrefix(image, "data:image/") && !isBackgroundPath(image) {
+			return AppearanceSettings{}, errors.New("custom background image must be a stored background path or image data URL")
+		}
+	}
+	if value.BackgroundImage != defaultBackgroundImage && !strings.HasPrefix(value.BackgroundImage, "data:image/") && !isBackgroundPath(value.BackgroundImage) {
+		return AppearanceSettings{}, errors.New("background image must be the default image or a stored background path")
+	}
+	for _, item := range []struct {
+		name  string
+		value int
+	}{
+		{"side_transparency", value.SideTransparency},
+		{"side_brightness", value.SideBrightness},
+		{"side_thickness", value.SideThickness},
+		{"backdrop_blur", value.BackdropBlur},
+		{"backdrop_dim", value.BackdropDim},
+	} {
+		if item.value < 0 || item.value > 100 {
+			return AppearanceSettings{}, errors.New(item.name + " must be between 0 and 100")
+		}
+	}
+	return value, nil
+}
+
+func isDataURLTooLarge(value string) bool {
+	if !strings.HasPrefix(value, "data:image/") {
+		return false
+	}
+	_, encoded, ok := strings.Cut(value, ",")
+	if !ok {
+		return false
+	}
+	padding := 0
+	if strings.HasSuffix(encoded, "=") {
+		padding++
+		if strings.HasSuffix(encoded, "==") {
+			padding++
+		}
+	}
+	return len(encoded)/4*3-padding > maxBackgroundImageBytes
+}
+
+const backgroundURLPrefix = "/api/v1/agent/backgrounds/"
+
+func isBackgroundPath(value string) bool {
+	name := strings.TrimPrefix(value, backgroundURLPrefix)
+	return strings.HasPrefix(value, backgroundURLPrefix) && name != "" && filepath.Base(name) == name && strings.HasPrefix(name, "agent-bg-")
+}
+
+func (h *Handler) backgroundDir(confFile *config.ConfigFile) string {
+	if h.workdir != "" {
+		return filepath.Join(h.workdir, "assets", "agent-backgrounds")
+	}
+	if confFile != nil {
+		dir := filepath.Join(filepath.Dir(filepath.Dir(confFile.Path())), "assets", "agent-backgrounds")
+		h.mu.Lock()
+		h.backgroundDirFallback = dir
+		h.mu.Unlock()
+		return dir
+	}
+	h.mu.RLock()
+	dir := h.backgroundDirFallback
+	h.mu.RUnlock()
+	return dir
+}
+
+func decodeBackgroundDataURL(value string) ([]byte, string, error) {
+	header, encoded, ok := strings.Cut(value, ",")
+	if !ok || !strings.HasPrefix(header, "data:image/") || !strings.Contains(header, ";base64") {
+		return nil, "", errors.New("custom background image must be a base64 image data URL")
+	}
+	mimeType := strings.TrimPrefix(strings.SplitN(header, ";", 2)[0], "data:")
+	extension := map[string]string{
+		"image/jpeg": ".jpg",
+		"image/png":  ".png",
+		"image/webp": ".webp",
+		"image/gif":  ".gif",
+		"image/avif": ".avif",
+	}[mimeType]
+	if extension == "" {
+		return nil, "", errors.New("unsupported custom background image type")
+	}
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(data) == 0 {
+		return nil, "", errors.New("custom background image data is invalid")
+	}
+	if len(data) > maxBackgroundImageBytes {
+		return nil, "", errors.New("custom background image is too large")
+	}
+	return data, extension, nil
+}
+
+func (h *Handler) persistAppearanceImages(value AppearanceSettings, confFile *config.ConfigFile) (AppearanceSettings, error) {
+	dir := h.backgroundDir(confFile)
+	if dir == "" {
+		return AppearanceSettings{}, errors.New("background image storage is unavailable")
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return AppearanceSettings{}, errors.New("failed to create background image storage")
+	}
+	if strings.HasPrefix(value.BackgroundImage, "data:image/") {
+		found := false
+		for _, image := range value.CustomBackgroundImages {
+			if image == value.BackgroundImage {
+				found = true
+				break
+			}
+		}
+		if !found {
+			if len(value.CustomBackgroundImages) >= 20 {
+				return AppearanceSettings{}, errors.New("too many custom background images")
+			}
+			value.CustomBackgroundImages = append(value.CustomBackgroundImages, value.BackgroundImage)
+		}
+	}
+	stored := make(map[string]string, len(value.CustomBackgroundImages))
+	for _, image := range value.CustomBackgroundImages {
+		if !strings.HasPrefix(image, "data:image/") {
+			continue
+		}
+		data, extension, err := decodeBackgroundDataURL(image)
+		if err != nil {
+			return AppearanceSettings{}, err
+		}
+		digest := sha256.Sum256(data)
+		name := "agent-bg-" + hex.EncodeToString(digest[:8]) + extension
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			return AppearanceSettings{}, errors.New("failed to save background image")
+		}
+		stored[image] = backgroundURLPrefix + name
+	}
+	for index, image := range value.CustomBackgroundImages {
+		if replacement, ok := stored[image]; ok {
+			value.CustomBackgroundImages[index] = replacement
+		}
+	}
+	if replacement, ok := stored[value.BackgroundImage]; ok {
+		value.BackgroundImage = replacement
+	}
+	return value, nil
+}
+
+func cleanupBackgroundFiles(dir string, appearance AppearanceSettings) error {
+	if dir == "" {
+		return nil
+	}
+	keep := make(map[string]struct{}, len(appearance.CustomBackgroundImages)+1)
+	for _, image := range appearance.CustomBackgroundImages {
+		if isBackgroundPath(image) {
+			keep[filepath.Base(strings.TrimPrefix(image, backgroundURLPrefix))] = struct{}{}
+		}
+	}
+	if isBackgroundPath(appearance.BackgroundImage) {
+		keep[filepath.Base(strings.TrimPrefix(appearance.BackgroundImage, backgroundURLPrefix))] = struct{}{}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "agent-bg-") {
+			continue
+		}
+		if _, ok := keep[entry.Name()]; ok {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *Handler) ServeBackground(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if filepath.Base(name) != name || !strings.HasPrefix(name, "agent-bg-") {
+		http.NotFound(w, r)
+		return
+	}
+	dir := h.backgroundDir(nil)
+	if dir == "" {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(dir, name)
+	http.ServeFile(w, r, path)
 }
 
 // SetOnSettingsUpdated registers a hook invoked after settings persist, so the
@@ -260,6 +607,12 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request, confFil
 func (h *Handler) SetOnSettingsUpdated(fn func()) {
 	h.mu.Lock()
 	h.onSettingsUpdated = fn
+	h.mu.Unlock()
+}
+
+func (h *Handler) SetOnRunStarted(fn func(context.Context, RunRegistration) error) {
+	h.mu.Lock()
+	h.onRunStarted = fn
 	h.mu.Unlock()
 }
 
