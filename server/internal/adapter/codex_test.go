@@ -196,91 +196,15 @@ func TestCodexStaticModelItemsAlignOfficialCatalog(t *testing.T) {
 	}
 }
 
-func TestCodexPricingSnapshotHasOfficialTokenPrices(t *testing.T) {
-	snapshot := codexPricingSnapshot("plus")
-	if len(snapshot.Items) == 0 {
-		t.Fatal("expected pricing items")
-	}
+func TestCodexDoesNotImplementPricingCapabilities(t *testing.T) {
+	t.Parallel()
 
-	gpt54 := codexPricingByModel(snapshot.Items, "gpt-5.4")
-	if gpt54 == nil {
-		t.Fatal("missing gpt-5.4 pricing")
+	var module Module = NewCodex()
+	if _, ok := module.(PricingFetcher); ok {
+		t.Fatal("codex adapter should not implement PricingFetcher; pricing comes from the canonical catalog")
 	}
-	if !gpt54.HasInputValue || gpt54.InputValue != 2.50 {
-		t.Fatalf("unexpected gpt-5.4 input pricing: %#v", gpt54)
-	}
-	if !gpt54.HasOutputValue || gpt54.OutputValue != 15.00 {
-		t.Fatalf("unexpected gpt-5.4 output pricing: %#v", gpt54)
-	}
-	if !gpt54.HasCacheRatio || gpt54.CacheRatio != 0.1 {
-		t.Fatalf("unexpected gpt-5.4 cache ratio: %#v", gpt54)
-	}
-
-	gpt55 := codexPricingByModel(snapshot.Items, "gpt-5.5")
-	if gpt55 == nil {
-		t.Fatal("missing gpt-5.5 pricing")
-	}
-	if !gpt55.HasInputValue || gpt55.InputValue != 5.00 {
-		t.Fatalf("unexpected gpt-5.5 input pricing: %#v", gpt55)
-	}
-	if !gpt55.HasOutputValue || gpt55.OutputValue != 30.00 {
-		t.Fatalf("unexpected gpt-5.5 output pricing: %#v", gpt55)
-	}
-	if !gpt55.HasCacheRatio || gpt55.CacheRatio != 0.1 {
-		t.Fatalf("unexpected gpt-5.5 cache ratio: %#v", gpt55)
-	}
-	freeSnapshot := codexPricingSnapshot("free")
-	if codexPricingByModel(freeSnapshot.Items, "gpt-5.5") == nil {
-		t.Fatalf("pricing is plan-agnostic and should include gpt-5.5 for free plans too: %#v", freeSnapshot.Items)
-	}
-
-	sol := codexPricingByModel(snapshot.Items, "gpt-5.6-sol")
-	if sol == nil {
-		t.Fatal("missing gpt-5.6-sol pricing")
-	}
-	if !sol.HasInputValue || sol.InputValue != 5.00 || !sol.HasOutputValue || sol.OutputValue != 30.00 {
-		t.Fatalf("unexpected gpt-5.6-sol pricing: %#v", sol)
-	}
-	if !sol.HasCacheRatio || sol.CacheRatio != 0.1 || !sol.HasCreateCacheRatio || sol.CreateCacheRatio != 1.25 {
-		t.Fatalf("unexpected gpt-5.6-sol cache ratios: %#v", sol)
-	}
-
-	terra := codexPricingByModel(snapshot.Items, "gpt-5.6-terra")
-	if terra == nil || !terra.HasInputValue || terra.InputValue != 2.50 || terra.OutputValue != 15.00 {
-		t.Fatalf("unexpected gpt-5.6-terra pricing: %#v", terra)
-	}
-
-	luna := codexPricingByModel(snapshot.Items, "gpt-5.6-luna")
-	if luna == nil || !luna.HasInputValue || luna.InputValue != 1.00 || luna.OutputValue != 6.00 {
-		t.Fatalf("unexpected gpt-5.6-luna pricing: %#v", luna)
-	}
-
-	spark := codexPricingByModel(snapshot.Items, "gpt-5.3-codex-spark")
-	if spark == nil {
-		t.Fatal("missing spark protocol metadata")
-	}
-	if spark.HasInputValue || spark.HasOutputValue {
-		t.Fatalf("spark should not have fixed prices: %#v", spark)
-	}
-
-	image := codexPricingByModel(snapshot.Items, "gpt-image-2")
-	if image == nil {
-		t.Fatal("missing gpt-image-2 pricing")
-	}
-	if image.DisplayName != "GPT Image 2" {
-		t.Fatalf("unexpected gpt-image-2 display name: %#v", image.DisplayName)
-	}
-	if !image.HasInputValue || image.InputValue != 5.00 {
-		t.Fatalf("unexpected gpt-image-2 text input pricing: %#v", image)
-	}
-	if !image.HasOutputValue || image.OutputValue != 30.00 {
-		t.Fatalf("unexpected gpt-image-2 image output pricing: %#v", image)
-	}
-	if !image.HasCacheRatio || image.CacheRatio != 0.25 {
-		t.Fatalf("unexpected gpt-image-2 cache ratio: %#v", image)
-	}
-	if !image.HasImageRatio || image.ImageRatio != 1.6 {
-		t.Fatalf("unexpected gpt-image-2 image ratio: %#v", image)
+	if _, ok := module.(PricingParser); ok {
+		t.Fatal("codex adapter should not implement PricingParser; pricing comes from the canonical catalog")
 	}
 }
 
@@ -936,15 +860,6 @@ func codexStaticModelByID(items []map[string]any, id string) map[string]any {
 	for _, item := range items {
 		if item["slug"] == id || item["id"] == id {
 			return item
-		}
-	}
-	return nil
-}
-
-func codexPricingByModel(items []ModelPricing, modelName string) *ModelPricing {
-	for index := range items {
-		if items[index].ModelName == modelName {
-			return &items[index]
 		}
 	}
 	return nil

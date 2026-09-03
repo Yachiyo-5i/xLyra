@@ -170,6 +170,107 @@ func TestCanonicalModelSyncPricingUpsertPreservesModelMetadata(t *testing.T) {
 	}
 }
 
+func TestCanonicalModelSyncPricingUpsertKeepsPricedModelsDevRow(t *testing.T) {
+	t.Parallel()
+
+	db := storeRepositoryOfflineGorm(t)
+	modelID := uuid.New()
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		dest, ok := tx.Statement.Dest.(*[]CanonicalModel)
+		if !ok {
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		*dest = []CanonicalModel{{
+			ID:            modelID,
+			ModelKey:      "gpt-5.6-sol",
+			Provider:      "openai",
+			Category:      "chat",
+			Status:        "active",
+			PricingSource: "models_dev",
+			InputPrice:    sql.NullFloat64{Float64: 4, Valid: true},
+			OutputPrice:   sql.NullFloat64{Float64: 20, Valid: true},
+		}}
+		tx.Statement.RowsAffected = 1
+	})
+	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		t.Error("priced models_dev row must not be overwritten by the litellm overlay")
+	})
+
+	updated, err := NewCanonicalModelRepository(db).SyncPricingUpsert(context.Background(), SyncCanonicalModelPricingParams{
+		ModelKey:      "gpt-5.6-sol",
+		Provider:      "openai",
+		Category:      "chat",
+		Status:        "active",
+		InputPrice:    sql.NullFloat64{Float64: 5, Valid: true},
+		OutputPrice:   sql.NullFloat64{Float64: 30, Valid: true},
+		PricingSource: "litellm_repo",
+	})
+	if err != nil {
+		t.Fatalf("SyncPricingUpsert returned error: %v", err)
+	}
+	if updated.ID != modelID || updated.InputPrice.Float64 != 4 || updated.OutputPrice.Float64 != 20 {
+		t.Fatalf("updated = %#v, want priced models_dev row kept as-is", updated)
+	}
+	if updated.PricingSource != "models_dev" {
+		t.Fatalf("updated pricing source = %q, want models_dev kept", updated.PricingSource)
+	}
+}
+
+func TestCanonicalModelSyncPricingUpsertRefreshesLitellmOwnedRow(t *testing.T) {
+	t.Parallel()
+
+	db := storeRepositoryOfflineGorm(t)
+	modelID := uuid.New()
+	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		dest, ok := tx.Statement.Dest.(*[]CanonicalModel)
+		if !ok {
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		*dest = []CanonicalModel{{
+			ID:            modelID,
+			ModelKey:      "gpt-5.6-cyber",
+			Provider:      "openai",
+			Category:      "chat",
+			Status:        "active",
+			PricingSource: "litellm_repo",
+			InputPrice:    sql.NullFloat64{Float64: 1, Valid: true},
+			OutputPrice:   sql.NullFloat64{Float64: 8, Valid: true},
+		}}
+		tx.Statement.RowsAffected = 1
+	})
+	var saved CanonicalModel
+	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*CanonicalModel)
+		if !ok {
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		saved = *item
+		tx.RowsAffected = 1
+	})
+
+	updated, err := NewCanonicalModelRepository(db).SyncPricingUpsert(context.Background(), SyncCanonicalModelPricingParams{
+		ModelKey:      "gpt-5.6-cyber",
+		Provider:      "openai",
+		Category:      "chat",
+		Status:        "active",
+		InputPrice:    sql.NullFloat64{Float64: 1.5, Valid: true},
+		OutputPrice:   sql.NullFloat64{Float64: 10, Valid: true},
+		PricingSource: "litellm_repo",
+	})
+	if err != nil {
+		t.Fatalf("SyncPricingUpsert returned error: %v", err)
+	}
+	if saved.ID != modelID || updated.InputPrice.Float64 != 1.5 || updated.OutputPrice.Float64 != 10 {
+		t.Fatalf("updated=%#v saved=%#v, want litellm-owned row refreshed", updated, saved)
+	}
+	if updated.PricingSource != "litellm_repo" {
+		t.Fatalf("updated pricing source = %q, want litellm_repo", updated.PricingSource)
+	}
+}
+
 func TestCanonicalModelUpdatePricingSetsManualAndReset(t *testing.T) {
 	t.Parallel()
 

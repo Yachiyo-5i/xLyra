@@ -197,6 +197,9 @@ func (r SiteModelPricingRepository) MarkUnavailableExcept(ctx context.Context, s
 		if item.ManualOverride {
 			continue
 		}
+		if !item.Available {
+			continue
+		}
 		key := item.ModelName + string(rune(31)) + item.GroupName
 		if _, ok := seen[key]; ok {
 			continue

@@ -54,7 +54,6 @@ func (a Codex) Capabilities() []Capability {
 		CapabilitySummarizeAPIKey,
 		CapabilityFetchUserSummary,
 		CapabilityFetchBalance,
-		CapabilityFetchPricing,
 		CapabilityFetchMetadata,
 	}
 }
@@ -165,7 +164,6 @@ func (a Codex) FetchUserSummary(ctx context.Context, site SiteConfig, auth Syste
 		UserModels: map[string]any{
 			"data": modelItems,
 		},
-		Pricing: codexPricingPayload(planType),
 	}, nil
 }
 

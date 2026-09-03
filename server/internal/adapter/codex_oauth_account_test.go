@@ -232,9 +232,8 @@ func TestCodexFetchUserSummaryIncludesQuotaModelsAndPricingMetadata(t *testing.T
 	if !ok || len(modelItems) != 1 || modelItems[0]["id"] != "gpt-summary" {
 		t.Fatalf("summary model data = %#v, want raw remote model", userModels["data"])
 	}
-	pricing, ok := summary.Pricing.(map[string]any)
-	if !ok || pricing["plan_type"] != "plus" {
-		t.Fatalf("summary pricing = %#v, want plus pricing payload", summary.Pricing)
+	if summary.Pricing != nil {
+		t.Fatalf("summary pricing = %#v, want nil pricing for codex", summary.Pricing)
 	}
 }
 
@@ -343,43 +342,6 @@ func TestCodexFetchBalanceAndMetadataSnapshots(t *testing.T) {
 	}
 	if !sameStringSlice(requestedPaths, wantPaths) {
 		t.Fatalf("requested paths = %#v, want %#v", requestedPaths, wantPaths)
-	}
-}
-
-func TestCodexFetchPricingAndParsePricingArePlanAgnostic(t *testing.T) {
-	pricing, err := NewCodex().FetchPricing(context.Background(), SiteConfig{}, SystemAuth{
-		Metadata: map[string]any{
-			"plan_type": "free",
-		},
-	})
-	if err != nil {
-		t.Fatalf("FetchPricing returned error: %v", err)
-	}
-	if codexPricingByModel(pricing.Items, "gpt-image-2") == nil {
-		t.Fatalf("free pricing missing image model: %#v", pricing.Items)
-	}
-	if codexPricingByModel(pricing.Items, "gpt-5.5") == nil {
-		t.Fatalf("pricing is plan-agnostic and should include gpt-5.5: %#v", pricing.Items)
-	}
-	if codexPricingByModel(pricing.Items, "gpt-5.6-sol") == nil {
-		t.Fatalf("pricing missing gpt-5.6-sol: %#v", pricing.Items)
-	}
-
-	parsed := NewCodex().ParsePricing(map[string]any{"plan_type": "team"})
-	if codexPricingByModel(parsed.Items, "gpt-5.3-codex-spark") == nil {
-		t.Fatalf("parsed pricing missing spark: %#v", parsed.Items)
-	}
-	if codexPricingByModel(parsed.Items, "gpt-5.5") == nil {
-		t.Fatalf("parsed pricing missing gpt-5.5: %#v", parsed.Items)
-	}
-	raw, ok := parsed.Raw.(map[string]any)
-	if !ok || raw["plan_type"] != "team" {
-		t.Fatalf("parsed raw = %#v, want team payload", parsed.Raw)
-	}
-
-	defaultParsed := NewCodex().ParsePricing("not a map")
-	if codexPricingByModel(defaultParsed.Items, "gpt-5.5") == nil {
-		t.Fatalf("default parsed pricing missing gpt-5.5: %#v", defaultParsed.Items)
 	}
 }
 

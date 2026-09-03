@@ -16,6 +16,7 @@ import (
 )
 
 const CanonicalPricingSourceManual = "manual"
+const CanonicalPricingSourceModelsDev = "models_dev"
 
 type CanonicalModel struct {
 	ID                     uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
@@ -336,17 +337,23 @@ func (r CanonicalModelRepository) SyncPricingUpsert(ctx context.Context, params 
 		return CanonicalModel{}, err
 	}
 
-	if existing.PricingSource != CanonicalPricingSourceManual {
-		existing.InputPrice = params.InputPrice
-		existing.OutputPrice = params.OutputPrice
-		existing.CacheReadRatio = params.CacheReadRatio
-		existing.CacheWriteRatio = params.CacheWriteRatio
-		existing.CacheWrite1hRatio = params.CacheWrite1hRatio
-		existing.AudioRatio = params.AudioRatio
-		existing.AudioCompletionRatio = params.AudioCompletionRatio
-		existing.PricingSource = stringDefault(params.PricingSource, "none")
-		existing.LastPricingSyncedAt = params.LastPricingSyncedAt
+	// The LiteLLM overlay runs after the models.dev sync in the same cycle and
+	// must not override it: models.dev tracks the vendor pricing page's current
+	// numbers. LiteLLM only creates rows, fills rows that have no price yet, and
+	// refreshes rows it owns; a priced models.dev row wins as-is.
+	modelsDevOwned := existing.PricingSource == CanonicalPricingSourceModelsDev && existing.InputPrice.Valid
+	if existing.PricingSource == CanonicalPricingSourceManual || modelsDevOwned {
+		return existing, nil
 	}
+	existing.InputPrice = params.InputPrice
+	existing.OutputPrice = params.OutputPrice
+	existing.CacheReadRatio = params.CacheReadRatio
+	existing.CacheWriteRatio = params.CacheWriteRatio
+	existing.CacheWrite1hRatio = params.CacheWrite1hRatio
+	existing.AudioRatio = params.AudioRatio
+	existing.AudioCompletionRatio = params.AudioCompletionRatio
+	existing.PricingSource = stringDefault(params.PricingSource, "none")
+	existing.LastPricingSyncedAt = params.LastPricingSyncedAt
 
 	if err := r.db.WithContext(ctx).Save(&existing).Error; err != nil {
 		return CanonicalModel{}, fmt.Errorf("sync pricing upsert canonical model: %w", err)
