@@ -512,6 +512,7 @@
       "stateUnhealthy": "异常",
       "stateUnreachable": "不可达",
       "stateUnknown": "未知",
+      "refresh": "刷新状态",
       "agentSelfManaged": "自管理",
       "allModels": "全部模型",
       "allSites": "全部站点",

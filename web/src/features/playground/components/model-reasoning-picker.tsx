@@ -17,6 +17,7 @@ type ModelReasoningPickerProps = {
   panelClassName?: string
   subPanelClassName?: string
   panelRenderer?: (children: React.ReactNode, kind: 'panel' | 'subpanel') => React.ReactNode
+  modelIconTransparent?: boolean
 }
 
 export function ModelReasoningPicker({
@@ -33,6 +34,7 @@ export function ModelReasoningPicker({
   panelClassName,
   subPanelClassName,
   panelRenderer,
+  modelIconTransparent,
 }: ModelReasoningPickerProps) {
   const { t } = useTranslation('playground')
   const selectedModel = models.find((item) => item.id === model)
@@ -56,6 +58,7 @@ export function ModelReasoningPicker({
       panelClassName={panelClassName}
       subPanelClassName={subPanelClassName}
       panelRenderer={panelRenderer}
+      modelIconTransparent={modelIconTransparent}
     />
   )
 }

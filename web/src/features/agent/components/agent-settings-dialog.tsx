@@ -336,6 +336,7 @@ function AppearancePane({ draft, onChange }: { draft: AgentAppearanceSettings; o
   const fileInputRef = useRef<HTMLInputElement>(null)
   const customImages = draft.custom_background_images
   const selectedImage = draft.background_image || defaultAgentAppearance.background_image
+  const selectedIsCustom = customImages.includes(selectedImage)
 
   function selectBackground(value: string) {
     onChange({ ...draft, background_image: value })
@@ -374,15 +375,17 @@ function AppearancePane({ draft, onChange }: { draft: AgentAppearanceSettings; o
         </div>
         <div className="appearance-background-preview group relative overflow-hidden rounded-xl border border-[hsl(var(--glass-border))]">
           <img src={selectedImage} alt="" className="aspect-[16/9] w-full object-cover object-center" />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/55">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="appearance-background-change rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground opacity-0 shadow-lg transition-[opacity,filter] hover:brightness-105 group-hover:opacity-100"
-            >
-              {t('settings.appearance.changeBackground')}
-            </button>
-          </div>
+          {selectedIsCustom ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/55">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="appearance-background-change rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground opacity-0 shadow-lg transition-[opacity,filter] hover:brightness-105 group-hover:opacity-100"
+              >
+                {t('settings.appearance.changeBackground')}
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="appearance-background-list grid grid-cols-2 items-stretch gap-3 sm:grid-cols-3">
           {[

@@ -308,18 +308,24 @@ export function AgentWorkspace() {
   const gatewayModels = useMemo<GatewayModel[]>(() => {
     const data = availableModelsQuery.data
     if (!data) return []
-    return data.availableSites
-      .filter((site) => site.enabled)
-      .filter((site) => !data.allowedSites.length || data.allowedSites.includes(site.site_id))
-      .flatMap((site) => site.models
-        .filter((item) => !data.allowedModels.length || data.allowedModels.includes(item.id))
-        .filter((item) => !NON_CHAT_CATEGORIES.has(item.category ?? ''))
-        .map((item) => ({
-          id: item.model_key || item.upstream_model_name,
-          displayName: item.display_name || item.model_key || item.upstream_model_name,
-          category: item.category ?? 'chat',
-          endpointTypes: [],
-        })))
+    const models = new Map<string, GatewayModel>()
+    for (const site of data.availableSites) {
+      if (!site.enabled || (data.allowedSites.length > 0 && !data.allowedSites.includes(site.site_id))) continue
+      for (const item of site.models) {
+        if ((data.allowedModels.length > 0 && !data.allowedModels.includes(item.id)) || NON_CHAT_CATEGORIES.has(item.category ?? '')) continue
+        const id = (item.model_key || item.upstream_model_name).trim()
+        if (!id) continue
+        if (!models.has(id)) {
+          models.set(id, {
+            id,
+            displayName: item.display_name || id,
+            category: item.category ?? 'chat',
+            endpointTypes: [],
+          })
+        }
+      }
+    }
+    return [...models.values()].sort((left, right) => left.id.localeCompare(right.id, undefined, { sensitivity: 'base' }))
   }, [availableModelsQuery.data])
 
   const effectiveModel = useMemo(() => {
@@ -732,6 +738,7 @@ export function AgentWorkspace() {
           panelClassName="agent-liquid-picker-host"
           subPanelClassName="agent-liquid-picker-subpanel"
           panelRenderer={renderPickerSurface}
+          modelIconTransparent
         />
       }
     />

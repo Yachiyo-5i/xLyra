@@ -33,6 +33,7 @@ type ModelParameterPickerProps<T extends string> = {
   panelClassName?: string
   subPanelClassName?: string
   panelRenderer?: (children: React.ReactNode, kind: 'panel' | 'subpanel') => React.ReactNode
+  modelIconTransparent?: boolean
 }
 
 function SubPanel<T extends string>({
@@ -161,6 +162,7 @@ export function ModelParameterPicker<T extends string>({
   panelClassName,
   subPanelClassName,
   panelRenderer,
+  modelIconTransparent,
 }: ModelParameterPickerProps<T>) {
   const { t } = useTranslation('playground')
   const isMobile = useMobileLayout()
@@ -203,7 +205,7 @@ export function ModelParameterPicker<T extends string>({
       ) : null}
       <PickerRow label={t('picker.model')} value={modelLabel} overlap={isMobile}>
         <SubPanel
-          items={models.map((item) => ({ value: item.id, label: item.id, icon: <PlaygroundModelIcon modelId={item.id} displayName={item.displayName} ownedBy={item.ownedBy} /> }))}
+          items={models.map((item) => ({ value: item.id, label: item.id, icon: <PlaygroundModelIcon modelId={item.id} displayName={item.displayName} ownedBy={item.ownedBy} transparent={modelIconTransparent} /> }))}
           selected={model}
           onSelect={selectModel}
           emptyLabel={t('picker.noModels')}
@@ -241,6 +243,7 @@ export function ModelParameterPicker<T extends string>({
               modelId={selectedModel.id}
               displayName={selectedModel.displayName}
               ownedBy={selectedModel.ownedBy}
+              transparent={modelIconTransparent}
             />
           ) : null}
           <span className="shrink-0 whitespace-nowrap text-foreground">{modelLabel}</span>

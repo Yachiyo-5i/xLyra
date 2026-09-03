@@ -512,6 +512,7 @@
       "stateUnhealthy": "異常",
       "stateUnreachable": "到達不能",
       "stateUnknown": "不明",
+      "refresh": "状態を更新",
       "agentSelfManaged": "自己管理",
       "allModels": "すべてのモデル",
       "allSites": "すべてのサイト",

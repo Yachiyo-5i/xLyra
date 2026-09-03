@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpCircle, Bot, LoaderCircle, Save, Search, ServerCog, Settings2 } from 'lucide-react'
+import { ArrowUpCircle, Bot, LoaderCircle, RefreshCw, Save, Search, ServerCog, Settings2 } from 'lucide-react'
 import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph, siteTypeIconPath } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
@@ -105,6 +105,7 @@ export function AgentSettingsPage() {
   const [viewSearch, setViewSearch] = useState('')
   const [upgradeDialog, setUpgradeDialog] = useState<{ force: boolean } | null>(null)
   const [clearRunnerOpen, setClearRunnerOpen] = useState(false)
+  const [refreshingStatus, setRefreshingStatus] = useState(false)
 
   const versionInfo = versionQuery.data ?? null
   const upgradeState = versionInfo?.upgrade ?? null
@@ -118,6 +119,16 @@ export function AgentSettingsPage() {
       if (fresh) queryClient.setQueryData([...agentSettingsKey, 'version'], fresh)
     })
   }, [queryClient])
+
+  async function refreshStatus() {
+    setRefreshingStatus(true)
+    try {
+      const [fresh] = await Promise.all([fetchAgentVersion(true), health.refetch()])
+      if (fresh) queryClient.setQueryData([...agentSettingsKey, 'version'], fresh)
+    } finally {
+      setRefreshingStatus(false)
+    }
+  }
 
   // Toast once when the upgrade state machine leaves in-progress: null means success, failed means failure.
   const upgradeTargetRef = useRef<string | null>(null)
@@ -267,7 +278,15 @@ export function AgentSettingsPage() {
         eyebrow={t('settings:agent.eyebrow')}
         title={t('settings:agent.title')}
         description={t('settings:agent.description')}
-        actions={<HeaderStatusLights health={health.data ?? null} />}
+        actions={(
+          <>
+            <HeaderStatusLights health={health.data ?? null} />
+            <Button variant="outline" size="sm" onClick={() => void refreshStatus()} disabled={refreshingStatus}>
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshingStatus ? 'animate-spin' : ''}`} />
+              {t('settings:agent.status.refresh')}
+            </Button>
+          </>
+        )}
       />
 
       <div className="grid gap-4 md:grid-cols-2">

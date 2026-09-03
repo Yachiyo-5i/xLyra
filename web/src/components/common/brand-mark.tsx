@@ -8,6 +8,7 @@ export function BrandMark({
   fallback,
   fallbackText,
   highlightedFallback,
+  transparent,
   size = 'md',
 }: {
   iconPath?: string
@@ -15,6 +16,7 @@ export function BrandMark({
   fallback: string
   fallbackText?: string
   highlightedFallback?: boolean
+  transparent?: boolean
   size?: 'xs' | 'sm' | 'md'
 }) {
   const resolvedMode = useResolvedTheme()
@@ -27,9 +29,11 @@ export function BrandMark({
     <span
       className={cn(
         'flex shrink-0 items-center justify-center',
-        highlightedFallback
-          ? '[background-color:hsl(var(--primary)/0.18)] text-primary'
-          : 'bg-[hsl(var(--surface-subtle))]',
+        transparent
+          ? 'bg-transparent'
+          : highlightedFallback
+            ? '[background-color:hsl(var(--primary)/0.18)] text-primary'
+            : 'bg-[hsl(var(--surface-subtle))]',
         boxClassName,
       )}
     >

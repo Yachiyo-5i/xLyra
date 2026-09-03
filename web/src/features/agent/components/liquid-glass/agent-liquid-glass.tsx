@@ -53,7 +53,7 @@ export function AgentLiquidGlassPanel({ backgroundImage, className = '', content
 
   useEffect(() => { if (!flat) apply() }, [apply, mergedSettings, flat])
 
-  const profile = backgroundImage.includes('plain') ? 'dark' : 'bright'
+  const profile = variant === 'dark' || backgroundImage.includes('plain') ? 'dark' : 'bright'
 
   return (
     <div ref={rootRef} className={`agent-liquid-surface agent-liquid-surface--${profile} ${flat ? 'agent-liquid-surface--flat' : ''} ${className}`} style={{ borderRadius: mergedSettings.radius }}>

@@ -5,6 +5,7 @@ type PlaygroundModelIconProps = {
   modelId: string
   displayName?: string
   ownedBy?: string
+  transparent?: boolean
   size?: 'xs' | 'sm'
 }
 
@@ -12,6 +13,7 @@ export function PlaygroundModelIcon({
   modelId,
   displayName,
   ownedBy,
+  transparent,
   size = 'xs',
 }: PlaygroundModelIconProps) {
   const icon = modelNameIconInfo([modelId, displayName, ownedBy], modelId)
@@ -22,6 +24,7 @@ export function PlaygroundModelIcon({
       label={icon.label}
       fallback={icon.fallback}
       fallbackText={icon.fallbackText}
+      transparent={transparent}
       size={size}
     />
   )

@@ -512,6 +512,7 @@
       "stateUnhealthy": "Unhealthy",
       "stateUnreachable": "Unreachable",
       "stateUnknown": "Unknown",
+      "refresh": "Refresh status",
       "agentSelfManaged": "Self-managed",
       "allModels": "All models",
       "allSites": "All sites",
