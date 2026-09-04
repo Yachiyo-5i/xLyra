@@ -63,15 +63,17 @@ func TestNewPreservesCustomOptions(t *testing.T) {
 	}
 }
 
-func TestRegisterDefaultJobsWithUnavailableServicesDoesNotRegisterJobs(t *testing.T) {
+func TestRegisterDefaultJobsRegistersCodexVersionRefreshWithoutServices(t *testing.T) {
 	t.Parallel()
 
 	scheduler := New(slog.Default(), Options{}, nil, nil, nil)
 
 	scheduler.RegisterDefaultJobs()
 
-	if entries := scheduler.cron.Entries(); len(entries) != 0 {
-		t.Fatalf("expected no registered jobs without services, got %d", len(entries))
+	// The codex version refresh is the only job that does not depend on a
+	// service, so it is always registered even when all other services are nil.
+	if entries := scheduler.cron.Entries(); len(entries) != 1 {
+		t.Fatalf("expected only the codex version refresh job, got %d", len(entries))
 	}
 }
 
@@ -88,8 +90,8 @@ func TestRegisterDefaultJobsWithCoreServicesRegistersBaseAndConfiguredJobs(t *te
 
 	scheduler.RegisterDefaultJobs()
 
-	if entries := scheduler.cron.Entries(); len(entries) != 5 {
-		t.Fatalf("expected site health, models.dev sync, usage summary, site refresh, and newapi checkin jobs, got %d", len(entries))
+	if entries := scheduler.cron.Entries(); len(entries) != 6 {
+		t.Fatalf("expected site health, models.dev sync, usage summary, site refresh, newapi checkin, and codex version refresh jobs, got %d", len(entries))
 	}
 	if scheduler.siteRefreshID == 0 {
 		t.Fatal("expected configured site refresh job id")

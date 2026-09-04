@@ -20,7 +20,9 @@ import (
 	"xlyra/server/internal/upstream"
 )
 
-const codexGatewayUserAgent = adapter.CodexUserAgent
+// codexGatewayUserAgent is resolved at package init so it carries the runtime
+// Codex client version rather than a build-time constant.
+var codexGatewayUserAgent = adapter.CodexUserAgent()
 
 func isCodexSite(siteType string) bool {
 	return strings.EqualFold(strings.TrimSpace(siteType), "codex")

@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"xlyra/server/internal/codexversion"
 )
 
 func TestNormalizeCodexUsageWHAMWindows(t *testing.T) {
@@ -145,57 +147,6 @@ func TestCodexOAuthAuthErrorIgnoresTransientHTML403(t *testing.T) {
 	}
 }
 
-func TestCodexStaticModelItemsAlignOfficialCatalog(t *testing.T) {
-	items := codexStaticModelItems()
-	for _, slug := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2", "gpt-image-2"} {
-		if !codexModelItemExists(items, slug) {
-			t.Fatalf("static models missing %s: %#v", slug, items)
-		}
-	}
-	if codexModelItemExists(items, "gpt-5.3-codex-spark") {
-		t.Fatalf("static models should not include plan-gated spark: %#v", items)
-	}
-
-	sol := codexStaticModelByID(items, "gpt-5.6-sol")
-	if sol == nil {
-		t.Fatal("missing gpt-5.6-sol static model")
-	}
-	if sol["context_window"] != 372000 {
-		t.Fatalf("unexpected gpt-5.6-sol context window: %#v", sol)
-	}
-	solEndpoints, _ := sol["supported_endpoint_types"].([]string)
-	if len(solEndpoints) != 2 || solEndpoints[0] != "openai" || solEndpoints[1] != "openai-response" {
-		t.Fatalf("unexpected gpt-5.6-sol endpoints: %#v", sol["supported_endpoint_types"])
-	}
-	assertLevels := func(slugs []string, wantLevels []string) {
-		for _, slug := range slugs {
-			model := codexStaticModelByID(items, slug)
-			thinking, _ := model["thinking"].(map[string]any)
-			levels, _ := thinking["levels"].([]string)
-			if len(levels) != len(wantLevels) {
-				t.Fatalf("unexpected %s reasoning levels: %#v", slug, levels)
-			}
-			for index := range wantLevels {
-				if levels[index] != wantLevels[index] {
-					t.Fatalf("unexpected %s reasoning levels: %#v", slug, levels)
-				}
-			}
-		}
-	}
-	assertLevels([]string{"gpt-5.6-sol", "gpt-5.6-terra"}, []string{"low", "medium", "high", "xhigh", "max", "ultra"})
-	assertLevels([]string{"gpt-5.6-luna"}, []string{"low", "medium", "high", "xhigh", "max"})
-	assertLevels([]string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2"}, []string{"low", "medium", "high", "xhigh"})
-
-	image := codexStaticModelByID(items, "gpt-image-2")
-	if image == nil {
-		t.Fatal("missing gpt-image-2 static model")
-	}
-	endpoints, _ := image["supported_endpoint_types"].([]string)
-	if len(endpoints) != 2 || endpoints[0] != "openai-response" || endpoints[1] != "openai-image" {
-		t.Fatalf("unexpected gpt-image-2 endpoints: %#v", image["supported_endpoint_types"])
-	}
-}
-
 func TestCodexPricingSnapshotHasOfficialTokenPrices(t *testing.T) {
 	snapshot := codexPricingSnapshot("plus")
 	if len(snapshot.Items) == 0 {
@@ -255,14 +206,6 @@ func TestCodexPricingSnapshotHasOfficialTokenPrices(t *testing.T) {
 		t.Fatalf("unexpected gpt-5.6-luna pricing: %#v", luna)
 	}
 
-	spark := codexPricingByModel(snapshot.Items, "gpt-5.3-codex-spark")
-	if spark == nil {
-		t.Fatal("missing spark protocol metadata")
-	}
-	if spark.HasInputValue || spark.HasOutputValue {
-		t.Fatalf("spark should not have fixed prices: %#v", spark)
-	}
-
 	image := codexPricingByModel(snapshot.Items, "gpt-image-2")
 	if image == nil {
 		t.Fatal("missing gpt-image-2 pricing")
@@ -281,6 +224,20 @@ func TestCodexPricingSnapshotHasOfficialTokenPrices(t *testing.T) {
 	}
 	if !image.HasImageRatio || image.ImageRatio != 1.6 {
 		t.Fatalf("unexpected gpt-image-2 image ratio: %#v", image)
+	}
+}
+
+func TestCodexPricingSnapshotExcludesUnusableBaselineModels(t *testing.T) {
+	snapshot := codexPricingSnapshot("plus")
+	for _, unusable := range []string{
+		"gpt-5.2",
+		"gpt-5.2-codex",
+		"gpt-5.3-codex",
+		"gpt-5.3-codex-spark",
+	} {
+		if codexPricingByModel(snapshot.Items, unusable) != nil {
+			t.Fatalf("pricing should not surface unusable model %s: %#v", unusable, snapshot.Items)
+		}
 	}
 }
 
@@ -352,8 +309,8 @@ func TestCodexListModelsParsesOfficialSlugResponse(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.URL.Query().Get("client_version"); got != CodexClientVersion {
-			t.Fatalf("client_version = %q, want %q", got, CodexClientVersion)
+		if got := r.URL.Query().Get("client_version"); got != codexversion.Version() {
+			t.Fatalf("client_version = %q, want %q", got, codexversion.Version())
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -402,7 +359,7 @@ func TestCodexListModelsParsesOfficialSlugResponse(t *testing.T) {
 	}
 }
 
-func TestCodexListModelsFallsBackToStaticModelsWhenRemoteEmpty(t *testing.T) {
+func TestCodexListModelsErrorsWhenRemoteEmpty(t *testing.T) {
 	t.Parallel()
 
 	requests := 0
@@ -419,25 +376,11 @@ func TestCodexListModelsFallsBackToStaticModelsWhenRemoteEmpty(t *testing.T) {
 			"oauth_plan_type": "free",
 		},
 	}, "codex-token")
-	if err != nil {
-		t.Fatalf("ListModels returned error: %v", err)
+	if err == nil {
+		t.Fatalf("ListModels should return an error when upstream returns no models, got %#v", models)
 	}
 	if requests != 4 {
 		t.Fatalf("requests = %d, want all distinct model endpoints tried", requests)
-	}
-	if codexModelByID(models, "gpt-image-2") == nil {
-		t.Fatalf("fallback models missing gpt-image-2: %#v", models)
-	}
-	if codexModelByID(models, "gpt-5.5") == nil {
-		t.Fatalf("fallback models are plan-agnostic and should include gpt-5.5: %#v", models)
-	}
-	sol := codexModelByID(models, "gpt-5.6-sol")
-	if sol == nil {
-		t.Fatalf("fallback models missing gpt-5.6-sol: %#v", models)
-	}
-	endpoints, _ := sol.Capabilities["supported_endpoint_types"].([]string)
-	if len(endpoints) != 2 || endpoints[0] != "openai" || endpoints[1] != "openai-response" {
-		t.Fatalf("gpt-5.6-sol endpoints = %#v, want dual protocol", sol.Capabilities["supported_endpoint_types"])
 	}
 }
 
@@ -910,7 +853,7 @@ func TestCodexEndpointAndValueHelpers(t *testing.T) {
 		t.Fatalf("usage endpoints = %#v", usageEndpoints)
 	}
 	modelEndpoints := codexModelEndpoints("https://example.com/backend-api")
-	if len(modelEndpoints) != 2 || modelEndpoints[0] != "https://example.com/backend-api/codex/models?client_version="+CodexClientVersion {
+	if len(modelEndpoints) != 2 || modelEndpoints[0] != "https://example.com/backend-api/codex/models?client_version="+codexversion.Version() {
 		t.Fatalf("model endpoints = %#v", modelEndpoints)
 	}
 
@@ -926,19 +869,6 @@ func TestCodexEndpointAndValueHelpers(t *testing.T) {
 	if got := uniqueStrings(" a ", "a", "", "b"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("uniqueStrings = %#v", got)
 	}
-}
-
-func codexModelItemExists(items []map[string]any, id string) bool {
-	return codexStaticModelByID(items, id) != nil
-}
-
-func codexStaticModelByID(items []map[string]any, id string) map[string]any {
-	for _, item := range items {
-		if item["slug"] == id || item["id"] == id {
-			return item
-		}
-	}
-	return nil
 }
 
 func codexPricingByModel(items []ModelPricing, modelName string) *ModelPricing {

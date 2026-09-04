@@ -221,45 +221,6 @@ func codexPricingDefinitions() []codexPriceDefinition {
 			EndpointTypes:  []any{"openai", "openai-response"},
 		},
 		{
-			ModelName:      "gpt-5.2",
-			DisplayName:    "GPT 5.2",
-			InputValue:     1.75,
-			HasInputValue:  true,
-			OutputValue:    14.00,
-			HasOutputValue: true,
-			CacheRatio:     0.1,
-			HasCacheRatio:  true,
-			BillingType:    "tokens",
-			Description:    "OpenAI official baseline price for GPT-5.2 used in Codex.",
-			EndpointTypes:  []any{"openai-response"},
-		},
-		{
-			ModelName:      "gpt-5.2-codex",
-			DisplayName:    "GPT 5.2 Codex",
-			InputValue:     1.75,
-			HasInputValue:  true,
-			OutputValue:    14.00,
-			HasOutputValue: true,
-			CacheRatio:     0.1,
-			HasCacheRatio:  true,
-			BillingType:    "tokens",
-			Description:    "OpenAI official baseline price for GPT-5.2-Codex.",
-			EndpointTypes:  []any{"openai-response"},
-		},
-		{
-			ModelName:      "gpt-5.3-codex",
-			DisplayName:    "GPT 5.3 Codex",
-			InputValue:     1.75,
-			HasInputValue:  true,
-			OutputValue:    14.00,
-			HasOutputValue: true,
-			CacheRatio:     0.1,
-			HasCacheRatio:  true,
-			BillingType:    "tokens",
-			Description:    "OpenAI official baseline price for GPT-5.3-Codex.",
-			EndpointTypes:  []any{"openai-response"},
-		},
-		{
 			ModelName:      "gpt-5.4",
 			DisplayName:    "GPT 5.4",
 			InputValue:     2.50,
@@ -301,12 +262,5 @@ func codexPricingDefinitions() []codexPriceDefinition {
 			EndpointTypes:  []any{"openai-response", "openai-image"},
 		},
 	}
-	items = append(items, codexPriceDefinition{
-		ModelName:     "gpt-5.3-codex-spark",
-		DisplayName:   "GPT 5.3 Codex Spark",
-		BillingType:   "tokens",
-		Description:   "Research preview in Codex. OpenAI notes that its credit rates are not final, so xLyra only syncs protocol metadata for now.",
-		EndpointTypes: []any{"openai-response"},
-	})
 	return items
 }
