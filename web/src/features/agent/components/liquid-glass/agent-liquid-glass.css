@@ -102,8 +102,8 @@ body:has(.agent-page) {
   --agent-text-primary: 0 0% 98%;
   --agent-text-muted: 220 14% 84%;
   --agent-text-faint: 220 12% 74%;
-  /* 会话内纯色页面底色：工具详情块与页面同底，避免主题 surface 的深蓝 */
-  --agent-page-backdrop: #0f0f10;
+  /* 工具调用最深层详情块底色：半透明深色，透出「模糊 + 压暗」后的页面背景图 */
+  --agent-step-detail-backdrop: rgb(15 15 16 / 0.52);
   color: hsl(var(--agent-text-primary));
 }
 
@@ -115,6 +115,15 @@ body:has(.agent-page) {
   align-items: center;
   padding-inline: 1rem;
   pointer-events: none;
+}
+
+/* 进入会话（有标题）时的顶栏玻璃底：压在滚动内容上，透出会话背景；
+   首页展示 logo 时是透明条，不加这一层 */
+.agent-mobile-header--session {
+  background: rgb(15 15 16 / 0.5);
+  border-bottom: 1px solid hsl(var(--glass-divider));
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  backdrop-filter: blur(12px) saturate(120%);
 }
 
 .agent-mobile-header > div {
@@ -143,9 +152,18 @@ body:has(.agent-page) {
   transition: background-color 150ms ease, transform 150ms ease;
 }
 
+/* 汉堡按钮：去掉胶囊底与边框，作为纯图标和标题同一行；只保留圆形点击热区 */
+.agent-mobile-header__button {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 .agent-mobile-header__button:hover,
 .agent-mobile-header__button:focus-visible {
-  background: rgb(255 255 255 / 0.14);
+  background: rgb(255 255 255 / 0.14) !important;
 }
 
 .agent-mobile-header__button:active {
@@ -272,13 +290,17 @@ body:has(.agent-page) {
   background: #080d1b url('/agent-backdrop.png') center / cover no-repeat;
 }
 
-.agent-liquid-backdrop--plain {
-  background: var(--agent-page-backdrop);
+/* 进入会话时的页面遮罩：高斯模糊 + 半透明压暗，隐约透出底层背景图，正文不被打扰。
+   独立成层，backdrop-filter 只作用于其后的背景图，不模糊上层正文 */
+.agent-liquid-backdrop--dull {
+  -webkit-backdrop-filter: blur(10px) saturate(1) brightness(0.78);
+  backdrop-filter: blur(10px) saturate(1) brightness(0.78);
+  background: rgb(15 15 16 / 0.38);
 }
 
-/* 工具调用最深层详情块：与页面底色一致，不用主题 surface（钉死后是深蓝） */
+/* 工具调用最深层详情块：半透明深色，透出「模糊 + 压暗」后的页面背景图，与页面底色一致 */
 .agent-step-detail {
-  background: var(--agent-page-backdrop);
+  background: var(--agent-step-detail-backdrop);
 }
 
 .agent-page button.bg-primary,

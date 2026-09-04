@@ -7,6 +7,7 @@ import {
   replaceFromUserMessage,
   reduceAgentEvent,
   reconcileTimeline,
+  settleRunningRuns,
   timelineFromTranscript,
   type AgentTimeline,
 } from '@/features/agent/lib/agent-events'
@@ -149,6 +150,39 @@ describe('reduceAgentEvent', () => {
     const last = timeline[2]
     if (last.kind !== 'run') throw new Error('expected run')
     expect(last.run.finalText).toBe('second answer')
+  })
+
+  it('settles a lingering running run when the next user message arrives', () => {
+    // 终态事件丢失（连接提前断开）时 run 停在 running：下一条用户消息必须先落定它，
+    // 否则计时会跨轮继续走
+    let timeline = reduceAll([
+      { type: 'agent_start', data: {} },
+      { type: 'message', data: 'answer' },
+    ], appendUserMessage([], '问题', 'message-1', 1_000))
+    const stuck = timeline[1]
+    if (stuck.kind !== 'run') throw new Error('expected run')
+    expect(stuck.run.status).toBe('running')
+    timeline = appendUserMessage(timeline, '追问', 'message-2', 60_000)
+    const settled = timeline[1]
+    if (settled.kind !== 'run') throw new Error('expected run')
+    expect(settled.run.status).toBe('done')
+    expect(settled.run.elapsedMs).toBeDefined()
+    // 落定时间以落定时刻为准，不能越过新消息的时间
+    expect(settled.run.endedAt).toBeLessThanOrEqual(60_000 + Date.now())
+  })
+
+  it('settleRunningRuns closes only the still-running runs', () => {
+    const timeline = reduceAll([
+      { type: 'message', data: 'first answer' },
+      { type: 'agent_done', data: { result: { elapsed_ms: 1_200 } } },
+      // 第二个 run 因事件流中断停留在 running
+      { type: 'message', data: 'second answer' },
+    ], appendUserMessage(appendUserMessage([], 'q1', 'm1', 1_000), 'q2', 'm2', 10_000))
+    const settled = settleRunningRuns(timeline)
+    const runs = settled.filter((item) => item.kind === 'run')
+    expect(runs[0]?.kind === 'run' && runs[0].run.elapsedMs).toBe(1_200)
+    expect(runs[1]?.kind === 'run' && runs[1].run.status).toBe('done')
+    expect(runs[1]?.kind === 'run' && runs[1].run.elapsedMs).toBeGreaterThanOrEqual(0)
   })
 
   it('continues elapsed time when an escalation-paused run resumes', () => {
@@ -492,6 +526,21 @@ describe('timelineFromTranscript', () => {
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
     expect(run.run.elapsedMs).toBe(2_500)
+  })
+
+  it('excludes the idle gap before the next user message from run duration', () => {
+    // 第一轮 0~2.5s 结束，用户 10 分钟后才发第二问：第一轮的用时必须是 2.5s，
+    // 而不是「从第一问到第二问」的 10 分钟
+    const timeline = timelineFromTranscript([
+      { type: 'message', message_id: 'message-1', timestamp: '2026-09-03T00:00:00.000Z', message: { role: 'user', content: '第一问' } },
+      { type: 'message', timestamp: '2026-09-03T00:00:02.500Z', message: { role: 'assistant', content: '第一答' } },
+      { type: 'message', message_id: 'message-2', timestamp: '2026-09-03T00:10:00.000Z', message: { role: 'user', content: '第二问' } },
+      { type: 'message', timestamp: '2026-09-03T00:10:01.000Z', message: { role: 'assistant', content: '第二答' } },
+    ])
+    const first = timeline[1]
+    if (first.kind !== 'run') throw new Error('expected run')
+    expect(first.run.endedAt).toBe(Date.parse('2026-09-03T00:00:02.500Z'))
+    expect(first.run.elapsedMs).toBe(2_500)
   })
 })
 

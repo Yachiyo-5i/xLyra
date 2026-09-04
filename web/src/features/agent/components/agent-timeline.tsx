@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronDown, ChevronRight, CircleCheck, CircleX, Copy, FilePenLine, FileText, Globe, Info, LoaderCircle, Pencil, Search, ShieldAlert, TerminalSquare, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -228,17 +228,72 @@ function formatElapsed(ms: number): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
 }
 
+/** 列表窗口的最小高度（约 5 行），兼作首次测量前的初始限高 */
+const STEP_LIST_MIN_HEIGHT = 116
+
+/** 详情的最大可见高 = 预览 pre 上限 160 + 4 间距 + 底部 pre 上限 192 + 上下内边距 12，
+ *  即两条 pre 都在 max-h 上限时的渲染高。窗口增幅按详情实际高计，封顶此值 */
+const STEP_DETAIL_MAX = 368
+
+/** 窗口内容超出后内部滚动的最大高度：默认「约 5 行」基线，展开详情时按需向上拓展 */
+const STEP_LIST_MAX = Math.round(STEP_LIST_MIN_HEIGHT + STEP_DETAIL_MAX)
+
+/** 指定行的详情可见高：pre 自带 max-h + 内部滚动，body.scrollHeight 即完全展开时的
+ *  渲染高（grid 处于 0fr 时 offsetHeight 会被裁成 0，不能用；scrollHeight 不受动画
+ *  影响，而且 pre 超长时是固定钳制高度而非内容自然高，不会把内部滚动也摊开） */
+function measureStepDetail(container: HTMLElement | null, stepId: string): number {
+  if (!container) return 0
+  const row = Array.from(container.querySelectorAll<HTMLElement>('[data-step-row]'))
+    .find((element) => element.dataset.stepRow === stepId)
+  const body = row?.querySelector<HTMLElement>('[data-step-body]')
+  return body ? body.scrollHeight : 0
+}
+
 function StepGroup({ steps, active }: { steps: AgentWorkStep[]; active?: boolean }) {
   const { t } = useTranslation('agent')
   const [expanded, setExpanded] = useState(false)
-  // 有行展开详情时放宽限高，避免详情被压进 5 行高度里
-  const [openRows, setOpenRows] = useState(0)
+  // 互斥展开：同组最多一个详情展开，点开新行自动收起上一行
+  const [openStepId, setOpenStepId] = useState<string | null>(null)
+  // 窗口高度只由“约 5 行基线 + 至多一个展开详情”决定：默认落在基线高度，展开详情
+  // 时只在基线之上加该详情高度（封顶 STEP_LIST_MAX）。窗口增幅与内容增幅始终相等，
+  // 行头位置不变，展开/收起前后锚定的滚动位置天然一致，无需搬运 scrollTop。
+  const [listMaxHeight, setListMaxHeight] = useState(STEP_LIST_MIN_HEIGHT)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const runningStep = [...steps].reverse().find((step) => step.status === 'running')
   const statusLabel = runningStep
     ? t(runningStep.argsDone === false ? 'work.preparingTool' : 'work.runningTool', { tool: runningStep.title })
     : active
       ? t('work.running', { count: steps.length })
       : summarizeSteps(steps, t)
+
+  // 窗口高度：默认固定「约 5 行」基线（行头再多也在基线内内部滚动，不撑高整窗）；
+  // 展开某条详情时只在基线之上加该详情的高度 —— 窗口增幅 = 内容增幅（详情高度），
+  // 行头位置因此完全不动，锚定的滚动位置在展开前后一致，收起也回到原位。
+  // 若按整列行头去预算（行头越多越高），窗口增幅会大于内容增幅，向下滚动后锚点会
+  // 被顶高、收起时回不到原来的位置 —— 这正是展开位置漂移的根源。
+  // 不再叠加视口比例作上限：详情自身的 pre 已有 max-h + 内部滚动（自然封顶，
+  // 不超 STEP_DETAIL_MAX），以此为准即可避免在矮屏上把详情裁掉。
+  useLayoutEffect(() => {
+    if (!expanded) return
+    const detailHeight = openStepId ? measureStepDetail(contentRef.current, openStepId) : 0
+    const target = Math.min(STEP_LIST_MAX, STEP_LIST_MIN_HEIGHT + detailHeight)
+    setListMaxHeight(target)
+  }, [expanded, openStepId, steps.length])
+
+  // 运行中追加步骤：只在窗口原本贴底（用户在追最新一条）时跟随滚动，用户主动
+  // 向上滚动读旧详情时不打扰。贴底按当前内容判定，而非按窗口底部固定值。
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node || !active || !expanded) return
+    const isPinned = node.scrollTop + node.clientHeight >= node.scrollHeight - 4
+    if (!isPinned) return
+    node.scrollTop = node.scrollHeight
+  }, [active, expanded, steps.length])
+
+  const handleRowToggle = (stepId: string) => {
+    setOpenStepId((current) => (current === stepId ? null : stepId))
+  }
 
   return (
     <div>
@@ -252,18 +307,21 @@ function StepGroup({ steps, active }: { steps: AgentWorkStep[]; active?: boolean
         <ChevronRight className={cn('h-3 w-3 shrink-0 transition-transform', expanded && 'rotate-90')} />
       </button>
       {expanded ? (
-        /* 展开区限高内部滚动：默认约 5 行（每行 20px + 4px 间距）；有行展开详情时放宽 */
-        <div className={cn(
-          'mt-1.5 space-y-1 overflow-y-auto border-l-2 border-[hsl(var(--glass-divider))] pl-3 transition-[max-height] duration-200',
-          openRows > 0 ? 'max-h-96' : 'max-h-[116px]',
-        )}>
-          {steps.map((step) => (
-            <StepRow
-              key={step.id}
-              step={step}
-              onOpenChange={(open) => setOpenRows((count) => count + (open ? 1 : -1))}
-            />
-          ))}
+        <div
+          ref={scrollRef}
+          className="mt-1.5 overflow-y-auto border-l-2 border-[hsl(var(--glass-divider))] pl-3 transition-[max-height] duration-200 ease-out"
+          style={{ minHeight: STEP_LIST_MIN_HEIGHT, maxHeight: listMaxHeight }}
+        >
+          <div ref={contentRef} className="space-y-1">
+            {steps.map((step) => (
+              <StepRow
+                key={step.id}
+                step={step}
+                open={openStepId === step.id}
+                onToggle={handleRowToggle}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
@@ -348,9 +406,11 @@ const STATUS_TITLE_KEYS: Record<string, string> = {
   compaction_skipped: 'work.statusCompactSkipped',
 }
 
-function StepRow({ step, onOpenChange }: { step: AgentWorkStep; onOpenChange?: (open: boolean) => void }) {
+/** open/onToggle 由组内受控（互斥展开）；脱离组单独渲染时退回本地自持状态 */
+function StepRow({ step, open: openProp, onToggle }: { step: AgentWorkStep; open?: boolean; onToggle?: (stepId: string) => void }) {
   const { t } = useTranslation('agent')
-  const [open, setOpen] = useState(false)
+  const [localOpen, setLocalOpen] = useState(false)
+  const open = openProp ?? localOpen
   const category = step.kind === 'tool' ? toolCategory(step.title) : null
   const Icon = step.kind === 'status' ? Info : CATEGORY_ICONS[category ?? 'other']
   const title = category
@@ -365,15 +425,18 @@ function StepRow({ step, onOpenChange }: { step: AgentWorkStep; onOpenChange?: (
   const canExpand = Boolean(inputDetail || detail)
 
   const toggle = () => {
-    const next = !open
-    setOpen(next)
-    onOpenChange?.(next)
+    if (onToggle) {
+      onToggle(step.id)
+      return
+    }
+    setLocalOpen((value) => !value)
   }
 
   return (
-    <div className="rounded-md">
+    <div data-step-row={step.id} className="rounded-md">
       <button
         type="button"
+        data-step-header
         disabled={!canExpand}
         onClick={toggle}
         className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-[10px] leading-4 transition-colors hover:bg-[hsl(var(--surface-subtle))] disabled:cursor-default"
@@ -396,14 +459,22 @@ function StepRow({ step, onOpenChange }: { step: AgentWorkStep; onOpenChange?: (
           <ChevronDown className={cn('h-3 w-3 shrink-0 text-muted-soft transition-transform', open ? 'rotate-0' : '-rotate-90')} />
         ) : null}
       </button>
-      {open && canExpand ? (
-        <div className="agent-step-detail mx-1 mb-1 min-w-0 rounded-md px-2 py-1.5">
-          {inputPreview ? (
-            <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-4 text-muted-soft">{inputDetail}</pre>
-          ) : null}
-          {detail ? (
-            <pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-all border-t border-[hsl(var(--glass-divider))] pt-1 font-mono text-[10px] leading-4 text-muted-soft">{detail}</pre>
-          ) : null}
+      {canExpand ? (
+        /* grid-rows 0fr↔1fr：详情按自身真实高度平滑展开/收起（常驻挂载），列表高度跟随而不跳档 */
+        <div className={cn(
+          'grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out',
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}>
+          <div className="min-h-0 min-w-0 overflow-hidden">
+            <div data-step-body className="agent-step-detail mx-1 mb-1 min-w-0 rounded-md px-2 py-1.5">
+              {inputPreview ? (
+                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-4 text-muted-soft">{inputDetail}</pre>
+              ) : null}
+              {detail ? (
+                <pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-all border-t border-[hsl(var(--glass-divider))] pt-1 font-mono text-[10px] leading-4 text-muted-soft">{detail}</pre>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

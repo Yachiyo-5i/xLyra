@@ -3,7 +3,8 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { useTranslation } from 'react-i18next'
 import { Ellipsis, MoveLeft, Plus, Settings2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { AgentConfirmDialog } from '@/features/agent/components/agent-confirm-dialog'
+import type { AgentLiquidGlassSettings } from '@/features/agent/components/liquid-glass/agent-liquid-glass'
 import { formatRelativeTime } from '@/features/agent/lib/relative-time'
 import type { AgentSession } from '@/features/agent/api/agent'
 
@@ -13,6 +14,10 @@ type AgentSidebarProps = {
   activeId: string | null
   /** 弹层表面渲染器（液态玻璃面板），与模型选择器同一模式，由 workspace 提供 */
   menuRenderer: (children: React.ReactNode) => React.ReactNode
+  /** 删除确认弹窗的玻璃材质参数：由 workspace 传入页面的深色态与背景图 */
+  backgroundImage?: string
+  dark?: boolean
+  glassSettings?: AgentLiquidGlassSettings
   onBack: () => void
   onSelect: (id: string) => void
   onNew: () => void
@@ -20,7 +25,7 @@ type AgentSidebarProps = {
   onOpenSettings: () => void
 }
 
-export function AgentSidebar({ className, sessions, activeId, menuRenderer, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
+export function AgentSidebar({ className, sessions, activeId, menuRenderer, backgroundImage = '/agent-backdrop.png', dark = false, glassSettings, onBack, onSelect, onNew, onDelete, onOpenSettings }: AgentSidebarProps) {
   const { t, i18n } = useTranslation('agent')
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
@@ -76,11 +81,14 @@ export function AgentSidebar({ className, sessions, activeId, menuRenderer, onBa
         {t('settings.entry')}
       </button>
 
-      <ConfirmDialog
+      <AgentConfirmDialog
         open={pendingDelete !== null}
         title={t('sidebar.delete')}
         description={t('sidebar.deleteConfirm')}
         confirmLabel={t('sidebar.delete')}
+        backgroundImage={backgroundImage}
+        dark={dark}
+        glassSettings={glassSettings}
         destructive
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => {
@@ -140,7 +148,10 @@ function SessionRow({
             type="button"
             className={cn(
               'shrink-0 rounded p-1 text-muted-soft transition-opacity hover:text-foreground',
-              menuOpen || active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+              menuOpen || active
+                ? 'opacity-100'
+                // 移动端没有 hover，让「三个点」菜单常驻；桌面端保留悬停行才显示
+                : 'opacity-100 md:opacity-0 md:group-hover:opacity-100',
             )}
             aria-label={menuLabel}
           >

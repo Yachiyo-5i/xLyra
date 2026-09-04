@@ -223,7 +223,9 @@ function finishRunAt(timeline: AgentTimeline, timestamp?: string): AgentTimeline
   const endedAt = timestamp ? Date.parse(timestamp) : NaN
   if (!Number.isFinite(endedAt)) return timeline
   return updateLastRun(timeline, (run) => run.status === 'running'
-    ? closeRun({ ...run, endedAt }, 'done')
+    // 已有 endedAt（每个条目到达时标记的最后活动时间）优先：用下一条用户消息的
+    // 时间收尾会把两轮之间的空闲间隔也算进用时
+    ? closeRun({ ...run, endedAt: run.endedAt ?? endedAt }, 'done')
     : run)
 }
 
@@ -240,7 +242,10 @@ function closeRun(run: AgentRun, status: AgentRunStatus, elapsedMs?: number): Ag
 }
 
 export function appendUserMessage(timeline: AgentTimeline, text: string, messageId?: string, createdAt = Date.now(), attachments?: ChatAttachment[]): AgentTimeline {
-  return [...timeline, { kind: 'user', id: messageId ?? nextId('user'), messageId, text, createdAt, ...(attachments?.length ? { attachments } : {}) }]
+  // 上一轮若因丢失终态事件仍停留在 running，先就地落定：否则它的计时会跨轮
+  // 继续走，看起来像「上一条消息的用时被算到了新消息的时间」
+  const settled = updateLastRun(timeline, (run) => (run.status === 'running' ? closeRun(run, 'done') : run))
+  return [...settled, { kind: 'user', id: messageId ?? nextId('user'), messageId, text, createdAt, ...(attachments?.length ? { attachments } : {}) }]
 }
 
 export function replaceFromUserMessage(timeline: AgentTimeline, messageId: string, text: string, attachments?: ChatAttachment[]): AgentTimeline {
@@ -281,6 +286,16 @@ export function reconcileTimeline(current: AgentTimeline, transcript: AgentTimel
       },
     }
   })
+}
+
+/**
+ * 事件流结束但没有收到终态事件（连接被提前关闭/中断）时的兜底：
+ * 把仍在 running 的 run 就地落定，让计时停在当前值而不是无限走下去。
+ */
+export function settleRunningRuns(timeline: AgentTimeline): AgentTimeline {
+  return timeline.map((item) => item.kind === 'run' && item.run.status === 'running'
+    ? { ...item, run: closeRun(item.run, 'done') }
+    : item)
 }
 
 export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEvent): AgentTimeline {

@@ -17,13 +17,15 @@ import { AgentTimeline } from '@/features/agent/components/agent-timeline'
 import { Button } from '@/components/ui/button'
 import { AppLogo } from '@/components/common/app-logo'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AgentLiquidGlassPanel } from '@/features/agent/components/liquid-glass/agent-liquid-glass'
+import { AgentLiquidGlassPanel, type AgentLiquidGlassSettings } from '@/features/agent/components/liquid-glass/agent-liquid-glass'
+import { agentDialogGlassDefaults } from '@/features/agent/components/agent-dialog-material'
 import './liquid-glass/agent-liquid-glass.css'
 import {
   appendUserMessage,
   reconcileTimeline,
   replaceFromUserMessage,
   reduceAgentEvent,
+  settleRunningRuns,
   timelineFromTranscript,
   type AgentPermissionRequest,
   type AgentRun,
@@ -72,10 +74,10 @@ function loadPermissionMode(): PermissionMode {
 }
 
 /**
- * 外观设置 → 玻璃着色器参数。bright（空会话，背景图可见）与 dark（会话中，
- * 纯黑背景）共用同一组用户滑杆：dark 保留调好的光学常数，但模糊/压暗/厚度/
- * 明暗/透明度仍由滑杆驱动，默认值与原手调的 dark 常数基本一致
- * （blur 0.275↔0.3、darkTint 0.218↔0.22、depth 31.8↔32、opacity 1↔1）。
+ * 外观设置 → 玻璃着色器参数。空会话与会话中共用同一组用户滑杆：会话中（dark）保留
+ * 调好的光学常数，但面板底色下是「模糊 + 压暗」后的背景图，因此把不透明度与暗色
+ * 强度压低，让面板透出底色、呈半透明玻璃而非近黑的实心板。模糊/压暗/厚度/明暗/
+ * 透明度仍由滑杆驱动。
  */
 function glassSettingsForAppearance(appearance: AgentAppearanceSettings, dark: boolean) {
   const clamped = (value: number) => Math.max(0, Math.min(100, value))
@@ -88,7 +90,9 @@ function glassSettingsForAppearance(appearance: AgentAppearanceSettings, dark: b
     blur,
     refraction: dark ? 0.88 : 0.8,
     chromaticAberration: dark ? 0.065 : 0.06,
-    darkTint: dark ? darkTint + 0.02 : darkTint,
+    // 会话中降暗色强度与不透明度：面板下是「模糊 + 压暗」后的背景图，半透明才能
+    // 透出底色，不再是一块近黑的实心板；文字仍压在暗色 scrim 上，可读性不受影响
+    darkTint: dark ? darkTint + 0.01 : darkTint,
     brightness,
     saturation: dark ? 0.06 : 0.04,
     tintStrength: dark ? 0.08 : 0.14,
@@ -98,7 +102,7 @@ function glassSettingsForAppearance(appearance: AgentAppearanceSettings, dark: b
     bevel: 0,
     depth,
     opacity: dark
-      ? Math.min(1, 0.94 + (1 - transparency) * 0.12)
+      ? 0.34 + (1 - transparency) * 0.22
       : 0.82 + (1 - transparency) * 0.12,
   }
 }
@@ -148,6 +152,7 @@ function FullAccessConfirmDialog({
   onConfirm,
   backgroundImage,
   dark,
+  glassSettings,
 }: {
   open: boolean
   onCancel: () => void
@@ -155,6 +160,8 @@ function FullAccessConfirmDialog({
   backgroundImage: string
   /** 会话中为 true：与页面一致渲染深色玻璃（背景 URL 里没有可嗅探的标记，必须显式传） */
   dark: boolean
+  /** 玻璃着色器参数：传入侧栏的 glassSettings 可与之同款，不传用弹窗自身默认 */
+  glassSettings?: AgentLiquidGlassSettings
 }) {
   const { t } = useTranslation('agent')
   const items = [
@@ -201,20 +208,7 @@ function FullAccessConfirmDialog({
           sampleBackground={!dark}
           className="agent-liquid-access-dialog"
           contentClassName="agent-liquid-access-dialog__content"
-          settings={{
-            blur: dark ? 0.18 : 0.34,
-            refraction: dark ? 0.72 : 0.38,
-            chromaticAberration: dark ? 0.045 : 0.025,
-            darkTint: dark ? 0.18 : 0.12,
-            tintStrength: dark ? 0.06 : 0.1,
-            edgeHighlight: dark ? 0.08 : 0.1,
-            specular: dark ? 0.14 : 0.12,
-            fresnel: dark ? 1.08 : 0.9,
-            bevel: 0,
-            depth: 32,
-            radius: 26,
-            opacity: dark ? 1 : 0.96,
-          }}
+          settings={{ ...agentDialogGlassDefaults(dark, 0.12), ...glassSettings }}
         >
           {dialogBody}
         </AgentLiquidGlassPanel>
@@ -227,23 +221,38 @@ function EditReplayConfirmDialog({
   open,
   onCancel,
   onConfirm,
+  backgroundImage,
+  dark,
+  glassSettings,
 }: {
   open: boolean
   onCancel: () => void
   onConfirm: () => void
+  backgroundImage: string
+  dark: boolean
+  glassSettings?: AgentLiquidGlassSettings
 }) {
   const { t } = useTranslation('agent')
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel() }}>
-      <DialogContent className="w-[min(92vw,440px)]">
-        <DialogHeader>
-          <DialogTitle>{t('chat.editReplayTitle')}</DialogTitle>
-          <DialogDescription>{t('chat.editReplayDescription')}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>{t('chat.editReplayCancel')}</Button>
-          <Button className="border-white bg-white text-black hover:bg-white/90 hover:text-black" onClick={onConfirm}>{t('chat.editReplayConfirm')}</Button>
-        </DialogFooter>
+      <DialogContent className="agent-liquid-access-dialog-host w-[min(92vw,440px)]">
+        <AgentLiquidGlassPanel
+          backgroundImage={backgroundImage}
+          variant={dark ? 'dark' : 'frosted'}
+          sampleBackground={!dark}
+          className="agent-liquid-access-dialog"
+          contentClassName="agent-liquid-access-dialog__content"
+          settings={{ ...agentDialogGlassDefaults(dark, 0.12), ...glassSettings }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('chat.editReplayTitle')}</DialogTitle>
+            <DialogDescription>{t('chat.editReplayDescription')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={onCancel}>{t('chat.editReplayCancel')}</Button>
+            <Button className="border-white bg-white text-black hover:bg-white/90 hover:text-black" onClick={onConfirm}>{t('chat.editReplayConfirm')}</Button>
+          </DialogFooter>
+        </AgentLiquidGlassPanel>
       </DialogContent>
     </Dialog>
   )
@@ -288,6 +297,9 @@ export function AgentWorkspace() {
   const skipTranscriptLoadFor = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // 主动进入会话（打开历史会话 / 发送 / 重放编辑）时置位，让 scroll 效果在内容就绪后
+  // 一次性跳到最底部看最新消息；跳完即清，流式追加仍走「贴底跟随」逻辑，不打扰用户阅读
+  const revealLatestRef = useRef(false)
 
   const sessions = sessionsQuery.data ?? []
   // Stay on the new-chat screen by default; only an explicit selection enters a session.
@@ -362,8 +374,15 @@ export function AgentWorkspace() {
         }
       })
     } catch {
-      if (!controller.signal.aborted) setRunning(false)
+      if (!controller.signal.aborted) {
+        setRunning(false)
+        // 流异常中断且没有终态事件：落定残留 running 的 run，计时停在当前值
+        setTimeline((current) => settleRunningRuns(current))
+      }
+      return
     }
+    // 流正常结束但没有终态事件（连接被服务端提前关闭等）：同样落定，防止计时无限走
+    setTimeline((current) => settleRunningRuns(current))
   }, [queryClient])
 
   useEffect(() => {
@@ -507,12 +526,25 @@ export function AgentWorkspace() {
 
   useEffect(() => {
     const container = scrollRef.current
-    if (container) container.scrollTop = container.scrollHeight
+    if (!container) return
+    // 刚进入会话：直接跳到最底部看最新消息（打开历史会话时容器默认在顶部）。
+    // 只在用户并未主动介入判断——打开会话 / 发送 / 重放都意味着要看最新内容
+    if (revealLatestRef.current) {
+      revealLatestRef.current = false
+      container.scrollTop = container.scrollHeight
+      return
+    }
+    // 运行中实时追加内容：只在用户原本贴底时持续贴底；若已向上滚动读某条工具
+    // 详情，不能每次新事件都把页面拽回底部
+    const isPinned = container.scrollTop + container.clientHeight >= container.scrollHeight - 4
+    if (!isPinned) return
+    container.scrollTop = container.scrollHeight
   }, [timeline, awaiting])
 
   function createNew() {
     eventAbort.current?.abort()
     skipTranscriptLoadFor.current = null
+    revealLatestRef.current = false
     setActiveId(null)
     setNewSession(true)
     setTimeline([])
@@ -528,6 +560,7 @@ export function AgentWorkspace() {
   function handleSelect(sessionId: string) {
     eventAbort.current?.abort()
     skipTranscriptLoadFor.current = null
+    revealLatestRef.current = true
     setRunning(false)
     setEditingMessage(null)
     setEditReplayConfirmation(null)
@@ -562,6 +595,7 @@ export function AgentWorkspace() {
       return
     }
     const files = attachments
+    revealLatestRef.current = true
     setTimeline((current) => appendUserMessage(current, content, undefined, Date.now(), files))
     setDraft('')
     setAttachments([])
@@ -581,6 +615,7 @@ export function AgentWorkspace() {
       attachmentError,
       editingMessage,
     }
+    revealLatestRef.current = true
     setTimeline((current) => replaceFromUserMessage(current, messageId, content, files))
     setEditReplayConfirmation(null)
     setEditingMessage(null)
@@ -814,6 +849,9 @@ export function AgentWorkspace() {
     sessions={sessions}
     activeId={selectedId}
     menuRenderer={renderMenuSurface}
+    backgroundImage={agentBackgroundImage}
+    dark={hasMessages}
+    glassSettings={hasMessages ? { ...sidebarGlassSettings, radius: 26 } : undefined}
     onBack={() => navigate(-1)}
     onSelect={handleSelect}
     onNew={createNew}
@@ -839,6 +877,9 @@ export function AgentWorkspace() {
           sessions={sessions}
           activeId={selectedId}
           menuRenderer={renderMenuSurface}
+          backgroundImage={agentBackgroundImage}
+          dark={hasMessages}
+          glassSettings={hasMessages ? { ...sidebarGlassSettings, radius: 26 } : undefined}
           onBack={() => {
             setMobileSidebarOpen(false)
             navigate(-1)
@@ -858,17 +899,21 @@ export function AgentWorkspace() {
           }}
         />
       </AgentMobileDrawer>
+      {/* 背景图始终作为底层渲染：新聊天页直接露出，进入会话时叠一层高斯模糊的
+          半透明遮罩，隐约透出背景图而不影响正文可读性 */}
       <div
-          className={hasMessages ? 'agent-liquid-backdrop agent-liquid-backdrop--plain' : 'agent-liquid-backdrop'}
-          style={!hasMessages ? { backgroundImage: `url("${configuredBackground}")` } : undefined}
-          data-liquid-glass-background="true"
-          aria-hidden="true"
-        />
+        className="agent-liquid-backdrop"
+        style={{ backgroundImage: `url("${configuredBackground}")` }}
+        data-liquid-glass-background="true"
+        aria-hidden="true"
+      />
+      {hasMessages ? <div className="agent-liquid-backdrop agent-liquid-backdrop--dull" aria-hidden="true" /> : null}
       <div className="relative z-10 flex h-full min-h-0 overflow-hidden">
       <FullAccessConfirmDialog
         open={confirmFullAccess}
         backgroundImage={agentBackgroundImage}
         dark={hasMessages}
+        glassSettings={hasMessages ? { ...sidebarGlassSettings, radius: 26 } : undefined}
         onCancel={() => setConfirmFullAccess(false)}
         onConfirm={() => {
           applyPermissionMode('full')
@@ -877,6 +922,9 @@ export function AgentWorkspace() {
       />
       <EditReplayConfirmDialog
         open={Boolean(editReplayConfirmation)}
+        backgroundImage={agentBackgroundImage}
+        dark={hasMessages}
+        glassSettings={hasMessages ? { ...sidebarGlassSettings, radius: 26 } : undefined}
         onCancel={() => setEditReplayConfirmation(null)}
         onConfirm={confirmEditReplay}
       />
@@ -892,7 +940,13 @@ export function AgentWorkspace() {
           {sidebarContent}
         </AgentLiquidGlassPanel>
       </aside>
-      <AgentSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} backgroundImage={agentBackgroundImage} dark={hasMessages} />
+      <AgentSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        backgroundImage={agentBackgroundImage}
+        dark={hasMessages}
+        glassSettings={hasMessages ? { ...sidebarGlassSettings, radius: 28 } : undefined}
+      />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         {hasMessages ? (
@@ -929,9 +983,14 @@ export function AgentWorkspace() {
 
 function AgentMobileHeader({ title, onOpenMenu }: { title?: string; onOpenMenu: () => void }) {
   const { t } = useTranslation('agent')
+  // 有会话标题才是一进入会话的顶栏，给它半透明玻璃底；首页展示 logo 时不加背景
+  const hasTitle = Boolean(title)
 
   return (
-    <header className="agent-mobile-header mobile-safe-top" style={{ '--mobile-safe-top-extra': '0.75rem' } as React.CSSProperties}>
+    <header
+      className={`agent-mobile-header mobile-safe-top${hasTitle ? ' agent-mobile-header--session' : ''}`}
+      style={{ '--mobile-safe-top-extra': '0.75rem' } as React.CSSProperties}
+    >
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"

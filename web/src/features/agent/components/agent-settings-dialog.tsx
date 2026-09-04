@@ -5,7 +5,7 @@ import { Check, ChevronRight, FileText, ImagePlus, Layers, LoaderCircle, MoveLef
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { AgentConfirmDialog } from '@/features/agent/components/agent-confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -32,7 +32,7 @@ import {
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
-import { AgentLiquidGlassPanel } from '@/features/agent/components/liquid-glass/agent-liquid-glass'
+import { AgentLiquidGlassPanel, type AgentLiquidGlassSettings } from '@/features/agent/components/liquid-glass/agent-liquid-glass'
 
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 const AGENTS_MD_LIMIT = 32_000
@@ -62,10 +62,12 @@ type AgentSettingsDialogProps = {
   backgroundImage?: string
   /** 会话中为 true：与页面一致渲染深色玻璃（背景 URL 里没有可嗅探的标记，必须显式传） */
   dark?: boolean
+  /** 玻璃着色器参数：不传则用对话框自身的默认值；传入侧栏的 glassSettings 可与之同款 */
+  glassSettings?: AgentLiquidGlassSettings
 }
 
 /** Agent capabilities dialog: left nav (Skills / AGENTS.md) + right content; new settings sections can extend the tabs. */
-export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/agent-backdrop.png', dark = false }: AgentSettingsDialogProps) {
+export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/agent-backdrop.png', dark = false, glassSettings }: AgentSettingsDialogProps) {
   const { t } = useTranslation('agent')
   const mobileLayout = useMobileLayout()
   const [tab, setTab] = useState<SettingsTab>('appearance')
@@ -130,7 +132,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
   )
 
   const tabContent = tab === 'skills'
-    ? <SkillsPane nav={skillsNav} onNavigate={setSkillsNav} onActionsChange={setPaneActions} />
+    ? <SkillsPane nav={skillsNav} onNavigate={setSkillsNav} onActionsChange={setPaneActions} backgroundImage={backgroundImage} dark={darkBackground} glassSettings={glassSettings} />
     : tab === 'agentsMd'
       ? <AgentsMdPane onActionsChange={setPaneActions} />
       : tab === 'context'
@@ -308,6 +310,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
             depth: 32,
             radius: 28,
             opacity: darkBackground ? 1 : 0.96,
+            ...glassSettings,
           }}
         >
           {mobileLayout ? mobileDialogBody : dialogBody}
@@ -495,7 +498,14 @@ function useSkillToggle() {
   return { toggleSkill, pending: capabilitiesMutation.isPending }
 }
 
-function SkillsPane({ nav, onNavigate, onActionsChange }: { nav: SkillsNav; onNavigate: (nav: SkillsNav) => void; onActionsChange: (actions: SettingsActions | null) => void }) {
+function SkillsPane({ nav, onNavigate, onActionsChange, backgroundImage, dark, glassSettings }: {
+  nav: SkillsNav
+  onNavigate: (nav: SkillsNav) => void
+  onActionsChange: (actions: SettingsActions | null) => void
+  backgroundImage: string
+  dark: boolean
+  glassSettings?: AgentLiquidGlassSettings
+}) {
   const { t } = useTranslation('agent')
   const skillsQuery = useQuery({ queryKey: skillsKey, queryFn: listAgentSkills, retry: false })
   const capabilitiesQuery = useQuery({ queryKey: capabilitiesKey, queryFn: fetchAgentCapabilities, retry: false })
@@ -514,6 +524,9 @@ function SkillsPane({ nav, onNavigate, onActionsChange }: { nav: SkillsNav; onNa
       <SkillEditor
         name={nav.name}
         skills={skills}
+        backgroundImage={backgroundImage}
+        dark={dark}
+        glassSettings={glassSettings}
         onBack={() => onNavigate(nav.name ? { view: 'detail', name: nav.name } : { view: 'list' })}
         onActionsChange={onActionsChange}
       />
@@ -736,7 +749,7 @@ function DetailRow({ label, value, mono = false }: { label: string; value: strin
 }
 
 /** Skill editor: create (name editable) or edit the description and body of an existing project-scope skill. */
-function SkillEditor({ name, skills, onBack, onActionsChange }: { name: string | null; skills: AgentSkill[]; onBack: () => void; onActionsChange: (actions: SettingsActions | null) => void }) {
+function SkillEditor({ name, skills, backgroundImage, dark, glassSettings, onBack, onActionsChange }: { name: string | null; skills: AgentSkill[]; backgroundImage: string; dark: boolean; glassSettings?: AgentLiquidGlassSettings; onBack: () => void; onActionsChange: (actions: SettingsActions | null) => void }) {
   const { t } = useTranslation('agent')
   const queryClient = useQueryClient()
   const existing = name ? skills.find((skill) => skill.name === name) : undefined
@@ -839,11 +852,14 @@ function SkillEditor({ name, skills, onBack, onActionsChange }: { name: string |
         ) : null}
       </div>
 
-      <ConfirmDialog
+      <AgentConfirmDialog
         open={confirmDelete}
         title={t('settings.skillDelete')}
         description={t('settings.skillDeleteConfirm')}
         confirmLabel={t('settings.skillDelete')}
+        backgroundImage={backgroundImage}
+        dark={dark}
+        glassSettings={glassSettings}
         destructive
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => {
