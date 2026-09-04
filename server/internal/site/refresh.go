@@ -550,6 +550,10 @@ func (s *Service) refreshCapabilityState(ctx context.Context, item store.Site, m
 			}
 		}
 	}
+	if err := s.retireSyncedPricingRows(ctx, item, module); err != nil {
+		syncStatus = "partial"
+		siteMessages = append(siteMessages, err.Error())
+	}
 	if len(pricingSnapshot.Items) > 0 {
 		siteModels, err = s.mergePricingModelsState(ctx, item, pricingSnapshot, siteModels, siteModelRepo)
 		if err != nil {
@@ -763,6 +767,10 @@ func (s *Service) refreshModelOnlyState(ctx context.Context, item store.Site) (R
 				}
 			}
 		}
+	}
+	if err := s.retireSyncedPricingRows(ctx, item, module); err != nil {
+		syncStatus = "partial"
+		syncMessage = err.Error()
 	}
 
 	state, err := store.NewSiteStateRepository(s.db.DB()).Upsert(ctx, store.UpsertSiteStateParams{
@@ -2028,6 +2036,26 @@ func modelLimitsJSON(value any) []byte {
 	default:
 		return []byte(`[]`)
 	}
+}
+
+// retireSyncedPricingRows retires synced pricing rows and groups for sites whose
+// adapter exposes no pricing capability at all. Without an upstream pricing
+// writer, stale non-manual rows would stay available forever and block the
+// canonical fallback pricing from taking over on refresh.
+func (s *Service) retireSyncedPricingRows(ctx context.Context, item store.Site, module adapter.Module) error {
+	if _, ok := adapter.AsPricingFetcher(module); ok {
+		return nil
+	}
+	if _, ok := adapter.AsPricingParser(module); ok {
+		return nil
+	}
+	if err := store.NewSiteModelPricingRepository(s.db.DB()).MarkUnavailableExcept(ctx, item.ID, nil); err != nil {
+		return fmt.Errorf("retire synced site model pricings: %w", err)
+	}
+	if err := store.NewSitePricingGroupRepository(s.db.DB()).MarkUnavailableExcept(ctx, item.ID, nil); err != nil {
+		return fmt.Errorf("retire synced site pricing groups: %w", err)
+	}
+	return nil
 }
 
 func syncPricingState(

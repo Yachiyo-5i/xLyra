@@ -1,6 +1,7 @@
 package site
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -304,5 +305,95 @@ func TestSyncCanonicalPricingFallbackBackfillsOnlyMissingFallbackAudioRatios(t *
 	}
 	if !saved[1].AudioRatio.Valid || saved[1].AudioRatio.Float64 != preservedAudioRatio || !saved[1].AudioCompletionRatio.Valid || saved[1].AudioCompletionRatio.Float64 != 1 {
 		t.Fatalf("second saved audio ratios = %#v %#v, want existing audio ratio preserved", saved[1].AudioRatio, saved[1].AudioCompletionRatio)
+	}
+}
+
+type retireNoPricingModule struct{}
+
+func (retireNoPricingModule) SiteTypes() []string { return []string{"codex"} }
+
+type retireFetcherModule struct{}
+
+func (retireFetcherModule) SiteTypes() []string { return []string{"codex"} }
+
+func (retireFetcherModule) FetchPricing(context.Context, adapter.SiteConfig, adapter.SystemAuth) (adapter.PricingSnapshot, error) {
+	return adapter.PricingSnapshot{}, nil
+}
+
+type retireParserModule struct{}
+
+func (retireParserModule) SiteTypes() []string { return []string{"codex"} }
+
+func (retireParserModule) ParsePricing(any) adapter.PricingSnapshot {
+	return adapter.PricingSnapshot{}
+}
+
+func TestRetireSyncedPricingRowsSkipsAdaptersWithPricingCapability(t *testing.T) {
+	t.Parallel()
+
+	// Any query on the offline gorm DB surfaces as an error, so a module with
+	// pricing capability must not touch the pricing tables at all.
+	service := siteServiceWithQueryError(t, errors.New("unexpected pricing query"))
+	for name, module := range map[string]adapter.Module{
+		"pricing fetcher": retireFetcherModule{},
+		"pricing parser":  retireParserModule{},
+	} {
+		if err := service.retireSyncedPricingRows(t.Context(), store.Site{ID: uuid.New()}, module); err != nil {
+			t.Fatalf("%s: retireSyncedPricingRows() error = %v, want no repo access", name, err)
+		}
+	}
+}
+
+func TestRetireSyncedPricingRowsRetiresStaleNonManualRows(t *testing.T) {
+	t.Parallel()
+
+	siteID := uuid.New()
+	pricings := []store.SiteModelPricing{
+		{ID: uuid.New(), SiteID: siteID, ModelName: "gpt-legacy-official", GroupName: "default", PricingSource: "openai_official", Available: true},
+		{ID: uuid.New(), SiteID: siteID, ModelName: "gpt-manual", GroupName: "default", PricingSource: "openai_official", ManualOverride: true, Available: true},
+		{ID: uuid.New(), SiteID: siteID, ModelName: "gpt-already-retired", GroupName: "default", PricingSource: "openai_official", Available: false},
+	}
+	groups := []store.SitePricingGroup{
+		{ID: uuid.New(), SiteID: siteID, GroupName: "default", Available: true},
+		{ID: uuid.New(), SiteID: siteID, GroupName: "vip", Available: false},
+	}
+	var savedPricings []store.SiteModelPricing
+	var savedGroups []store.SitePricingGroup
+	service := siteServiceWithCallbacks(t, siteGormCallbacks{
+		query: func(tx *gorm.DB) {
+			switch dest := tx.Statement.Dest.(type) {
+			case *[]store.SiteModelPricing:
+				*dest = pricings
+				tx.RowsAffected = int64(len(pricings))
+			case *[]store.SitePricingGroup:
+				*dest = groups
+				tx.RowsAffected = int64(len(groups))
+			default:
+				tx.AddError(gorm.ErrInvalidData)
+			}
+		},
+		update: func(tx *gorm.DB) {
+			switch dest := tx.Statement.Dest.(type) {
+			case *store.SiteModelPricing:
+				savedPricings = append(savedPricings, *dest)
+				tx.RowsAffected = 1
+			case *store.SitePricingGroup:
+				savedGroups = append(savedGroups, *dest)
+				tx.RowsAffected = 1
+			default:
+				tx.AddError(gorm.ErrInvalidData)
+			}
+		},
+	})
+
+	if err := service.retireSyncedPricingRows(t.Context(), store.Site{ID: siteID}, retireNoPricingModule{}); err != nil {
+		t.Fatalf("retireSyncedPricingRows() error = %v", err)
+	}
+
+	if len(savedPricings) != 1 || savedPricings[0].ModelName != "gpt-legacy-official" || savedPricings[0].Available {
+		t.Fatalf("saved pricings = %#v, want only the available non-manual row retired", savedPricings)
+	}
+	if len(savedGroups) != 1 || savedGroups[0].GroupName != "default" || savedGroups[0].Available {
+		t.Fatalf("saved groups = %#v, want only the available group retired", savedGroups)
 	}
 }

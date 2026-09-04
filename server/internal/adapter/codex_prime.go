@@ -119,7 +119,7 @@ func (a Codex) postStreamDiscard(ctx context.Context, site SiteConfig, endpoint 
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(accessToken))
 	req.Header.Set("Origin", codexOriginURL)
 	req.Header.Set("Referer", codexRefererURL)
-	req.Header.Set("User-Agent", CodexUserAgent)
+	req.Header.Set("User-Agent", codexUserAgent())
 	if trimmed := strings.TrimSpace(accountID); trimmed != "" {
 		req.Header.Set("ChatGPT-Account-Id", trimmed)
 	}

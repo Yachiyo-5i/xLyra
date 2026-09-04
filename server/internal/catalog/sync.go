@@ -216,7 +216,7 @@ func (s *SyncService) syncModel(ctx context.Context, repo store.CanonicalModelRe
 		Modalities:             store.JSON(modalitiesJSON),
 		ContextWindow:          contextWindow,
 		MaxOutputTokens:        maxOutput,
-		PricingSource:          "models_dev",
+		PricingSource:          store.CanonicalPricingSourceModelsDev,
 		LastPricingSyncedAt:    sql.NullTime{Time: now, Valid: true},
 	})
 	return err

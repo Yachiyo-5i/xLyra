@@ -83,6 +83,9 @@ func (r SitePricingGroupRepository) MarkUnavailableExcept(ctx context.Context, s
 		if _, ok := seen[item.GroupName]; ok {
 			continue
 		}
+		if !item.Available {
+			continue
+		}
 		item.Available = false
 		item.LastSyncedAt = sql.NullTime{Time: now, Valid: true}
 		if err := db.Save(&item).Error; err != nil {

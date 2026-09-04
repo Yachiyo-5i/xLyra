@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.4.0...v1.5.0) (2026-09-04)
+
+
+### Features
+
+* 🎸 Codex 客户端版本动态化，模型列表不再用静态兜底 ([85a4894](https://github.com/Yachiyo-5i/xLyra/commit/85a4894bde184d0c21b7139b7c08ace48a3c3bed))
+* Codex 客户端版本动态化，模型列表不再用静态兜底 ([c715ea0](https://github.com/Yachiyo-5i/xLyra/commit/c715ea051df181b3542aa2601648d7213d550c09))
+
+
+### Bug Fixes
+
+* 🐛 Codex 模型价格改为跟随价格目录自动更新，官方调价可自动生效 ([bb73757](https://github.com/Yachiyo-5i/xLyra/commit/bb7375765b5dfe2f2654c1a506197509d63c5cb3))
+* 🐛 Codex 模型价格改为跟随价格目录自动更新，官方调价可自动生效 ([729e4db](https://github.com/Yachiyo-5i/xLyra/commit/729e4dbcee6f8e844547552e19a0518ac36c492a))
+
 ## [1.4.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.3.1...v1.4.0) (2026-08-27)
 
 
