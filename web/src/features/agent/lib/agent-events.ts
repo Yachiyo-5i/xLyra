@@ -375,9 +375,8 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       return timeline
     }
     case 'notice': {
-      const notice = pickString(record, ['notice', 'text', 'message'])
-      if (!notice) return timeline
-      return appendStatusStep(timeline, event.type, notice)
+      // 停滞/预算等运行提醒属于内部机制，不展示给用户（与转录回放对 agent_notice 的处理一致）
+      return timeline
     }
     case 'compaction': {
       const normalized = event.type.toLowerCase()
@@ -492,11 +491,8 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
     if (message) {
       // The runner's transcript format: { type: 'message', message: ChatMessage, ... }
       if (message.role === 'user') {
-        // agent 注入的停滞/预算提醒：渲染为状态步骤，不当作用户消息（也不结束当前 run）
-        if (message.name === 'agent_notice') {
-          timeline = appendStatusStep(timeline, 'agent_notice', message.content || undefined)
-          continue
-        }
+        // agent 注入的停滞/预算提醒属于内部机制，前端不展示；也不结束当前 run
+        if (message.name === 'agent_notice') continue
         timeline = finishRunAt(timeline, entry.timestamp)
         if (message.content || message.attachments?.length) {
           const attachments = message.attachments?.map((attachment, index) => ({

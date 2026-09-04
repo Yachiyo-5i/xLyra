@@ -61,7 +61,6 @@
       "network": "visited {{count}} pages",
       "other": "made {{count}} tool calls"
     },
-    "errors": "{{count}} failed",
     "failed": "Task failed",
     "cancelled": "Stopped",
     "categories": {
@@ -75,10 +74,7 @@
     "statusCompacting": "Auto-compacting context…",
     "statusCompactingManual": "Compacting context…",
     "statusCompacted": "Context compacted",
-    "statusCompactSkipped": "Compaction skipped, continuing",
-    "statusStall": "Run stall detected",
-    "statusBudget": "Step budget notice",
-    "statusNotice": "Run notice"
+    "statusCompactSkipped": "Compaction skipped, continuing"
   },
   "permission": {
     "title": "Permission request",

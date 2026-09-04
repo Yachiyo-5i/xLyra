@@ -61,7 +61,6 @@
       "network": "{{count}} ページにアクセス",
       "other": "{{count}} 回ツールを呼び出し"
     },
-    "errors": "{{count}} 件失敗",
     "failed": "タスクの実行に失敗しました",
     "cancelled": "停止しました",
     "categories": {
@@ -75,10 +74,7 @@
     "statusCompacting": "コンテキストを自動圧縮中…",
     "statusCompactingManual": "コンテキストを圧縮中…",
     "statusCompacted": "コンテキストを圧縮しました",
-    "statusCompactSkipped": "圧縮をスキップして続行",
-    "statusStall": "停滞を検出しました",
-    "statusBudget": "ステップ予算の通知",
-    "statusNotice": "実行通知"
+    "statusCompactSkipped": "圧縮をスキップして続行"
   },
   "permission": {
     "title": "権限リクエスト",

@@ -135,7 +135,6 @@ function RunBlock({ run, onPermissionDecision }: { run: AgentRun; onPermissionDe
   const finalItem = finalIndex >= 0 ? flow[finalIndex] : undefined
   // 复制内容与展示口径一致：只复制作为回复展示的最后一段，不带中间输出
   const replyText = finalItem?.kind === 'text' ? finalItem.text : run.finalText
-  const errorCount = run.steps.filter((step) => step.status === 'error').length
   const [override, setOverride] = useState<boolean | null>(null)
   const processExpanded = override ?? !settled
   const now = useTickingNow(!done)
@@ -168,9 +167,6 @@ function RunBlock({ run, onPermissionDecision }: { run: AgentRun; onPermissionDe
           <span className="min-w-0 truncate text-[15px] tabular-nums">{t('work.elapsed', { duration: formatElapsed(elapsedMs) })}</span>
           {hasProcess ? (
             <ChevronRight className={cn('h-3 w-3 shrink-0 transition-transform', processExpanded && 'rotate-90')} />
-          ) : null}
-          {errorCount > 0 ? (
-            <span className="ml-auto shrink-0 text-red-500">{t('work.errors', { count: errorCount })}</span>
           ) : null}
         </button>
         <div aria-hidden className="mt-1.5 border-t border-[hsl(var(--glass-divider))]" />
@@ -237,7 +233,6 @@ function StepGroup({ steps, active }: { steps: AgentWorkStep[]; active?: boolean
   const [expanded, setExpanded] = useState(false)
   // 有行展开详情时放宽限高，避免详情被压进 5 行高度里
   const [openRows, setOpenRows] = useState(0)
-  const errorCount = steps.filter((step) => step.status === 'error').length
   const runningStep = [...steps].reverse().find((step) => step.status === 'running')
   const statusLabel = runningStep
     ? t(runningStep.argsDone === false ? 'work.preparingTool' : 'work.runningTool', { tool: runningStep.title })
@@ -255,9 +250,6 @@ function StepGroup({ steps, active }: { steps: AgentWorkStep[]; active?: boolean
         {/* 字号钉在 span 上：button 上的字号类在部分场景会被继承值覆盖，导致汇总行比步骤行大 */}
         <span className="min-w-0 truncate text-[10px]">{statusLabel}</span>
         <ChevronRight className={cn('h-3 w-3 shrink-0 transition-transform', expanded && 'rotate-90')} />
-        {errorCount > 0 ? (
-          <span className="ml-auto shrink-0 text-red-500">{t('work.errors', { count: errorCount })}</span>
-        ) : null}
       </button>
       {expanded ? (
         /* 展开区限高内部滚动：默认约 5 行（每行 20px + 4px 间距）；有行展开详情时放宽 */
@@ -354,9 +346,6 @@ const STATUS_TITLE_KEYS: Record<string, string> = {
   compacted: 'work.statusCompacted',
   compaction: 'work.statusCompacted',
   compaction_skipped: 'work.statusCompactSkipped',
-  stall_detected: 'work.statusStall',
-  budget_notice: 'work.statusBudget',
-  agent_notice: 'work.statusNotice',
 }
 
 function StepRow({ step, onOpenChange }: { step: AgentWorkStep; onOpenChange?: (open: boolean) => void }) {
@@ -408,7 +397,7 @@ function StepRow({ step, onOpenChange }: { step: AgentWorkStep; onOpenChange?: (
         ) : null}
       </button>
       {open && canExpand ? (
-        <div className="mx-1 mb-1 min-w-0 rounded-md bg-[hsl(var(--surface-base))] px-2 py-1.5">
+        <div className="agent-step-detail mx-1 mb-1 min-w-0 rounded-md px-2 py-1.5">
           {inputPreview ? (
             <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] leading-4 text-muted-soft">{inputDetail}</pre>
           ) : null}

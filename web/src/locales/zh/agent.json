@@ -61,7 +61,6 @@
       "network": "访问了 {{count}} 个网页",
       "other": "调用了 {{count}} 次工具"
     },
-    "errors": "{{count}} 步失败",
     "failed": "任务执行失败",
     "cancelled": "已停止",
     "categories": {
@@ -75,10 +74,7 @@
     "statusCompacting": "正在自动压缩上下文…",
     "statusCompactingManual": "正在压缩上下文…",
     "statusCompacted": "已压缩上下文",
-    "statusCompactSkipped": "压缩未完成，继续执行",
-    "statusStall": "检测到运行停滞",
-    "statusBudget": "步数预算提醒",
-    "statusNotice": "运行提醒"
+    "statusCompactSkipped": "压缩未完成，继续执行"
   },
   "permission": {
     "title": "权限请求",

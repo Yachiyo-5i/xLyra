@@ -496,7 +496,7 @@ describe('timelineFromTranscript', () => {
 })
 
 describe('stall/budget 提醒', () => {
-  it('stall_detected/budget_notice 渲染为状态步骤而不是正文', () => {
+  it('stall_detected/budget_notice 不进时间线（内部机制不对用户展示）', () => {
     const timeline = reduceAll([
       { type: 'tool_call', data: { id: 'c1', tool: 'read_file', args: { path: '/a.ts' } } },
       { type: 'stall_detected', data: { notice: '检测到重复调用 read_file', repeated_tool: 'read_file' } },
@@ -505,13 +505,11 @@ describe('stall/budget 提醒', () => {
     ])
     const item = timeline[0]
     if (item.kind !== 'run') throw new Error('expected run')
-    expect(item.run.steps.map((step) => step.kind)).toEqual(['tool', 'status', 'status', 'text'])
-    expect(item.run.steps[1]).toMatchObject({ title: 'stall_detected', detail: '检测到重复调用 read_file' })
-    expect(item.run.steps[2]).toMatchObject({ title: 'budget_notice', detail: '已使用 50% 步数' })
+    expect(item.run.steps.map((step) => step.kind)).toEqual(['tool', 'text'])
     expect(item.run.finalText).toBe('继续处理')
   })
 
-  it('转录里 name=agent_notice 的 user 消息渲染为状态步骤且不结束 run', () => {
+  it('转录里 name=agent_notice 的 user 消息被忽略且不结束 run', () => {
     const timeline = timelineFromTranscript([
       { type: 'message', message: { role: 'user', content: '问题' } },
       { type: 'message', message: { role: 'assistant', content: '先做一步', tool_calls: [{ id: 'c1', name: 'read_file', raw_arguments: '{}' }] } },
@@ -523,8 +521,7 @@ describe('stall/budget 提醒', () => {
     expect(timeline.filter((item) => item.kind === 'user')).toHaveLength(1)
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
-    expect(run.run.steps.map((step) => step.kind)).toEqual(['text', 'tool', 'status', 'text'])
-    expect(run.run.steps[2]).toMatchObject({ title: 'agent_notice', detail: '检测到停滞' })
+    expect(run.run.steps.map((step) => step.kind)).toEqual(['text', 'tool', 'text'])
     expect(run.run.finalText).toBe('先做一步继续回答')
     expect(run.run.status).toBe('done')
   })
