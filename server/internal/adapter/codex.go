@@ -10,17 +10,29 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"xlyra/server/internal/codexversion"
 )
 
 const (
 	codexBackendDefaultBaseURL = "https://chatgpt.com/backend-api"
 	codexOriginURL             = "https://chatgpt.com"
 	codexRefererURL            = "https://chatgpt.com/codex"
-	CodexClientVersion         = "0.144.1"
-	CodexUserAgent             = "codex_cli_rs/" + CodexClientVersion + " (Mac OS 26.0; arm64) vscode/1.99.3"
 )
+
+// codexUserAgent mirrors the real Codex CLI user agent, with the client
+// version resolved at runtime so it tracks the latest published release
+// instead of a pinned build-time constant.
+func codexUserAgent() string {
+	return "codex_cli_rs/" + codexversion.Version() + " (Mac OS 26.0; arm64) vscode/1.99.3"
+}
+
+// CodexUserAgent returns the runtime user agent used for outbound Codex
+// requests. It is exported so the gateway can reuse the same identity.
+func CodexUserAgent() string { return codexUserAgent() }
 
 type Codex struct {
 	client *http.Client
@@ -142,6 +154,15 @@ func (a Codex) FetchUserSummary(ctx context.Context, site SiteConfig, auth Syste
 		}
 		modelItems = append(modelItems, raw)
 	}
+	// gpt-image-2 is not issued by the codex /codex/models endpoint for this
+	// account, but the gateway still routes explicit image requests to codex. It
+	// must stay in the site model catalog for that routing to keep working, so it
+	// is re-appended after every successful model sync (otherwise MarkUnavailable-
+	// Except would mark it unavailable). It is a routing capability, not a model
+	// the account was issued, and is labelled as such.
+	if len(models) > 0 && !hasUpstreamModel(models, codexImageSlug) {
+		modelItems = append(modelItems, codexImageRouteModel())
+	}
 	user := map[string]any{
 		"provider":   "codex",
 		"email":      auth.Email,
@@ -194,26 +215,37 @@ func (a Codex) fetchModels(ctx context.Context, site SiteConfig, accessToken str
 	endpoints := codexModelEndpoints(site.BaseURL)
 	var payload map[string]any
 	var err error
+	var lastErr error
 	for _, endpoint := range endpoints {
 		payload, err = a.getJSON(ctx, site, endpoint, accessToken, accountID)
-		if err == nil && len(codexModelsFromItems(extractCodexModelItems(payload))) > 0 {
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if len(codexModelsFromItems(extractCodexModelItems(payload))) > 0 {
+			lastErr = nil
 			break
 		}
 	}
 	models := codexModelsFromItems(extractCodexModelItems(payload))
 	if len(models) == 0 {
-		models = codexModelsFromItems(codexStaticModelItems())
-	}
-	if len(models) == 0 && err != nil {
-		return nil, err
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, fmt.Errorf("codex upstream returned no models")
 	}
 	return models, nil
 }
 
 func codexModelsFromItems(items []map[string]any) []Model {
 	sorted := make([]map[string]any, 0, len(items))
+	current := codexversion.Version()
 	for _, item := range items {
 		if strings.EqualFold(strings.TrimSpace(stringFromAny(item["visibility"])), "hide") {
+			continue
+		}
+		minimal := strings.TrimSpace(stringFromAny(item["minimal_client_version"]))
+		if minimal != "" && versionGreaterThan(minimal, current) {
 			continue
 		}
 		sorted = append(sorted, item)
@@ -412,7 +444,7 @@ func (a Codex) getJSON(ctx context.Context, site SiteConfig, endpoint string, ac
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(accessToken))
 	req.Header.Set("Origin", codexOriginURL)
 	req.Header.Set("Referer", codexRefererURL)
-	req.Header.Set("User-Agent", CodexUserAgent)
+	req.Header.Set("User-Agent", codexUserAgent())
 	if trimmed := strings.TrimSpace(accountID); trimmed != "" {
 		req.Header.Set("ChatGPT-Account-Id", trimmed)
 	}
@@ -454,7 +486,7 @@ func (a Codex) postJSON(ctx context.Context, site SiteConfig, endpoint string, a
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(accessToken))
 	req.Header.Set("Origin", codexOriginURL)
 	req.Header.Set("Referer", codexRefererURL)
-	req.Header.Set("User-Agent", CodexUserAgent)
+	req.Header.Set("User-Agent", codexUserAgent())
 	if trimmed := strings.TrimSpace(accountID); trimmed != "" {
 		req.Header.Set("ChatGPT-Account-Id", trimmed)
 	}
@@ -710,56 +742,77 @@ func extractCodexModelItems(payload map[string]any) []map[string]any {
 	return nil
 }
 
-func codexStaticModelItems() []map[string]any {
-	models := []map[string]any{
-		codexStaticModel("gpt-5.6-sol", "GPT-5.6-Sol", 1, 372000, 128000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}),
-		codexStaticModel("gpt-5.6-terra", "GPT-5.6-Terra", 2, 372000, 128000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}),
-		codexStaticModel("gpt-5.6-luna", "GPT-5.6-Luna", 3, 372000, 128000, []string{"low", "medium", "high", "xhigh", "max"}),
-		codexStaticModel("gpt-5.5", "GPT-5.5", 7, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
-		codexStaticModel("gpt-5.4", "GPT-5.4", 16, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
-		codexStaticModel("gpt-5.4-mini", "GPT-5.4-Mini", 23, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
-		codexStaticModel("gpt-5.2", "GPT-5.2", 29, 272000, 128000, []string{"low", "medium", "high", "xhigh"}),
-	}
-	models = append(models, map[string]any{
-		"slug":                     "gpt-image-2",
+// codexImageSlug is the image model the proxy exposes for Codex image routing.
+// It is not issued by /codex/models but is required to keep explicit image
+// requests routable to the Codex site.
+const codexImageSlug = "gpt-image-2"
+
+// codexImageRouteModel returns the catalog entry that keeps gpt-image-2 routable
+// to Codex. It represents a routing capability rather than a model the account
+// was issued, so it is labelled distinctly from the upstream models and carries
+// only the image endpoint type.
+func codexImageRouteModel() map[string]any {
+	return map[string]any{
+		"slug":                     codexImageSlug,
 		"object":                   "model",
 		"created":                  int64(1704067200),
 		"owned_by":                 "openai",
 		"type":                     "openai",
 		"display_name":             "GPT Image 2",
-		"version":                  "gpt-image-2",
-		"priority":                 100,
-		"supported_endpoint_types": []string{"openai-response", "openai-image"},
+		"version":                  codexImageSlug,
+		"priority":                 1000,
+		"visibility":               "list",
+		"supported_endpoint_types": []string{"openai-image"},
 		"available":                true,
-		"source":                   "codex_static",
-	})
-	return models
+		"source":                   "codex_image_route",
+	}
 }
 
-func codexStaticModel(slug string, displayName string, priority int, contextWindow int, maxCompletionTokens int, thinkingLevels []string) map[string]any {
-	return map[string]any{
-		"slug":                  slug,
-		"object":                "model",
-		"owned_by":              "openai",
-		"type":                  "openai",
-		"display_name":          displayName,
-		"version":               slug,
-		"priority":              priority,
-		"visibility":            "list",
-		"context_window":        contextWindow,
-		"context_length":        contextWindow,
-		"max_completion_tokens": maxCompletionTokens,
-		"supported_parameters":  []string{"tools"},
-		"supported_endpoint_types": []string{
-			"openai",
-			"openai-response",
-		},
-		"thinking": map[string]any{
-			"levels": thinkingLevels,
-		},
-		"available": true,
-		"source":    "codex_static",
+func hasUpstreamModel(models []Model, upstreamName string) bool {
+	if strings.TrimSpace(upstreamName) == "" {
+		return false
 	}
+	for _, model := range models {
+		if strings.EqualFold(strings.TrimSpace(model.UpstreamName), strings.TrimSpace(upstreamName)) {
+			return true
+		}
+	}
+	return false
+}
+
+// versionGreaterThan reports whether a > b for dotted numeric versions. It is
+// used to drop models whose minimal_client_version is above the running client
+// version, mirroring the Codex CLI client-side gate.
+func versionGreaterThan(a string, b string) bool {
+	ai, okA := parseVersion(a)
+	bi, okB := parseVersion(b)
+	if !okA || !okB {
+		return strings.Compare(strings.TrimSpace(a), strings.TrimSpace(b)) > 0
+	}
+	switch {
+	case ai[0] != bi[0]:
+		return ai[0] > bi[0]
+	case ai[1] != bi[1]:
+		return ai[1] > bi[1]
+	default:
+		return ai[2] > bi[2]
+	}
+}
+
+func parseVersion(value string) ([3]int, bool) {
+	parts := strings.Split(strings.TrimSpace(value), ".")
+	if len(parts) != 3 {
+		return [3]int{}, false
+	}
+	var out [3]int
+	for index, part := range parts {
+		number, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil {
+			return [3]int{}, false
+		}
+		out[index] = number
+	}
+	return out, true
 }
 
 func normalizeCodexBaseURL(baseURL string) string {
@@ -833,7 +886,7 @@ func codexWithClientVersion(endpoint string) string {
 	if strings.Contains(endpoint, "?") {
 		separator = "&"
 	}
-	return endpoint + separator + "client_version=" + CodexClientVersion
+	return endpoint + separator + "client_version=" + codexversion.Version()
 }
 
 func codexOriginFromBaseURL(baseURL string) string {

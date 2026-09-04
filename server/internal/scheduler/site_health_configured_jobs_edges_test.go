@@ -67,8 +67,8 @@ func TestRegisterDefaultJobsAcceptsTinyPositiveSiteHealthInterval(t *testing.T) 
 
 	scheduler.RegisterDefaultJobs()
 
-	if entries := scheduler.cron.Entries(); len(entries) != 3 {
-		t.Fatalf("entries = %d, want site health plus configured site refresh and checkin jobs", len(entries))
+	if entries := scheduler.cron.Entries(); len(entries) != 4 {
+		t.Fatalf("entries = %d, want site health plus configured site refresh and checkin jobs plus codex version refresh", len(entries))
 	}
 	if scheduler.siteRefreshID == 0 || scheduler.checkinID == 0 {
 		t.Fatalf("expected configured site jobs to still register, got refresh=%d checkin=%d", scheduler.siteRefreshID, scheduler.checkinID)

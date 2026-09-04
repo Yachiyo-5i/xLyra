@@ -25,12 +25,12 @@ func TestRegisterDefaultJobsSupportsPartialCoreServices(t *testing.T) {
 			name:      "models_and_usage_without_sites",
 			sync:      &catalog.SyncService{},
 			summary:   &usage.SummaryService{},
-			wantCount: 2,
+			wantCount: 3,
 		},
 		{
 			name:      "sites_without_models_or_usage",
 			sites:     &site.Service{},
-			wantCount: 3,
+			wantCount: 4,
 			wantSite:  true,
 		},
 	} {

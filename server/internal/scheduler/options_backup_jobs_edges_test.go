@@ -48,8 +48,8 @@ func TestRegisterDefaultJobsRegistersOnlyConfiguredAutomaticBackup(t *testing.T)
 	if scheduler.autoBackupID == 0 {
 		t.Fatal("expected configured automatic backup job")
 	}
-	if entries := scheduler.cron.Entries(); len(entries) != 1 {
-		t.Fatalf("entries = %d, want only automatic backup job", len(entries))
+	if entries := scheduler.cron.Entries(); len(entries) != 2 {
+		t.Fatalf("entries = %d, want automatic backup plus codex version refresh job", len(entries))
 	}
 }
 

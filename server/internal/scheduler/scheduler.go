@@ -12,6 +12,7 @@ import (
 
 	"xlyra/server/internal/backup"
 	"xlyra/server/internal/catalog"
+	"xlyra/server/internal/codexversion"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/site"
 	"xlyra/server/internal/usage"
@@ -20,6 +21,7 @@ import (
 const (
 	usageSummaryCron          = "1 0 * * *"
 	modelPricingSyncCron      = "@every 4h"
+	codexVersionRefreshCron   = "@every 6h"
 	automaticBackupJobTimeout = 10 * time.Minute
 )
 
@@ -62,6 +64,7 @@ type Scheduler struct {
 	summarizing   atomic.Bool
 	refreshing    atomic.Bool
 	checkingIn    atomic.Bool
+	versioning    atomic.Bool
 
 	modelsCacheInvalidator func()
 }
@@ -133,6 +136,16 @@ func (s *Scheduler) RegisterDefaultJobs() {
 			s.logger.Info("usage summary scheduler registered", "cron", usageSummaryCron)
 		}
 	}
+
+	// Codex version refresh is independent of every other service, so it is
+	// always registered. The initial refresh runs immediately so the proxy does
+	// not wait a full cycle for a current client version.
+	if _, err := s.cron.AddFunc(codexVersionRefreshCron, s.runCodexVersionRefresh); err != nil {
+		s.logger.Error("register codex version refresh scheduler failed", "error", err)
+	} else {
+		s.logger.Info("codex version refresh scheduler registered", "interval", codexVersionRefreshCron)
+	}
+	go s.runCodexVersionRefresh()
 
 	s.RegisterConfiguredJobs()
 	if s.options.ConfigFile != nil {
@@ -295,6 +308,29 @@ func (s *Scheduler) runModelsDevSync() {
 	}
 	if s.modelsCacheInvalidator != nil {
 		s.modelsCacheInvalidator()
+	}
+}
+
+// runCodexVersionRefresh refreshes the Codex client version from the npm
+// registry. The version gates which models the /codex/models endpoint returns,
+// so keeping it current is what lets model sync see newly released models.
+func (s *Scheduler) runCodexVersionRefresh() {
+	if !s.versioning.CompareAndSwap(false, true) {
+		s.logger.Warn("codex version refresh skipped: previous run still active")
+		return
+	}
+	defer s.versioning.Store(false)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	previous := codexversion.Version()
+	if err := codexversion.Refresh(ctx); err != nil {
+		s.logger.Warn("codex version refresh failed", "error", err, "current", previous)
+		return
+	}
+	if next := codexversion.Version(); next != previous {
+		s.logger.Info("codex version refreshed", "previous", previous, "current", next)
 	}
 }
 
