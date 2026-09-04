@@ -81,6 +81,33 @@ func TestForwardInjectsRunnerTokenAndPreservesSSEHeaders(t *testing.T) {
 	}
 }
 
+func TestForwardInjectsResolvedProtocolAndPreservesAttachments(t *testing.T) {
+	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if payload["protocol"] != "anthropic-messages" {
+			t.Fatalf("protocol = %#v", payload["protocol"])
+		}
+		attachments, ok := payload["attachments"].([]any)
+		if !ok || len(attachments) != 1 {
+			t.Fatalf("attachments = %#v", payload["attachments"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"success":true,"data":{"session_id":"s1","run_id":"run-1","model":"claude","agent_instance_id":"agent-1"}}`)
+	}))
+	defer runner.Close()
+	h := NewHandler(runner.URL, "runner-secret", runner.Client(), slog.Default())
+	h.SetProtocolResolver(func(context.Context, string) (string, error) { return "anthropic-messages", nil })
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/agent/sessions", bytes.NewBufferString(`{"model":"claude","content":"see","attachments":[{"name":"a.png","mime_type":"image/png","data_url":"data:image/png;base64,AA=="}]}`))
+	resp := httptest.NewRecorder()
+	h.Forward(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status = %d", resp.Code)
+	}
+}
+
 func TestForwardMapsVersionAndUpgradeToInternalPaths(t *testing.T) {
 	paths := make(chan string, 2)
 	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

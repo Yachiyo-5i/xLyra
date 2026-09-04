@@ -687,7 +687,11 @@ func (r RequestLogRepository) detailsForLogs(ctx context.Context, logs []Request
 		detail := RequestLogDetail{RequestLog: log}
 		if log.APIKeyID.Valid {
 			if apiKey, ok := apiKeysByID[log.APIKeyID.UUID]; ok {
-				detail.APIKeyName = sql.NullString{String: apiKey.Name, Valid: true}
+				apiKeyName := apiKey.Name
+				if apiKey.KeyKind == APIKeyKindAgentInternal {
+					apiKeyName = AgentAPIKeyName
+				}
+				detail.APIKeyName = sql.NullString{String: apiKeyName, Valid: true}
 				detail.APIKeyMaskedKey = sql.NullString{String: apiKey.MaskedKey, Valid: true}
 			}
 		}

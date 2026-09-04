@@ -156,8 +156,8 @@ export async function updateAgentAppearanceSettings(appearance: AgentAppearanceS
 
 export async function fetchAgentAvailableModels(): Promise<AgentAvailableSite[]> {
   const [sitesResponse, canonicalResponse] = await Promise.all([listSitesWithOAuth(), listCanonicalModels()])
-  const canonicalById = new Map(canonicalResponse.items.map((model) => [model.id, model]))
-  const rows = await Promise.all(sitesResponse.items.map(async (site) => {
+  const canonicalById = new Map((canonicalResponse.items ?? []).map((model) => [model.id, model]))
+  const rows = await Promise.all((sitesResponse.items ?? []).map(async (site) => {
     if (!site.enabled) {
       return { site_id: site.id, site_name: site.name, site_type: site.site_type, enabled: false, models: [] }
     }
@@ -168,7 +168,7 @@ export async function fetchAgentAvailableModels(): Promise<AgentAvailableSite[]>
         site_name: site.name,
         site_type: site.site_type,
         enabled: true,
-        models: response.items.filter((model) => model.enabled !== false && model.status === 'active').map(({ id, upstream_model_name, display_name, canonical_model_id }) => {
+        models: (response.items ?? []).filter((model) => model.enabled !== false && model.status === 'active').map(({ id, upstream_model_name, display_name, canonical_model_id }) => {
           const canonical = canonical_model_id ? canonicalById.get(canonical_model_id) : undefined
           return { id, upstream_model_name, display_name, canonical_model_id, model_key: canonical?.model_key, category: canonical?.category }
         }),
@@ -263,11 +263,22 @@ export type AgentCapabilitiesConfig = {
   enable_agents_md?: boolean
   enable_skills?: boolean
   disabled_skills?: string[]
+  /** 自动压缩水位线 0~1：上下文占用达到窗口的该比例时触发压缩（默认 0.9） */
+  compact_trigger_ratio?: number
+  /** 全局上下文窗口回退（token）：模型未在端点 models 声明时使用；再缺省按 200k 兜底 */
+  context_window?: number
 }
 
+export type AgentEndpointConfig = {
+  name: string
+  models?: Record<string, { context_window?: number }>
+} & Record<string, unknown>
+
 type AgentConfigEnvelope = {
-  endpoints?: unknown[]
+  endpoints?: AgentEndpointConfig[]
   agent?: AgentCapabilitiesConfig & Record<string, unknown>
+  /** server 段必须原样回带：agent /config 是整体保存，漏掉会丢 server 配置 */
+  server?: Record<string, unknown>
 }
 
 export async function fetchAgentCapabilities(): Promise<AgentCapabilitiesConfig | null> {
@@ -279,12 +290,37 @@ export async function fetchAgentCapabilities(): Promise<AgentCapabilitiesConfig 
   }
 }
 
+export async function fetchAgentConfigEnvelope(): Promise<AgentConfigEnvelope | null> {
+  try {
+    const response = await apiFetch<{ data?: AgentConfigEnvelope }>('/api/v1/agent/config')
+    return response.data ?? null
+  } catch {
+    return null
+  }
+}
+
 // agent /config saves as a whole: read the full config, merge the agent section, write back (masked credentials are preserved server-side).
 export async function updateAgentCapabilities(patch: AgentCapabilitiesConfig) {
   const current = await apiFetch<{ data?: AgentConfigEnvelope }>('/api/v1/agent/config')
   const data = current.data ?? {}
   const agent = { ...(data.agent ?? {}), ...patch }
-  await apiFetch('/api/v1/agent/config', { method: 'PUT', body: { endpoints: data.endpoints ?? [], agent } })
+  await apiFetch('/api/v1/agent/config', { method: 'PUT', body: { endpoints: data.endpoints ?? [], agent, ...(data.server ? { server: data.server } : {}) } })
+}
+
+/** 上下文设置：压缩水位线 + 全局上下文窗口（undefined 表示删除回退，恢复默认 200k 兜底） */
+export async function updateAgentContextSettings(settings: {
+  compactTriggerRatio: number
+  contextWindow?: number
+}) {
+  const current = await apiFetch<{ data?: AgentConfigEnvelope }>('/api/v1/agent/config')
+  const data = current.data ?? {}
+  const agent: AgentCapabilitiesConfig & Record<string, unknown> = { ...(data.agent ?? {}), compact_trigger_ratio: settings.compactTriggerRatio }
+  if (settings.contextWindow !== undefined && Number.isFinite(settings.contextWindow) && settings.contextWindow > 0) {
+    agent.context_window = Math.floor(settings.contextWindow)
+  } else {
+    delete agent.context_window
+  }
+  await apiFetch('/api/v1/agent/config', { method: 'PUT', body: { endpoints: data.endpoints ?? [], agent, ...(data.server ? { server: data.server } : {}) } })
 }
 
 export async function listAgentSessions() {
@@ -316,7 +352,7 @@ export async function createAgentSession(input: { content: string; model?: strin
   return response.data
 }
 
-export async function retryAgentSession(sessionId: string, input: { message_id: string; content?: string; model?: string; reasoning_effort?: string; permission_mode?: 'ask' | 'full' }) {
+export async function retryAgentSession(sessionId: string, input: { message_id: string; content?: string; model?: string; reasoning_effort?: string; permission_mode?: 'ask' | 'full'; attachments?: AgentAttachment[] }) {
   const response = await apiFetch<{ data: { session_id: string; message_id?: string; run_id: string } }>(`/api/v1/agent/sessions/${encodeURIComponent(sessionId)}/retry`, {
     method: 'POST',
     body: input,
@@ -341,6 +377,7 @@ export type AgentTranscriptEntry = {
   message?: {
     role?: 'system' | 'user' | 'assistant' | 'tool'
     content?: string
+    attachments?: Array<{ name: string; mime_type: string; data_url?: string }>
     tool_calls?: Array<{ id: string; name: string; raw_arguments: string }>
     tool_call_id?: string
     name?: string
@@ -349,6 +386,8 @@ export type AgentTranscriptEntry = {
   }
   /** type === 'compaction' */
   summary?: string
+  tokens_before?: number
+  tokens_after?: number
   /** type === 'escalation' */
   escalation_id?: string
   tool_name?: string
@@ -360,6 +399,18 @@ export type AgentTranscriptEntry = {
 
 export async function stopAgentSession(sessionId: string) {
   return apiFetch<Record<string, unknown>>(`/api/v1/agent/sessions/${encodeURIComponent(sessionId)}/stop`, { method: 'POST' })
+}
+
+/** 手动压缩指令：会话输入框发送的原文，前端识别后走压缩接口而不是普通消息 */
+export const AGENT_COMPACT_COMMAND = '/compact'
+
+/** 手动压缩：经 /sessions 命令路径（runner 拦截后登记合成 run 再转发压缩接口），同步返回摘要与 token 变化 */
+export async function compactAgentSession(sessionId: string, model?: string) {
+  const response = await apiFetch<{ data?: { summary?: string; tokens_before?: number; tokens_after?: number; compaction_id?: string } }>('/api/v1/agent/sessions', {
+    method: 'POST',
+    body: { content: AGENT_COMPACT_COMMAND, session_id: sessionId, ...(model ? { model } : {}) },
+  })
+  return response.data ?? {}
 }
 
 export async function deleteAgentSession(sessionId: string) {

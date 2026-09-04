@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronRight, FileText, ImagePlus, LoaderCircle, MoveLeft, Palette, Pencil, Plus, Search, Sparkles, X } from 'lucide-react'
+import { Check, ChevronRight, FileText, ImagePlus, Layers, LoaderCircle, MoveLeft, Palette, Pencil, Plus, Search, Sparkles, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider'
 import {
   deleteWorkspaceFile,
   fetchAgentCapabilities,
+  fetchAgentConfigEnvelope,
   fetchAgentRuntimeSettings,
   fetchAgentSkillDetail,
   fetchAgentSkillFile,
@@ -23,6 +24,7 @@ import {
   putWorkspaceFile,
   updateAgentCapabilities,
   updateAgentAppearanceSettings,
+  updateAgentContextSettings,
   type AgentAppearanceSettings,
   defaultAgentAppearance,
   type AgentSkill,
@@ -40,7 +42,7 @@ const capabilitiesKey = ['agent', 'capabilities'] as const
 const skillsKey = ['agent', 'skills'] as const
 const agentsMdKey = ['agent', 'workspace-file', 'AGENTS.md'] as const
 
-type SettingsTab = 'skills' | 'agentsMd' | 'appearance'
+type SettingsTab = 'skills' | 'agentsMd' | 'appearance' | 'context'
 type MobileSettingsView = 'menu' | 'detail'
 type SettingsActions = {
   save: () => void
@@ -109,6 +111,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
     { key: 'appearance', label: t('settings.tabAppearance'), icon: Palette },
     { key: 'skills', label: t('settings.tabSkills'), icon: Sparkles },
     { key: 'agentsMd', label: 'AGENTS.md', icon: FileText },
+    { key: 'context', label: t('settings.tabContext'), icon: Layers },
   ]
 
   // Header back button: detail/edit views go one level up (editing an existing skill returns to detail, otherwise to the list).
@@ -130,7 +133,9 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
     ? <SkillsPane nav={skillsNav} onNavigate={setSkillsNav} onActionsChange={setPaneActions} />
     : tab === 'agentsMd'
       ? <AgentsMdPane onActionsChange={setPaneActions} />
-      : <AppearancePane draft={appearanceDraft} onChange={setAppearanceDraftOverride} />
+      : tab === 'context'
+        ? <ContextPane onActionsChange={setPaneActions} />
+        : <AppearancePane draft={appearanceDraft} onChange={setAppearanceDraftOverride} />
 
   const dialogBody = (
     <div className={cn('flex min-h-0', mobileLayout ? 'h-full flex-col' : 'h-[min(80svh,600px)]')}>
@@ -925,6 +930,111 @@ function AgentsMdPane({ onActionsChange }: { onActionsChange: (actions: Settings
         </div>
       </div>
       <p className="text-xs text-faint">{t('settings.effectiveHint')}</p>
+    </div>
+  )
+}
+
+const COMPACT_RATIO_MIN = 50
+const COMPACT_RATIO_MAX = 95
+const COMPACT_RATIO_DEFAULT = 90
+
+/** 上下文设置：自动压缩水位线（全局）+ 全局上下文窗口回退。 */
+function ContextPane({ onActionsChange }: { onActionsChange: (actions: SettingsActions | null) => void }) {
+  const { t } = useTranslation('agent')
+  const queryClient = useQueryClient()
+  const envelopeQuery = useQuery({ queryKey: ['agent', 'config-envelope'], queryFn: fetchAgentConfigEnvelope, retry: false })
+
+  const [ratioDraft, setRatioDraft] = useState<number | null>(null)
+  const [windowDraft, setWindowDraft] = useState<string | null>(null)
+
+  const savedRatio = envelopeQuery.data?.agent?.compact_trigger_ratio
+  const ratio = ratioDraft ?? Math.round((typeof savedRatio === 'number' ? savedRatio : 0.9) * 100)
+
+  const savedWindow = envelopeQuery.data?.agent?.context_window
+  const windowValue = windowDraft ?? (typeof savedWindow === 'number' ? String(savedWindow) : '')
+  const windowParsed = Number(windowValue.trim())
+  const windowValid = windowValue.trim() === '' || (Number.isFinite(windowParsed) && windowParsed > 0)
+
+  const save = useMutation({
+    mutationFn: () => updateAgentContextSettings({
+      compactTriggerRatio: ratio / 100,
+      contextWindow: windowValue.trim() === '' ? undefined : windowParsed,
+    }),
+    onSuccess: async () => {
+      setRatioDraft(null)
+      setWindowDraft(null)
+      await queryClient.invalidateQueries({ queryKey: ['agent', 'config-envelope'] })
+      await queryClient.invalidateQueries({ queryKey: capabilitiesKey })
+      toast.success(t('settings.context.saved'))
+    },
+    onError: (error) => toast.error(t('settings.saveFailed'), { description: error.message }),
+  })
+
+  const { mutate: saveMutate, isPending: savePending } = save
+  const saveAction = useCallback(() => saveMutate(), [saveMutate])
+
+  useEffect(() => {
+    onActionsChange({ save: saveAction, canSave: windowValid && !envelopeQuery.isLoading && envelopeQuery.data !== null, pending: savePending })
+    return () => onActionsChange(null)
+  }, [windowValid, envelopeQuery.isLoading, envelopeQuery.data, onActionsChange, saveAction, savePending])
+
+  if (envelopeQuery.data === null && !envelopeQuery.isLoading) {
+    return (
+      <p className="rounded-lg border border-[hsl(var(--glass-border))] px-4 py-8 text-center text-xs text-muted-soft">
+        {t('settings.context.unavailable')}
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">{t('settings.context.windowTitle')}</h3>
+          <p className="mt-1 text-xs leading-5 text-muted-soft">{t('settings.context.windowHint')}</p>
+        </div>
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-muted-soft">{t('settings.context.windowLabel')}</span>
+          <Input
+            value={windowValue}
+            onChange={(event) => setWindowDraft(event.target.value.replace(/[^0-9]/g, ''))}
+            placeholder={t('settings.context.windowPlaceholder')}
+            inputMode="numeric"
+            className="h-9 max-w-52 text-right font-mono text-sm tabular-nums"
+            aria-label={t('settings.context.windowLabel')}
+          />
+          {!windowValid ? (
+            <span className="text-xs text-red-500">{t('settings.context.windowInvalid')}</span>
+          ) : null}
+        </label>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">{t('settings.context.compactTitle')}</h3>
+          <p className="mt-1 text-xs leading-5 text-muted-soft">{t('settings.context.compactHint')}</p>
+        </div>
+        <label className="block space-y-2">
+          <span className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium text-foreground">{t('settings.context.compactRatio')}</span>
+            <span className="text-xs tabular-nums text-muted-soft">{ratio}%</span>
+          </span>
+          <Slider
+            value={ratio}
+            min={COMPACT_RATIO_MIN}
+            max={COMPACT_RATIO_MAX}
+            onValueChange={(value) => setRatioDraft(value)}
+            aria-label={t('settings.context.compactRatio')}
+          />
+          <span className="flex justify-between text-[11px] text-faint">
+            <span>{COMPACT_RATIO_MIN}%</span>
+            <span>{t('settings.context.compactDefault', { value: COMPACT_RATIO_DEFAULT })}</span>
+            <span>{COMPACT_RATIO_MAX}%</span>
+          </span>
+        </label>
+      </section>
+
+      <p className="text-xs text-faint">{t('settings.context.windowsNote')}</p>
     </div>
   )
 }

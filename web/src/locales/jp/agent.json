@@ -20,7 +20,9 @@
     "editReplayTitle": "返信を再生成しますか？",
     "editReplayDescription": "最後の返信を置き換え、編集したメッセージから再生成します。",
     "editReplayCancel": "キャンセル",
-    "editReplayConfirm": "再生成"
+    "editReplayConfirm": "再生成",
+    "compactNoSession": "圧縮する会話を開いてください",
+    "compactFailed": "圧縮に失敗しました"
   },
   "composer": {
     "permissionMode": "権限モード",
@@ -42,6 +44,7 @@
   },
   "work": {
     "running": "処理中…",
+    "elapsed": "所要時間 {{duration}}",
     "working": "実行中…",
     "searching": "検索中…",
     "connecting": "接続中…",
@@ -49,6 +52,15 @@
     "preparingTool": "{{tool}} を準備中…",
     "runningTool": "{{tool}} を実行中…",
     "summary": "{{count}} ステップ完了",
+    "summaryJoin": "、",
+    "summaryParts": {
+      "fileRead": "{{count}} 個のファイルを確認",
+      "fileEdit": "{{count}} 個のファイルを更新",
+      "command": "{{count}} 件のコマンドを実行",
+      "search": "{{count}} 回検索",
+      "network": "{{count}} ページにアクセス",
+      "other": "{{count}} 回ツールを呼び出し"
+    },
     "errors": "{{count}} 件失敗",
     "failed": "タスクの実行に失敗しました",
     "cancelled": "停止しました",
@@ -59,7 +71,14 @@
       "fileRead": "ファイル読み取り",
       "search": "検索",
       "other": "ツール呼び出し"
-    }
+    },
+    "statusCompacting": "コンテキストを自動圧縮中…",
+    "statusCompactingManual": "コンテキストを圧縮中…",
+    "statusCompacted": "コンテキストを圧縮しました",
+    "statusCompactSkipped": "圧縮をスキップして続行",
+    "statusStall": "停滞を検出しました",
+    "statusBudget": "ステップ予算の通知",
+    "statusNotice": "実行通知"
   },
   "permission": {
     "title": "権限リクエスト",
@@ -146,6 +165,21 @@
       "savedHint": "設定は保存され、再読み込み後も保持されます。",
       "reset": "デフォルトに戻す",
       "cancel": "キャンセル"
+    },
+    "tabContext": "コンテキスト",
+    "context": {
+      "compactTitle": "自動圧縮",
+      "compactHint": "会話コンテキストがモデルのウィンドウの設定割合に達すると、Agent は前半を要約に圧縮して続行します。",
+      "compactRatio": "トリガー水位",
+      "compactDefault": "デフォルト {{value}}%",
+      "windowsNote": "保存後、次の会話から有効になります。再起動は不要です。",
+      "saved": "コンテキスト設定を保存しました",
+      "unavailable": "Agent 設定を読み込めません：Runner 未接続またはバージョンが古い可能性があります。",
+      "windowTitle": "コンテキストウィンドウ",
+      "windowHint": "コンテキストウィンドウ（トークン数）。空欄はデフォルト 200000 を使用します。使用率が下の水位に達すると自動圧縮します。",
+      "windowLabel": "ウィンドウサイズ（トークン）",
+      "windowPlaceholder": "200000",
+      "windowInvalid": "正の整数を入力するか、空欄でデフォルトを使用"
     }
   }
 }

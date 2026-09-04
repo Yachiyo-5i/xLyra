@@ -207,6 +207,10 @@ func (h Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	h.llm(w, r, h.gateway.Messages)
 }
 
+func (h Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
+	h.llm(w, r, h.gateway.ChatCompletions)
+}
+
 func (h Handler) Models(w http.ResponseWriter, r *http.Request) {
 	h.llm(w, r, h.gateway.Models)
 }

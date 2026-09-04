@@ -15,6 +15,7 @@ import { ModelReasoningPicker } from '@/features/playground/components/model-rea
 import { ChatMessageItem } from '@/features/playground/components/chat-message'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
+import { attachmentMimeType, normalizeAttachmentDataURL } from '@/features/playground/lib/attachments'
 import { newId } from '@/features/playground/lib/storage'
 import { RESPONSE_TIMER_TICK_MS } from '@/features/playground/lib/response-timing'
 import { useStickToBottom } from '@/hooks/use-stick-to-bottom'
@@ -30,11 +31,6 @@ import type {
 
 const MAX_ATTACHMENTS = 4
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
-const TEXT_ATTACHMENT_EXTENSIONS = new Set([
-  'txt', 'md', 'csv', 'xml', 'html', 'js', 'ts', 'tsx', 'jsx', 'py', 'go', 'java', 'c', 'cpp', 'h',
-  'hpp', 'rs', 'rb', 'php', 'sh', 'yaml', 'yml', 'toml', 'log',
-])
-
 function fileToDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -42,16 +38,6 @@ function fileToDataURL(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('failed to read attachment'))
     reader.readAsDataURL(file)
   })
-}
-
-function attachmentMimeType(file: File): string {
-  if (file.type) return file.type
-  const extension = file.name.split('.').pop()?.toLowerCase()
-  if (extension === 'pdf') return 'application/pdf'
-  if (extension === 'json') return 'application/json'
-  if (extension === 'csv') return 'text/csv'
-  if (extension && TEXT_ATTACHMENT_EXTENSIONS.has(extension)) return 'text/plain'
-  return 'application/octet-stream'
 }
 
 type ChatViewProps = {
@@ -298,13 +284,17 @@ export function ChatView({
       return
     }
     try {
-      const next = await Promise.all(selected.map(async (file): Promise<ChatAttachment> => ({
-        id: newId(),
-        name: file.name,
-        mimeType: attachmentMimeType(file),
-        size: file.size,
-        dataURL: await fileToDataURL(file),
-      })))
+      const next = await Promise.all(selected.map(async (file): Promise<ChatAttachment> => {
+        const mimeType = attachmentMimeType(file)
+        const dataURL = await fileToDataURL(file)
+        return {
+          id: newId(),
+          name: file.name,
+          mimeType,
+          size: file.size,
+          dataURL: normalizeAttachmentDataURL(dataURL, mimeType),
+        }
+      }))
       setAttachments((current) => [...current, ...next].slice(0, MAX_ATTACHMENTS))
       setAttachmentError(files.length > remaining ? t('chat.attachmentLimit', { count: MAX_ATTACHMENTS }) : null)
     } catch {

@@ -70,6 +70,7 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	syncView := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("view")), "sync")
+	includeInternal := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_internal")), "true")
 	if syncView {
 		items, err := h.auth.ListAPIKeys(r.Context())
 		if err != nil {
@@ -78,7 +79,7 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		}
 		payloadItems := make([]map[string]any, 0, len(items))
 		for _, item := range items {
-			if item.KeyKind == store.APIKeyKindAgentInternal {
+			if item.KeyKind == store.APIKeyKindAgentInternal && !includeInternal {
 				continue
 			}
 			payloadItems = append(payloadItems, h.apiKeySyncPayload(item))
@@ -94,7 +95,7 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	payloadItems := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		if item.APIKey.KeyKind == store.APIKeyKindAgentInternal {
+		if item.APIKey.KeyKind == store.APIKeyKindAgentInternal && !includeInternal {
 			continue
 		}
 		payloadItems = append(payloadItems, h.apiKeyPayloadWithRateLimit(item.APIKey, item.Models, item.Sites, item.Groups, false, item.RateLimit))
@@ -759,10 +760,14 @@ func (h Handler) apiKeyPayloadWithRateLimit(item store.APIKey, models []store.AP
 	now := time.Now()
 	dailyUsed := item.EffectiveDailyQuotaUsed(now, h.timeZone)
 	weeklyUsed := item.EffectiveWeeklyQuotaUsed(now, h.timeZone)
+	name := item.Name
+	if item.KeyKind == store.APIKeyKindAgentInternal {
+		name = store.AgentAPIKeyName
+	}
 
 	return map[string]any{
 		"id":                     item.ID.String(),
-		"name":                   item.Name,
+		"name":                   name,
 		"key":                    plaintext,
 		"key_prefix":             item.KeyPrefix,
 		"masked_key":             item.MaskedKey,
@@ -805,9 +810,13 @@ func (h Handler) apiKeySyncPayload(item store.APIKey) map[string]any {
 	now := time.Now()
 	dailyUsed := item.EffectiveDailyQuotaUsed(now, h.timeZone)
 	weeklyUsed := item.EffectiveWeeklyQuotaUsed(now, h.timeZone)
+	name := item.Name
+	if item.KeyKind == store.APIKeyKindAgentInternal {
+		name = store.AgentAPIKeyName
+	}
 	return map[string]any{
 		"id":                     item.ID.String(),
-		"name":                   item.Name,
+		"name":                   name,
 		"key":                    nil,
 		"key_prefix":             item.KeyPrefix,
 		"masked_key":             item.MaskedKey,

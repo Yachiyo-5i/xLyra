@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -40,6 +41,7 @@ type Handler struct {
 
 	onSettingsUpdated func()
 	onRunStarted      func(context.Context, RunRegistration) error
+	resolveProtocol   func(context.Context, string) (string, error)
 }
 
 type RunRegistration struct {
@@ -77,6 +79,9 @@ const (
 	defaultBackdropBlur     = 13
 	defaultBackdropDim      = 69
 	maxBackgroundImageBytes = 8 * 1024 * 1024
+	maxAgentAttachments     = 4
+	maxAgentAttachmentBytes = 5 * 1024 * 1024
+	maxAgentAttachmentTotal = 20 * 1024 * 1024
 )
 
 func defaultAppearanceSettings() AppearanceSettings {
@@ -131,6 +136,18 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 		path = "/"
 	}
 	registerRun := r.Method == http.MethodPost && isRunStartPath(path)
+	h.mu.RLock()
+	resolveProtocol := h.resolveProtocol
+	h.mu.RUnlock()
+	body := r.Body
+	if registerRun && (path == "/sessions" || strings.HasSuffix(path, "/retry")) && resolveProtocol != nil {
+		encoded, err := h.injectProtocol(r.Context(), r.Body, resolveProtocol)
+		if err != nil {
+			httpx.Error(w, r, http.StatusBadRequest, "invalid_agent_request", err.Error())
+			return
+		}
+		body = io.NopCloser(bytes.NewReader(encoded))
+	}
 	// Public xLyra paths that differ from the runner's internal paths are mapped here.
 	switch path {
 	case "/config":
@@ -154,7 +171,7 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target.RawQuery = r.URL.RawQuery
-	request, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), r.Body)
+	request, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), body)
 	if err != nil {
 		httpx.Error(w, r, http.StatusBadGateway, "agent_runner_unavailable", "unable to create runner request")
 		return
@@ -184,6 +201,97 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = io.Copy(w, response.Body)
+}
+
+func (h *Handler) injectProtocol(ctx context.Context, body io.Reader, resolveProtocol func(context.Context, string) (string, error)) ([]byte, error) {
+	if body == nil {
+		return nil, errors.New("Agent request body is required")
+	}
+	encoded, err := io.ReadAll(body)
+	if err != nil {
+		return nil, errors.New("unable to read Agent request")
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return nil, errors.New("Agent request body must be JSON")
+	}
+	if err := validateAgentAttachments(payload["attachments"]); err != nil {
+		return nil, err
+	}
+	model, _ := payload["model"].(string)
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return encoded, nil
+	}
+	protocol, err := resolveProtocol(ctx, model)
+	if err != nil {
+		return nil, err
+	}
+	payload["protocol"] = protocol
+	return json.Marshal(payload)
+}
+
+func validateAgentAttachments(value any) error {
+	if value == nil {
+		return nil
+	}
+	items, ok := value.([]any)
+	if !ok {
+		return errors.New("attachments must be an array")
+	}
+	if len(items) > maxAgentAttachments {
+		return fmt.Errorf("attachments cannot contain more than %d files", maxAgentAttachments)
+	}
+	total := 0
+	for _, item := range items {
+		attachment, ok := item.(map[string]any)
+		if !ok {
+			return errors.New("attachment must be an object")
+		}
+		name, _ := attachment["name"].(string)
+		mime, _ := attachment["mime_type"].(string)
+		dataURL, _ := attachment["data_url"].(string)
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(mime) == "" || dataURL == "" {
+			return errors.New("attachment name, mime_type and data_url are required")
+		}
+		parts := strings.SplitN(dataURL, ",", 2)
+		if len(parts) != 2 || !strings.Contains(strings.ToLower(parts[0]), ";base64") {
+			return errors.New("attachment data_url must be a base64 data URL")
+		}
+		// 大小按 base64 串长度算术推算，不做全量解码（同 isDataURLTooLarge）；
+		// 解码留给实际消费方（agent/上游），代理层只负责限额
+		size, ok := decodedBase64Size(parts[1])
+		if !ok {
+			return errors.New("attachment data_url is not valid base64")
+		}
+		if size > maxAgentAttachmentBytes {
+			return fmt.Errorf("attachment %q exceeds the 5 MB limit", name)
+		}
+		total += size
+		if total > maxAgentAttachmentTotal {
+			return errors.New("total attachment size exceeds the 20 MB limit")
+		}
+	}
+	return nil
+}
+
+// decodedBase64Size 返回 base64 载荷的解码后字节数；字符集非法时 ok=false（不分配解码缓冲）
+func decodedBase64Size(encoded string) (int, bool) {
+	for i := 0; i < len(encoded); i++ {
+		c := encoded[i]
+		valid := (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '='
+		if !valid {
+			return 0, false
+		}
+	}
+	padding := 0
+	if strings.HasSuffix(encoded, "=") {
+		padding++
+		if strings.HasSuffix(encoded, "==") {
+			padding++
+		}
+	}
+	return len(encoded)/4*3 - padding, true
 }
 
 func isRunStartPath(path string) bool {
@@ -613,6 +721,12 @@ func (h *Handler) SetOnSettingsUpdated(fn func()) {
 func (h *Handler) SetOnRunStarted(fn func(context.Context, RunRegistration) error) {
 	h.mu.Lock()
 	h.onRunStarted = fn
+	h.mu.Unlock()
+}
+
+func (h *Handler) SetProtocolResolver(fn func(context.Context, string) (string, error)) {
+	h.mu.Lock()
+	h.resolveProtocol = fn
 	h.mu.Unlock()
 }
 

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -38,6 +40,17 @@ import (
 	"xlyra/server/internal/usage"
 	"xlyra/server/internal/version"
 )
+
+func parseAgentUUIDs(values []string) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(values))
+	for _, value := range values {
+		id, err := uuid.Parse(strings.TrimSpace(value))
+		if err == nil && id != uuid.Nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
 
 func NewRouter(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string) http.Handler {
 	router, _ := NewRouterWithGateway(cfg, logger, db, confFile, masterKey)
@@ -80,6 +93,46 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	playgroundHandler := playground.NewHandler(playgroundService)
 	agentLLMHandler := agentllm.NewHandler(logger.With("thread", "agent-llm"), db, gatewayHandler)
 	agentProxyHandler := agentproxy.NewHandler(cfg.AgentRunnerBaseURL, cfg.AgentRunnerToken, streamingHTTPClient, logger.With("thread", "agent-proxy"), config.ResolveWorkdir())
+	if routerService != nil {
+		agentProxyHandler.SetProtocolResolver(func(ctx context.Context, model string) (string, error) {
+			policy, modelPolicy, siteIDs, siteModelIDs := agentproxy.AccessPolicyFromConfig(confFile)
+			query := routeengine.CandidateQuery{ModelKey: model}
+			if policy == "allow_list" {
+				query.AllowedSiteIDs = parseAgentUUIDs(siteIDs)
+			}
+			if modelPolicy == "allow_list" {
+				query.AllowedSiteModelIDs = parseAgentUUIDs(siteModelIDs)
+			}
+			candidates, err := routerService.Candidates(ctx, query)
+			if err != nil {
+				// 解析失败（如模型未归一到 canonical、路由服务异常）不能阻断会话创建：
+				// 降级为 openai-responses，由网关在实际调用时做协议转换或报出真实路由错误
+				logger.Warn("agent protocol resolution failed, falling back to openai-responses", "model", model, "error", err)
+				return "openai-responses", nil
+			}
+			protocol := ""
+			for _, candidate := range candidates.Items {
+				for _, endpointType := range candidate.Model.SupportedEndpointTypes {
+					switch strings.ToLower(strings.TrimSpace(endpointType)) {
+					case "anthropic-messages", "messages":
+						return "anthropic-messages", nil
+					case "openai-response", "openai-responses", "responses":
+						protocol = "openai-responses"
+					case "openai", "chat", "chat-completions", "openai-chat-completions":
+						if protocol == "" {
+							protocol = "openai-chat-completions"
+						}
+					}
+				}
+			}
+			if protocol == "" {
+				// 候选为空（冷却/无可用凭证/白名单过滤）同样降级：错误应发生在实际 LLM 调用时，而不是会话创建时
+				logger.Warn("no supported agent protocol from candidates, falling back to openai-responses", "model", model, "candidates", len(candidates.Items))
+				return "openai-responses", nil
+			}
+			return protocol, nil
+		})
+	}
 	agentProxyHandler.SetOnRunStarted(func(ctx context.Context, run agentproxy.RunRegistration) error {
 		return agentLLMHandler.RegisterRun(ctx, run.AgentInstanceID, run.SessionID, run.RunID, run.Model)
 	})
@@ -418,6 +471,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 		})
 		internal.With(limitBody).Post("/v1/responses", agentLLMHandler.Responses)
 		internal.With(limitBody).Post("/v1/messages", agentLLMHandler.Messages)
+		internal.With(limitBody).Post("/v1/chat/completions", agentLLMHandler.ChatCompletions)
 		internal.Get("/v1/models", agentLLMHandler.Models)
 	})
 
@@ -480,14 +534,20 @@ const (
 	automaticBackupRestorePath   = "/api/v1/settings/backup/automatic/files/restore"
 	downloadPathPrefix           = "/api/v1/downloads/"
 	backupTransferRequestTimeout = 10 * time.Minute
+	// agent 会话命令的同步执行上限：/compact 压缩大上下文（一次摘要 LLM 调用 + 瞬态重试）
+	agentLongOpRequestTimeout = 10 * time.Minute
 )
 
 func routeAwareTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 	base := middleware.Timeout(timeout)
 	backupTransfer := middleware.Timeout(backupTransferRequestTimeout)
+	// agent 会话命令可能是同步长操作（/compact 压缩大上下文是一次完整 LLM 调用），
+	// 30s 默认超时会把它们拦腰掐断
+	agentLongOp := middleware.Timeout(agentLongOpRequestTimeout)
 	return func(next http.Handler) http.Handler {
 		timeoutHandler := base(next)
 		backupTransferTimeoutHandler := backupTransfer(next)
+		agentLongOpTimeoutHandler := agentLongOp(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodGet && r.URL.Path == "/v1/responses" && strings.EqualFold(strings.TrimSpace(r.Header.Get("Upgrade")), "websocket") {
 				next.ServeHTTP(w, r)
@@ -495,6 +555,10 @@ func routeAwareTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 			}
 			if isBackupTransferRequest(r) {
 				backupTransferTimeoutHandler.ServeHTTP(w, r)
+				return
+			}
+			if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/agent/sessions") {
+				agentLongOpTimeoutHandler.ServeHTTP(w, r)
 				return
 			}
 			if r.Method == http.MethodGet && r.URL.Path == "/api/v1/dashboard/resources/stream" {

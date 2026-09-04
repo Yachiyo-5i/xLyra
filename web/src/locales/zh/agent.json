@@ -20,7 +20,9 @@
     "editReplayTitle": "确认重新生成？",
     "editReplayDescription": "这会覆盖最后一次回复，并根据编辑后的内容重新生成，原回复将被替换。",
     "editReplayCancel": "取消",
-    "editReplayConfirm": "重新生成"
+    "editReplayConfirm": "重新生成",
+    "compactNoSession": "请先进入一个会话再执行压缩",
+    "compactFailed": "压缩失败"
   },
   "composer": {
     "permissionMode": "权限模式",
@@ -42,6 +44,7 @@
   },
   "work": {
     "running": "正在处理…",
+    "elapsed": "用时 {{duration}}",
     "working": "正在执行…",
     "searching": "正在搜索…",
     "connecting": "正在连接…",
@@ -49,6 +52,15 @@
     "preparingTool": "准备调用 {{tool}}…",
     "runningTool": "正在执行 {{tool}}…",
     "summary": "已完成 {{count}} 步工作",
+    "summaryJoin": "、",
+    "summaryParts": {
+      "fileRead": "查看了 {{count}} 个文件",
+      "fileEdit": "更新了 {{count}} 个文件",
+      "command": "运行了 {{count}} 条命令",
+      "search": "搜索了 {{count}} 次",
+      "network": "访问了 {{count}} 个网页",
+      "other": "调用了 {{count}} 次工具"
+    },
     "errors": "{{count}} 步失败",
     "failed": "任务执行失败",
     "cancelled": "已停止",
@@ -59,7 +71,14 @@
       "fileRead": "读取文件",
       "search": "搜索",
       "other": "工具调用"
-    }
+    },
+    "statusCompacting": "正在自动压缩上下文…",
+    "statusCompactingManual": "正在压缩上下文…",
+    "statusCompacted": "已压缩上下文",
+    "statusCompactSkipped": "压缩未完成，继续执行",
+    "statusStall": "检测到运行停滞",
+    "statusBudget": "步数预算提醒",
+    "statusNotice": "运行提醒"
   },
   "permission": {
     "title": "权限请求",
@@ -146,6 +165,21 @@
       "savedHint": "设置已保存，刷新后仍会保留。",
       "reset": "恢复默认",
       "cancel": "取消"
+    },
+    "tabContext": "上下文",
+    "context": {
+      "compactTitle": "自动压缩",
+      "compactHint": "对话上下文达到模型窗口的设定比例时，Agent 会自动把早期内容压缩为摘要并继续。",
+      "compactRatio": "触发水位线",
+      "compactDefault": "默认 {{value}}%",
+      "windowsNote": "保存后下一轮对话生效，无需重启。",
+      "saved": "上下文设置已保存",
+      "unavailable": "无法读取 Agent 配置：Runner 未连接或版本过旧。",
+      "windowTitle": "上下文窗口",
+      "windowHint": "上下文窗口大小（token）。留空使用默认 200000；窗口占用达到下方水位线时自动压缩。",
+      "windowLabel": "窗口大小（token）",
+      "windowPlaceholder": "200000",
+      "windowInvalid": "请输入正整数，或留空使用默认值"
     }
   }
 }

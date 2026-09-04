@@ -51,6 +51,31 @@ func TestListAPIKeysOfflineDefaultAndSyncViews(t *testing.T) {
 	}
 }
 
+func TestListAPIKeysIncludesInternalKeyWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	apiKey := offlineAPIKeyPermissionFixture()
+	apiKey.KeyKind = store.APIKeyKindAgentInternal
+	apiKey.Name = "xlyra-agent-internal"
+	handler := offlineAPIKeyPermissionHandler(t, apiKey)
+
+	defaultRec := adminPerform(handler.ListAPIKeys, adminTestRequest(http.MethodGet, "/api/v1/api-keys", ""))
+	defaultBody := adminDecodeJSON[struct {
+		Items []map[string]any `json:"items"`
+	}](t, defaultRec)
+	if len(defaultBody.Items) != 0 {
+		t.Fatalf("default items = %#v, want internal key hidden", defaultBody.Items)
+	}
+
+	includedRec := adminPerform(handler.ListAPIKeys, adminTestRequest(http.MethodGet, "/api/v1/api-keys?include_internal=true", ""))
+	includedBody := adminDecodeJSON[struct {
+		Items []map[string]any `json:"items"`
+	}](t, includedRec)
+	if len(includedBody.Items) != 1 || includedBody.Items[0]["name"] != store.AgentAPIKeyName {
+		t.Fatalf("included items = %#v, want agent key", includedBody.Items)
+	}
+}
+
 func TestAPIKeyPermissionHandlersReturnOfflineLists(t *testing.T) {
 	t.Parallel()
 

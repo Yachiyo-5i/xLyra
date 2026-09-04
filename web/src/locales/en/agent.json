@@ -20,7 +20,9 @@
     "editReplayTitle": "Regenerate this reply?",
     "editReplayDescription": "The last reply will be replaced and regenerated from your edited message.",
     "editReplayCancel": "Cancel",
-    "editReplayConfirm": "Regenerate"
+    "editReplayConfirm": "Regenerate",
+    "compactNoSession": "Open a session before compacting",
+    "compactFailed": "Compaction failed"
   },
   "composer": {
     "permissionMode": "Permission mode",
@@ -42,6 +44,7 @@
   },
   "work": {
     "running": "Working…",
+    "elapsed": "Elapsed {{duration}}",
     "working": "Executing…",
     "searching": "Searching…",
     "connecting": "Connecting…",
@@ -49,6 +52,15 @@
     "preparingTool": "Preparing {{tool}}…",
     "runningTool": "Running {{tool}}…",
     "summary": "Completed {{count}} steps",
+    "summaryJoin": ", ",
+    "summaryParts": {
+      "fileRead": "read {{count}} files",
+      "fileEdit": "edited {{count}} files",
+      "command": "ran {{count}} commands",
+      "search": "searched {{count}} times",
+      "network": "visited {{count}} pages",
+      "other": "made {{count}} tool calls"
+    },
     "errors": "{{count}} failed",
     "failed": "Task failed",
     "cancelled": "Stopped",
@@ -59,7 +71,14 @@
       "fileRead": "Read file",
       "search": "Search",
       "other": "Tool call"
-    }
+    },
+    "statusCompacting": "Auto-compacting context…",
+    "statusCompactingManual": "Compacting context…",
+    "statusCompacted": "Context compacted",
+    "statusCompactSkipped": "Compaction skipped, continuing",
+    "statusStall": "Run stall detected",
+    "statusBudget": "Step budget notice",
+    "statusNotice": "Run notice"
   },
   "permission": {
     "title": "Permission request",
@@ -146,6 +165,21 @@
       "savedHint": "Your settings are saved and persist after refresh.",
       "reset": "Reset",
       "cancel": "Cancel"
+    },
+    "tabContext": "Context",
+    "context": {
+      "compactTitle": "Auto compaction",
+      "compactHint": "When the conversation reaches the set share of the model's context window, the agent compacts earlier content into a summary and continues.",
+      "compactRatio": "Trigger threshold",
+      "compactDefault": "Default {{value}}%",
+      "windowsNote": "Takes effect from the next conversation. No restart needed.",
+      "saved": "Context settings saved",
+      "unavailable": "Cannot read Agent config: runner unreachable or too old.",
+      "windowTitle": "Context window",
+      "windowHint": "Context window size (tokens). Leave empty for the default 200000; compaction triggers when usage reaches the threshold below.",
+      "windowLabel": "Window size (tokens)",
+      "windowPlaceholder": "200000",
+      "windowInvalid": "Enter a positive integer, or leave empty for the default"
     }
   }
 }

@@ -444,6 +444,43 @@ func TestRouteAwareTimeoutExtendsBackupTransfers(t *testing.T) {
 	}
 }
 
+func TestRouteAwareTimeoutExtendsAgentSessionCommands(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodPost, path: "/api/v1/agent/sessions"},
+		{method: http.MethodPost, path: "/api/v1/agent/sessions/some-session/compact-context"},
+		{method: http.MethodPost, path: "/api/v1/agent/sessions/some-session/retry"},
+	} {
+		tc := tc
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			var remaining time.Duration
+			handler := routeAwareTimeout(30 * time.Second)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				deadline, ok := r.Context().Deadline()
+				if !ok {
+					t.Fatal("expected request context deadline")
+				}
+				remaining = time.Until(deadline)
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+			}
+			if remaining < 9*time.Minute || remaining > agentLongOpRequestTimeout {
+				t.Fatalf("agent long-op timeout = %s, want close to %s", remaining, agentLongOpRequestTimeout)
+			}
+		})
+	}
+}
+
 func TestRouteAwareTimeoutKeepsDefaultForRegularRoutes(t *testing.T) {
 	t.Parallel()
 

@@ -38,6 +38,36 @@ describe('reduceAgentEvent', () => {
     if (item.kind !== 'run') return
     expect(item.run.finalText).toBe('你好，世界')
     expect(item.run.status).toBe('running')
+    // 连续文本合并为同一个 text step
+    expect(item.run.steps).toHaveLength(1)
+    expect(item.run.steps[0]).toMatchObject({ kind: 'text', detail: '你好，世界' })
+  })
+
+  it('interleaves text segments with tool steps in arrival order', () => {
+    const timeline = reduceAll([
+      { type: 'message', data: { delta: '先看下文件' } },
+      { type: 'tool_call', data: { id: 'c1', tool: 'read_file', args: { path: '/a.ts' } } },
+      { type: 'tool_result', data: { id: 'c1', output: 'ok' } },
+      { type: 'message', data: { delta: '文件没问题' } },
+      { type: 'agent_done', data: {} },
+    ])
+    const item = timeline[0]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.finalText).toBe('先看下文件文件没问题')
+    expect(item.run.steps.map((step) => step.kind)).toEqual(['text', 'tool', 'text'])
+    expect(item.run.steps[0]?.detail).toBe('先看下文件')
+    expect(item.run.steps[2]?.detail).toBe('文件没问题')
+  })
+
+  it('records the step position of permission requests', () => {
+    const timeline = reduceAll([
+      { type: 'message', data: { delta: '需要执行命令' } },
+      { type: 'tool_call', data: { id: 'c1', tool: 'exec_command', args: { command: 'ls' } } },
+      { type: 'escalation_request', data: { escalation: { escalation_id: 'esc-1', tool_name: 'exec_command', requested_command: ['ls'] } } },
+    ])
+    const item = timeline[0]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.permissions[0]?.position).toBe(2)
   })
 
   it('groups tool calls as work steps and closes them on result', () => {
@@ -250,6 +280,48 @@ describe('reduceAgentEvent', () => {
 })
 
 describe('timelineFromTranscript', () => {
+  it('restores user attachments from the persisted transcript', () => {
+    const timeline = timelineFromTranscript([
+      {
+        type: 'message',
+        message_id: 'message-attachment',
+        timestamp: '2026-09-03T00:00:00.000Z',
+        message: {
+          role: 'user',
+          content: '请查看这个文件',
+          attachments: [{
+            name: 'report.pdf',
+            mime_type: 'application/pdf',
+            data_url: 'data:application/pdf;base64,AA==',
+          }],
+        },
+      },
+    ])
+    expect(timeline[0]).toMatchObject({
+      kind: 'user',
+      text: '请查看这个文件',
+      attachments: [{ name: 'report.pdf', mimeType: 'application/pdf', dataURL: 'data:application/pdf;base64,AA==' }],
+    })
+  })
+
+  it('keeps attachments when replacing a user message for replay', () => {
+    const initial = timelineFromTranscript([{
+      type: 'message',
+      message_id: 'message-attachment',
+      message: {
+        role: 'user',
+        content: '原始问题',
+        attachments: [{ name: 'report.pdf', mime_type: 'application/pdf', data_url: 'data:application/pdf;base64,AA==' }],
+      },
+    }])
+    const replaced = replaceFromUserMessage(initial, 'message-attachment', '重放问题')
+    expect(replaced[0]).toMatchObject({
+      kind: 'user',
+      text: '重放问题',
+      attachments: [{ name: 'report.pdf', mimeType: 'application/pdf' }],
+    })
+  })
+
   it('maps transcript entries to a closed timeline', () => {
     const timeline = timelineFromTranscript([
       { role: 'user', content: '问题' },
@@ -260,7 +332,8 @@ describe('timelineFromTranscript', () => {
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
     expect(run.run.finalText).toBe('回答')
-    expect(run.run.steps[0].title).toBe('read_file')
+    expect(run.run.steps.map((step) => step.kind)).toEqual(['text', 'tool'])
+    expect(run.run.steps[1].title).toBe('read_file')
     expect(run.run.status).toBe('done')
   })
 
@@ -283,14 +356,36 @@ describe('timelineFromTranscript', () => {
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
     expect(run.run.finalText).toBe('文件没问题')
-    // thinking step + tool step (the tool_result right after tool_call closes it)
-    const thinking = run.run.steps.find((step) => step.kind === 'thinking')
-    expect(thinking?.detail).toBe('先读文件')
+    // thinking 不进时间线，只有 tool step + text step，按到达顺序交错
+    expect(run.run.steps.map((step) => step.kind)).toEqual(['tool', 'text'])
     const tool = run.run.steps.find((step) => step.kind === 'tool')
     expect(tool?.title).toBe('read_file')
     expect(tool?.detail).toBe('file body')
     expect(tool?.status).toBe('done')
     expect(run.run.status).toBe('done')
+  })
+
+  it('restores text before tool calls within one assistant message', () => {
+    const timeline = timelineFromTranscript([
+      { type: 'message', message: { role: 'user', content: 'q' } },
+      {
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: '我先读文件',
+          tool_calls: [{ id: 'c1', name: 'read_file', raw_arguments: '{}' }],
+        },
+      },
+      { type: 'message', message: { role: 'tool', tool_call_id: 'c1', name: 'read_file', content: 'body' } },
+      { type: 'message', message: { role: 'assistant', content: '看完了' } },
+    ])
+    const run = timeline[1]
+    if (run.kind !== 'run') throw new Error('expected run')
+    expect(run.run.steps.map((step) => [step.kind, step.detail])).toEqual([
+      ['text', '我先读文件'],
+      ['tool', 'body'],
+      ['text', '看完了'],
+    ])
   })
 
   it('marks historical tool errors and renders compaction/escalation entries', () => {
@@ -322,11 +417,14 @@ describe('timelineFromTranscript', () => {
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
     expect(run.run.steps.find((step) => step.kind === 'tool')?.status).toBe('error')
-    expect(run.run.steps.find((step) => step.kind === 'status')).toMatchObject({ title: 'compaction', detail: '前文摘要' })
-    expect(run.run.permissions[0]).toMatchObject({ id: 'e1', tool: 'bash', detail: 'rm -rf /tmp/x', decision: 'denied' })
+    // 压缩条目先收束回复 run，再开独立的压缩 run；后续提权也挂在该 run 上
+    const compactRun = timeline[2]
+    if (compactRun?.kind !== 'run') throw new Error('expected compact run')
+    expect(compactRun.run.steps.find((step) => step.kind === 'status')).toMatchObject({ title: 'compacted', detail: undefined })
+    expect(compactRun.run.permissions[0]).toMatchObject({ id: 'e1', tool: 'bash', detail: 'rm -rf /tmp/x', decision: 'denied' })
     // An undecided escalation (granted: null) stays interactive and must not render as denied.
-    expect(run.run.permissions[1]).toMatchObject({ id: 'e2', tool: 'read_file', resolvedPath: '/Users/x/secrets' })
-    expect(run.run.permissions[1].decision).toBeUndefined()
+    expect(compactRun.run.permissions[1]).toMatchObject({ id: 'e2', tool: 'read_file', resolvedPath: '/Users/x/secrets' })
+    expect(compactRun.run.permissions[1].decision).toBeUndefined()
   })
 
   it('downgrades legacy interrupted seal receipts to neutral when an escalation paused the run', () => {
@@ -394,5 +492,99 @@ describe('timelineFromTranscript', () => {
     const run = timeline[1]
     if (run.kind !== 'run') throw new Error('expected run')
     expect(run.run.elapsedMs).toBe(2_500)
+  })
+})
+
+describe('stall/budget 提醒', () => {
+  it('stall_detected/budget_notice 渲染为状态步骤而不是正文', () => {
+    const timeline = reduceAll([
+      { type: 'tool_call', data: { id: 'c1', tool: 'read_file', args: { path: '/a.ts' } } },
+      { type: 'stall_detected', data: { notice: '检测到重复调用 read_file', repeated_tool: 'read_file' } },
+      { type: 'budget_notice', data: { notice: '已使用 50% 步数', step: 100, max_steps: 200 } },
+      { type: 'message', data: { delta: '继续处理' } },
+    ])
+    const item = timeline[0]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.steps.map((step) => step.kind)).toEqual(['tool', 'status', 'status', 'text'])
+    expect(item.run.steps[1]).toMatchObject({ title: 'stall_detected', detail: '检测到重复调用 read_file' })
+    expect(item.run.steps[2]).toMatchObject({ title: 'budget_notice', detail: '已使用 50% 步数' })
+    expect(item.run.finalText).toBe('继续处理')
+  })
+
+  it('转录里 name=agent_notice 的 user 消息渲染为状态步骤且不结束 run', () => {
+    const timeline = timelineFromTranscript([
+      { type: 'message', message: { role: 'user', content: '问题' } },
+      { type: 'message', message: { role: 'assistant', content: '先做一步', tool_calls: [{ id: 'c1', name: 'read_file', raw_arguments: '{}' }] } },
+      { type: 'message', message: { role: 'tool', tool_call_id: 'c1', name: 'read_file', content: 'ok' } },
+      { type: 'message', message: { role: 'user', name: 'agent_notice', content: '检测到停滞' } },
+      { type: 'message', message: { role: 'assistant', content: '继续回答' } },
+    ])
+    // 只有一条真实用户消息
+    expect(timeline.filter((item) => item.kind === 'user')).toHaveLength(1)
+    const run = timeline[1]
+    if (run.kind !== 'run') throw new Error('expected run')
+    expect(run.run.steps.map((step) => step.kind)).toEqual(['text', 'tool', 'status', 'text'])
+    expect(run.run.steps[2]).toMatchObject({ title: 'agent_notice', detail: '检测到停滞' })
+    expect(run.run.finalText).toBe('先做一步继续回答')
+    expect(run.run.status).toBe('done')
+  })
+})
+
+describe('上下文压缩状态', () => {
+  it('自动压缩：compacting → compacted 状态步骤落定（只显示状态文本）', () => {
+    const timeline = reduceAll([
+      { type: 'tool_call', data: { id: 'c1', tool: 'read_file', args: {} } },
+      { type: 'context_compacting', data: {} },
+      { type: 'context_compacted', data: { compaction: { summary: '摘要', tokens_before: 180000, tokens_after: 30000 } } },
+    ])
+    const item = timeline[0]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.steps.map((step) => [step.kind, step.title, step.status])).toEqual([
+      ['tool', 'read_file', 'running'],
+      ['status', 'compacted', 'done'],
+    ])
+    expect(item.run.steps[1]?.detail).toBeUndefined()
+  })
+
+  it('压缩失败（无 compaction 载荷）状态步骤落定为跳过', () => {
+    const timeline = reduceAll([
+      { type: 'context_compacting', data: {} },
+      { type: 'context_compacted', data: {} },
+    ])
+    const item = timeline[0]
+    if (item.kind !== 'run') throw new Error('expected run')
+    expect(item.run.steps[0]).toMatchObject({ kind: 'status', title: 'compaction_skipped', status: 'done' })
+  })
+
+  it('手动压缩：残留的 running run 先落定，压缩状态独占新 run', () => {
+    const timeline = reduceAll([
+      { type: 'message', data: { delta: '上一轮回复' } },
+    ])
+    const compacting = reduceAll([{ type: 'context_compacting', data: { manual: true } }], timeline)
+    expect(compacting).toHaveLength(2)
+    const first = compacting[0]
+    const second = compacting[1]
+    if (first?.kind !== 'run' || second?.kind !== 'run') throw new Error('expected runs')
+    // 上一轮 run 被收束为 done，压缩状态在新 run 里
+    expect(first.run.status).toBe('done')
+    expect(second.run.status).toBe('running')
+    expect(second.run.steps[0]).toMatchObject({ kind: 'status', title: 'compacting_manual', status: 'running' })
+    expect(first.run.steps.some((step) => step.kind === 'status')).toBe(false)
+  })
+
+  it('转录里的 compaction 条目回放为独立的顶层压缩 run（不进上一轮回复）', () => {
+    const timeline = timelineFromTranscript([
+      { type: 'message', message: { role: 'user', content: '问题' } },
+      { type: 'message', message: { role: 'assistant', content: '回答' } },
+      { type: 'compaction', summary: '前文摘要', tokens_before: 150000, tokens_after: 20000 },
+    ])
+    expect(timeline).toHaveLength(3)
+    const replyRun = timeline[1]
+    const compactRun = timeline[2]
+    if (replyRun?.kind !== 'run' || compactRun?.kind !== 'run') throw new Error('expected runs')
+    // 回复 run 不含压缩状态；压缩 run 只有一个已压缩状态步骤
+    expect(replyRun.run.steps.some((s) => s.kind === 'status')).toBe(false)
+    expect(compactRun.run.steps).toHaveLength(1)
+    expect(compactRun.run.steps[0]).toMatchObject({ title: 'compacted', status: 'done', detail: undefined })
   })
 })

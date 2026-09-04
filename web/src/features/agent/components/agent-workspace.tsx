@@ -8,7 +8,7 @@ import { Composer } from '@/features/playground/components/composer'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { ModelReasoningPicker } from '@/features/playground/components/model-reasoning-picker'
 import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
-import { formatResponseDuration } from '@/features/playground/lib/response-timing'
+import { attachmentMimeType, normalizeAttachmentDataURL } from '@/features/playground/lib/attachments'
 import type { ChatAttachment, GatewayModel, ReasoningEffort } from '@/features/playground/lib/types'
 import { newId } from '@/features/playground/lib/storage'
 import { AgentSidebar } from '@/features/agent/components/agent-sidebar'
@@ -30,6 +30,8 @@ import {
   type AgentTimeline as AgentTimelineData,
 } from '@/features/agent/lib/agent-events'
 import {
+  AGENT_COMPACT_COMMAND,
+  compactAgentSession,
   createAgentSession,
   deleteAgentSession,
   fetchAgentAvailableModels,
@@ -113,7 +115,7 @@ function fileToDataURL(file: File): Promise<string> {
 /** Placeholder shown while awaiting an agent reply: pulsing caret, label, live elapsed time. */
 function orbStateForRun(run?: AgentRun): OrbState {
   const activeStep = run ? [...run.steps].reverse().find((step) => step.status === 'running') : undefined
-  if (!activeStep || activeStep.kind === 'thinking') return 'breathing'
+  if (!activeStep) return 'breathing'
   if (activeStep.kind !== 'tool') return 'working'
   const name = activeStep.title.toLowerCase()
   if (name.includes('search') || name.includes('grep') || name.includes('find') || name.includes('query')) return 'searching'
@@ -121,14 +123,9 @@ function orbStateForRun(run?: AgentRun): OrbState {
   return 'working'
 }
 
-function WaitingIndicator({ startedAt, elapsedMs = 0, state }: { startedAt: number; elapsedMs?: number; state: OrbState }) {
+/** Placeholder shown while awaiting an agent reply: pulsing orb + label. 时长由 run 的「用时」行承担，这里不再重复计时。 */
+function WaitingIndicator({ state }: { state: OrbState }) {
   const { t } = useTranslation(['agent', 'playground'])
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 100)
-    return () => window.clearInterval(timer)
-  }, [startedAt])
-  const elapsed = Math.max(0, elapsedMs + now - startedAt)
   const statusLabel = state === 'breathing'
     ? t('agent:work.thinking')
     : state === 'searching'
@@ -140,7 +137,6 @@ function WaitingIndicator({ startedAt, elapsedMs = 0, state }: { startedAt: numb
     <div className="mt-4 flex items-center gap-2 text-xs text-faint">
       <ThinkingOrb state={state} size={20} theme="dark" aria-label={statusLabel} className="shrink-0" />
       <span>{statusLabel}</span>
-      <span className="tabular-nums">{t('playground:chat.elapsedDuration', { duration: formatResponseDuration(elapsed) })}</span>
     </div>
   )
 }
@@ -276,7 +272,6 @@ export function AgentWorkspace() {
   const [draft, setDraft] = useState('')
   const [editingMessage, setEditingMessage] = useState<{ messageId: string } | null>(null)
   const [editReplayConfirmation, setEditReplayConfirmation] = useState<{ messageId: string; content: string } | null>(null)
-  const [waitingFallbackStartedAt] = useState(() => Date.now())
   const [model, setModel] = useState<string | null>(null)
   const [effort, setEffort] = useState<ReasoningEffort>('high')
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(loadPermissionMode)
@@ -403,6 +398,22 @@ export function AgentWorkspace() {
 
   useEffect(() => () => eventAbort.current?.abort(), [])
 
+  /** 手动压缩：识别 /compact 指令——不冒泡为用户消息，直接展示压缩状态并调用压缩接口 */
+  const compactMutation = useMutation({
+    mutationFn: (sessionId: string) => compactAgentSession(sessionId, effectiveModel ?? undefined),
+    onSuccess: async (data) => {
+      setTimeline((current) => reduceAgentEvent(reduceAgentEvent(current, {
+        type: 'context_compacted',
+        data: { compaction: { summary: data.summary, tokens_before: data.tokens_before, tokens_after: data.tokens_after } },
+      }), { type: 'agent_done', data: {} }))
+      await queryClient.invalidateQueries({ queryKey: ['agent', 'sessions'] })
+    },
+    onError: (error) => {
+      setTimeline((current) => reduceAgentEvent(current, { type: 'agent_error', data: {} }))
+      toast.error(t('agent:chat.compactFailed'), { description: error.message })
+    },
+  })
+
   const sendMutation = useMutation({
     mutationFn: (input: { content: string; files: ChatAttachment[] }) => createAgentSession({
       content: input.content,
@@ -441,7 +452,7 @@ export function AgentWorkspace() {
   })
 
   const retryMutation = useMutation({
-    mutationFn: (input: { messageId: string; content: string }) => {
+    mutationFn: (input: { messageId: string; content: string; files: ChatAttachment[] }) => {
       if (!selectedId) throw new Error('会话不存在')
       return retryAgentSession(selectedId, {
         message_id: input.messageId,
@@ -449,6 +460,9 @@ export function AgentWorkspace() {
         model: effectiveModel ?? undefined,
         reasoning_effort: normalizeReasoningEffort(gatewayModels.find((item) => item.id === effectiveModel) ?? null, effort),
         permission_mode: permissionMode,
+        attachments: input.files.length
+          ? input.files.map((file) => ({ name: file.name, mime_type: file.mimeType, data_url: file.dataURL }))
+          : undefined,
       })
     },
     onSuccess: async ({ session_id, message_id }, variables) => {
@@ -478,7 +492,7 @@ export function AgentWorkspace() {
     },
   })
 
-  const canSubmit = Boolean((draft.trim() || attachments.length > 0) && !running && !sendMutation.isPending && !retryMutation.isPending)
+  const canSubmit = Boolean((draft.trim() || attachments.length > 0) && !running && !sendMutation.isPending && !retryMutation.isPending && !compactMutation.isPending)
   // Busy = session creation pending or a run in flight; drives the send/stop button state.
   const awaiting = sendMutation.isPending || retryMutation.isPending || running
   // Waiting indicator shows while busy before the final response, including active tool calls.
@@ -489,8 +503,6 @@ export function AgentWorkspace() {
       || lastItem.run.steps.some((step) => step.status === 'running')
       || lastItem.run.permissions.some((request) => request.decision !== undefined))
   const waitingReply = awaiting && (!lastItem || lastItem.kind === 'user' || Boolean(runNeedsIndicator))
-  const waitingStartedAt = lastItem?.kind === 'run' ? lastItem.run.startedAt : lastItem?.kind === 'user' ? lastItem.createdAt : waitingFallbackStartedAt
-  const waitingElapsedMs = lastItem?.kind === 'run' ? lastItem.run.elapsedMs : undefined
   const waitingOrbState = lastItem?.kind === 'run' ? orbStateForRun(lastItem.run) : 'breathing'
 
   useEffect(() => {
@@ -534,12 +546,23 @@ export function AgentWorkspace() {
   function submit() {
     const content = draft.trim() || attachments[0]?.name || ''
     if (!canSubmit || !content) return
+    // /compact 指令：不冒泡为用户消息，直接在时间线展示压缩状态
+    if (content === AGENT_COMPACT_COMMAND && attachments.length === 0) {
+      if (!selectedId) {
+        toast.error(t('agent:chat.compactNoSession'))
+        return
+      }
+      setDraft('')
+      setTimeline((current) => reduceAgentEvent(current, { type: 'context_compacting', data: { manual: true } }))
+      compactMutation.mutate(selectedId)
+      return
+    }
     if (editingMessage && selectedId) {
       setEditReplayConfirmation({ messageId: editingMessage.messageId, content })
       return
     }
-    setTimeline((current) => appendUserMessage(current, content))
     const files = attachments
+    setTimeline((current) => appendUserMessage(current, content, undefined, Date.now(), files))
     setDraft('')
     setAttachments([])
     setAttachmentError(null)
@@ -549,6 +572,8 @@ export function AgentWorkspace() {
   function confirmEditReplay() {
     if (!editReplayConfirmation || !selectedId) return
     const { messageId, content } = editReplayConfirmation
+    const original = timeline.find((item) => item.kind === 'user' && (item.messageId === messageId || item.id === messageId))
+    const files = original?.kind === 'user' ? original.attachments ?? [] : attachments
     retryTimelineBeforeEdit.current = {
       timeline,
       draft,
@@ -556,13 +581,13 @@ export function AgentWorkspace() {
       attachmentError,
       editingMessage,
     }
-    setTimeline((current) => replaceFromUserMessage(current, messageId, content))
+    setTimeline((current) => replaceFromUserMessage(current, messageId, content, files))
     setEditReplayConfirmation(null)
     setEditingMessage(null)
     setDraft('')
     setAttachments([])
     setAttachmentError(null)
-    retryMutation.mutate({ messageId, content })
+    retryMutation.mutate({ messageId, content, files })
   }
 
   function handleUserEdit(messageId: string, text: string) {
@@ -631,13 +656,17 @@ export function AgentWorkspace() {
       return
     }
     try {
-      const next = await Promise.all(selected.map(async (file): Promise<ChatAttachment> => ({
-        id: newId(),
-        name: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        size: file.size,
-        dataURL: await fileToDataURL(file),
-      })))
+      const next = await Promise.all(selected.map(async (file): Promise<ChatAttachment> => {
+        const mimeType = attachmentMimeType(file)
+        const dataURL = await fileToDataURL(file)
+        return {
+          id: newId(),
+          name: file.name,
+          mimeType,
+          size: file.size,
+          dataURL: normalizeAttachmentDataURL(dataURL, mimeType),
+        }
+      }))
       setAttachments((current) => [...current, ...next].slice(0, MAX_ATTACHMENTS))
       setAttachmentError(files.length > remaining ? t('playground:chat.attachmentLimit', { count: MAX_ATTACHMENTS }) : null)
     } catch {
@@ -871,7 +900,7 @@ export function AgentWorkspace() {
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto max-w-3xl px-4 pb-6 pt-16">
                 <AgentTimeline items={timeline} onPermissionDecision={handlePermissionDecision} onUserEdit={handleUserEdit} />
-                {waitingReply ? <WaitingIndicator startedAt={waitingStartedAt} elapsedMs={waitingElapsedMs} state={waitingOrbState} /> : null}
+                {waitingReply ? <WaitingIndicator state={waitingOrbState} /> : null}
               </div>
             </div>
             <div className="shrink-0 px-4 pb-4">

@@ -23,6 +23,8 @@ const (
 // LLM traffic; it is hidden from the admin API key management surface.
 const APIKeyKindAgentInternal = "agent_internal"
 
+const AgentAPIKeyName = "xLyra-agent"
+
 type AgentRun struct {
 	ID               uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	AgentInstanceID  string     `gorm:"size:128;not null;index"`
@@ -75,13 +77,24 @@ func (r AgentRepository) FindRun(ctx context.Context, input AgentRunInput) (Agen
 func (r AgentRepository) Register(ctx context.Context, input AgentRunInput, now time.Time) (AgentRun, error) {
 	var run AgentRun
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where(&AgentRun{SessionID: input.SessionID, RunID: input.RunID})
-		err := query.First(&run).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			run = AgentRun{AgentInstanceID: input.AgentInstanceID, SessionID: input.SessionID, RunID: input.RunID, Model: input.Model, Status: AgentRunActive}
-			return tx.Create(&run).Error
+		// Runs are registered through two paths that race each other — the runner
+		// callback and the proxy response observer — so insert first and treat a
+		// conflict as "already registered": load the row and validate identity.
+		candidate := AgentRun{AgentInstanceID: input.AgentInstanceID, SessionID: input.SessionID, RunID: input.RunID, Model: input.Model, Status: AgentRunActive}
+		result := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "session_id"}, {Name: "run_id"}},
+			DoNothing: true,
+		}).Create(&candidate)
+		if result.Error != nil {
+			return result.Error
 		}
+		if result.RowsAffected > 0 {
+			run = candidate
+			return nil
+		}
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(&AgentRun{SessionID: input.SessionID, RunID: input.RunID}).
+			First(&run).Error
 		if err != nil {
 			return err
 		}
@@ -216,15 +229,23 @@ func (r AgentRepository) ListTokens(ctx context.Context, input AgentRunInput) ([
 
 func (r AgentRepository) EnsureInternalAPIKey(ctx context.Context) (APIKey, error) {
 	var item APIKey
-	err := r.db.WithContext(ctx).Where(&APIKey{Name: "xlyra-agent-internal", KeyKind: APIKeyKindAgentInternal}).First(&item).Error
+	err := r.db.WithContext(ctx).Where(&APIKey{KeyKind: APIKeyKindAgentInternal}).First(&item).Error
 	if err == nil {
+		updates := map[string]any{}
+		if item.Name != AgentAPIKeyName {
+			updates["name"] = AgentAPIKeyName
+			item.Name = AgentAPIKeyName
+		}
 		if item.Status != "active" {
 			// The internal key is infrastructure, not a user credential: it must
 			// never stay disabled, otherwise every agent LLM call would 503.
-			if err := r.db.WithContext(ctx).Model(&APIKey{}).Where(&APIKey{ID: item.ID}).Update("status", "active").Error; err != nil {
-				return APIKey{}, fmt.Errorf("reactivate internal agent api key: %w", err)
-			}
+			updates["status"] = "active"
 			item.Status = "active"
+		}
+		if len(updates) > 0 {
+			if err := r.db.WithContext(ctx).Model(&APIKey{}).Where(&APIKey{ID: item.ID}).Updates(updates).Error; err != nil {
+				return APIKey{}, fmt.Errorf("update internal agent api key: %w", err)
+			}
 		}
 		return item, nil
 	}
@@ -232,9 +253,9 @@ func (r AgentRepository) EnsureInternalAPIKey(ctx context.Context) (APIKey, erro
 		return APIKey{}, err
 	}
 	return NewAPIKeyRepository(r.db).Create(ctx, CreateAPIKeyParams{
-		Name:                 "xlyra-agent-internal",
+		Name:                 AgentAPIKeyName,
 		KeyPrefix:            "internal",
-		KeyHash:              HashAgentToken("xlyra-agent-internal"),
+		KeyHash:              HashAgentToken(AgentAPIKeyName),
 		MaskedKey:            "internal",
 		KeyKind:              APIKeyKindAgentInternal,
 		Scope:                "gateway",

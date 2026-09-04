@@ -128,7 +128,18 @@ export const downstreamAPIKeyQueryKeys = {
 }
 
 export async function listDownstreamAPIKeys() {
-  return apiFetch<{ items: DownstreamAPIKey[]; meta?: { count?: number } }>('/api/v1/api-keys')
+  return listDownstreamAPIKeysWithOptions()
+}
+
+export async function listDownstreamAPIKeysIncludingInternal() {
+  return listDownstreamAPIKeysWithOptions({ includeInternal: true })
+}
+
+async function listDownstreamAPIKeysWithOptions(options?: { includeInternal?: boolean }) {
+  const params = new URLSearchParams()
+  if (options?.includeInternal) params.set('include_internal', 'true')
+  const query = params.toString()
+  return apiFetch<{ items: DownstreamAPIKey[]; meta?: { count?: number } }>(`/api/v1/api-keys${query ? `?${query}` : ''}`)
 }
 
 // List/detail responses only carry masked_key; the plaintext is fetched on

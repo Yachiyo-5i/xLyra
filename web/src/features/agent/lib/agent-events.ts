@@ -1,11 +1,13 @@
 import type { AgentTranscriptEntry } from '@/features/agent/api/agent'
+import type { ChatAttachment } from '@/features/playground/lib/types'
 
 export type AgentStepStatus = 'running' | 'done' | 'error'
 export type AgentRunStatus = 'running' | 'done' | 'error' | 'cancelled'
 
 export type AgentWorkStep = {
   id: string
-  kind: 'tool' | 'thinking' | 'status'
+  /** text 是 loop 中途的助手文本段，与工具/状态步骤按到达顺序交错排列 */
+  kind: 'tool' | 'status' | 'text'
   title: string
   input?: string
   output?: string
@@ -21,6 +23,8 @@ export type AgentPermissionRequest = {
   /** Resolved path/capability key recorded by the grant, echoed back to the grant-access API. */
   resolvedPath?: string
   decision?: 'allowed' | 'denied'
+  /** 权限请求到达时 run.steps 的长度，用于把它插回流程中的实际位置 */
+  position?: number
 }
 
 export type AgentRun = {
@@ -35,7 +39,7 @@ export type AgentRun = {
 }
 
 export type AgentTimelineItem =
-  | { kind: 'user'; id: string; text: string; messageId?: string; createdAt: number }
+  | { kind: 'user'; id: string; text: string; messageId?: string; createdAt: number; attachments?: ChatAttachment[] }
   | { kind: 'run'; id: string; run: AgentRun }
 
 export type AgentTimeline = AgentTimelineItem[]
@@ -48,6 +52,8 @@ type EventKind =
   | 'tool_call_delta'
   | 'tool_result'
   | 'thinking'
+  | 'notice'
+  | 'compaction'
   | 'permission'
   | 'permission_result'
   | 'done'
@@ -133,6 +139,9 @@ function classifyEvent(type: string, data: unknown): EventKind {
   const normalized = type.toLowerCase()
   // Escalation negotiation events are permission requests (payload nested under data.escalation).
   if (normalized.includes('escalation')) return 'permission'
+  // 停滞/预算等软提醒：正文在 notice 字段，渲染为状态步骤而不是正文
+  if (normalized.includes('stall') || normalized.includes('budget') || typeof asRecord(data)?.notice === 'string') return 'notice'
+  if (normalized.includes('compact')) return 'compaction'
   if (normalized === 'tool_call_delta' || normalized === 'toolcall_delta') return 'tool_call_delta'
   if (normalized.includes('permission') || normalized.includes('approval')) {
     if (normalized.includes('result') || normalized.includes('grant') || normalized.includes('decision') || normalized.includes('resolved')) {
@@ -181,6 +190,20 @@ function ensureRun(timeline: AgentTimeline): AgentTimeline {
   return [...timeline, { kind: 'run', id: run.id, run }]
 }
 
+/**
+ * 手动压缩等「必须独占一个 run」的操作用：先落定任何残留的 running run
+ * （正常流程下提交被 running 状态拦截，残留只可能来自丢失的终态事件），
+ * 再开新 run，避免压缩状态混进上一轮回复的执行过程。
+ */
+function ensureFreshRun(timeline: AgentTimeline): AgentTimeline {
+  const current = lastRun(timeline)
+  if (current && current.run.status === 'running') {
+    const closed = updateLastRun(timeline, (run) => closeRun(run, 'done'))
+    return ensureRun(closed)
+  }
+  return ensureRun(timeline)
+}
+
 function updateLastRun(timeline: AgentTimeline, updater: (run: AgentRun) => AgentRun): AgentTimeline {
   const current = lastRun(timeline)
   if (!current) return timeline
@@ -216,14 +239,16 @@ function closeRun(run: AgentRun, status: AgentRunStatus, elapsedMs?: number): Ag
   }
 }
 
-export function appendUserMessage(timeline: AgentTimeline, text: string, messageId?: string, createdAt = Date.now()): AgentTimeline {
-  return [...timeline, { kind: 'user', id: messageId ?? nextId('user'), messageId, text, createdAt }]
+export function appendUserMessage(timeline: AgentTimeline, text: string, messageId?: string, createdAt = Date.now(), attachments?: ChatAttachment[]): AgentTimeline {
+  return [...timeline, { kind: 'user', id: messageId ?? nextId('user'), messageId, text, createdAt, ...(attachments?.length ? { attachments } : {}) }]
 }
 
-export function replaceFromUserMessage(timeline: AgentTimeline, messageId: string, text: string): AgentTimeline {
+export function replaceFromUserMessage(timeline: AgentTimeline, messageId: string, text: string, attachments?: ChatAttachment[]): AgentTimeline {
   const index = timeline.findIndex((item) => item.kind === 'user' && (item.messageId === messageId || item.id === messageId))
-  if (index < 0) return appendUserMessage(timeline, text, messageId)
-  return [...timeline.slice(0, index), { kind: 'user', id: messageId, messageId, text, createdAt: Date.now() }]
+  if (index < 0) return appendUserMessage(timeline, text, messageId, Date.now(), attachments)
+  const previous = timeline[index]
+  const preservedAttachments = attachments ?? (previous.kind === 'user' ? previous.attachments : undefined)
+  return [...timeline.slice(0, index), { kind: 'user', id: messageId, messageId, text, createdAt: Date.now(), ...(preservedAttachments?.length ? { attachments: preservedAttachments } : {}) }]
 }
 
 export function canReconcileTimeline(current: AgentTimeline, transcript: AgentTimeline): boolean {
@@ -271,7 +296,17 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       const text = extractEventText(event.data)
       if (!text) return timeline
       const withRun = ensureRun(timeline)
-      return updateLastRun(withRun, (run) => ({ ...run, finalText: run.finalText + text }))
+      // finalText 保留全量拼接（复制/重试判断用）；text step 记录与工具步骤的交错顺序
+      return updateLastRun(withRun, (run) => {
+        const steps = run.steps.slice()
+        const last = steps[steps.length - 1]
+        if (last?.kind === 'text') {
+          steps[steps.length - 1] = { ...last, detail: `${last.detail ?? ''}${text}` }
+        } else {
+          steps.push({ id: nextId('text'), kind: 'text', title: 'text', detail: text, status: 'done' })
+        }
+        return { ...run, finalText: run.finalText + text, steps }
+      })
     }
     case 'tool_call': {
       // Runner events nest the payload under data.tool_call; flat tool_* events use data directly.
@@ -336,18 +371,43 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       })
     }
     case 'thinking': {
-      const text = extractEventText(event.data)
-      if (!text) return timeline
+      // 思考内容不进时间线：只展示正文与工具调用，thinking 是过程噪音
+      return timeline
+    }
+    case 'notice': {
+      const notice = pickString(record, ['notice', 'text', 'message'])
+      if (!notice) return timeline
+      return appendStatusStep(timeline, event.type, notice)
+    }
+    case 'compaction': {
+      const normalized = event.type.toLowerCase()
+      // 压缩开始：放一个 running 状态步骤（manual 标记来自前端手动 /compact 流程）
+      if (normalized.includes('compacting')) {
+        const manual = record?.manual === true
+        const withRun = manual ? ensureFreshRun(timeline) : ensureRun(timeline)
+        const step: AgentWorkStep = {
+          id: nextId('status'),
+          kind: 'status',
+          title: manual ? 'compacting_manual' : 'compacting',
+          status: 'running',
+        }
+        return updateLastRun(withRun, (run) => ({ ...run, steps: [...run.steps, step] }))
+      }
+      // 压缩收尾：回填最近一个 running 的压缩步骤；失败（无 compaction 载荷）也落定。
+      // 只展示状态文本本身，不带 token 明细
+      const finished: Omit<AgentWorkStep, 'id'> = {
+        kind: 'status',
+        title: asRecord(record?.compaction) ? 'compacted' : 'compaction_skipped',
+        status: 'done',
+      }
       const withRun = ensureRun(timeline)
       return updateLastRun(withRun, (run) => {
-        const last = run.steps[run.steps.length - 1]
-        if (last?.kind === 'thinking') {
-          const steps = run.steps.slice()
-          steps[steps.length - 1] = { ...last, detail: `${last.detail ?? ''}${text}` }
-          return { ...run, steps }
-        }
-        const step: AgentWorkStep = { id: nextId('thinking'), kind: 'thinking', title: 'thinking', detail: text, status: 'done' }
-        return { ...run, steps: [...run.steps, step] }
+        const index = run.steps.map((step, position) => (step.kind === 'status' && (step.title === 'compacting' || step.title === 'compacting_manual') && step.status === 'running' ? position : -1)).filter((position) => position >= 0).pop() ?? -1
+        const completed: AgentWorkStep = { id: index >= 0 ? run.steps[index]!.id : nextId('status'), ...finished }
+        if (index < 0) return { ...run, steps: [...run.steps, completed] }
+        const steps = run.steps.slice()
+        steps[index] = completed
+        return { ...run, steps }
       })
     }
     case 'permission': {
@@ -355,15 +415,18 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       // escalation_request nests its payload under data.escalation; flat permission_* events use data directly.
       const payload = asRecord(record?.escalation) ?? record
       const command = payload?.requested_command
-      const request: AgentPermissionRequest = {
-        id: pickId(payload, ['escalation_id', 'request_id', 'permission_id', 'id']) || nextId('permission'),
-        tool: pickString(payload, ['tool_name', 'tool', 'name', 'title']) || 'tool',
-        detail: Array.isArray(command)
-          ? command.map(String).join(' ')
-          : pickDetail(payload, ['requested_command', 'requested_path', 'arguments', 'args', 'input', 'command', 'description', 'message']) || undefined,
-        resolvedPath: pickString(payload, ['resolved_path']) || undefined,
-      }
-      return updateLastRun(withRun, (run) => ({ ...run, permissions: [...run.permissions, request] }))
+      return updateLastRun(withRun, (run) => {
+        const request: AgentPermissionRequest = {
+          id: pickId(payload, ['escalation_id', 'request_id', 'permission_id', 'id']) || nextId('permission'),
+          tool: pickString(payload, ['tool_name', 'tool', 'name', 'title']) || 'tool',
+          detail: Array.isArray(command)
+            ? command.map(String).join(' ')
+            : pickDetail(payload, ['requested_command', 'requested_path', 'arguments', 'args', 'input', 'command', 'description', 'message']) || undefined,
+          resolvedPath: pickString(payload, ['resolved_path']) || undefined,
+          position: run.steps.length,
+        }
+        return { ...run, permissions: [...run.permissions, request] }
+      })
     }
     case 'permission_result': {
       const requestId = pickId(record, ['request_id', 'permission_id', 'id'])
@@ -399,25 +462,29 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
   }
   for (const entry of entries) {
     if (entry.type === 'compaction') {
-      // Context compaction is shown as a status step on the current run.
-      const summary = typeof entry.summary === 'string' ? entry.summary : ''
-      timeline = markRunEndedAt(appendStatusStep(timeline, 'compaction', summary || undefined), entry.timestamp)
+      // 先收束前一个 run（assistant 回复），再开独立的压缩 run：
+      // 压缩是顶层事件，不混进上一轮回复的执行过程
+      timeline = updateLastRun(timeline, (run) => (run.status === 'running' ? closeRun(run, 'done') : run))
+      timeline = markRunEndedAt(appendStatusStep(timeline, 'compacted'), entry.timestamp)
       continue
     }
     if (entry.type === 'escalation') {
       // Escalations render as permission entries; granted null means undecided (stays interactive).
       const withRun = ensureRun(timeline)
       const command = entry.requested_command
-      const request: AgentPermissionRequest = {
-        id: entry.escalation_id || nextId('permission'),
-        tool: entry.tool_name || 'tool',
-        detail: Array.isArray(command) && command.length
-          ? command.join(' ')
-          : entry.requested_path || undefined,
-        resolvedPath: entry.resolved_path || undefined,
-        decision: entry.granted === true ? 'allowed' : entry.granted === false ? 'denied' : undefined,
-      }
-      timeline = markRunEndedAt(updateLastRun(withRun, (run) => ({ ...run, permissions: [...run.permissions, request] })), entry.timestamp)
+      timeline = markRunEndedAt(updateLastRun(withRun, (run) => {
+        const request: AgentPermissionRequest = {
+          id: entry.escalation_id || nextId('permission'),
+          tool: entry.tool_name || 'tool',
+          detail: Array.isArray(command) && command.length
+            ? command.join(' ')
+            : entry.requested_path || undefined,
+          resolvedPath: entry.resolved_path || undefined,
+          decision: entry.granted === true ? 'allowed' : entry.granted === false ? 'denied' : undefined,
+          position: run.steps.length,
+        }
+        return { ...run, permissions: [...run.permissions, request] }
+      }), entry.timestamp)
       escalationInTurn = true
       continue
     }
@@ -425,8 +492,22 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
     if (message) {
       // The runner's transcript format: { type: 'message', message: ChatMessage, ... }
       if (message.role === 'user') {
+        // agent 注入的停滞/预算提醒：渲染为状态步骤，不当作用户消息（也不结束当前 run）
+        if (message.name === 'agent_notice') {
+          timeline = appendStatusStep(timeline, 'agent_notice', message.content || undefined)
+          continue
+        }
         timeline = finishRunAt(timeline, entry.timestamp)
-        if (message.content) timeline = appendUserMessage(timeline, message.content, entry.message_id, parseTimestamp(entry.timestamp))
+        if (message.content || message.attachments?.length) {
+          const attachments = message.attachments?.map((attachment, index) => ({
+            id: `${entry.message_id ?? entry.timestamp ?? 'attachment'}-${index}`,
+            name: attachment.name,
+            mimeType: attachment.mime_type,
+            size: attachment.data_url ? Math.max(0, Math.floor((attachment.data_url.length * 3) / 4)) : 0,
+            ...(attachment.data_url ? { dataURL: attachment.data_url } : {}),
+          }))
+          timeline = appendUserMessage(timeline, message.content ?? '', entry.message_id, parseTimestamp(entry.timestamp), attachments)
+        }
         escalationInTurn = false
         continue
       }
@@ -445,8 +526,8 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
         }, entry.timestamp)
         continue
       }
-      // Assistant: thinking → tool calls → text, restored in write order.
-      if (message.thinking) reduceAt({ type: 'thinking', data: message.thinking }, entry.timestamp)
+      // Assistant: text → tool calls，按消息内的自然顺序（文本在工具调用之前）恢复；thinking 不展示
+      if (message.content) reduceAt({ type: 'message', data: message.content }, entry.timestamp)
       for (const call of message.tool_calls ?? []) {
         reduceAt({
           type: 'tool_call',
@@ -455,7 +536,6 @@ export function timelineFromTranscript(entries: AgentTranscriptEntry[]): AgentTi
         // Tool calls in a historical transcript are necessarily finished; a synthetic tool_result closes the step.
         reduceAt({ type: 'tool_result', data: { tool_call_id: call.id, name: call.name } }, entry.timestamp)
       }
-      if (message.content) reduceAt({ type: 'message', data: message.content }, entry.timestamp)
       continue
     }
     // Compat with the early flat format: { role, content / payload }.
