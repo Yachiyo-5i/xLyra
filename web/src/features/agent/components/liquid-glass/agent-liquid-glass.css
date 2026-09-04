@@ -1,3 +1,98 @@
+/**
+ * Agent 页自持暗色主题 —— 与主程序的 html.light / html.dark 注入彻底解耦。
+ *
+ * 主程序把主题 token（--surface-* / --glass-* / --foreground 等）声明在 <html> 上，
+ * 浅色模式下整组翻成亮色值；而 Agent 页是恒暗的液态玻璃视觉，页面里大量共享组件
+ * （Button 各 variant、Dialog、Slider、MarkdownMessage、ChatAttachmentItem、时间线
+ * 展开块、popover 菜单……）依旧消费这些 token。这里把 body:has(.agent-page) 整体
+ * 钉回 index.css :root 的暗色默认值：custom property 按元素就近解析，body 上的声明
+ * 会遮蔽 html.light 的继承值，页面本体 + 所有挂在 body 下的 Radix portal
+ * （对话框 / Popover / Toast）全部拿到暗色值，不再随主题翻转。
+ * /agent 路由下 AppShell 已剥掉全部应用外壳，body 里可见内容均属于本页，
+ * 因此 body 级钉死不会误伤其它页面。增删 token 时与 :root 块保持同步。
+ */
+body:has(.agent-page) {
+  color-scheme: dark;
+  --background: 222 30% 8%;
+  --foreground: 0 0% 96%;
+  --card: 222 25% 11%;
+  --card-foreground: 0 0% 96%;
+  --popover: 222 22% 14%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 220 10% 72%;
+  --primary-foreground: 222 30% 8%;
+  --secondary: 222 18% 15%;
+  --secondary-foreground: 0 0% 94%;
+  --muted: 220 18% 14%;
+  --muted-foreground: 220 10% 74%;
+  --accent: 222 16% 18%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 100% / 0.07;
+  --input: 0 0% 100% / 0.06;
+  --ring: 220 10% 72%;
+  --ring-soft: 220 10% 72% / 0.16;
+  --ring-strong: 220 10% 72% / 0.34;
+  --surface-base: 222 30% 8%;
+  --surface-panel: 222 24% 11%;
+  --surface-elevated: 222 22% 12% / 0.8;
+  --surface-field: 222 18% 13% / 0.64;
+  --surface-selected: 222 16% 17%;
+  --surface-soft: 222 22% 12% / 0.54;
+  --surface-soft-hover: 222 22% 15% / 0.68;
+  --surface-subtle: 222 18% 16% / 0.34;
+  --surface-strong: 222 22% 12% / 0.76;
+  --glass-border: 0 0% 100% / 0.07;
+  --glass-border-strong: 0 0% 100% / 0.1;
+  --glass-divider: 0 0% 100% / 0.05;
+  --divider: 0 0% 100% / 0.05;
+  --shell-border: 0 0% 100% / 0.05;
+  --field-border-focus: 0 0% 100% / 0.14;
+  --input-placeholder: 220 8% 52%;
+  --icon-soft: 220 8% 62%;
+  --text-muted-soft: 220 10% 74%;
+  --text-subtle: 220 10% 82%;
+  --text-faint: 220 8% 58%;
+  --ambient-left: 221 38% 30%;
+  --ambient-right: 236 34% 28%;
+  --ambient-base: 222 24% 12%;
+  --ambient-bottom: 252 24% 18%;
+  --badge-neutral-bg: 0 0% 100% / 0.06;
+  --badge-neutral-border: 0 0% 100% / 0.1;
+  --badge-neutral-text: 220 12% 86%;
+  --badge-success-bg: 145 70% 44% / 0.14;
+  --badge-success-border: 145 70% 44% / 0.24;
+  --badge-success-text: 145 70% 78%;
+  --badge-info-bg: 205 84% 58% / 0.14;
+  --badge-info-border: 205 84% 58% / 0.24;
+  --badge-info-text: 205 90% 80%;
+  --badge-warning-bg: 38 92% 56% / 0.14;
+  --badge-warning-border: 38 92% 56% / 0.24;
+  --badge-warning-text: 38 96% 78%;
+  --badge-accent-bg: 220 10% 72% / 0.12;
+  --badge-accent-border: 220 10% 72% / 0.22;
+  --badge-accent-text: 220 18% 88%;
+  --request-tpm-badge-bg: 262 84% 67% / 0.15;
+  --request-tpm-badge-border: 262 84% 67% / 0.3;
+  --request-tpm-badge-text: 262 100% 90%;
+  --request-failover-badge-bg: 220 14% 72% / 0.1;
+  --request-failover-badge-border: 220 14% 72% / 0.18;
+  --request-failover-badge-text: 220 14% 76%;
+  --button-soft-border: 0 0% 100% / 0;
+  --button-soft-shadow: 0 0 #0000;
+  --button-secondary-border: 220 10% 72% / 0.18;
+  --button-secondary-shadow: 0 0 #0000;
+  --button-hover-shadow: 0 12px 26px rgba(4, 8, 18, 0.18);
+  --button-hover-translate: -2px;
+  --card-hover-shadow: 0 18px 36px rgba(4, 8, 18, 0.18);
+  --card-hover-translate: -3px;
+  --switch-checked-shadow: 0 0 0 4px hsl(220 10% 72% / 0.16);
+  --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.26);
+  --dialog-surface: 222 22% 12% / 0.48;
+  --dialog-overlay: 10 14 24 / 0.22;
+}
+
 .agent-liquid-shell {
   position: relative;
   isolation: isolate;
@@ -7,6 +102,8 @@
   --agent-text-primary: 0 0% 98%;
   --agent-text-muted: 220 14% 84%;
   --agent-text-faint: 220 12% 74%;
+  /* 会话内纯色页面底色：工具详情块与页面同底，避免主题 surface 的深蓝 */
+  --agent-page-backdrop: #0f0f10;
   color: hsl(var(--agent-text-primary));
 }
 
@@ -176,7 +273,12 @@
 }
 
 .agent-liquid-backdrop--plain {
-  background: #0f0f10;
+  background: var(--agent-page-backdrop);
+}
+
+/* 工具调用最深层详情块：与页面底色一致，不用主题 surface（钉死后是深蓝） */
+.agent-step-detail {
+  background: var(--agent-page-backdrop);
 }
 
 .agent-page button.bg-primary,
@@ -209,6 +311,12 @@
 .agent-liquid-access-dialog .text-faint {
   color: hsl(var(--agent-text-faint)) !important;
 }
+
+/* 附件文件图标的配色用 dark: 媒体查询切换，跟随的是系统外观而非本页恒暗视觉；
+   浅色系统下会落到 *-600 一档，钉到暗色侧的 *-400 同值。 */
+.agent-page .text-yellow-600 { color: #facc15; }
+.agent-page .text-cyan-600 { color: #22d3ee; }
+.agent-page .text-teal-600 { color: #2dd4bf; }
 
 .agent-liquid-shell .text-foreground,
 .agent-liquid-surface .text-foreground {
