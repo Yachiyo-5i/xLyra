@@ -1,10 +1,12 @@
 package oauth
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -22,7 +24,11 @@ type oauthGormCallbacks struct {
 func oauthServiceWithCallbacks(t *testing.T, callbacks oauthGormCallbacks) *Service {
 	t.Helper()
 
-	return NewService(oauthStoreWithGorm(t, oauthGormWithCallbacks(t, callbacks)), "master-key")
+	service := NewService(oauthStoreWithGorm(t, oauthGormWithCallbacks(t, callbacks)), "master-key")
+	service.refreshLock = func(ctx context.Context, connectionID uuid.UUID, fn func() (CodexConnection, error)) (CodexConnection, error) {
+		return fn()
+	}
+	return service
 }
 
 func oauthGormWithCallbacks(t *testing.T, callbacks oauthGormCallbacks) *gorm.DB {

@@ -27,6 +27,7 @@ type Service struct {
 	httpClients  *httpclient.Manager
 	masterKey    string
 	refreshGroup singleflight.Group
+	refreshLock  func(context.Context, uuid.UUID, func() (CodexConnection, error)) (CodexConnection, error)
 }
 
 type PendingSite struct {
@@ -87,13 +88,15 @@ func NewService(db *store.Store, masterKey string, confFiles ...*config.ConfigFi
 	}
 	manager := httpclient.NewManager(confFile)
 	client, _ := manager.Client(httpclient.DefaultProfile())
-	return &Service{
+	service := &Service{
 		db:          db,
 		credentials: credential.NewService(masterKey),
 		httpClient:  client,
 		httpClients: manager,
 		masterKey:   masterKey,
 	}
+	service.refreshLock = service.withRefreshConnectionLock
+	return service
 }
 
 func (s *Service) DB() *store.Store {
@@ -645,7 +648,13 @@ func (s *Service) EnsureClaudeCodeConnectionFresh(ctx context.Context, siteID uu
 // disable a healthy site. Losers instead receive the winner's fresh result.
 func (s *Service) RefreshCodexConnection(ctx context.Context, connectionID uuid.UUID) (CodexConnection, error) {
 	result, err, _ := s.refreshGroup.Do(connectionID.String(), func() (any, error) {
-		return s.refreshConnectionOnce(ctx, connectionID)
+		lock := s.withRefreshConnectionLock
+		if s.refreshLock != nil {
+			lock = s.refreshLock
+		}
+		return lock(ctx, connectionID, func() (CodexConnection, error) {
+			return s.refreshConnectionOnce(ctx, connectionID)
+		})
 	})
 	if err != nil {
 		return CodexConnection{}, err
