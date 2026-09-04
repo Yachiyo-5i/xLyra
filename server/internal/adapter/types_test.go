@@ -59,7 +59,7 @@ func TestRegistryRegistersDefaultModulesBySiteType(t *testing.T) {
 	}{
 		"codex": {
 			wantType:         "adapter.Codex",
-			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityFetchPricing, CapabilityFetchMetadata},
+			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityFetchMetadata},
 		},
 		"antigravity": {
 			wantType:         "adapter.Antigravity",
