@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   appendUserMessage,
@@ -11,6 +11,10 @@ import {
   timelineFromTranscript,
   type AgentTimeline,
 } from '@/features/agent/lib/agent-events'
+
+// 计时断言需要可控的 Date.now()：Agent 用时是墙钟间隔，测试里用 fake timers 钉死时间
+beforeEach(() => { vi.useFakeTimers() })
+afterEach(() => { vi.useRealTimers() })
 
 function reduceAll(events: Array<{ type: string; data: unknown }>, initial: AgentTimeline = []) {
   return events.reduce((timeline, event) => reduceAgentEvent(timeline, event), initial)
@@ -86,11 +90,15 @@ describe('reduceAgentEvent', () => {
     expect(item.run.status).toBe('done')
   })
 
-  it('keeps the runner-provided elapsed time on completed runs', () => {
+  it('uses user-send → completion wall-clock duration on completed runs', () => {
+    // 用户消息在 t=1_000 发出，agent_done 在 t=3_500 收到：用时 = 2_500ms（墙钟间隔，
+    // 与 runner 的 elapsed_ms 无关）
+    vi.setSystemTime(1_000)
     const timeline = appendUserMessage([], '问题', 'message-1', 1_000)
+    vi.setSystemTime(3_500)
     const completed = reduceAll([
       { type: 'agent_start', data: {} },
-      { type: 'agent_done', data: { result: { elapsed_ms: 2_500 } } },
+      { type: 'agent_done', data: {} },
     ], timeline)
     const item = completed[1]
     if (item.kind !== 'run') throw new Error('expected run')
@@ -172,12 +180,15 @@ describe('reduceAgentEvent', () => {
   })
 
   it('settleRunningRuns closes only the still-running runs', () => {
-    const timeline = reduceAll([
-      { type: 'message', data: 'first answer' },
-      { type: 'agent_done', data: { result: { elapsed_ms: 1_200 } } },
-      // 第二个 run 因事件流中断停留在 running
-      { type: 'message', data: 'second answer' },
-    ], appendUserMessage(appendUserMessage([], 'q1', 'm1', 1_000), 'q2', 'm2', 10_000))
+    // 第一轮：q1(t=1_000) → 回复 → 在 t=2_200 收到 done（用时 1_200）
+    vi.setSystemTime(1_000)
+    let timeline = appendUserMessage([], 'q1', 'm1', 1_000)
+    timeline = reduceAll([{ type: 'message', data: 'first answer' }], timeline)
+    vi.setSystemTime(2_200)
+    timeline = reduceAgentEvent(timeline, { type: 'agent_done', data: {} })
+    // 第二轮：q2 发出后，回复停留在 running（事件流中断）
+    timeline = appendUserMessage(timeline, 'q2', 'm2', 10_000)
+    timeline = reduceAll([{ type: 'message', data: 'second answer' }], timeline)
     const settled = settleRunningRuns(timeline)
     const runs = settled.filter((item) => item.kind === 'run')
     expect(runs[0]?.kind === 'run' && runs[0].run.elapsedMs).toBe(1_200)
@@ -186,7 +197,10 @@ describe('reduceAgentEvent', () => {
   })
 
   it('continues elapsed time when an escalation-paused run resumes', () => {
+    // 第一段：t=1_000 发消息，t=1_600 暂停（权限等待）：段一 = 600ms
+    vi.setSystemTime(1_000)
     const initial = appendUserMessage([], '需要授权的操作', 'message-1', 1_000)
+    vi.setSystemTime(1_600)
     const paused = reduceAll([
       { type: 'agent_start', data: {} },
       { type: 'escalation_request', data: { escalation: { escalation_id: 'esc-1', tool_name: 'exec_command', requested_path: '/tmp', resolved_path: '/tmp' } } },
@@ -194,20 +208,23 @@ describe('reduceAgentEvent', () => {
     ], initial)
     const pausedRun = paused[1]
     if (pausedRun.kind !== 'run') throw new Error('expected paused run')
+    expect(pausedRun.run.elapsedMs).toBe(600)
     const approved = paused.map((item) => item.kind === 'run'
       ? { ...item, run: { ...item.run, permissions: item.run.permissions.map((request) => ({ ...request, decision: 'allowed' as const })) } }
       : item)
+    // 第二段：t=2_200 授权后恢复，t=2_700 完成：段二 = 500ms；总用时 = 600 + 500
+    vi.setSystemTime(2_200)
     const resumed = reduceAgentEvent(approved, { type: 'agent_start', data: {} })
     expect(resumed).toHaveLength(2)
     const resumedRun = resumed[1]
     if (resumedRun.kind !== 'run') throw new Error('expected resumed run')
     expect(resumedRun.id).toBe(pausedRun.id)
-    expect(resumedRun.run.elapsedMs).toBe(pausedRun.run.elapsedMs)
-    expect(resumedRun.run.startedAt).toBeGreaterThanOrEqual(pausedRun.run.startedAt)
-    const completed = reduceAgentEvent(resumed, { type: 'agent_done', data: { result: { elapsed_ms: 500 } } })
+    expect(resumedRun.run.startedAt).toBe(2_200)
+    vi.setSystemTime(2_700)
+    const completed = reduceAgentEvent(resumed, { type: 'agent_done', data: {} })
     const completedRun = completed[1]
     if (completedRun.kind !== 'run') throw new Error('expected completed run')
-    expect(completedRun.run.elapsedMs).toBe((pausedRun.run.elapsedMs ?? 0) + 500)
+    expect(completedRun.run.elapsedMs).toBe(1_100)
   })
 
   it('truncates the timeline when replacing a user message', () => {
@@ -224,10 +241,13 @@ describe('reduceAgentEvent', () => {
   })
 
   it('preserves live elapsed time when reconciling the completed transcript', () => {
-    const current = reduceAll([
+    // 实时用时在 t=3_500 收到 agent_done 时固定为 2_500（t=1_000 发消息）
+    vi.setSystemTime(1_000)
+    let current = reduceAll([
       { type: 'agent_start', data: {} },
-      { type: 'agent_done', data: { result: { elapsed_ms: 2_500 } } },
     ], appendUserMessage([], '问题', 'message-1', 1_000))
+    vi.setSystemTime(3_500)
+    current = reduceAgentEvent(current, { type: 'agent_done', data: {} })
     const transcript = timelineFromTranscript([
       { type: 'message', timestamp: '1970-01-01T00:00:01.000Z', message_id: 'message-1', message: { role: 'user', content: '问题' } },
       { type: 'message', timestamp: '1970-01-01T00:00:20.000Z', message: { role: 'assistant', content: '回答' } },

@@ -114,15 +114,6 @@ function pickDelta(record: Record<string, unknown> | null): string {
   return typeof record.delta === 'string' ? record.delta : ''
 }
 
-function pickNumber(record: Record<string, unknown> | null, keys: string[]): number | undefined {
-  if (!record) return undefined
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'number' && Number.isFinite(value)) return value
-  }
-  return undefined
-}
-
 function parseTimestamp(value?: string): number {
   const parsed = value ? Date.parse(value) : NaN
   return Number.isFinite(parsed) ? parsed : Date.now()
@@ -451,10 +442,9 @@ export function reduceAgentEvent(timeline: AgentTimeline, event: AgentStreamEven
       }))
     }
     case 'done':
-      return updateLastRun(timeline, (run) => {
-        const result = asRecord(record?.result)
-        return closeRun(run, 'done', pickNumber(result, ['elapsed_ms', 'elapsedMs']))
-      })
+      // 用墙钟收束（用户发出消息 → 最后输出结束），不用 runner 的 elapsed_ms：
+      // closeRun 会按 endedAt??now 计算，并对暂停/恢复的分段累加
+      return updateLastRun(timeline, (run) => closeRun(run, 'done'))
     case 'error':
       return updateLastRun(timeline, (run) => closeRun(run, 'error'))
     case 'cancelled':
