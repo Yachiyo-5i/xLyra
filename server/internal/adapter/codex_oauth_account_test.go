@@ -84,7 +84,7 @@ func TestCodexValidateSystemCredentialsStopsBeforeModelsOnUsageAuthError(t *test
 	}
 }
 
-func TestCodexListModelsWithAuthFallsBackToStaticModels(t *testing.T) {
+func TestCodexListModelsWithAuthErrorsWhenRemoteEmpty(t *testing.T) {
 	var requestedPaths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestedPaths = append(requestedPaths, r.URL.Path)
@@ -103,20 +103,11 @@ func TestCodexListModelsWithAuthFallsBackToStaticModels(t *testing.T) {
 			"plan_type": "plus",
 		},
 	})
-	if err != nil {
-		t.Fatalf("ListModelsWithAuth returned error: %v", err)
+	if err == nil {
+		t.Fatalf("ListModelsWithAuth should return an error when upstream returns no models, got %#v", models)
 	}
 	if len(requestedPaths) != 4 {
 		t.Fatalf("requested paths = %#v, want all distinct model endpoints", requestedPaths)
-	}
-	if codexModelByID(models, "gpt-5.6-sol") == nil {
-		t.Fatalf("fallback models missing gpt-5.6-sol: %#v", models)
-	}
-	if codexModelByID(models, "gpt-5.5") == nil {
-		t.Fatalf("fallback models missing gpt-5.5: %#v", models)
-	}
-	if codexModelByID(models, "gpt-5.3-codex-spark") != nil {
-		t.Fatalf("fallback catalog should not include plan-gated spark: %#v", models)
 	}
 }
 
@@ -229,8 +220,14 @@ func TestCodexFetchUserSummaryIncludesQuotaModelsAndPricingMetadata(t *testing.T
 		t.Fatalf("summary models = %#v, want map", summary.UserModels)
 	}
 	modelItems, ok := userModels["data"].([]map[string]any)
-	if !ok || len(modelItems) != 1 || modelItems[0]["id"] != "gpt-summary" {
-		t.Fatalf("summary model data = %#v, want raw remote model", userModels["data"])
+	if !ok || len(modelItems) != 2 {
+		t.Fatalf("summary model data = %#v, want raw remote model plus gpt-image-2 route item", userModels["data"])
+	}
+	if modelItems[0]["id"] != "gpt-summary" {
+		t.Fatalf("summary model data[0] = %#v, want raw remote model", modelItems[0])
+	}
+	if modelItems[1]["slug"] != codexImageSlug || modelItems[1]["source"] != "codex_image_route" {
+		t.Fatalf("summary model data[1] = %#v, want gpt-image-2 route item", modelItems[1])
 	}
 	pricing, ok := summary.Pricing.(map[string]any)
 	if !ok || pricing["plan_type"] != "plus" {
@@ -366,9 +363,6 @@ func TestCodexFetchPricingAndParsePricingArePlanAgnostic(t *testing.T) {
 	}
 
 	parsed := NewCodex().ParsePricing(map[string]any{"plan_type": "team"})
-	if codexPricingByModel(parsed.Items, "gpt-5.3-codex-spark") == nil {
-		t.Fatalf("parsed pricing missing spark: %#v", parsed.Items)
-	}
 	if codexPricingByModel(parsed.Items, "gpt-5.5") == nil {
 		t.Fatalf("parsed pricing missing gpt-5.5: %#v", parsed.Items)
 	}
@@ -397,8 +391,8 @@ func assertCodexHTTPHeaders(t *testing.T, r *http.Request, token string, account
 	if got := r.Header.Get("Referer"); got != codexRefererURL {
 		t.Fatalf("Referer = %q, want %s", got, codexRefererURL)
 	}
-	if got := r.Header.Get("User-Agent"); got != CodexUserAgent {
-		t.Fatalf("User-Agent = %q, want %s", got, CodexUserAgent)
+	if got := r.Header.Get("User-Agent"); got != codexUserAgent() {
+		t.Fatalf("User-Agent = %q, want %s", got, codexUserAgent())
 	}
 	if got := r.Header.Get("ChatGPT-Account-Id"); got != accountID {
 		t.Fatalf("ChatGPT-Account-Id = %q, want %s", got, accountID)
