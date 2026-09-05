@@ -128,7 +128,7 @@ func (a Codex) SummarizeAPIKey(ctx context.Context, site SiteConfig, apiKey stri
 	}
 	return APIKeySummary{
 		Usage:  usage,
-		Models: models,
+		Models: codexModelsWithImageRoute(models),
 		Raw:    usage,
 	}, nil
 }
@@ -146,22 +146,20 @@ func (a Codex) FetchUserSummary(ctx context.Context, site SiteConfig, auth Syste
 	if err != nil {
 		return UserSummary{}, err
 	}
-	modelItems := make([]map[string]any, 0, len(models))
-	for _, model := range models {
-		raw, _ := model.Capabilities["raw"].(map[string]any)
-		if raw == nil {
-			raw = map[string]any{"id": model.UpstreamName}
-		}
-		modelItems = append(modelItems, raw)
-	}
 	// gpt-image-2 is not issued by the codex /codex/models endpoint for this
 	// account, but the gateway still routes explicit image requests to codex. It
 	// must stay in the site model catalog for that routing to keep working, so it
 	// is re-appended after every successful model sync (otherwise MarkUnavailable-
 	// Except would mark it unavailable). It is a routing capability, not a model
 	// the account was issued, and is labelled as such.
-	if len(models) > 0 && !hasUpstreamModel(models, codexImageSlug) {
-		modelItems = append(modelItems, codexImageRouteModel())
+	modelsWithRoute := codexModelsWithImageRoute(models)
+	modelItems := make([]map[string]any, 0, len(modelsWithRoute))
+	for _, model := range modelsWithRoute {
+		raw, _ := model.Capabilities["raw"].(map[string]any)
+		if raw == nil {
+			raw = map[string]any{"id": model.UpstreamName}
+		}
+		modelItems = append(modelItems, raw)
 	}
 	user := map[string]any{
 		"provider":   "codex",
@@ -281,6 +279,26 @@ func codexModelsFromItems(items []map[string]any) []Model {
 		})
 	}
 	return models
+}
+
+// codexModelsWithImageRoute ensures gpt-image-2 stays in the model list. It is not
+// issued by the codex /codex/models endpoint, but the gateway still routes explicit
+// image requests to codex, so the site catalog must keep it (otherwise
+// MarkUnavailableExcept marks it unavailable). Applied to both the API-key summary
+// (used by the key-provisioned refresh path) and the user summary.
+func codexModelsWithImageRoute(models []Model) []Model {
+	if len(models) == 0 || hasUpstreamModel(models, codexImageSlug) {
+		return models
+	}
+	route := codexImageRouteModel()
+	return append(models, Model{
+		UpstreamName: codexImageSlug,
+		DisplayName:  defaultString(stringFromAny(route["display_name"]), codexImageSlug),
+		Capabilities: map[string]any{
+			"source": "codex_image_route",
+			"raw":    route,
+		},
+	})
 }
 
 func (a Codex) fetchUsage(ctx context.Context, site SiteConfig, accessToken string, accountID string) (map[string]any, error) {
