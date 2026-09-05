@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.5.2...v1.6.0) (2026-09-05)
+
+
+### Features
+
+* 🎸 支持为 API 密钥设置计费倍率 ([cc82051](https://github.com/Yachiyo-5i/xLyra/commit/cc820512c18bc1b67cb206b5f17c785a0f1b3884))
+* 支持 API 密钥计费倍率 ([86beca8](https://github.com/Yachiyo-5i/xLyra/commit/86beca87a4e6e6473d43a2a6523d39462c4b2521))
+
 ## [1.5.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.5.1...v1.5.2) (2026-09-05)
 
 
