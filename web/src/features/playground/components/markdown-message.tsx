@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 
@@ -38,11 +41,17 @@ function MarkdownCodeBlock({ children }: ComponentPropsWithoutRef<'pre'>) {
   )
 }
 
+function normalizeMathDelimiters(content: string): string {
+  return content
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, expression: string) => `\n$$\n${expression.trim()}\n$$\n`)
+    .replace(/\\\(([^\n]*?)\\\)/g, (_, expression: string) => `$${expression}$`)
+}
+
 function MarkdownMessageImpl({ content, className }: MarkdownMessageProps) {
   return (
     <div className={cn('playground-markdown text-sm leading-6 text-foreground', className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: MarkdownCodeBlock }}>
-        {content}
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ pre: MarkdownCodeBlock }}>
+        {normalizeMathDelimiters(content)}
       </ReactMarkdown>
     </div>
   )

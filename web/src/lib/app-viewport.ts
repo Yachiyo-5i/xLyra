@@ -32,25 +32,21 @@ export function installAppViewportSize() {
       frame = 0
       const root = document.documentElement
 
-      if (isStandaloneWebApp()) {
+      const visualViewport = window.visualViewport
+      const isKeyboardLikelyOpen =
+        visualViewport != null &&
+        visualViewport.height > 0 &&
+        visualViewport.height < window.innerHeight - 80
+
+      if (isKeyboardLikelyOpen) {
+        root.style.setProperty(APP_VIEWPORT_HEIGHT_VAR, `${Math.round(visualViewport.height)}px`)
+      } else if (isStandaloneWebApp()) {
         root.dataset.standalone = 'true'
-        // 键盘弹起时 visualViewport 会缩小，跟随可视区；否则用 100vh 填满冷启动的「矮视口」漏洞
-        const visualViewport = window.visualViewport
-        const isKeyboardLikelyOpen =
-          visualViewport != null &&
-          visualViewport.height > 0 &&
-          visualViewport.height < window.innerHeight - 80
-
-        if (isKeyboardLikelyOpen) {
-          root.style.setProperty(APP_VIEWPORT_HEIGHT_VAR, `${Math.round(visualViewport.height)}px`)
-        } else {
-          root.style.setProperty(APP_VIEWPORT_HEIGHT_VAR, '100vh')
-        }
-        return
+        root.style.setProperty(APP_VIEWPORT_HEIGHT_VAR, '100vh')
+      } else {
+        delete root.dataset.standalone
+        root.style.removeProperty(APP_VIEWPORT_HEIGHT_VAR)
       }
-
-      delete root.dataset.standalone
-      root.style.removeProperty(APP_VIEWPORT_HEIGHT_VAR)
     })
   }
 
