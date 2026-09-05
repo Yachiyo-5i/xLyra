@@ -78,6 +78,7 @@ type gatewayAttemptResult struct {
 	credentialMeta             store.JSON
 	credentialPriority         float64
 	credentialCostMultiplier   float64
+	apiKeyBillingMultiplier    float64
 	credentialAttempt          int
 	credentialTotal            int
 	cooldownReason             string
@@ -131,14 +132,15 @@ func (h Handler) forwardGatewayRequest(
 	if err != nil {
 		startedAt := time.Now()
 		result := gatewayAttemptResult{
-			attempt:          attempt,
-			currency:         "USD",
-			stream:           request.Stream,
-			downstreamPath:   request.DownstreamPath,
-			upstreamPath:     request.DownstreamPath,
-			upstreamProtocol: protocol.ProtocolName(),
-			rateLimit:        rateLimit,
-			diagnostic:       request.Diagnostic,
+			attempt:                 attempt,
+			currency:                "USD",
+			stream:                  request.Stream,
+			downstreamPath:          request.DownstreamPath,
+			upstreamPath:            request.DownstreamPath,
+			upstreamProtocol:        protocol.ProtocolName(),
+			rateLimit:               rateLimit,
+			diagnostic:              request.Diagnostic,
+			apiKeyBillingMultiplier: apiKeyBillingMultiplierFromContext(ctx),
 		}
 		result.statusCode = http.StatusBadGateway
 		result.errorType = "upstream_credential_unavailable"
@@ -184,6 +186,7 @@ func (h Handler) forwardGatewayRequest(
 			credentialMeta:           selectedCredential.Credential.Meta,
 			credentialPriority:       store.SiteCredentialRoutingPriority(selectedCredential.Credential),
 			credentialCostMultiplier: store.SiteCredentialUpstreamCostMultiplier(selectedCredential.Credential),
+			apiKeyBillingMultiplier:  apiKeyBillingMultiplierFromContext(ctx),
 			credentialAttempt:        credentialIndex + 1,
 			credentialTotal:          len(credentials),
 			rateLimit:                rateLimit,

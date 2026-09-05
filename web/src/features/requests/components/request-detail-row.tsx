@@ -19,6 +19,7 @@ import {
   requestCacheWriteTokens,
   formatCostMultiplier,
   requestCredentialMultiplier,
+  requestAPIKeyBillingMultiplier,
   requestCredentialName,
   requestCostFormula,
   requestFailoverFailureReason,
@@ -135,6 +136,7 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
             <InlineItem label={t('detail.cachePrice')} value={formatPrice(cachePrice, detail.pricing?.currency)} tone="badge" />
             <InlineItem label={t('detail.perRequestPrice')} value={formatPerRequestPrice(detail.pricing?.per_request_value, detail.pricing?.currency, t)} tone="badge" />
             <InlineItem label={t('detail.credentialMultiplier')} value={formatCostMultiplier(requestCredentialMultiplier(detail))} tone="badge" />
+            <InlineItem label={t('detail.apiKeyMultiplier')} value={formatCostMultiplier(requestAPIKeyBillingMultiplier(detail))} tone="badge" />
             {fastBilling ? (
               <InlineItem label={t('detail.mode')}>
                 <Badge variant="secondary" className="rounded-md px-2 py-0.5 text-xs tracking-normal">

@@ -83,6 +83,7 @@ func (h Handler) serveEndpoint(
 		})
 		return
 	}
+	r = r.WithContext(WithAPIKeyBillingMultiplier(r.Context(), apiKey.BillingMultiplier))
 
 	request, failure := endpoint.DecodeRequest(r)
 	if failure != nil {

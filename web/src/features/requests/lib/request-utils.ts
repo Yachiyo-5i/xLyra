@@ -58,6 +58,11 @@ export function requestServiceTierMultiplier(detail: RequestLogDetail | RequestL
   return isPositiveFiniteNumber(value) ? value : null
 }
 
+export function requestAPIKeyBillingMultiplier(detail: RequestLogDetail | RequestLogItem) {
+  const value = detail.cost_calculation?.api_key_billing_multiplier
+  return isPositiveFiniteNumber(value) && value !== 1 ? value : null
+}
+
 export function formatCostMultiplier(value?: number | null) {
   if (!isPositiveFiniteNumber(value)) return null
   return `x${formatDecimal(value)}`
@@ -66,16 +71,21 @@ export function formatCostMultiplier(value?: number | null) {
 function requestCostMultiplierSuffix(detail: RequestLogDetail | RequestLogItem, t: TFunction) {
   const credentialMultiplier = requestCredentialMultiplier(detail)
   const serviceTierMultiplier = requestIsFastBilling(detail) ? requestServiceTierMultiplier(detail) : null
+  const apiKeyMultiplier = requestAPIKeyBillingMultiplier(detail)
   const parts: string[] = []
   const credentialSuffix = formatCostMultiplier(credentialMultiplier)
   const serviceTierSuffix = serviceTierMultiplier != null && serviceTierMultiplier > 1
     ? formatCostMultiplier(serviceTierMultiplier)
     : null
+  const apiKeySuffix = formatCostMultiplier(apiKeyMultiplier)
   if (credentialSuffix) {
     parts.push(t('detail.formula.credentialMultiplier', { multiplier: credentialSuffix }))
   }
   if (serviceTierSuffix) {
     parts.push(t('detail.formula.serviceTierMultiplier', { multiplier: serviceTierSuffix }))
+  }
+  if (apiKeySuffix) {
+    parts.push(t('detail.formula.apiKeyMultiplier', { multiplier: apiKeySuffix }))
   }
   if (parts.length) {
     return parts.join(' * ')

@@ -91,6 +91,7 @@
     "cachePrice": "缓存价格",
     "perRequestPrice": "按次价格",
     "credentialMultiplier": "上游 API Key 倍率",
+    "apiKeyMultiplier": "密钥计费倍率",
     "mode": "模式",
     "totalCost": "总花费",
     "path": "路径",
@@ -164,6 +165,7 @@
       "output": "输出 {{tokens}} tokens / 1M tokens * {{price}}",
       "credentialMultiplier": "上游 API Key {{multiplier}}",
       "serviceTierMultiplier": "服务等级 {{multiplier}}",
+      "apiKeyMultiplier": "密钥计费倍率 {{multiplier}}",
       "perRequestUnit": "{{price}}/次"
     },
     "longContext": "长上下文计价",

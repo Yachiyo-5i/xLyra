@@ -29,8 +29,9 @@ type APIKey struct {
 	Status                 string
 	ModelPolicy            string
 	SitePolicy             string
-	ModelMappings          JSON `gorm:"type:jsonb;default:'[]'::jsonb"`
-	ImageToolBridge        JSON `gorm:"type:jsonb;default:'{}'::jsonb"`
+	ModelMappings          JSON    `gorm:"type:jsonb;default:'[]'::jsonb"`
+	ImageToolBridge        JSON    `gorm:"type:jsonb;default:'{}'::jsonb"`
+	BillingMultiplier      float64 `gorm:"type:numeric(8,4);default:1;not null"`
 	QuotaLimit             sql.NullFloat64
 	QuotaUsed              float64
 	QuotaTotalUsed         float64 `gorm:"type:numeric(18,8);default:0;not null"`
@@ -111,6 +112,7 @@ type CreateAPIKeyParams struct {
 	SitePolicy           string
 	ModelMappings        any
 	ImageToolBridge      any
+	BillingMultiplier    float64
 	QuotaLimit           any
 	QuotaUnlimited       bool
 	QuotaDailyLimit      any
@@ -129,6 +131,7 @@ type UpdateAPIKeyParams struct {
 	SitePolicy           string
 	ModelMappings        any
 	ImageToolBridge      any
+	BillingMultiplier    *float64
 	QuotaLimit           any
 	QuotaUnlimited       bool
 	QuotaDailyLimit      any
@@ -191,6 +194,7 @@ func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams)
 		SitePolicy:           params.SitePolicy,
 		ModelMappings:        jsonDefault(jsonFromAny(params.ModelMappings, "[]"), "[]"),
 		ImageToolBridge:      jsonDefault(jsonFromAny(params.ImageToolBridge, "{}"), "{}"),
+		BillingMultiplier:    params.BillingMultiplier,
 		QuotaLimit:           nullFloatFromAny(params.QuotaLimit),
 		QuotaUsed:            0,
 		QuotaTotalUsed:       0,
@@ -358,6 +362,9 @@ func (r APIKeyRepository) Update(ctx context.Context, params UpdateAPIKeyParams)
 		"quota_weekly_limit":     nullFloatFromAny(params.QuotaWeeklyLimit),
 		"quota_weekly_unlimited": params.QuotaWeeklyUnlimited,
 		"expires_at":             timePtrFromAny(params.ExpiresAt),
+	}
+	if params.BillingMultiplier != nil {
+		updates["billing_multiplier"] = *params.BillingMultiplier
 	}
 	if err := r.db.WithContext(ctx).Model(&APIKey{ID: params.ID}).Updates(updates).Error; err != nil {
 		return APIKey{}, fmt.Errorf("update api key: %w", err)

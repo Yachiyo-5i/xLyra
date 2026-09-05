@@ -72,6 +72,7 @@ export type DownstreamAPIKey = {
   site_policy: DownstreamAPIKeyModelPolicy
   model_mappings?: ModelRule[] | null
   image_tool_bridge?: ImageToolBridgeConfig | null
+  billing_multiplier?: number | null
   quota_limit?: number | null
   quota_total_used?: number
   quota_total_available?: number | null
@@ -111,6 +112,7 @@ export type APIKeyUpsertInput = {
   siteGroupIds: string[]
   modelMappings?: ModelRule[]
   imageToolBridge?: ImageToolBridgeConfig | null
+  billingMultiplier?: number | null
   quotaLimit?: number | null
   quotaUnlimited: boolean
   quotaDailyLimit?: number | null
@@ -266,6 +268,7 @@ function apiKeyUpsertBody(input: APIKeyUpsertInput) {
     site_group_ids: input.sitePolicy === 'allow_list' ? input.siteGroupIds : [],
     model_mappings: input.modelMappings,
     image_tool_bridge: input.imageToolBridge ?? null,
+    billing_multiplier: input.billingMultiplier ?? null,
     quota_limit: input.quotaUnlimited ? null : input.quotaLimit,
     quota_unlimited: input.quotaUnlimited,
     quota_daily_limit: input.quotaDailyUnlimited ? null : input.quotaDailyLimit,
