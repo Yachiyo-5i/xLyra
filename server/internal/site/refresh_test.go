@@ -524,6 +524,17 @@ func TestModelsFromUserSummaryPayloadVariants(t *testing.T) {
 		t.Fatalf("unexpected data models: %#v", dataNested)
 	}
 
+	// Codex image route items carry an id field; ensure they are not dropped by
+	// the data-array parser (regression: slug-only entries were silently skipped).
+	codexImage := modelsFromUserSummaryPayload(map[string]any{
+		"data": []any{
+			map[string]any{"id": "gpt-image-2", "slug": "gpt-image-2", "source": "codex_image_route"},
+		},
+	})
+	if len(codexImage) != 1 || codexImage[0].UpstreamName != "gpt-image-2" {
+		t.Fatalf("codex image route model was dropped by user summary parser: %#v", codexImage)
+	}
+
 	direct := modelsFromUserSummaryPayload(map[string]any{
 		"success":    true,
 		"message":    "ok",
