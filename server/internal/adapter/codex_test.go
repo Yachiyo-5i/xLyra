@@ -732,12 +732,16 @@ func TestCodexSummaryKeepsModelsWhenUsageTransientFailure(t *testing.T) {
 	if usage["available"] != false || usage["success"] != false {
 		t.Fatalf("summary usage should record transient failure: %#v", usage)
 	}
-	if len(summary.Models) != 1 {
-		t.Fatalf("summary models length = %d, want 1", len(summary.Models))
+	if len(summary.Models) != 2 {
+		t.Fatalf("summary models length = %d, want 2 (raw upstream model + gpt-image-2 route item)", len(summary.Models))
 	}
 	model := summary.Models[0]
 	if model.UpstreamName != "gpt-summary-test" || model.DisplayName != "GPT Summary Test" {
 		t.Fatalf("unexpected summary model: %#v", model)
+	}
+	routeModel := summary.Models[1]
+	if routeModel.UpstreamName != codexImageSlug {
+		t.Fatalf("route model upstream name = %q, want %q", routeModel.UpstreamName, codexImageSlug)
 	}
 }
 
