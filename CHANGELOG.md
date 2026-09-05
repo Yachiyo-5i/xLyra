@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.5.0...v1.5.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* 🐛 gpt-image-2 路由条目补 id 字段，避免被站点层解析丢弃 ([823db4c](https://github.com/Yachiyo-5i/xLyra/commit/823db4cbdf12336c667edf9472543e779ad155f2))
+* gpt-image-2 路由条目补 id 字段，避免被站点层解析丢弃 ([a294099](https://github.com/Yachiyo-5i/xLyra/commit/a294099f377b4830a3545d43c4fd29f56108ba4c))
+
 ## [1.5.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.4.0...v1.5.0) (2026-09-04)
 
 
