@@ -5,22 +5,19 @@ FROM node:24-alpine AS frontend-build
 WORKDIR /src
 
 COPY web/package.json web/package-lock.json ./
-RUN --mount=type=cache,id=npm,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 COPY web/ .
 ARG BUILD_TIMESTAMP
 ENV VITE_BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
-RUN --mount=type=cache,id=npm,target=/root/.npm \
-    npm run build
+RUN npm run build
 
 FROM golang:1.26-alpine AS backend-build
 
 WORKDIR /src
 
 COPY server/go.mod server/go.sum ./
-RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
-    go mod download
+RUN go mod download
 
 COPY server/ .
 ARG TARGETOS=linux
@@ -28,9 +25,7 @@ ARG TARGETARCH
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=
-RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
-    --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath \
     -ldflags="-s -w \
       -X 'xlyra/server/internal/version.Version=${VERSION}' \
