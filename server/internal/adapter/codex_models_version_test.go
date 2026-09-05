@@ -31,8 +31,8 @@ func TestCodexModelsFromItemsEnforcesMinimalClientVersion(t *testing.T) {
 
 func TestCodexImageRouteModelCarriesImageCapability(t *testing.T) {
 	item := codexImageRouteModel()
-	if item["slug"] != codexImageSlug {
-		t.Fatalf("route model slug = %#v, want %s", item["slug"], codexImageSlug)
+	if item["id"] != codexImageSlug || item["slug"] != codexImageSlug {
+		t.Fatalf("route model id/slug = %#v/%#v, want %s", item["id"], item["slug"], codexImageSlug)
 	}
 	if item["source"] != "codex_image_route" {
 		t.Fatalf("route model source = %#v, want codex_image_route", item["source"])

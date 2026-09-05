@@ -753,6 +753,7 @@ const codexImageSlug = "gpt-image-2"
 // only the image endpoint type.
 func codexImageRouteModel() map[string]any {
 	return map[string]any{
+		"id":                       codexImageSlug,
 		"slug":                     codexImageSlug,
 		"object":                   "model",
 		"created":                  int64(1704067200),
