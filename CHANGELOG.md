@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.5.1...v1.5.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* 🐛 补上 codex OAuth 刷新路径的 gpt-image-2 路由模型 ([20cc6be](https://github.com/Yachiyo-5i/xLyra/commit/20cc6bec92a7fb402eac48f46a5d0a5777d0424d))
+* 🐛 补上 codex OAuth 刷新路径的 gpt-image-2 路由模型 ([be130d9](https://github.com/Yachiyo-5i/xLyra/commit/be130d9830be9645ed09af5cf8653989ecf4a18a))
+
 ## [1.5.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.5.0...v1.5.1) (2026-09-05)
 
 
