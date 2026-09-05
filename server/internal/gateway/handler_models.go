@@ -69,6 +69,7 @@ func (h Handler) Models(w http.ResponseWriter, r *http.Request) {
 		h.writeGatewayError(w, r, http.StatusInternalServerError, "gateway_models_failed", "failed to list gateway models")
 		return
 	}
+	payload["billing_multiplier"] = apiKey.BillingMultiplier
 
 	w.Header().Set("Cache-Control", "no-store")
 	if etag := modelsPayloadETag(payload); etag != "" {

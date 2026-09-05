@@ -91,6 +91,7 @@
     "cachePrice": "Cache price",
     "perRequestPrice": "Per-request price",
     "credentialMultiplier": "Upstream API key multiplier",
+    "apiKeyMultiplier": "Key billing multiplier",
     "mode": "Mode",
     "totalCost": "Total cost",
     "path": "Path",
@@ -164,6 +165,7 @@
       "output": "Output {{tokens}} tokens / 1M tokens * {{price}}",
       "credentialMultiplier": "Upstream API key {{multiplier}}",
       "serviceTierMultiplier": "Service tier {{multiplier}}",
+      "apiKeyMultiplier": "Key billing multiplier {{multiplier}}",
       "perRequestUnit": "{{price}}/req"
     },
     "longContext": "Long context billing",

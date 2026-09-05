@@ -89,6 +89,7 @@
     "cachePrice": "キャッシュ価格",
     "perRequestPrice": "リクエスト単価",
     "credentialMultiplier": "上流 API キー倍率",
+    "apiKeyMultiplier": "API キー課金倍率",
     "mode": "モード",
     "totalCost": "総コスト",
     "path": "パス",
@@ -162,6 +163,7 @@
       "output": "出力 {{tokens}} トークン / 100万トークン * {{price}}",
       "credentialMultiplier": "上流 API キー {{multiplier}}",
       "serviceTierMultiplier": "サービスティア {{multiplier}}",
+      "apiKeyMultiplier": "API キー課金倍率 {{multiplier}}",
       "perRequestUnit": "{{price}}/回"
     },
     "longContext": "長文脈課金",

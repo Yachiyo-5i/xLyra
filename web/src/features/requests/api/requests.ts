@@ -89,6 +89,7 @@ type RequestLogCostCalculation = {
   cost_multiplier?: number | null
   credential_upstream_cost_multiplier?: number | null
   service_tier_multiplier?: number | null
+  api_key_billing_multiplier?: number | null
   cost_multiplier_reason?: string | null
   estimated_cost?: number | null
   billing_type?: string | null

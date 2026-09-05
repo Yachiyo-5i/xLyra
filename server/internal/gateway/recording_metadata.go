@@ -133,6 +133,11 @@ func attemptMetadata(
 	costCalculation["base_estimated_cost"] = float64PtrValue(result.baseEstimatedCost)
 	costCalculation["credential_upstream_cost_multiplier"] = credentialMultiplier
 	costCalculation["service_tier_multiplier"] = serviceTierMultiplier
+	apiKeyBillingMultiplier := result.apiKeyBillingMultiplier
+	if apiKeyBillingMultiplier <= 0 {
+		apiKeyBillingMultiplier = 1
+	}
+	costCalculation["api_key_billing_multiplier"] = apiKeyBillingMultiplier
 	meta := map[string]any{
 		"scope":                               scope,
 		"endpoint":                            emptyToNil(result.downstreamPath),

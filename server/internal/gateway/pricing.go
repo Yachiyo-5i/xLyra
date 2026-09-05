@@ -315,11 +315,15 @@ func gatewayBillingMultiplier(result gatewayAttemptResult) float64 {
 	if credentialMultiplier <= 0 {
 		credentialMultiplier = 1
 	}
+	apiKeyMultiplier := result.apiKeyBillingMultiplier
+	if apiKeyMultiplier <= 0 {
+		apiKeyMultiplier = 1
+	}
 	serviceMultiplier := 1.0
 	if result.billingMode == "fast" && result.costMultiplier > 1 {
 		serviceMultiplier = result.costMultiplier
 	}
-	return credentialMultiplier * serviceMultiplier
+	return credentialMultiplier * serviceMultiplier * apiKeyMultiplier
 }
 
 func firstPricingValue(primary *float64, fallback *float64) *float64 {
