@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RequestLogItem } from '@/features/requests/api/requests'
 import {
   formatLatency,
   requestFirstByteLatency,
   requestFirstByteLatencyTone,
+  requestElapsedMs,
+  requestIsInProgress,
   requestTotalLatencyTone,
   type RequestLatencyTone,
 } from '@/features/requests/lib/request-utils'
@@ -16,11 +19,20 @@ type RequestTimingProps = {
 
 export function RequestTiming({ item, className }: RequestTimingProps) {
   const { t } = useTranslation('requests')
+  const inProgress = requestIsInProgress(item)
+  const [now, setNow] = useState(() => Date.now())
   const firstByteLatencyValue = requestFirstByteLatency(item)
   const firstByteLatency = formatLatency(firstByteLatencyValue)
-  const totalLatency = formatLatency(item.latency_ms)
+  const totalLatencyValue = inProgress ? requestElapsedMs(item, now) : item.latency_ms
+  const totalLatency = formatLatency(totalLatencyValue)
   const firstByteTone = requestFirstByteLatencyTone(firstByteLatencyValue)
-  const totalTone = requestTotalLatencyTone(item.latency_ms)
+  const totalTone = requestTotalLatencyTone(totalLatencyValue)
+
+  useEffect(() => {
+    if (!inProgress) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [inProgress, item.started_at])
 
   return (
     <div className={cn('min-w-0 space-y-0 lg:space-y-1', className)}>

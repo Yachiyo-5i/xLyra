@@ -261,6 +261,7 @@ func (h Handler) forwardSiteModelTestRequest(
 	requestedCredentialID uuid.UUID,
 ) gatewayAttemptResult {
 	startedAt := time.Now()
+	ctx = withRequestStartedAt(ctx, startedAt)
 	result := gatewayAttemptResult{
 		attempt:          1,
 		currency:         "USD",

@@ -32,6 +32,18 @@ func TestRegistryPublishesLifecycleAndRemovesTerminalRequest(t *testing.T) {
 	}
 }
 
+func TestRegistryPreservesProvidedRequestStartTime(t *testing.T) {
+	registry := NewRegistry()
+	startedAt := time.Date(2026, 8, 17, 8, 0, 0, 123456789, time.UTC)
+
+	registry.Start(Request{RequestID: "req-start", StartedAt: startedAt})
+
+	requests := registry.Snapshot().Requests
+	if len(requests) != 1 || !requests[0].StartedAt.Equal(startedAt) {
+		t.Fatalf("request start time = %#v, want %s", requests, startedAt)
+	}
+}
+
 func TestRegistryFinishIsIdempotentAndSnapshotIsSorted(t *testing.T) {
 	registry := NewRegistry()
 	registry.Start(Request{RequestID: "earlier"})

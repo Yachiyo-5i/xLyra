@@ -22,6 +22,7 @@ type Recorder struct {
 type GatewayRequestRecord struct {
 	RequestID                  string
 	ParentRequestID            string
+	StartedAt                  time.Time
 	APIKeyID                   uuid.UUID
 	SiteID                     uuid.UUID
 	CanonicalModelID           uuid.UUID
@@ -68,6 +69,9 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 		metadata := record.Metadata
 		if metadata == nil {
 			metadata = map[string]any{}
+		}
+		if startedAt := requestStartedAtMetadataValue(record.StartedAt); startedAt != nil {
+			metadata["started_at"] = startedAt
 		}
 		metadata["upstream_status_code"] = record.UpstreamStatusCode
 		metadata["upstream_response"] = record.UpstreamResponse

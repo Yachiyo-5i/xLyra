@@ -28,9 +28,11 @@ func (h Handler) recordAttempt(
 	metadata := attemptMetadata(ctx, attemptRequestID, requestID, apiKeyID, canonicalModelID, candidate, result)
 	h.appendCacheObservationMetadata(ctx, metadata, candidate, result)
 	internal, parentLogID := bridgeRecordingFromContext(ctx)
+	startedAt, _ := requestStartedAtFromContext(ctx)
 	requestLog, _, err := h.recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
 		RequestID:                  attemptRequestID,
 		ParentRequestID:            requestID,
+		StartedAt:                  startedAt,
 		APIKeyID:                   apiKeyID,
 		SiteID:                     candidate.Site.ID,
 		CanonicalModelID:           canonicalModelID,
@@ -95,6 +97,7 @@ func (h Handler) recordRequestFailure(
 	if _, _, err := recorder.RecordGatewayRequest(recordCtx, GatewayRequestRecord{
 		RequestID:       failureRequestID,
 		ParentRequestID: requestID,
+		StartedAt:       startedAt,
 		APIKeyID:        apiKeyID,
 		Endpoint:        stringValue(&endpoint, gatewayEndpointChatCompletions),
 		StatusCode:      statusCode,
