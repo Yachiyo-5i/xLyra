@@ -228,7 +228,7 @@ function formatElapsed(ms: number): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
 }
 
-/** 列表窗口的最小高度（约 5 行），兼作首次测量前的初始限高 */
+/** 列表窗口的默认高度（约 5 行）：内容超过该值时窗口封顶、内部滚动；内容不足时贴着内容高，不再空撑 */
 const STEP_LIST_MIN_HEIGHT = 116
 
 /** 详情的最大可见高 = 预览 pre 上限 160 + 4 间距 + 底部 pre 上限 192 + 上下内边距 12，
@@ -310,7 +310,7 @@ function StepGroup({ steps, active }: { steps: AgentWorkStep[]; active?: boolean
         <div
           ref={scrollRef}
           className="mt-1.5 overflow-y-auto border-l-2 border-[hsl(var(--glass-divider))] pl-3 transition-[max-height] duration-200 ease-out"
-          style={{ minHeight: STEP_LIST_MIN_HEIGHT, maxHeight: listMaxHeight }}
+          style={{ minHeight: 0, maxHeight: listMaxHeight }}
         >
           <div ref={contentRef} className="space-y-1">
             {steps.map((step) => (
