@@ -103,6 +103,7 @@ func sseBoundary(value string) (int, int) {
 }
 
 type chatRunState struct {
+	mu            sync.Mutex
 	content       string
 	reasoning     string
 	pendingText   string
@@ -113,7 +114,10 @@ type chatRunState struct {
 	lastFlush     time.Time
 }
 
-const messagesMaxTokens = 16384
+const (
+	messagesMaxTokens      = 16384
+	chatDeltaFlushInterval = 100 * time.Millisecond
+)
 
 func (s *Service) execute(run store.PlaygroundRun, apiKey store.APIKey, conversation store.PlaygroundConversation, payload RunPayload, ready chan<- struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -160,19 +164,38 @@ func (s *Service) executeChat(ctx context.Context, run store.PlaygroundRun, apiK
 		if err := s.consumeChatEvent(payload.Protocol, value, state); err != nil {
 			return err
 		}
-		if len(state.pendingText)+len(state.pendingReason) >= 4096 || time.Since(state.lastFlush) >= 300*time.Millisecond {
+		if state.shouldFlush() {
 			return s.flushChatDelta(ctx, run, conversation, payload, state)
 		}
 		return nil
 	}}
 	writer := newCaptureWriter(decoder.Write)
+	flushStop := make(chan struct{})
+	flushDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(chatDeltaFlushInterval)
+		defer ticker.Stop()
+		defer close(flushDone)
+		for {
+			select {
+			case <-ticker.C:
+				_ = s.flushChatDelta(ctx, run, conversation, payload, state)
+			case <-flushStop:
+				return
+			}
+		}
+	}()
 	request, err := http.NewRequestWithContext(auth.WithAPIKey(ctx, apiKey), http.MethodPost, gatewayPath(payload.Protocol), bytes.NewReader(encoded))
 	if err != nil {
+		close(flushStop)
+		<-flushDone
 		s.finishFailedRun(run, conversation, payload, state, startedAt, err, false)
 		return
 	}
 	request.Header.Set("Content-Type", "application/json")
 	s.serveGateway(writer, request, payload.Protocol, false)
+	close(flushStop)
+	<-flushDone
 	state.siteName = routeSiteName(writer.Header())
 	if err := s.flushChatDelta(context.Background(), run, conversation, payload, state); err != nil && state.failure == "" {
 		state.failure = err.Error()
@@ -206,6 +229,8 @@ func (s *Service) executeChat(ctx context.Context, run store.PlaygroundRun, apiK
 }
 
 func (s *Service) flushChatDelta(ctx context.Context, run store.PlaygroundRun, conversation *store.PlaygroundConversation, payload RunPayload, state *chatRunState) error {
+	state.mu.Lock()
+	defer state.mu.Unlock()
 	if state.pendingText == "" && state.pendingReason == "" {
 		return nil
 	}
@@ -280,12 +305,22 @@ func (s *Service) consumeChatEvent(protocol string, value string, state *chatRun
 	return nil
 }
 
+func (s *chatRunState) shouldFlush() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pendingText)+len(s.pendingReason) >= 4096 || time.Since(s.lastFlush) >= chatDeltaFlushInterval
+}
+
 func (s *chatRunState) addContent(value string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.content += value
 	s.pendingText += value
 }
 
 func (s *chatRunState) addReasoning(value string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.reasoning += value
 	s.pendingReason += value
 }

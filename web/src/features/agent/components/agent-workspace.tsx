@@ -266,12 +266,14 @@ export function AgentWorkspace() {
   // Model memory lives server-side: a fresh session defaults to the last globally used model, an existing session to its own last model.
   const modelMemoryQuery = useQuery({ queryKey: ['agent', 'model-memory'], queryFn: fetchAgentModelMemory, retry: false })
   const availableModelsQuery = useQuery({
-    queryKey: ['agent', 'available-models'],
+    queryKey: [...agentSettingsKey, 'workspace-available-models'],
     queryFn: async () => {
       const [{ allowed_site_ids: allowedSites, allowed_site_model_ids: allowedModels }, availableSites] = await Promise.all([fetchAgentRuntimeSettings(), fetchAgentAvailableModels()])
       return { allowedSites, allowedModels, availableSites }
     },
     retry: false,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   })
   const runtimeSettingsQuery = useQuery({ queryKey: [...agentSettingsKey, 'runtime'], queryFn: fetchAgentRuntimeSettings, retry: false })
 
@@ -304,6 +306,10 @@ export function AgentWorkspace() {
   const sessions = sessionsQuery.data ?? []
   // Stay on the new-chat screen by default; only an explicit selection enters a session.
   const selectedId = newSession ? null : activeId
+  const refetchAvailableModels = availableModelsQuery.refetch
+  useEffect(() => {
+    void refetchAvailableModels()
+  }, [refetchAvailableModels, selectedId, newSession])
   const activeSession = selectedId ? sessions.find((session) => session.session_id === selectedId) : undefined
   const hasMessages = timeline.length > 0
   const appearance = runtimeSettingsQuery.data?.appearance
@@ -356,10 +362,32 @@ export function AgentWorkspace() {
     eventAbort.current?.abort()
     const controller = new AbortController()
     eventAbort.current = controller
+    // 流式 delta 以 markdown 全量重解析实现：同一渲染帧内密集到达的多个 delta
+    // 合并成一次 setTimeline，避免每 token 触发一次组件重渲染 + 一次 ReactMarkdown
+    // 解析造成卡顿。delta 按到达顺序在 buffer 里累积，flush 时一次性 reduce，语义不变。
+    const pending: { type: string; data: unknown }[] = []
+    let frame: number | null = null
+    const flush = () => {
+      frame = null
+      if (pending.length === 0) return
+      const events = pending.splice(0, pending.length)
+      setTimeline((current) => events.reduce(reduceAgentEvent, current))
+    }
+    const enqueue = (event: { type: string; data: unknown }, flushNow: boolean) => {
+      pending.push(event)
+      if (frame !== null) return
+      if (flushNow) {
+        flush()
+        return
+      }
+      frame = requestAnimationFrame(flush)
+    }
     try {
       await followAgentEvents(sessionId, controller.signal, (event) => {
-        setTimeline((current) => reduceAgentEvent(current, event))
-        if (['agent_done', 'agent_error', 'agent_cancelled'].includes(event.type)) {
+        const terminal = ['agent_done', 'agent_error', 'agent_cancelled'].includes(event.type)
+        // 终态事件立即落盘，避免收尾逻辑被 frame 调度延迟；delta 交给下一帧合并
+        enqueue(event, terminal)
+        if (terminal) {
           setRunning(false)
           void queryClient.invalidateQueries({ queryKey: ['agent', 'sessions'] })
           // On terminal status, reconcile the timeline against the authoritative
@@ -376,12 +404,14 @@ export function AgentWorkspace() {
     } catch {
       if (!controller.signal.aborted) {
         setRunning(false)
-        // 流异常中断且没有终态事件：落定残留 running 的 run，计时停在当前值
+        // 流异常中断且没有终态事件：先落掉在途 delta，再收尾残留 running 的 run
+        flush()
         setTimeline((current) => settleRunningRuns(current))
       }
       return
     }
     // 流正常结束但没有终态事件（连接被服务端提前关闭等）：同样落定，防止计时无限走
+    flush()
     setTimeline((current) => settleRunningRuns(current))
   }, [queryClient])
 
@@ -542,6 +572,7 @@ export function AgentWorkspace() {
   }, [timeline, awaiting])
 
   function createNew() {
+    void refetchAvailableModels()
     eventAbort.current?.abort()
     skipTranscriptLoadFor.current = null
     revealLatestRef.current = false
@@ -558,6 +589,7 @@ export function AgentWorkspace() {
   }
 
   function handleSelect(sessionId: string) {
+    void refetchAvailableModels()
     eventAbort.current?.abort()
     skipTranscriptLoadFor.current = null
     revealLatestRef.current = true

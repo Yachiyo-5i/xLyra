@@ -195,6 +195,9 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(response.StatusCode)
 	if strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
+		w.Header().Set("Cache-Control", "no-cache, no-transform")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
 		// SSE must flush per write; io.Copy's buffer batches small events and
 		// reads as stutter on the client.
 		flushCopy(w, response.Body)

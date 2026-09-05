@@ -440,6 +440,13 @@ export async function followAgentEvents(sessionId: string, signal: AbortSignal, 
     if (!data.length) return
     let parsed: unknown = data.join('\n')
     try { parsed = JSON.parse(data.join('\n')) as unknown } catch { parsed = data.join('\n') }
+    if (type === 'rollout' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const envelope = parsed as { type?: unknown; payload?: unknown }
+      if (typeof envelope.type === 'string') {
+        onEvent({ type: envelope.type, data: envelope.payload })
+        return
+      }
+    }
     onEvent({ type, data: parsed })
   }
   for (;;) {
@@ -453,4 +460,6 @@ export async function followAgentEvents(sessionId: string, signal: AbortSignal, 
       boundary = /\r\n\r\n|\n\n|\r\r/.exec(buffer)
     }
   }
+  buffer += decoder.decode()
+  if (buffer.trim()) flush(buffer)
 }

@@ -21,18 +21,19 @@ import (
 )
 
 type Service struct {
-	logger    *slog.Logger
-	db        *store.Store
-	repo      store.PlaygroundRepository
-	rollout   *RolloutStore
-	assets    *AssetStore
-	gateway   gateway.Handler
-	mu        sync.Mutex
-	cancels   map[uuid.UUID]context.CancelFunc
-	finishes  map[uuid.UUID]chan struct{}
-	turns     map[uuid.UUID]*sync.Mutex
-	runs      map[uuid.UUID]store.PlaygroundRun
-	restoring bool
+	logger      *slog.Logger
+	db          *store.Store
+	repo        store.PlaygroundRepository
+	rollout     *RolloutStore
+	assets      *AssetStore
+	gateway     gateway.Handler
+	mu          sync.Mutex
+	cancels     map[uuid.UUID]context.CancelFunc
+	finishes    map[uuid.UUID]chan struct{}
+	turns       map[uuid.UUID]*sync.Mutex
+	runs        map[uuid.UUID]store.PlaygroundRun
+	subscribers map[uuid.UUID]map[chan Event]struct{}
+	restoring   bool
 }
 
 var ErrPlaygroundRestoring = errors.New("playground is restoring from a backup")
@@ -45,10 +46,11 @@ func NewService(logger *slog.Logger, db *store.Store, gatewayHandler gateway.Han
 	service := &Service{
 		logger: logger, db: db, repo: repo, gateway: gatewayHandler.WithRouteSiteHeader(),
 		rollout: NewRolloutStore(root, repo), assets: NewAssetStore(root, repo),
-		cancels:  map[uuid.UUID]context.CancelFunc{},
-		finishes: map[uuid.UUID]chan struct{}{},
-		turns:    map[uuid.UUID]*sync.Mutex{},
-		runs:     map[uuid.UUID]store.PlaygroundRun{},
+		cancels:     map[uuid.UUID]context.CancelFunc{},
+		finishes:    map[uuid.UUID]chan struct{}{},
+		turns:       map[uuid.UUID]*sync.Mutex{},
+		runs:        map[uuid.UUID]store.PlaygroundRun{},
+		subscribers: map[uuid.UUID]map[chan Event]struct{}{},
 	}
 	service.recoverActiveRuns()
 	return service
@@ -639,6 +641,35 @@ func assetIDFromURL(value string) (uuid.UUID, bool) {
 	return id, err == nil
 }
 
+func (s *Service) subscribe(conversationID uuid.UUID) (<-chan Event, func()) {
+	channel := make(chan Event, 64)
+	s.mu.Lock()
+	if s.subscribers[conversationID] == nil {
+		s.subscribers[conversationID] = map[chan Event]struct{}{}
+	}
+	s.subscribers[conversationID][channel] = struct{}{}
+	s.mu.Unlock()
+	return channel, func() {
+		s.mu.Lock()
+		delete(s.subscribers[conversationID], channel)
+		if len(s.subscribers[conversationID]) == 0 {
+			delete(s.subscribers, conversationID)
+		}
+		s.mu.Unlock()
+	}
+}
+
+func (s *Service) publish(conversationID uuid.UUID, event Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for channel := range s.subscribers[conversationID] {
+		select {
+		case channel <- event:
+		default:
+		}
+	}
+}
+
 func (s *Service) append(ctx context.Context, conversation *store.PlaygroundConversation, eventType string, runID uuid.UUID, payload any, title string) (appendResult, error) {
 	result, err := s.rollout.Append(ctx, *conversation, eventType, runID, payload, title)
 	if err == nil {
@@ -646,6 +677,10 @@ func (s *Service) append(ctx context.Context, conversation *store.PlaygroundConv
 		conversation.LastByteOffset = result.Offset
 		conversation.Title = title
 		conversation.UpdatedAt = time.Now()
+		encoded, marshalErr := json.Marshal(payload)
+		if marshalErr == nil {
+			s.publish(conversation.ID, Event{Timestamp: time.Now(), Ordinal: result.Ordinal, Type: eventType, RunID: runID.String(), Payload: encoded})
+		}
 	}
 	return result, err
 }

@@ -111,15 +111,33 @@ func (h Handler) Events(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusInternalServerError, "streaming_unsupported", "streaming is not supported")
 		return
 	}
+	eventsChannel, unsubscribe := h.service.subscribe(id)
+	defer unsubscribe()
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
-	ticker := time.NewTicker(250 * time.Millisecond)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	lastActivity := time.Now()
 	var offset int64
+	writeEvent := func(event Event) error {
+		if event.Ordinal <= after {
+			return nil
+		}
+		encoded, err := json.Marshal(event)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "id: %d\nevent: rollout\ndata: %s\n\n", event.Ordinal, encoded); err != nil {
+			return err
+		}
+		after = event.Ordinal
+		lastActivity = time.Now()
+		return nil
+	}
 	for {
 		events, run, nextOffset, err := h.service.Events(r.Context(), adminID, id, offset, after)
 		if err != nil {
@@ -127,15 +145,9 @@ func (h Handler) Events(w http.ResponseWriter, r *http.Request) {
 		}
 		offset = nextOffset
 		for _, event := range events {
-			encoded, marshalErr := json.Marshal(event)
-			if marshalErr != nil {
+			if err := writeEvent(event); err != nil {
 				return
 			}
-			if _, err := fmt.Fprintf(w, "id: %d\nevent: rollout\ndata: %s\n\n", event.Ordinal, encoded); err != nil {
-				return
-			}
-			after = event.Ordinal
-			lastActivity = time.Now()
 		}
 		if len(events) > 0 {
 			flusher.Flush()
@@ -157,6 +169,11 @@ func (h Handler) Events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case event := <-eventsChannel:
+			if err := writeEvent(event); err != nil {
+				return
+			}
+			flusher.Flush()
 		case <-ticker.C:
 		}
 	}
