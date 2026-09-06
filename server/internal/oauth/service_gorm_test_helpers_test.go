@@ -1,7 +1,10 @@
 package oauth
 
 import (
+	"context"
+	"database/sql"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"unsafe"
 
@@ -39,6 +42,9 @@ func oauthGormWithCallbacks(t *testing.T, callbacks oauthGormCallbacks) *gorm.DB
 	if err != nil {
 		t.Fatalf("open offline gorm db: %v", err)
 	}
+	pool := &oauthTestConnPool{ConnPool: db.Statement.ConnPool}
+	db.Config.ConnPool = pool
+	db.Statement.ConnPool = pool
 	if callbacks.query != nil {
 		if err := db.Callback().Query().Replace("gorm:query", callbacks.query); err != nil {
 			t.Fatalf("replace query callback: %v", err)
@@ -87,4 +93,31 @@ func oauthStoreWithGorm(t *testing.T, db *gorm.DB) *store.Store {
 	field := reflect.ValueOf(st).Elem().FieldByName("db")
 	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(db))
 	return st
+}
+
+type oauthTestConnPool struct {
+	gorm.ConnPool
+	begins    atomic.Int32
+	commits   atomic.Int32
+	rollbacks atomic.Int32
+}
+
+func (p *oauthTestConnPool) BeginTx(context.Context, *sql.TxOptions) (gorm.ConnPool, error) {
+	p.begins.Add(1)
+	return &oauthTestTx{ConnPool: p.ConnPool, pool: p}, nil
+}
+
+type oauthTestTx struct {
+	gorm.ConnPool
+	pool *oauthTestConnPool
+}
+
+func (tx *oauthTestTx) Commit() error {
+	tx.pool.commits.Add(1)
+	return nil
+}
+
+func (tx *oauthTestTx) Rollback() error {
+	tx.pool.rollbacks.Add(1)
+	return nil
 }

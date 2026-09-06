@@ -115,12 +115,23 @@ func NewService(db *store.Store, masterKey string, confFiles ...*config.ConfigFi
 }
 
 func NewServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.TimeZone, confFiles ...*config.ConfigFile) *Service {
+	return newServiceWithTimeZone(db, masterKey, timeZone, nil, confFiles...)
+}
+
+func NewServiceWithOAuthService(db *store.Store, masterKey string, timeZone config.TimeZone, oauthService *oauthsvc.Service, confFiles ...*config.ConfigFile) *Service {
+	return newServiceWithTimeZone(db, masterKey, timeZone, oauthService, confFiles...)
+}
+
+func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.TimeZone, oauthService *oauthsvc.Service, confFiles ...*config.ConfigFile) *Service {
 	var confFile *config.ConfigFile
 	if len(confFiles) > 0 {
 		confFile = confFiles[0]
 	}
 	if timeZone.Location == nil {
 		timeZone = config.ResolveTimeZone()
+	}
+	if oauthService == nil {
+		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	httpClients := httpclient.NewManager(confFile)
 	modelCapsClient, _ := httpClients.Client(httpclient.DefaultProfile())
@@ -129,7 +140,7 @@ func NewServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		credentials: credential.NewService(masterKey),
 		adapters:    adapter.NewRegistry(),
 		modelCaps:   modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: modelCapsClient}),
-		oauth:       oauthsvc.NewService(db, masterKey, confFile),
+		oauth:       oauthService,
 		httpClients: httpClients,
 		confFile:    confFile,
 		timeZone:    timeZone,

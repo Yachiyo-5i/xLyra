@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OAuthConnection struct {
@@ -29,6 +30,8 @@ type OAuthConnection struct {
 	Scopes                string
 	ExpiresAt             sql.NullTime
 	LastRefreshAt         sql.NullTime
+	RefreshLeaseID        string
+	RefreshLeaseUntil     sql.NullTime
 	LastSyncAt            sql.NullTime
 	RawProfile            JSON `gorm:"type:jsonb"`
 	Metadata              JSON `gorm:"type:jsonb"`
@@ -58,11 +61,16 @@ type UpsertOAuthConnectionParams struct {
 }
 
 type OAuthConnectionRepository struct {
-	db *gorm.DB
+	db             *gorm.DB
+	refreshLeaseID string
 }
 
 func NewOAuthConnectionRepository(db *gorm.DB) OAuthConnectionRepository {
 	return OAuthConnectionRepository{db: db}
+}
+
+func NewOAuthConnectionRepositoryWithRefreshLease(db *gorm.DB, leaseID string) OAuthConnectionRepository {
+	return OAuthConnectionRepository{db: db, refreshLeaseID: leaseID}
 }
 
 func (r OAuthConnectionRepository) UpsertByProviderEmail(ctx context.Context, params UpsertOAuthConnectionParams) (OAuthConnection, error) {
@@ -109,6 +117,14 @@ func (r OAuthConnectionRepository) UpsertByProviderEmail(ctx context.Context, pa
 	}
 	if err := db.Save(&connection).Error; err != nil {
 		return OAuthConnection{}, fmt.Errorf("upsert oauth connection: %w", err)
+	}
+	return connection, nil
+}
+
+func (r OAuthConnectionRepository) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (OAuthConnection, error) {
+	var connection OAuthConnection
+	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where(&OAuthConnection{ID: id}).First(&connection).Error; err != nil {
+		return OAuthConnection{}, fmt.Errorf("get oauth connection for update: %w", err)
 	}
 	return connection, nil
 }
@@ -174,8 +190,16 @@ func (r OAuthConnectionRepository) DeleteBySiteID(ctx context.Context, siteID uu
 }
 
 func (r OAuthConnectionRepository) Save(ctx context.Context, connection OAuthConnection) (OAuthConnection, error) {
-	if err := r.db.WithContext(ctx).Save(&connection).Error; err != nil {
-		return OAuthConnection{}, fmt.Errorf("save oauth connection: %w", err)
+	db := r.db.WithContext(ctx)
+	if r.refreshLeaseID != "" {
+		db = db.Where(&OAuthConnection{ID: connection.ID, RefreshLeaseID: r.refreshLeaseID})
+	}
+	result := db.Save(&connection)
+	if result.Error != nil {
+		return OAuthConnection{}, fmt.Errorf("save oauth connection: %w", result.Error)
+	}
+	if r.refreshLeaseID != "" && result.RowsAffected != 1 {
+		return OAuthConnection{}, fmt.Errorf("save oauth connection: refresh lease was lost")
 	}
 	return connection, nil
 }

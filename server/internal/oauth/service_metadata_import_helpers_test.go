@@ -198,8 +198,8 @@ func TestDisableSiteOnPermanentErrorSkipsStoreWhenErrorIsTemporaryOrSiteMissing(
 	service := &Service{}
 	siteID := uuid.New()
 
-	service.disableSiteOnPermanentError(context.Background(), store.OAuthConnection{SiteID: &siteID}, "temporary network timeout")
-	service.disableSiteOnPermanentError(context.Background(), store.OAuthConnection{}, "invalid_grant")
+	service.disableSiteOnPermanentError(context.Background(), nil, store.OAuthConnection{SiteID: &siteID}, "temporary network timeout")
+	service.disableSiteOnPermanentError(context.Background(), nil, store.OAuthConnection{}, "invalid_grant")
 }
 
 func TestImportOAuthAccountReturnsMetadataMarshalFailureWithoutStoreAccess(t *testing.T) {

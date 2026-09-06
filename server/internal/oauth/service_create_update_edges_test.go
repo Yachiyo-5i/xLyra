@@ -114,7 +114,7 @@ func TestDisableSiteOnPermanentErrorOnlySavesEnabledBoundSiteOffline(t *testing.
 	queryCount := 0
 	saveCount := 0
 	var savedSite store.Site
-	service := oauthServiceWithQueryUpdate(t, func(tx *gorm.DB) {
+	service := NewService(oauthStoreWithGorm(t, oauthGormWithQueryUpdate(t, func(tx *gorm.DB) {
 		site, ok := tx.Statement.Dest.(*store.Site)
 		if !ok {
 			tx.AddError(errors.New("unexpected permanent-error site query destination"))
@@ -132,14 +132,15 @@ func TestDisableSiteOnPermanentErrorOnlySavesEnabledBoundSiteOffline(t *testing.
 		}
 		savedSite = *site
 		tx.Statement.RowsAffected = 1
-	})
+	})), "master-key")
+	db := service.db.DB()
 
-	service.disableSiteOnPermanentError(context.Background(), store.OAuthConnection{SiteID: &siteID}, "invalid_grant")
+	service.disableSiteOnPermanentError(context.Background(), db, store.OAuthConnection{SiteID: &siteID}, "invalid_grant")
 	if saveCount != 0 {
 		t.Fatalf("save count after already-disabled site = %d, want no save", saveCount)
 	}
 
-	service.disableSiteOnPermanentError(context.Background(), store.OAuthConnection{SiteID: &siteID}, "codex token refresh returned 403: forbidden")
+	service.disableSiteOnPermanentError(context.Background(), db, store.OAuthConnection{SiteID: &siteID}, "codex token refresh returned 403: forbidden")
 	if saveCount != 1 || savedSite.ID != siteID || savedSite.Enabled {
 		t.Fatalf("saved site = %#v save count = %d, want enabled site disabled once", savedSite, saveCount)
 	}

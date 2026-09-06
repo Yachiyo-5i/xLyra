@@ -43,6 +43,10 @@ func NewRouter(cfg config.Config, logger *slog.Logger, db *store.Store, confFile
 }
 
 func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string) (http.Handler, *gateway.Handler) {
+	return NewRouterWithGatewayWithOAuth(cfg, logger, db, confFile, masterKey, nil)
+}
+
+func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service) (http.Handler, *gateway.Handler) {
 	appTimeZone := config.ResolveTimeZone()
 	var authService *auth.Service
 	if db != nil {
@@ -60,8 +64,11 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	var routerService *routeengine.Service
 	var usageService *usage.Service
 	if db != nil {
-		oauthService = oauthsvc.NewService(db, masterKey, confFile)
-		siteService = site.NewServiceWithTimeZone(db, masterKey, appTimeZone, confFile)
+		oauthService = sharedOAuth
+		if oauthService == nil {
+			oauthService = oauthsvc.NewService(db, masterKey, confFile)
+		}
+		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
 		catalogService = catalog.NewService(db, confFile)
 		dashboardService = dashboard.NewService(db, appTimeZone)
 		analyticsService = analytics.NewService(db, appTimeZone)
@@ -70,7 +77,7 @@ func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Stor
 	}
 	systemStatsService := systemstats.NewService(appTimeZone)
 	downloadService := downloads.NewService()
-	gatewayHandler := gateway.NewHandlerWithTimeZone(logger.With("thread", "gateway"), authService, routerService, db, masterKey, appTimeZone, confFile)
+	gatewayHandler := gateway.NewHandlerWithOAuthService(logger.With("thread", "gateway"), authService, routerService, db, masterKey, appTimeZone, oauthService, confFile)
 	playgroundGatewayHandler := gatewayHandler.WithRouteSiteHeader()
 	playgroundRoot := filepath.Join(config.ResolveWorkdir(), "playground")
 	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, playgroundRoot)

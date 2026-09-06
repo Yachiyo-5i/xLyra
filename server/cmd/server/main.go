@@ -16,6 +16,7 @@ import (
 	"xlyra/server/internal/backup"
 	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
+	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/observability"
 	"xlyra/server/internal/scheduler"
 	"xlyra/server/internal/site"
@@ -113,7 +114,8 @@ func run() int {
 	logger.Info("database connection ready")
 
 	logger.Info("business services initializing")
-	siteService := site.NewServiceWithTimeZone(db, masterKey, appTimeZone, confFile)
+	oauthService := oauthsvc.NewService(db, masterKey, confFile)
+	siteService := site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
 	syncService := catalog.NewSyncService(db, logger.With("thread", "models-dev-sync"), confFile)
 	usageSummaryService := usage.NewSummaryService(db, confFile, appTimeZone)
 	backupService := backup.NewService(db, confFile, masterKey, filepath.Join(config.ResolveWorkdir(), "playground"), appTimeZone)
@@ -123,7 +125,7 @@ func run() int {
 		logger.Warn("startup canonical model category reconciliation failed", "error", err)
 	}
 	reconcileCancel()
-	router, gatewayHandler := app.NewRouterWithGateway(cfg, logger, db, confFile, masterKey)
+	router, gatewayHandler := app.NewRouterWithGatewayWithOAuth(cfg, logger, db, confFile, masterKey, oauthService)
 	schedule := scheduler.New(logger.With("thread", "scheduler"), scheduler.Options{
 		SiteHealthInterval: cfg.SiteHealthInterval,
 		SiteHealthTimeout:  cfg.SiteHealthTimeout,

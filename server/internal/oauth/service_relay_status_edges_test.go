@@ -146,8 +146,8 @@ func TestAuthOAuthConnectionStatusSkipsNilIDsAndPermanentErrorChecksOffline(t *t
 	if err := service.MarkConnectionUnavailableBySiteID(context.Background(), uuid.Nil, "boom"); err != nil {
 		t.Fatalf("MarkConnectionUnavailableBySiteID nil site returned error: %v", err)
 	}
-	service.disableSiteOnPermanentError(context.Background(), store.OAuthConnection{}, "temporary timeout")
-	service.disableSiteOnPermanentError(context.Background(), store.OAuthConnection{}, "401 unauthorized")
+	service.disableSiteOnPermanentError(context.Background(), nil, store.OAuthConnection{}, "temporary timeout")
+	service.disableSiteOnPermanentError(context.Background(), nil, store.OAuthConnection{}, "401 unauthorized")
 }
 
 func TestAuthOAuthHTTPClientForConnectionReturnsSiteLookupErrorsOffline(t *testing.T) {

@@ -51,9 +51,20 @@ func NewHandler(logger *slog.Logger, authService *auth.Service, routerService *r
 }
 
 func NewHandlerWithTimeZone(logger *slog.Logger, authService *auth.Service, routerService *routeengine.Service, db *store.Store, masterKey string, timeZone config.TimeZone, confFiles ...*config.ConfigFile) Handler {
+	return newHandlerWithTimeZone(logger, authService, routerService, db, masterKey, timeZone, nil, confFiles...)
+}
+
+func NewHandlerWithOAuthService(logger *slog.Logger, authService *auth.Service, routerService *routeengine.Service, db *store.Store, masterKey string, timeZone config.TimeZone, oauthService *oauthsvc.Service, confFiles ...*config.ConfigFile) Handler {
+	return newHandlerWithTimeZone(logger, authService, routerService, db, masterKey, timeZone, oauthService, confFiles...)
+}
+
+func newHandlerWithTimeZone(logger *slog.Logger, authService *auth.Service, routerService *routeengine.Service, db *store.Store, masterKey string, timeZone config.TimeZone, oauthService *oauthsvc.Service, confFiles ...*config.ConfigFile) Handler {
 	var confFile *config.ConfigFile
 	if len(confFiles) > 0 {
 		confFile = confFiles[0]
+	}
+	if oauthService == nil {
+		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	clientManager := httpclient.NewManager(confFile)
 	defaultClient, _ := clientManager.Client(httpclient.DefaultProfile())
@@ -62,24 +73,10 @@ func NewHandlerWithTimeZone(logger *slog.Logger, authService *auth.Service, rout
 		usageService = usage.NewService(db, timeZone)
 	}
 	return Handler{
-		logger:              logger,
-		auth:                authService,
-		router:              routerService,
-		db:                  db,
-		credentials:         credential.NewService(masterKey),
-		httpClient:          defaultClient,
-		clients:             clientManager,
-		limits:              newUpstreamConcurrencyCache(),
-		recorder:            NewRecorder(db, logger, timeZone),
-		oauth:               oauthsvc.NewService(db, masterKey, confFile),
-		rateLimits:          ratelimit.NewService(db),
-		modelsCache:         newModelsCache(),
-		noRoutes:            newNoRouteSuppressionCache(),
-		userBalanceThrottle: newUserBalanceThrottle(),
-		credentialSelector:  newCredentialWindowSelector(time.Minute),
-		confFile:            confFile,
-		usage:               usageService,
-		timeZone:            timeZone,
-		cacheObservationKey: cacheObservationKey(masterKey),
+		logger: logger, auth: authService, router: routerService, db: db, credentials: credential.NewService(masterKey),
+		httpClient: defaultClient, clients: clientManager, limits: newUpstreamConcurrencyCache(), recorder: NewRecorder(db, logger, timeZone),
+		oauth: oauthService, rateLimits: ratelimit.NewService(db), modelsCache: newModelsCache(), noRoutes: newNoRouteSuppressionCache(),
+		userBalanceThrottle: newUserBalanceThrottle(), credentialSelector: newCredentialWindowSelector(time.Minute), confFile: confFile,
+		usage: usageService, timeZone: timeZone, cacheObservationKey: cacheObservationKey(masterKey),
 	}
 }

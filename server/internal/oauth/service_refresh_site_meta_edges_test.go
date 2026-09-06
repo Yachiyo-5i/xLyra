@@ -78,7 +78,7 @@ func TestRefreshCodexConnectionRejectsUnsupportedProviderAndExpiredAccessOnlyOff
 		*item = connection
 		tx.Statement.RowsAffected = 1
 	}, func(tx *gorm.DB) {
-		tx.AddError(errors.New("refresh guard should not save"))
+		tx.Statement.RowsAffected = 1
 	})
 
 	if _, err := service.RefreshCodexConnection(context.Background(), connection.ID); err == nil || !strings.Contains(err.Error(), "is not supported") {

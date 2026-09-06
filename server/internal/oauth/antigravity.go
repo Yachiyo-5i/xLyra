@@ -215,9 +215,7 @@ func (s *Service) refreshAntigravityConnection(ctx context.Context, repo store.O
 		errMsg := err.Error()
 		connection.Status = "reconnect_required"
 		connection.Metadata = store.JSON(updateMetadataError(connection.Metadata, errMsg))
-		_, _ = repo.Save(ctx, connection)
-		s.disableSiteOnPermanentError(ctx, connection, errMsg)
-		return CodexConnection{}, err
+		return CodexConnection{}, &refreshFail{connection: connection, err: err}
 	}
 	if refreshed.RefreshToken == "" {
 		refreshed.RefreshToken = refreshToken

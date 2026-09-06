@@ -206,19 +206,6 @@ func TestRefreshAntigravityConnectionMarksReconnectRequiredOnRefreshFailureOffli
 		EncryptedRefreshToken: encryptedRefresh,
 		Metadata:              store.JSON(`{"oauth_client_key":"antigravity-client"}`),
 	}
-	var saved store.OAuthConnection
-	db := oauthGormWithQueryUpdate(t, func(tx *gorm.DB) {
-		tx.AddError(errors.New("antigravity refresh should not query repository"))
-	}, func(tx *gorm.DB) {
-		item, ok := tx.Statement.Dest.(*store.OAuthConnection)
-		if !ok {
-			tx.AddError(errors.New("unexpected antigravity refresh save destination"))
-			return
-		}
-		saved = *item
-		tx.Statement.RowsAffected = 1
-	})
-	repo := store.NewOAuthConnectionRepository(db)
 	service.httpClient = &http.Client{Transport: oauthRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodPost || req.URL.String() != antigravityTokenURL {
 			t.Fatalf("unexpected antigravity refresh request: %s %s", req.Method, req.URL.String())
@@ -226,15 +213,19 @@ func TestRefreshAntigravityConnectionMarksReconnectRequiredOnRefreshFailureOffli
 		return oauthHTTPResponse(http.StatusBadRequest, ` invalid_grant `), nil
 	})}
 
-	_, err = service.refreshAntigravityConnection(context.Background(), repo, connection)
+	_, err = service.refreshAntigravityConnection(context.Background(), store.OAuthConnectionRepository{}, connection)
 	if err == nil || !strings.Contains(err.Error(), "antigravity token refresh returned 400: invalid_grant") {
 		t.Fatalf("refreshAntigravityConnection error = %v, want refresh failure", err)
 	}
-	if saved.ID != connectionID || saved.Status != "reconnect_required" {
-		t.Fatalf("saved connection = %#v, want reconnect_required", saved)
+	var fail *refreshFail
+	if !errors.As(err, &fail) {
+		t.Fatalf("refreshAntigravityConnection error = %v, want refreshFail carrying the reconnection state", err)
+	}
+	if fail.connection.ID != connectionID || fail.connection.Status != "reconnect_required" {
+		t.Fatalf("refresh fail connection = %#v, want reconnect_required", fail.connection)
 	}
 	var meta map[string]any
-	if err := json.Unmarshal(saved.Metadata, &meta); err != nil {
+	if err := json.Unmarshal(fail.connection.Metadata, &meta); err != nil {
 		t.Fatalf("decode saved metadata: %v", err)
 	}
 	if meta["oauth_client_key"] != "antigravity-client" || meta["last_error"] != "antigravity token refresh returned 400: invalid_grant" || strings.TrimSpace(stringFromAny(meta["last_error_at"])) == "" {

@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
@@ -150,5 +151,96 @@ func assertOAuthServiceConnectionsStable(t *testing.T, connections []store.OAuth
 		if previous.CreatedAt.Equal(connection.CreatedAt) && previous.ID.String() > connection.ID.String() {
 			t.Fatalf("oauth connections with equal created_at are not sorted by id at index %d", index)
 		}
+	}
+}
+
+func TestDevPostgresOAuthRefreshLeaseDoesNotHoldRowLockDuringRefresh(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cfg, err := devPostgresOAuthSmokeConfig()
+	if err != nil {
+		t.Skipf("dev PostgreSQL smoke disabled: %v", err)
+	}
+
+	db, err := store.Open(ctx, cfg)
+	if err != nil {
+		t.Skipf("dev PostgreSQL unavailable: %s", redactOAuthDatabaseOpenError(err, cfg))
+	}
+	defer db.Close()
+
+	if !db.DB().Migrator().HasColumn(&store.OAuthConnection{}, "RefreshLeaseID") {
+		t.Skip("oauth refresh lease migration is not applied")
+	}
+
+	connection := store.OAuthConnection{
+		ID:                    uuid.New(),
+		Provider:              codexProvider,
+		Status:                "connected",
+		Email:                 "xlyra-refresh-lease-" + uuid.NewString(),
+		EncryptedAccessToken:  "access",
+		MaskedAccessToken:     "access",
+		EncryptedRefreshToken: "refresh",
+		MaskedRefreshToken:    "refresh",
+		EncryptedIDToken:      "id",
+		MaskedIDToken:         "id",
+		RefreshLeaseID:        "lease-1",
+		RefreshLeaseUntil:     sql.NullTime{Time: time.Now().Add(time.Minute), Valid: true},
+	}
+	if err := db.DB().WithContext(ctx).Create(&connection).Error; err != nil {
+		t.Fatalf("create oauth connection: %v", err)
+	}
+	defer db.DB().WithContext(context.Background()).Delete(&store.OAuthConnection{}, connection.ID)
+
+	claimed := make(chan struct{})
+	refreshFinished := make(chan struct{})
+	go func() {
+		err := db.WithinTx(ctx, func(tx store.Tx) error {
+			repo := store.NewOAuthConnectionRepository(tx)
+			current, err := repo.GetByIDForUpdate(ctx, connection.ID)
+			if err != nil {
+				return err
+			}
+			current.RefreshLeaseID = "lease-2"
+			current.RefreshLeaseUntil = sql.NullTime{Time: time.Now().Add(time.Minute), Valid: true}
+			if _, err := repo.Save(ctx, current); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			t.Errorf("claim refresh lease: %v", err)
+			return
+		}
+		close(claimed)
+		time.Sleep(300 * time.Millisecond)
+		close(refreshFinished)
+	}()
+
+	select {
+	case <-claimed:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for refresh lease claim")
+	}
+
+	start := time.Now()
+	var observed store.OAuthConnection
+	if err := db.WithinTx(ctx, func(tx store.Tx) error {
+		var err error
+		observed, err = store.NewOAuthConnectionRepository(tx).GetByIDForUpdate(ctx, connection.ID)
+		return err
+	}); err != nil {
+		t.Fatalf("read connection while refresh is in progress: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("row lock remained held during refresh: waited %s", elapsed)
+	}
+	if observed.RefreshLeaseID != "lease-2" {
+		t.Fatalf("refresh lease id = %q, want lease-2", observed.RefreshLeaseID)
+	}
+	select {
+	case <-refreshFinished:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for refresh transaction")
 	}
 }
