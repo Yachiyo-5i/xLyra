@@ -50,12 +50,19 @@ import {
   type AgentAppearanceSettings,
 } from '@/features/agent/api/agent'
 import { agentSettingsKey } from '@/features/agent/lib/use-agent-availability'
+import { loadCachedBackgroundImage, loadLastSessionId, saveCachedBackgroundImage, saveLastSessionId } from '@/features/agent/lib/agent-local-cache'
 import { toast } from '@/lib/toast'
 
 const MAX_ATTACHMENTS = 4
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 const NON_CHAT_CATEGORIES = new Set(['image', 'audio', 'embedding'])
 const PERMISSION_MODE_KEY = 'xlyra-agent-permission-mode'
+/** transcript 走 React Query 缓存：staleTime 内切回已看过的会话直接命中缓存秒开 */
+const TRANSCRIPT_STALE_TIME = 30_000
+/** sessions 列表加载后后台预取 transcript 的最近会话数 */
+const TRANSCRIPT_PREFETCH_COUNT = 5
+
+const agentTranscriptKey = (sessionId: string) => ['agent', 'transcript', sessionId] as const
 
 type PermissionMode = 'ask' | 'full'
 
@@ -279,7 +286,8 @@ export function AgentWorkspace() {
   })
   const runtimeSettingsQuery = useQuery({ queryKey: [...agentSettingsKey, 'runtime'], queryFn: fetchAgentRuntimeSettings, retry: false })
 
-  const [activeId, setActiveId] = useState<string | null>(null)
+  // 刷新后恢复上次会话：transcript 请求与 sessions/settings 并行发出，不等页面渲染完
+  const [activeId, setActiveId] = useState<string | null>(() => loadLastSessionId())
   const [newSession, setNewSession] = useState(false)
   const [timeline, setTimeline] = useState<AgentTimelineData>([])
   const [draft, setDraft] = useState('')
@@ -305,16 +313,34 @@ export function AgentWorkspace() {
   const { scrollRef, scrollToBottom, showJump } = useStickToBottom()
 
   const sessions = sessionsQuery.data ?? []
+  // 恢复的会话 id 可能已被删除：sessions 列表返回后校验，失效则回新聊天页
+  const restoredIdInvalid = Boolean(sessionsQuery.data && activeId && !sessionsQuery.data.some((session) => session.session_id === activeId))
   // Stay on the new-chat screen by default; only an explicit selection enters a session.
-  const selectedId = newSession ? null : activeId
-  const refetchAvailableModels = availableModelsQuery.refetch
+  const selectedId = newSession || restoredIdInvalid ? null : activeId
   useEffect(() => {
-    void refetchAvailableModels()
-  }, [refetchAvailableModels, selectedId, newSession])
+    if (restoredIdInvalid) saveLastSessionId(null)
+  }, [restoredIdInvalid])
+  // sessions 列表就绪后后台预取最近会话的 transcript，点开即命中缓存
+  const sessionsData = sessionsQuery.data
+  useEffect(() => {
+    for (const session of (sessionsData ?? []).slice(0, TRANSCRIPT_PREFETCH_COUNT)) {
+      void queryClient.prefetchQuery({
+        queryKey: agentTranscriptKey(session.session_id),
+        queryFn: () => fetchAgentTranscript(session.session_id),
+        staleTime: TRANSCRIPT_STALE_TIME,
+      })
+    }
+  }, [sessionsData, queryClient])
   const activeSession = selectedId ? sessions.find((session) => session.session_id === selectedId) : undefined
   const hasMessages = timeline.length > 0
   const appearance = runtimeSettingsQuery.data?.appearance
-  const configuredBackground = appearance?.background_image || '/agent-backdrop.png'
+  // settings 接口返回前先用上次缓存的背景 URL 起图（命中浏览器缓存时零网络），返回后再校正
+  const [cachedBackground] = useState(() => loadCachedBackgroundImage())
+  const configuredBackground = appearance?.background_image || cachedBackground || '/agent-backdrop.png'
+  const serverBackground = appearance?.background_image
+  useEffect(() => {
+    if (serverBackground) saveCachedBackgroundImage(serverBackground)
+  }, [serverBackground])
   const agentBackgroundImage = configuredBackground
   const sidebarGlassSettings = glassSettingsForAppearance(appearance ?? {
     background_image: '/agent-backdrop.png',
@@ -408,6 +434,8 @@ export function AgentWorkspace() {
           // transcript (covers events missed before the SSE connection); keep the
           // current timeline when the transcript lags behind.
           void fetchAgentTranscript(sessionId).then((entries) => {
+            // 终态 transcript 是权威结果，回写缓存：之后切回该会话直接命中
+            queryClient.setQueryData(agentTranscriptKey(sessionId), entries)
             setTimeline((current) => {
               const fromTranscript = timelineFromTranscript(entries)
               return reconcileTimeline(current, fromTranscript)
@@ -437,7 +465,13 @@ export function AgentWorkspace() {
       if (skip) return
     }
     let cancelled = false
-    void fetchAgentTranscript(selectedId).then((entries) => {
+    // 走 queryClient 缓存：staleTime 内切回已看过的会话无需等网络；点击时的 prefetch
+    // 与这里的 fetchQuery 按 key 去重，同一时刻最多一个在途请求
+    void queryClient.fetchQuery({
+      queryKey: agentTranscriptKey(selectedId),
+      queryFn: () => fetchAgentTranscript(selectedId),
+      staleTime: TRANSCRIPT_STALE_TIME,
+    }).then((entries) => {
       if (cancelled) return
       const built = timelineFromTranscript(entries)
       // Selecting a still-running session resumes the SSE follow. The event
@@ -455,9 +489,9 @@ export function AgentWorkspace() {
         return
       }
       setTimeline(built)
-    }).catch(() => setTimeline([]))
+    }).catch(() => { if (!cancelled) setTimeline([]) })
     return () => { cancelled = true }
-  }, [selectedId, followSession]) // eslint-disable-line react-hooks/exhaustive-deps -- sessions only gates the running check; following is idempotent
+  }, [selectedId, followSession, queryClient]) // eslint-disable-line react-hooks/exhaustive-deps -- sessions only gates the running check; following is idempotent
 
   useEffect(() => () => eventAbort.current?.abort(), [])
 
@@ -490,6 +524,7 @@ export function AgentWorkspace() {
     }),
     onSuccess: async ({ session_id, message_id }) => {
       skipTranscriptLoadFor.current = session_id
+      saveLastSessionId(session_id)
       setActiveId(session_id)
       setNewSession(false)
       setRunning(true)
@@ -573,9 +608,9 @@ export function AgentWorkspace() {
   // 用户滚离阅读时不打扰，贴底时内容增长自动滚到底
 
   function createNew() {
-    void refetchAvailableModels()
     eventAbort.current?.abort()
     skipTranscriptLoadFor.current = null
+    saveLastSessionId(null)
     setActiveId(null)
     setNewSession(true)
     setTimeline([])
@@ -589,7 +624,13 @@ export function AgentWorkspace() {
   }
 
   function handleSelect(sessionId: string) {
-    void refetchAvailableModels()
+    // 点击的同一 tick 发起 transcript 预取，不等渲染后的 effect；与 effect 里的 fetchQuery 按 key 去重
+    void queryClient.prefetchQuery({
+      queryKey: agentTranscriptKey(sessionId),
+      queryFn: () => fetchAgentTranscript(sessionId),
+      staleTime: TRANSCRIPT_STALE_TIME,
+    })
+    saveLastSessionId(sessionId)
     eventAbort.current?.abort()
     skipTranscriptLoadFor.current = null
     scrollToBottom()
@@ -604,6 +645,7 @@ export function AgentWorkspace() {
 
   function handleDelete(sessionId: string) {
     void deleteAgentSession(sessionId).catch(() => undefined)
+    queryClient.removeQueries({ queryKey: agentTranscriptKey(sessionId) })
     void queryClient.invalidateQueries({ queryKey: ['agent', 'sessions'] })
     if (sessionId === selectedId) createNew()
   }

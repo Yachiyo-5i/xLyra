@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -574,5 +576,43 @@ func testConfig() config.Config {
 		DBUser:             "postgres",
 		DBPassword:         "postgres",
 		DBSSLMode:          "disable",
+	}
+}
+
+func TestSpaHandlerCacheHeaders(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "agent-backdrop.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "assets", "index-abc123.js"), []byte("js"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := spaHandler(dir)
+	cases := []struct {
+		path string
+		want string
+	}{
+		{"/assets/index-abc123.js", "public, max-age=31536000, immutable"},
+		{"/agent-backdrop.png", "public, max-age=86400"},
+		{"/agent", "no-cache"}, // SPA fallback → index.html
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d", tc.path, rec.Code)
+		}
+		if got := rec.Header().Get("Cache-Control"); got != tc.want {
+			t.Fatalf("%s: Cache-Control = %q, want %q", tc.path, got, tc.want)
+		}
 	}
 }

@@ -611,8 +611,19 @@ func spaHandler(staticDir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(staticDir, filepath.Clean("/"+r.URL.Path))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
+			// SPA 回退到 index.html：不缓存，保证发版后立刻生效
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, index)
 			return
+		}
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/assets/"):
+			// Vite 构建产物文件名带内容哈希，可安全长缓存
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		default:
+			// public 目录原样拷贝的文件（agent-backdrop.png、favicon 等）名字不带哈希，
+			// 给中等缓存平衡更新时效与重复加载
+			w.Header().Set("Cache-Control", "public, max-age=86400")
 		}
 		fs.ServeHTTP(w, r)
 	})

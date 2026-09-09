@@ -710,6 +710,8 @@ func (h *Handler) ServeBackground(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := filepath.Join(dir, name)
+	// 文件名带内容哈希（agent-bg-<sha256>），内容变则文件名变，可安全长缓存
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeFile(w, r, path)
 }
 

@@ -339,6 +339,50 @@ function readFileAsDataURL(file: File): Promise<string> {
   })
 }
 
+function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error('failed to read image'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+/**
+ * 上传前压缩：缩放到最长边 ≤1920 并转 WebP。背景图实际会被模糊+压暗当底，
+ * q0.85 的 1920px WebP 视觉无差而体积通常降到原图的 1/5~1/10。
+ * 返回 null 表示不适合转换（动图、浏览器不支持 WebP 编码、无压缩收益），调用方回退原图。
+ */
+const BACKGROUND_MAX_EDGE = 1920
+const BACKGROUND_WEBP_QUALITY = 0.85
+
+async function fileToWebpDataURL(file: File): Promise<string | null> {
+  // GIF 动图转换会丢失动画，保留原图
+  if (file.type === 'image/gif') return null
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, BACKGROUND_MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) {
+      bitmap.close()
+      return null
+    }
+    context.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', BACKGROUND_WEBP_QUALITY))
+    // 老 Safari 不支持 WebP 编码（静默回退成 PNG），以及转换后反而更大时，都保留原图
+    if (!blob || blob.type !== 'image/webp' || blob.size >= file.size) return null
+    return await blobToDataURL(blob)
+  } catch {
+    return null
+  }
+}
+
 function AppearancePane({ draft, onChange }: { draft: AgentAppearanceSettings; onChange: (next: AgentAppearanceSettings) => void }) {
   const { t } = useTranslation('agent')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -366,7 +410,7 @@ function AppearancePane({ draft, onChange }: { draft: AgentAppearanceSettings; o
       return
     }
     try {
-      const dataURL = await readFileAsDataURL(file)
+      const dataURL = await fileToWebpDataURL(file) ?? await readFileAsDataURL(file)
       const nextImages = [...customImages.filter((item) => item !== dataURL), dataURL]
       onChange({ ...draft, background_image: dataURL, custom_background_images: nextImages })
     } catch (error) {

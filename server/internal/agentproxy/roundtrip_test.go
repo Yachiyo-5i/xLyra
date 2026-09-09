@@ -138,6 +138,9 @@ func TestServeBackgroundUsesConfigDerivedDirectoryWithoutWorkdir(t *testing.T) {
 	if backgroundResp.Code != http.StatusOK {
 		t.Fatalf("serve status = %d, body = %s", backgroundResp.Code, backgroundResp.Body.String())
 	}
+	if cache := backgroundResp.Header().Get("Cache-Control"); cache != "public, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control = %q, want immutable long cache", cache)
+	}
 }
 
 func TestUpdateSettingsRejectsInvalidAppearance(t *testing.T) {
