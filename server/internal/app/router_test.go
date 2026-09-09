@@ -604,6 +604,7 @@ func TestSpaHandlerCacheHeaders(t *testing.T) {
 		{"/assets/index-abc123.js", "public, max-age=31536000, immutable"},
 		{"/agent-backdrop.png", "public, max-age=86400"},
 		{"/agent", "no-cache"}, // SPA fallback → index.html
+		{"/", "no-cache"},      // 目录请求 → FileServer 落 index.html
 	}
 	for _, tc := range cases {
 		rec := httptest.NewRecorder()

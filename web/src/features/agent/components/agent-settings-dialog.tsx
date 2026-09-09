@@ -362,6 +362,11 @@ async function fileToWebpDataURL(file: File): Promise<string | null> {
   try {
     const bitmap = await createImageBitmap(file)
     const scale = Math.min(1, BACKGROUND_MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    // 已是 WebP 且尺寸在限内：沿用原文件，避免二次有损编码的代际质量损失
+    if (file.type === 'image/webp' && scale >= 1) {
+      bitmap.close()
+      return null
+    }
     const width = Math.max(1, Math.round(bitmap.width * scale))
     const height = Math.max(1, Math.round(bitmap.height * scale))
     const canvas = document.createElement('canvas')

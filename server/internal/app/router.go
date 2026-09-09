@@ -610,13 +610,18 @@ func spaHandler(staticDir string) http.Handler {
 	index := filepath.Join(staticDir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(staticDir, filepath.Clean("/"+r.URL.Path))
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		info, err := os.Stat(path)
+		switch {
+		case os.IsNotExist(err):
 			// SPA 回退到 index.html：不缓存，保证发版后立刻生效
 			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, index)
 			return
-		}
-		switch {
+		case err == nil && info.IsDir():
+			// 目录请求（如 /）由 FileServer 落到 index.html，同样不缓存
+			w.Header().Set("Cache-Control", "no-cache")
+		case filepath.Base(path) == "index.html":
+			w.Header().Set("Cache-Control", "no-cache")
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			// Vite 构建产物文件名带内容哈希，可安全长缓存
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

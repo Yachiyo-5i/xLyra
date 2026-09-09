@@ -467,11 +467,17 @@ export function AgentWorkspace() {
     let cancelled = false
     // 走 queryClient 缓存：staleTime 内切回已看过的会话无需等网络；点击时的 prefetch
     // 与这里的 fetchQuery 按 key 去重，同一时刻最多一个在途请求
-    void queryClient.fetchQuery({
-      queryKey: agentTranscriptKey(selectedId),
-      queryFn: () => fetchAgentTranscript(selectedId),
-      staleTime: TRANSCRIPT_STALE_TIME,
-    }).then((entries) => {
+    void Promise.all([
+      queryClient.fetchQuery({
+        queryKey: agentTranscriptKey(selectedId),
+        queryFn: () => fetchAgentTranscript(selectedId),
+        staleTime: TRANSCRIPT_STALE_TIME,
+      }),
+      // running 判断依赖 sessions 列表：刷新恢复会话时 transcript 可能先于列表返回，
+      // 用空列表判断会漏掉 SSE 恢复。ensureQueryData 与 sessionsQuery 的在途请求
+      // 按 key 去重；列表已缓存时零延迟，失败时回退当前闭包里的列表
+      queryClient.ensureQueryData({ queryKey: ['agent', 'sessions'], queryFn: listAgentSessions, retry: false }).catch(() => sessions),
+    ]).then(([entries, sessionList]) => {
       if (cancelled) return
       const built = timelineFromTranscript(entries)
       // Selecting a still-running session resumes the SSE follow. The event
@@ -479,7 +485,7 @@ export function AgentWorkspace() {
       // start; trim the timeline to the latest user message to avoid duplicating
       // what the transcript already persisted (user messages are not in the
       // event stream, so that entry is kept).
-      const isRunning = sessions.find((item) => item.session_id === selectedId)?.running
+      const isRunning = sessionList.find((item) => item.session_id === selectedId)?.running
       if (isRunning) {
         let lastUserIndex = -1
         built.forEach((item, index) => { if (item.kind === 'user') lastUserIndex = index })
