@@ -5,11 +5,76 @@ const SETTINGS_KEY = 'xlyra-playground-settings'
 
 const MAX_CONVERSATIONS = 50
 
-export function newId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export function isUUID(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value)
+}
+
+function randomUUIDFromValues(): string {
+  const bytes = new Uint8Array(16)
+  const cryptoObject = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined
+  let filled = false
+  if (cryptoObject && typeof cryptoObject.getRandomValues === 'function') {
+    try {
+      cryptoObject.getRandomValues(bytes)
+      filled = true
+    } catch {
+      filled = false
+    }
   }
-  return `id-${Math.random().toString(36).slice(2)}-${Date.now()}`
+  if (!filled) {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256)
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+export function newId(): string {
+  const cryptoObject = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined
+  if (cryptoObject && typeof cryptoObject.randomUUID === 'function') {
+    try {
+      const value = cryptoObject.randomUUID()
+      if (isUUID(value)) return value
+    } catch {
+      // Continue with the UUID v4 fallback below.
+    }
+  }
+  return randomUUIDFromValues()
+}
+
+type ConversationIdentity = {
+  id: string
+  serverPersisted?: boolean
+  lastOrdinal?: number
+  activeRun?: unknown
+}
+
+export function migrateConversationIds<T extends ConversationIdentity>(items: T[]): { items: T[]; changed: boolean } {
+  const seen = new Set<string>()
+  let changed = false
+  const migrated = items.map((conversation) => {
+    if (isUUID(conversation.id) && !seen.has(conversation.id)) {
+      seen.add(conversation.id)
+      return conversation
+    }
+    let id = newId()
+    while (seen.has(id)) id = newId()
+    seen.add(id)
+    changed = true
+    return {
+      ...conversation,
+      id,
+      serverPersisted: false,
+      lastOrdinal: undefined,
+      activeRun: undefined,
+    }
+  })
+  return { items: migrated, changed }
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -32,7 +97,10 @@ function write(key: string, value: unknown) {
 
 export function loadConversations(): Conversation[] {
   const items = read<Conversation[]>(CONVERSATIONS_KEY, [])
-  return Array.isArray(items) ? items : []
+  if (!Array.isArray(items)) return []
+  const migrated = migrateConversationIds(items)
+  if (migrated.changed) saveConversations(migrated.items)
+  return migrated.items
 }
 
 export function saveConversations(items: Conversation[]) {

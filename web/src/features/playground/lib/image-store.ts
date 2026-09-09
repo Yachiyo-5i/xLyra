@@ -1,4 +1,4 @@
-import { newId } from '@/features/playground/lib/storage'
+import { migrateConversationIds, newId } from '@/features/playground/lib/storage'
 import type { ImageConversation, ImageHistoryEntry } from '@/features/playground/lib/types'
 
 const DB_NAME = 'xlyra-playground'
@@ -70,7 +70,7 @@ function migrateFromLocalStorage(): ImageConversation[] {
   const stored = readLocalStorage<ImageConversation[]>(LEGACY_CONVERSATIONS_KEY)
   if (Array.isArray(stored) && stored.length > 0) {
     removeLocalStorageItem(LEGACY_CONVERSATIONS_KEY)
-    return stored
+    return migrateConversationIds(stored).items
   }
   const flat = readLocalStorage<ImageHistoryEntry[]>(LEGACY_FLAT_KEY)
   if (Array.isArray(flat) && flat.length > 0) {
@@ -93,7 +93,9 @@ function migrateFromLocalStorage(): ImageConversation[] {
 export async function loadImageConversationsAsync(): Promise<ImageConversation[]> {
   const stored = await idbGet<ImageConversation[]>(RECORD_KEY).catch(() => null)
   if (Array.isArray(stored) && stored.length > 0) {
-    return stored
+    const migrated = migrateConversationIds(stored)
+    if (migrated.changed) await idbSet(RECORD_KEY, migrated.items).catch(() => undefined)
+    return migrated.items
   }
   const migrated = migrateFromLocalStorage()
   if (migrated.length > 0) {
