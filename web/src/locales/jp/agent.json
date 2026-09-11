@@ -128,6 +128,7 @@
     "detailUnavailable": "skill の詳細を読み込めません：Runner 未接続または Agent のバージョンが古い可能性があります。",
     "detailScope": "スコープ",
     "detailScopeProject": "ワークスペース",
+    "detailScopeManaged": "エージェント所有",
     "detailScopeUser": "ユーザー",
     "detailScopeExtra": "追加ディレクトリ",
     "detailPath": "パス",

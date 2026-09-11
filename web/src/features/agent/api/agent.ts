@@ -185,8 +185,8 @@ export async function fetchAgentAvailableModels(): Promise<AgentAvailableSite[]>
 export type AgentSkill = {
   name: string
   description: string
-  /** Project scope is editable/deletable (stored in the workspace); user/extra scopes can only be toggled. */
-  scope?: 'project' | 'user' | 'extra'
+  /** Project scope is editable/deletable (stored in the workspace); managed (agent-owned) and user/extra scopes can only be toggled. */
+  scope?: 'project' | 'managed' | 'user' | 'extra'
   enabled: boolean
   path?: string
   license?: string

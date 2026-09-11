@@ -128,6 +128,7 @@
     "detailUnavailable": "Cannot load skill details: runner unreachable or agent too old.",
     "detailScope": "Scope",
     "detailScopeProject": "Workspace",
+    "detailScopeManaged": "Agent-owned",
     "detailScopeUser": "User",
     "detailScopeExtra": "Extra dir",
     "detailPath": "Path",

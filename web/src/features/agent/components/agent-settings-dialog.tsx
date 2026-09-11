@@ -704,18 +704,21 @@ function SkillDetail({
   const viewingContent = selectedFile === 'SKILL.md' ? detail?.content : fileQuery.data?.content
   const viewingTruncated = selectedFile === 'SKILL.md' ? detail?.contentTruncated : fileQuery.data?.truncated
 
-  const scopeLabel = scope === 'user'
-    ? t('settings.detailScopeUser')
-    : scope === 'extra'
-      ? t('settings.detailScopeExtra')
-      : t('settings.detailScopeProject')
+  const scopeLabel = scope === 'managed'
+    ? t('settings.detailScopeManaged')
+    : scope === 'user'
+      ? t('settings.detailScopeUser')
+      : scope === 'extra'
+        ? t('settings.detailScopeExtra')
+        : t('settings.detailScopeProject')
+  const external = scope === 'user' || scope === 'extra'
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-3">
         <p className="flex min-w-0 items-center gap-2 text-base font-semibold text-foreground">
           <span className="truncate">{name}</span>
-          {!editable ? <Badge variant="neutral">{t('settings.skillScopeExternal')}</Badge> : null}
+          {external ? <Badge variant="neutral">{t('settings.skillScopeExternal')}</Badge> : null}
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {editable ? (

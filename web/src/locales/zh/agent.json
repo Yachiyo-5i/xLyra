@@ -128,6 +128,7 @@
     "detailUnavailable": "无法加载 skill 详情：Runner 未连接或 Agent 版本过旧。",
     "detailScope": "来源",
     "detailScopeProject": "工作区",
+    "detailScopeManaged": "Agent 自有",
     "detailScopeUser": "用户级",
     "detailScopeExtra": "额外目录",
     "detailPath": "路径",
