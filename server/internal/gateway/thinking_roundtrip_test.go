@@ -132,6 +132,18 @@ func TestReasoningContentEncodersSkipBlankBlocks(t *testing.T) {
 	}
 }
 
+func TestResponsesReasoningItemPreservesThinkingSignature(t *testing.T) {
+	t.Parallel()
+	item := responsesReasoningItem([]canonicalThinkingBlock{{Thinking: "private", Signature: "sig_deepseek"}})
+	if item["thinking_signature"] != "sig_deepseek" {
+		t.Fatalf("thinking_signature = %#v, want sig_deepseek", item["thinking_signature"])
+	}
+	blocks := canonicalThinkingFromResponsesItem(item)
+	if len(blocks) != 1 || blocks[0].Signature != "sig_deepseek" {
+		t.Fatalf("decoded thinking blocks = %#v, want preserved signature", blocks)
+	}
+}
+
 func TestResponsesOutputContentAsAnyPreservesAnnotations(t *testing.T) {
 	t.Parallel()
 

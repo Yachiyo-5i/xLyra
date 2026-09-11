@@ -683,18 +683,35 @@ func canonicalMessagesFromResponsesInput(raw any) []canonicalMessage {
 				itemType = "message"
 			}
 			switch itemType {
+			case "reasoning":
+				if thinking := canonicalThinkingFromResponsesItem(entry); len(thinking) > 0 {
+					if len(messages) > 0 && messages[len(messages)-1].Type == "message" && messages[len(messages)-1].Role == "assistant" {
+						messages[len(messages)-1].Thinking = append(messages[len(messages)-1].Thinking, thinking...)
+					} else {
+						messages = append(messages, canonicalMessage{Type: "message", Role: "assistant", Thinking: thinking})
+					}
+				}
 			case "message", "":
 				role := strings.TrimSpace(anyString(entry["role"]))
 				if role == "" {
 					role = "user"
 				}
-				messages = append(messages, canonicalMessage{
+				message := canonicalMessage{
 					Type:       "message",
 					Role:       role,
 					RawContent: entry["content"],
 					Content:    canonicalContentPartsFromResponsesContent(entry["content"]),
 					Thinking:   canonicalThinkingFromResponsesItem(entry),
-				})
+				}
+				if role == "assistant" && len(messages) > 0 {
+					previous := &messages[len(messages)-1]
+					if previous.Type == "message" && previous.Role == "assistant" && len(previous.Content) == 0 && previous.RawContent == nil {
+						message.Thinking = append(previous.Thinking, message.Thinking...)
+						messages[len(messages)-1] = message
+						break
+					}
+				}
+				messages = append(messages, message)
 			case "function_call":
 				callID := strings.TrimSpace(anyString(entry["call_id"]))
 				if callID == "" {

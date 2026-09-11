@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.7.1...v1.7.2) (2026-09-11)
+
+
+### Bug Fixes
+
+* 🐛 修复 DeepSeek thinking 与工具调用在同一消息中被拆分导致 400 错误 ([543fd82](https://github.com/Yachiyo-5i/xLyra/commit/543fd82994cb3119d342277b1e2c79759928af59))
+* 修复 DeepSeek thinking 与工具调用被拆分到两条消息导致 400 错误 ([1467211](https://github.com/Yachiyo-5i/xLyra/commit/1467211c8f26d050f84889ec360018978e711c71))
+
+## [1.7.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.7.0...v1.7.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* 🐛 修复 DeepSeek 思考内容在跨协议请求中的回传 ([3a0667e](https://github.com/Yachiyo-5i/xLyra/commit/3a0667ee4b2be7e70ad0e2c4bc6936a49fe18ffa))
+* 🐛 修复 DeepSeek 思考内容跨协议回传 ([ea48907](https://github.com/Yachiyo-5i/xLyra/commit/ea48907c4846abc9643e85e4934f4f2ab452ed84))
+* 🐛 修复模型体验会话 ID 必须为 UUID ([c099bfe](https://github.com/Yachiyo-5i/xLyra/commit/c099bfe049ceb57e95a485f229b1365c2f866280))
+* 🐛 修复模型体验会话 ID 必须为 UUID ([2e82b8a](https://github.com/Yachiyo-5i/xLyra/commit/2e82b8ab549b96152886a8fb390d2a9c88d4951e))
+
 ## [1.7.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.6.0...v1.7.0) (2026-09-08)
 
 

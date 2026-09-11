@@ -21,7 +21,7 @@ func canonicalThinkingFromResponsesItem(item map[string]any) []canonicalThinking
 	itemType := strings.TrimSpace(anyString(item["type"]))
 	if itemType == "reasoning" {
 		if thinking := responsesReasoningText(item["content"]); thinking != "" {
-			return []canonicalThinkingBlock{{Type: "thinking", Thinking: thinking}}
+			return []canonicalThinkingBlock{{Type: "thinking", Thinking: thinking, Signature: firstNonEmptyGatewayString(anyString(item["thinking_signature"]), anyString(item["signature"]))}}
 		}
 	}
 	return canonicalThinkingFromChatMessage(item)
@@ -84,12 +84,19 @@ func responsesReasoningItem(blocks []canonicalThinkingBlock) map[string]any {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
-	return map[string]any{
+	item := map[string]any{
 		"type": "reasoning",
 		"content": []any{
 			map[string]any{"type": "reasoning_text", "text": text},
 		},
 	}
+	for _, block := range blocks {
+		if signature := strings.TrimSpace(block.Signature); signature != "" {
+			item["thinking_signature"] = signature
+			break
+		}
+	}
+	return item
 }
 
 func canonicalThinkingFromAnthropicBlock(block map[string]any) (canonicalThinkingBlock, bool) {

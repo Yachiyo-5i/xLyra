@@ -1120,6 +1120,129 @@ func TestThinkingRoundtripModelDegradesToolResultWhenThinkingCacheMissing(t *tes
 	}
 }
 
+func TestDeepSeekAnthropicResponsesPreservesThinkingSignature(t *testing.T) {
+	t.Parallel()
+
+	canonical, err := canonicalRequestFromOpenAIResponsesPayload(map[string]any{
+		"model": "deepseek-v4-flash",
+		"input": []any{
+			map[string]any{
+				"type":               "reasoning",
+				"content":            []any{map[string]any{"type": "reasoning_text", "text": "private reasoning"}},
+				"thinking_signature": "sig_deepseek",
+			},
+			map[string]any{
+				"type":    "message",
+				"role":    "assistant",
+				"content": []any{map[string]any{"type": "output_text", "text": "I will call a tool."}},
+			},
+			map[string]any{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": `{}`},
+			map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "result"},
+		},
+	}, "deepseek-v4-flash")
+	if err != nil {
+		t.Fatalf("canonicalRequestFromOpenAIResponsesPayload returned error: %v", err)
+	}
+	if len(canonical.Messages) != 3 || canonical.Messages[0].Role != "assistant" || len(canonical.Messages[0].Thinking) != 1 || len(canonical.Messages[0].Content) != 1 {
+		t.Fatalf("canonical messages = %#v, want reasoning merged into assistant message", canonical.Messages)
+	}
+
+	protocol := newProviderAnthropicMessagesProtocolAdapter("deepseek", alternateProtocolDefinition{}, canonicalProtocolOpenAIResponses)
+	payload, err := protocol.BuildUpstreamPayload(gatewayRequest{DownstreamPath: gatewayEndpointResponses, Canonical: &canonical}, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-flash"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+
+	messages := payload["messages"].([]any)
+	content := messages[0].(map[string]any)["content"].([]any)
+	thinking := content[0].(map[string]any)
+	if thinking["type"] != "thinking" || thinking["signature"] != "sig_deepseek" {
+		t.Fatalf("thinking block = %#v, want returned signature", thinking)
+	}
+}
+
+func TestDeepSeekAnthropicThinkingAndToolUseInSameAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	// DeepSeek requires thinking, text, and tool_use blocks to all appear inside
+	// a single assistant message. Previously the encoder emitted two consecutive
+	// assistant messages — one with thinking+text and one with tool_use — which
+	// caused a 400 "content[].thinking must be passed back" error.
+	protocol := newProviderAnthropicMessagesProtocolAdapter("deepseek", alternateProtocolDefinition{}, canonicalProtocolOpenAIResponses)
+	payload, err := protocol.BuildUpstreamPayload(gatewayRequest{
+		DownstreamPath: gatewayEndpointResponses,
+		Canonical: &canonicalRequest{
+			SourceProtocol: canonicalProtocolOpenAIResponses,
+			Messages: []canonicalMessage{
+				{Type: "message", Role: "user", Content: []canonicalContentPart{{Type: "input_text", Text: "start"}}},
+				{
+					Type:    "message",
+					Role:    "assistant",
+					Content: []canonicalContentPart{{Type: "output_text", Text: "I will call a tool."}},
+					Thinking: []canonicalThinkingBlock{{
+						Type:      "thinking",
+						Thinking:  "private reasoning",
+						Signature: "sig_deepseek",
+					}},
+				},
+				{Type: "function_call", ID: "fc_1", ToolCallID: "call_1", Name: "lookup", Arguments: `{"q":"test"}`},
+				{Type: "function_call_output", ToolCallID: "call_1", Output: "result"},
+			},
+		},
+	}, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-flash"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	messages := payload["messages"].([]any)
+
+	// Must not have two consecutive assistant messages.
+	for i := 1; i < len(messages); i++ {
+		prev := messages[i-1].(map[string]any)
+		curr := messages[i].(map[string]any)
+		if prev["role"] == "assistant" && curr["role"] == "assistant" {
+			t.Fatalf("two consecutive assistant messages at index %d/%d: %#v", i-1, i, messages)
+		}
+	}
+
+	// The single assistant message must contain thinking, text, and tool_use blocks.
+	var assistantMessage map[string]any
+	for _, raw := range messages {
+		m := raw.(map[string]any)
+		if m["role"] == "assistant" {
+			assistantMessage = m
+			break
+		}
+	}
+	if assistantMessage == nil {
+		t.Fatalf("no assistant message found: %#v", messages)
+	}
+	content := assistantMessage["content"].([]any)
+	types := make([]string, 0, len(content))
+	for _, raw := range content {
+		types = append(types, raw.(map[string]any)["type"].(string))
+	}
+	hasThinking, hasText, hasToolUse := false, false, false
+	for _, typ := range types {
+		switch typ {
+		case "thinking":
+			hasThinking = true
+		case "text":
+			hasText = true
+		case "tool_use":
+			hasToolUse = true
+		}
+	}
+	if !hasThinking || !hasText || !hasToolUse {
+		t.Fatalf("assistant message content must contain thinking, text, and tool_use blocks, got types=%v content=%#v", types, content)
+	}
+}
+
 func TestProviderAnthropicResponsesOmitsUnpairedToolCalls(t *testing.T) {
 	t.Parallel()
 

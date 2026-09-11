@@ -607,6 +607,20 @@ func encodeCanonicalMessagesAsAnthropicMessages(messages []canonicalMessage) []a
 		case "function_call":
 			next, toolUseBlocks, toolResultBlocks := encodeConsecutiveCanonicalToolRoundTrip(messages, i)
 			if len(toolUseBlocks) > 0 {
+				// If the previous output is already an assistant message (e.g. one that
+				// contains thinking blocks), merge the tool_use blocks into it rather than
+				// emitting a second consecutive assistant message. Providers like DeepSeek
+				// require thinking and tool_use to appear in the same content array.
+				if len(out) > 0 {
+					if prev, ok := out[len(out)-1].(map[string]any); ok && prev["role"] == "assistant" {
+						if prevContent, ok := prev["content"].([]any); ok {
+							prev["content"] = append(prevContent, toolUseBlocks...)
+							out = append(out, map[string]any{"role": "user", "content": toolResultBlocks})
+							i = next
+							continue
+						}
+					}
+				}
 				out = append(out,
 					map[string]any{"role": "assistant", "content": toolUseBlocks},
 					map[string]any{"role": "user", "content": toolResultBlocks},
