@@ -39,6 +39,7 @@ const (
 	CooldownReasonUpstreamStreamUnstable            = "upstream_stream_unstable"
 	CooldownReasonUpstreamCredentialUnauthorized    = "upstream_credential_unauthorized"
 	CooldownReasonUpstreamCredentialLimited         = "upstream_credential_limited"
+	CooldownReasonUpstreamInsufficientBalance       = "upstream_insufficient_balance"
 	CooldownReasonUpstreamSubscriptionLimitExceeded = "upstream_subscription_limit_exceeded"
 	CooldownReasonOpenCodeGoUsageLimitReached       = "opencode_go_usage_limit_reached"
 	// CooldownReasonCodingPlanQuotaExhausted marks a cooldown created by a Kimi/GLM

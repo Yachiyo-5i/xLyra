@@ -273,12 +273,19 @@ func classifyGatewayUpstreamErrorWithTimeZone(candidate routeengine.Candidate, r
 			if retryAfterSeconds <= 0 {
 				retryAfterSeconds = result.retryAfterSeconds
 			}
+			reason := store.CooldownReasonUpstreamCredentialLimited
 			duration := time.Duration(retryAfterSeconds) * time.Second
+			if strings.EqualFold(failure.Code, "INSUFFICIENT_BALANCE") {
+				reason = store.CooldownReasonUpstreamInsufficientBalance
+				if duration <= 0 {
+					duration = 30 * time.Minute
+				}
+			}
 			classified = codexUpstreamError{
 				StatusCode:        result.statusCode,
 				ErrorType:         "upstream_credential_limited",
 				ErrorMessage:      nonEmptyString(failure.Message, result.errorMessage),
-				CooldownReason:    store.CooldownReasonUpstreamCredentialLimited,
+				CooldownReason:    reason,
 				CooldownScope:     "credential",
 				CooldownDuration:  duration,
 				RetryAfterSeconds: retryAfterSeconds,

@@ -511,8 +511,8 @@ func TestClassifyGatewayUpstreamErrorCodexAndAntigravityBranches(t *testing.T) {
 			wantStatus:   http.StatusForbidden,
 			wantType:     "upstream_credential_limited",
 			wantScope:    "credential",
-			wantReason:   store.CooldownReasonUpstreamCredentialLimited,
-			wantDuration: 0,
+			wantReason:   store.CooldownReasonUpstreamInsufficientBalance,
+			wantDuration: 30 * time.Minute,
 		},
 	}
 
