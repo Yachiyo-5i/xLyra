@@ -32,8 +32,9 @@ type Source interface {
 }
 
 type Config struct {
-	SourcePriority map[string]int
-	HTTPClient     *http.Client
+	SourcePriority   map[string]int
+	HTTPClient       *http.Client
+	DisableModelsDev bool
 }
 
 type Service struct {
@@ -52,10 +53,12 @@ func NewWithConfig(cfg Config) *Service {
 	}
 
 	return &Service{
-		sources: []Source{
-			newModelsDevSource(cfg.HTTPClient),
-			curatedSource{},
-		},
+		sources: func() []Source {
+			if cfg.DisableModelsDev {
+				return []Source{curatedSource{}}
+			}
+			return []Source{newModelsDevSource(cfg.HTTPClient), curatedSource{}}
+		}(),
 		priorities: priorities,
 	}
 }

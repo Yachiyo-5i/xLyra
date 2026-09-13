@@ -139,7 +139,7 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		db:          db,
 		credentials: credential.NewService(masterKey),
 		adapters:    adapter.NewRegistry(),
-		modelCaps:   modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: modelCapsClient}),
+		modelCaps:   modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: modelCapsClient, DisableModelsDev: true}),
 		oauth:       oauthService,
 		httpClients: httpClients,
 		confFile:    confFile,

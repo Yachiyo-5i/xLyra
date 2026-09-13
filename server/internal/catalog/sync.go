@@ -49,6 +49,8 @@ type SyncService struct {
 	db     *store.Store
 	logger *slog.Logger
 	client *http.Client
+	url    string
+	token  string
 }
 
 func NewSyncService(db *store.Store, logger *slog.Logger, confFiles ...*config.ConfigFile) *SyncService {
@@ -57,7 +59,18 @@ func NewSyncService(db *store.Store, logger *slog.Logger, confFiles ...*config.C
 		cf = confFiles[0]
 	}
 	c, _ := httpclient.NewManager(cf).Client(httpclient.DefaultProfile())
-	return &SyncService{db: db, logger: logger, client: c}
+	url, token := catalogSyncURL, ""
+	if cf != nil {
+		if value, ok := cf.Get("model_catalog.url"); ok {
+			if text, ok := value.(string); ok && strings.TrimSpace(text) != "" {
+				url = strings.TrimSpace(text)
+			}
+		}
+		if value, ok := cf.Get("model_catalog.token"); ok {
+			token, _ = value.(string)
+		}
+	}
+	return &SyncService{db: db, logger: logger, client: c, url: url, token: strings.TrimSpace(token)}
 }
 func (s *SyncService) SyncAll(ctx context.Context) error {
 	start := time.Now()
@@ -85,12 +98,15 @@ func (s *SyncService) SyncAll(ctx context.Context) error {
 	return ReconcileCategories(ctx, s.db.DB())
 }
 func (s *SyncService) fetchGithubCatalog(ctx context.Context) (catalogPayload, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, catalogSyncURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
 	if err != nil {
 		return catalogPayload{}, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "xLyra/1.0")
+	if s.token != "" {
+		req.Header.Set("Authorization", "Bearer "+s.token)
+	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return catalogPayload{}, err

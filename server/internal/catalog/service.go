@@ -145,7 +145,7 @@ func NewService(db *store.Store, confFiles ...*config.ConfigFile) *Service {
 		confFile = confFiles[0]
 	}
 	client, _ := httpclient.NewManager(confFile).Client(httpclient.DefaultProfile())
-	return &Service{db: db, capabilities: modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: client})}
+	return &Service{db: db, capabilities: modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: client, DisableModelsDev: true})}
 }
 
 func NormalizeModelKey(value string) string {
