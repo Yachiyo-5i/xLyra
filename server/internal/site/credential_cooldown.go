@@ -17,6 +17,7 @@ func (s *Service) recoverCredentialCooldownAfterRefresh(ctx context.Context, sit
 		SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
 		Reasons: []string{
 			store.CooldownReasonUpstreamCredentialLimited,
+			store.CooldownReasonUpstreamInsufficientBalance,
 			store.CooldownReasonUpstreamCredentialUnauthorized,
 		},
 	})

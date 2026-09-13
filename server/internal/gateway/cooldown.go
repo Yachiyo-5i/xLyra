@@ -168,8 +168,14 @@ func cooldownInputForFailure(candidate routeengine.Candidate, result gatewayAtte
 	case result.errorType == "upstream_credential_limited" && credentialID != uuid.Nil:
 		base.SiteCredentialID = &credentialID
 		base.Scope = "credential"
-		base.Reason = store.CooldownReasonUpstreamCredentialLimited
+		if base.Reason == "" {
+			base.Reason = store.CooldownReasonUpstreamCredentialLimited
+		}
 		base.Duration = rateLimitedCooldownDuration(result.retryAfterSeconds)
+		if result.cooldownReason == store.CooldownReasonUpstreamInsufficientBalance {
+			base.Reason = result.cooldownReason
+			base.Duration = result.cooldownDuration
+		}
 		return base, true
 	case result.errorType == "upstream_credential_invalid" && credentialID != uuid.Nil:
 		base.SiteCredentialID = &credentialID

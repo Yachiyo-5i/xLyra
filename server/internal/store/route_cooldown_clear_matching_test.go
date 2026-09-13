@@ -29,7 +29,7 @@ func TestClearActiveMatchingBuildsScopedWhereOffline(t *testing.T) {
 	affected, err := NewRouteCooldownRepository(db).ClearActiveMatching(context.Background(), ClearActiveCooldownFilter{
 		SiteID:           siteID,
 		SiteCredentialID: uuid.NullUUID{UUID: credentialID, Valid: true},
-		Reasons:          CodexQuotaCooldownReasons(),
+		Reasons:          []string{CooldownReasonUpstreamInsufficientBalance},
 	})
 	if err != nil {
 		t.Fatalf("ClearActiveMatching returned error: %v", err)
@@ -49,7 +49,7 @@ func TestClearActiveMatchingBuildsScopedWhereOffline(t *testing.T) {
 
 	foundReason := false
 	for _, v := range vars {
-		if s, ok := v.(string); ok && s == CooldownReasonCodexUsageLimitReached {
+		if s, ok := v.(string); ok && s == CooldownReasonUpstreamInsufficientBalance {
 			foundReason = true
 		}
 	}
