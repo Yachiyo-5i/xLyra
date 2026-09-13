@@ -199,6 +199,7 @@ func (h Handler) serveEndpoint(
 
 	attempts := append([]routeengine.Candidate{plan.Selected}, plan.Failover...)
 	waitDeadline := startedAt.Add(upstreamRateLimitMaxWait)
+	failoverDeadline := startedAt.Add(gatewayFailoverBudget(request))
 
 	engageSoftFallback := func() bool {
 		if softFallbackTarget == "" {
@@ -243,7 +244,13 @@ func (h Handler) serveEndpoint(
 		skippedImageUnsupported = false
 		skippedGrokIncompatible = nil
 		waitableRateLimit := true
+		failoverBudgetExceeded := false
+	candidateLoop:
 		for index, candidate := range attempts {
+			if !time.Now().Before(failoverDeadline) {
+				failoverBudgetExceeded = true
+				break candidateLoop
+			}
 			if isGrokSite(candidate.Site.SiteType) {
 				if incompatible := grokIncompatibleRequestParams(request); len(incompatible) > 0 {
 					skippedGrokIncompatible = appendUniqueStrings(skippedGrokIncompatible, incompatible...)
@@ -352,6 +359,12 @@ func (h Handler) serveEndpoint(
 				waitableRateLimit = false
 			}
 		}
+		if failoverBudgetExceeded {
+			if h.logger != nil {
+				h.logger.WarnContext(ctx, "gateway failover budget exhausted", "scope", "gateway", "request_id", requestID, "budget", gatewayFailoverBudget(request), "latency_ms", time.Since(startedAt).Milliseconds())
+			}
+			break
+		}
 
 		if lastFailure == nil || !waitableRateLimit {
 			if (lastFailure != nil || skippedImageUnsupported || len(skippedGrokIncompatible) > 0) && engageSoftFallback() {
@@ -360,7 +373,7 @@ func (h Handler) serveEndpoint(
 			break
 		}
 		wait := upstreamRateLimitWaitDuration(*lastFailure)
-		if time.Now().Add(wait).After(waitDeadline) {
+		if time.Now().Add(wait).After(waitDeadline) || time.Now().Add(wait).After(failoverDeadline) {
 			if engageSoftFallback() {
 				continue
 			}
@@ -404,6 +417,13 @@ func (h Handler) serveEndpoint(
 		})
 		return
 	}
+	if lastFailure != nil && upstreamModelUnavailableFailure(*lastFailure) {
+		if h.logger != nil {
+			h.logger.WarnContext(r.Context(), "all upstream candidates rejected the requested model", "scope", "gateway", "endpoint", endpoint.DownstreamPath(), "request_id", requestID, "status_code", http.StatusBadGateway, "error_code", "upstream_failed", "latency_ms", time.Since(startedAt).Milliseconds())
+		}
+		h.writeGatewayError(w, r, http.StatusBadGateway, "upstream_failed", "all upstream route candidates failed")
+		return
+	}
 	if lastFailure != nil && len(lastFailure.body) > 0 && lastFailure.statusCode >= 400 {
 		writeUpstreamFailure(w, *lastFailure, requestID)
 		return
@@ -411,6 +431,16 @@ func (h Handler) serveEndpoint(
 
 	h.logger.WarnContext(r.Context(), "gateway request failed without upstream response", "scope", "gateway", "endpoint", endpoint.DownstreamPath(), "request_id", requestID, "status_code", http.StatusBadGateway, "error_code", "upstream_failed", "latency_ms", time.Since(startedAt).Milliseconds())
 	h.writeGatewayError(w, r, http.StatusBadGateway, "upstream_failed", "all upstream route candidates failed")
+}
+
+func upstreamModelUnavailableFailure(result gatewayAttemptResult) bool {
+	if result.upstreamStatusCode == http.StatusNotFound || result.statusCode == http.StatusNotFound {
+		return true
+	}
+	code := strings.ToLower(strings.TrimSpace(result.upstreamErrorCode))
+	message := strings.ToLower(strings.TrimSpace(result.errorMessage))
+	return strings.Contains(code, "model_not_found") || strings.Contains(code, "model-not-found") ||
+		(strings.Contains(message, "model") && strings.Contains(message, "not found"))
 }
 
 func retainUpstreamRateLimitFailure(retained *gatewayAttemptResult, result gatewayAttemptResult) *gatewayAttemptResult {

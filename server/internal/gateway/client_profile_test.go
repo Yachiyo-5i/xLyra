@@ -67,6 +67,9 @@ func TestUpstreamClientProfileForStreamingRequestsUsesRequestDefaults(t *testing
 	if nonStreaming.NoRequestTimeout || nonStreaming.RequestTimeout != defaultProfile.RequestTimeout || nonStreaming.ProxyID != "proxy-b" {
 		t.Fatalf("non-streaming profile = %#v, want default profile with proxy", nonStreaming)
 	}
+	if nonStreaming.ResponseHeaderTimeout != defaultNonStreamingResponseHeaderTimeout {
+		t.Fatalf("non-streaming header timeout = %s, want %s", nonStreaming.ResponseHeaderTimeout, defaultNonStreamingResponseHeaderTimeout)
+	}
 }
 
 func TestDefaultResponseHeaderTimeoutForRequest(t *testing.T) {
