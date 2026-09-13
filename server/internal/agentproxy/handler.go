@@ -158,10 +158,14 @@ func (h *Handler) Forward(w http.ResponseWriter, r *http.Request) {
 		path = "/internal/agent/upgrade"
 	case "/skills":
 		path = "/internal/agent/skills"
+	case "/memory":
+		path = "/internal/agent/memory"
+	case "/learning/status":
+		path = "/internal/agent/learning/status"
 	case "/workspace/file":
 		path = "/internal/agent/workspace/file"
 	default:
-		if strings.HasPrefix(path, "/skills/") {
+		if strings.HasPrefix(path, "/skills/") || strings.HasPrefix(path, "/memory/") {
 			path = "/internal/agent" + path
 		}
 	}

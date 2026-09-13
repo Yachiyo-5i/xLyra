@@ -185,11 +185,13 @@ export async function fetchAgentAvailableModels(): Promise<AgentAvailableSite[]>
 export type AgentSkill = {
   name: string
   description: string
-  /** Project scope is editable/deletable (stored in the workspace); managed (agent-owned) and user/extra scopes can only be toggled. */
   scope?: 'project' | 'managed' | 'user' | 'extra'
   enabled: boolean
   path?: string
   license?: string
+  ownership?: 'agent' | 'external'
+  editable?: boolean
+  deletable?: boolean
 }
 
 export type AgentSkillsInfo = {
@@ -207,6 +209,29 @@ export async function listAgentSkills(): Promise<AgentSkillsInfo | null> {
   } catch {
     return null
   }
+}
+
+export type AgentMemory = {
+  memory: string
+  user: string
+  user_profile_enabled?: boolean
+}
+
+export async function fetchAgentMemory(): Promise<AgentMemory | null> {
+  try {
+    const response = await apiFetch<{ data?: AgentMemory }>('/api/v1/agent/memory')
+    return response.data ?? { memory: '', user: '' }
+  } catch {
+    return null
+  }
+}
+
+export async function updateAgentMemory(target: 'memory' | 'user', content: string) {
+  const response = await apiFetch<{ data?: { target: string; changed?: boolean } }>(`/api/v1/agent/memory/${target}`, {
+    method: 'PUT',
+    body: { content },
+  })
+  return response.data
 }
 
 /** Reads a workspace file; null when the file does not exist. */
@@ -235,6 +260,39 @@ export type AgentSkillDetail = AgentSkill & {
   contentTruncated?: boolean
   /** Resource file paths relative to the skill root. */
   resources: string[]
+}
+
+export async function updateAgentSkill(name: string, content: string) {
+  const response = await apiFetch<{ data?: { name: string; changed: boolean } }>(`/api/v1/agent/skills/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: { content },
+  })
+  return response.data
+}
+
+export async function deleteAgentSkill(name: string) {
+  const response = await apiFetch<{ data?: { name: string; deleted: boolean } }>(`/api/v1/agent/skills/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    body: {},
+  })
+  return response.data
+}
+
+export type AgentLearningStatus = {
+  counters?: { memory_turns_since_review: number; skill_steps_since_review: number }
+  last_review_at?: string | null
+  last_success_at?: string | null
+  inflight_review_id?: string | null
+  backlog?: number
+}
+
+export async function fetchAgentLearningStatus(): Promise<AgentLearningStatus | null> {
+  try {
+    const response = await apiFetch<{ data?: AgentLearningStatus }>('/api/v1/agent/learning/status')
+    return response.data ?? null
+  } catch {
+    return null
+  }
 }
 
 // Older runners/agents lack this endpoint; returns null.

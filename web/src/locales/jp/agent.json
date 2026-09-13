@@ -112,13 +112,9 @@
     "skillDeleted": "Skill を削除しました",
     "skillDelete": "削除",
     "skillDeleteConfirm": "この skill の SKILL.md を削除しますか？元に戻せません。",
-    "agentsMdEnable": "AGENTS.md を注入",
-    "agentsMdEnableHint": "オンの場合、ワークスペース直下の AGENTS.md が毎ターン system プロンプトに注入されます。",
     "agentsMdPlaceholder": "# プロジェクト規約\n\nAgent に守らせたいルールや背景を記述します…",
     "agentsMdBytes": "{{bytes}} / {{limit}} バイト",
     "agentsMdSaved": "AGENTS.md を保存しました",
-    "agentsMdDeleted": "AGENTS.md を削除しました",
-    "agentsMdDelete": "ファイルを削除",
     "detailEdit": "編集",
     "detailOverview": "概要",
     "detailContents": "コンテンツ · {{count}}",
@@ -178,6 +174,30 @@
       "windowLabel": "ウィンドウサイズ（トークン）",
       "windowPlaceholder": "200000",
       "windowInvalid": "正の整数を入力するか、空欄でデフォルトを使用"
+    },
+    "tabMemory": "メモリ",
+    "tabPersonality": "人格設定",
+    "detailOwnership": "所有者",
+    "memory": {
+      "saved": "メモリを保存しました",
+      "unavailable": "メモリを読み込めません：Runner 未接続またはバージョンが古い可能性があります。",
+      "chars": "{{count}} 文字",
+      "userDisabled": "Agent 設定で USER.md が無効になっています。",
+      "memoryPlaceholder": "# Agent メモリ\n\n長期的に保持する事実や好みを記述します…",
+      "userPlaceholder": "# ユーザープロフィール\n\nユーザーの好みや背景を記述します…",
+      "hint": "保存すると現在のファイル内容を置き換えます。",
+      "loading": "MEMORY.md を読み込み中…",
+      "readOnly": "読み取り専用",
+      "empty": "ファイルは空です。"
+    },
+    "tabLearning": "学習ステータス",
+    "learning": {
+      "unavailable": "学習ステータスを取得できません。",
+      "hint": "バックグラウンド学習は静かに実行されます。ここでは軽量な概要のみ表示します。",
+      "running": "実行中",
+      "backlog": "バックログ",
+      "lastReview": "最終レビュー",
+      "lastSuccess": "最終成功"
     }
   }
 }

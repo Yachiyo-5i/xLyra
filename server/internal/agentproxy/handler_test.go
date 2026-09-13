@@ -108,8 +108,8 @@ func TestForwardInjectsResolvedProtocolAndPreservesAttachments(t *testing.T) {
 	}
 }
 
-func TestForwardMapsVersionAndUpgradeToInternalPaths(t *testing.T) {
-	paths := make(chan string, 2)
+func TestForwardMapsAgentPathsToInternalPaths(t *testing.T) {
+	paths := make(chan string, 16)
 	runner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths <- r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
@@ -126,9 +126,14 @@ func TestForwardMapsVersionAndUpgradeToInternalPaths(t *testing.T) {
 	}{
 		{method: http.MethodGet, in: "/api/v1/agent/version?refresh=true", expected: "/internal/agent/version"},
 		{method: http.MethodPost, in: "/api/v1/agent/upgrade", expected: "/internal/agent/upgrade"},
+		{method: http.MethodGet, in: "/api/v1/agent/memory", expected: "/internal/agent/memory"},
+		{method: http.MethodPut, in: "/api/v1/agent/memory/user", expected: "/internal/agent/memory/user"},
 		{method: http.MethodGet, in: "/api/v1/agent/skills", expected: "/internal/agent/skills"},
 		{method: http.MethodGet, in: "/api/v1/agent/skills/demo-skill", expected: "/internal/agent/skills/demo-skill"},
 		{method: http.MethodGet, in: "/api/v1/agent/skills/demo-skill/file?path=scripts/run.sh", expected: "/internal/agent/skills/demo-skill/file"},
+		{method: http.MethodPut, in: "/api/v1/agent/skills/demo-skill", expected: "/internal/agent/skills/demo-skill"},
+		{method: http.MethodDelete, in: "/api/v1/agent/skills/demo-skill", expected: "/internal/agent/skills/demo-skill"},
+		{method: http.MethodGet, in: "/api/v1/agent/learning/status", expected: "/internal/agent/learning/status"},
 		{method: http.MethodGet, in: "/api/v1/agent/workspace/file?path=AGENTS.md", expected: "/internal/agent/workspace/file"},
 		{method: http.MethodPut, in: "/api/v1/agent/workspace/file", expected: "/internal/agent/workspace/file"},
 		{method: http.MethodDelete, in: "/api/v1/agent/workspace/file?path=AGENTS.md", expected: "/internal/agent/workspace/file"},

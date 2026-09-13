@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronRight, FileText, ImagePlus, Layers, LoaderCircle, MoveLeft, Palette, Pencil, Plus, Search, Sparkles, X } from 'lucide-react'
+import { Check, ChevronRight, FileText, ImagePlus, Layers, LoaderCircle, MoveLeft, Palette, Pencil, Search, Sparkles, X, Brain } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -13,7 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TextArea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import {
-  deleteWorkspaceFile,
+  deleteAgentSkill,
+  fetchAgentMemory,
+  fetchAgentLearningStatus,
   fetchAgentCapabilities,
   fetchAgentConfigEnvelope,
   fetchAgentRuntimeSettings,
@@ -22,6 +24,8 @@ import {
   fetchWorkspaceFile,
   listAgentSkills,
   putWorkspaceFile,
+  updateAgentMemory,
+  updateAgentSkill,
   updateAgentCapabilities,
   updateAgentAppearanceSettings,
   updateAgentContextSettings,
@@ -34,15 +38,13 @@ import { cn } from '@/lib/utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { AgentLiquidGlassPanel, type AgentLiquidGlassSettings } from '@/features/agent/components/liquid-glass/agent-liquid-glass'
 
-const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 const AGENTS_MD_LIMIT = 32_000
-const skillFilePath = (name: string) => `.agents/skills/${name}/SKILL.md`
 
 const capabilitiesKey = ['agent', 'capabilities'] as const
 const skillsKey = ['agent', 'skills'] as const
 const agentsMdKey = ['agent', 'workspace-file', 'AGENTS.md'] as const
 
-type SettingsTab = 'skills' | 'agentsMd' | 'appearance' | 'context'
+type SettingsTab = 'memory' | 'skills' | 'agentsMd' | 'appearance' | 'context' | 'learning'
 type MobileSettingsView = 'menu' | 'detail'
 type SettingsActions = {
   save: () => void
@@ -54,7 +56,7 @@ type SettingsActions = {
 type SkillsNav =
   | { view: 'list' }
   | { view: 'detail'; name: string }
-  | { view: 'edit'; name: string | null }
+  | { view: 'edit'; name: string }
 
 type AgentSettingsDialogProps = {
   open: boolean
@@ -111,8 +113,10 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
 
   const tabs: Array<{ key: SettingsTab; label: string; icon: typeof Sparkles }> = [
     { key: 'appearance', label: t('settings.tabAppearance'), icon: Palette },
+    { key: 'memory', label: t('settings.tabMemory'), icon: Brain },
+    { key: 'learning', label: t('settings.tabLearning'), icon: Layers },
     { key: 'skills', label: t('settings.tabSkills'), icon: Sparkles },
-    { key: 'agentsMd', label: 'AGENTS.md', icon: FileText },
+    { key: 'agentsMd', label: t('settings.tabPersonality'), icon: FileText },
     { key: 'context', label: t('settings.tabContext'), icon: Layers },
   ]
 
@@ -133,8 +137,12 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
 
   const tabContent = tab === 'skills'
     ? <SkillsPane nav={skillsNav} onNavigate={setSkillsNav} onActionsChange={setPaneActions} backgroundImage={backgroundImage} dark={darkBackground} glassSettings={glassSettings} />
-    : tab === 'agentsMd'
-      ? <AgentsMdPane onActionsChange={setPaneActions} />
+    : tab === 'memory'
+      ? <MemoryPane onActionsChange={setPaneActions} />
+      : tab === 'learning'
+        ? <LearningPane />
+      : tab === 'agentsMd'
+      ? <PersonalityPane onActionsChange={setPaneActions} />
       : tab === 'context'
         ? <ContextPane onActionsChange={setPaneActions} />
         : <AppearancePane draft={appearanceDraft} onChange={setAppearanceDraftOverride} />
@@ -198,7 +206,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
         <div className={cn(
           'agent-liquid-dialog__body min-h-0 flex-1 py-5',
           mobileLayout ? 'px-4' : 'px-6',
-          tab === 'agentsMd' || (tab === 'skills' && skillsNav.view === 'edit') ? 'overflow-hidden' : 'overflow-y-auto',
+          tab === 'memory' || tab === 'agentsMd' || (tab === 'skills' && skillsNav.view === 'edit') ? 'overflow-hidden' : 'overflow-y-auto',
         )}>
           {tabContent}
         </div>
@@ -253,7 +261,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
       </div>
       <div className={cn(
         'agent-mobile-settings__content',
-        tab === 'agentsMd' || (tab === 'skills' && skillsNav.view === 'edit') ? 'overflow-hidden' : 'overflow-y-auto',
+        tab === 'memory' || tab === 'agentsMd' || (tab === 'skills' && skillsNav.view === 'edit') ? 'overflow-hidden' : 'overflow-y-auto',
       )}>
         {tabContent}
       </div>
@@ -547,6 +555,112 @@ function useSkillToggle() {
   return { toggleSkill, pending: capabilitiesMutation.isPending }
 }
 
+function MemoryPane({ onActionsChange }: { onActionsChange: (actions: SettingsActions | null) => void }) {
+  const { t } = useTranslation('agent')
+  const queryClient = useQueryClient()
+  const memoryQuery = useQuery({ queryKey: ['agent', 'memory'], queryFn: fetchAgentMemory, retry: false })
+  const [draft, setDraft] = useState<string | null>(null)
+  const data = memoryQuery.data
+  const content = draft ?? data?.memory ?? ''
+  const save = useMutation<unknown, Error>({
+    mutationFn: () => updateAgentMemory('memory', content),
+    onSuccess: async () => {
+      setDraft(null)
+      await queryClient.invalidateQueries({ queryKey: ['agent', 'memory'] })
+      toast.success(t('settings.memory.saved'))
+    },
+    onError: (error) => toast.error(t('settings.saveFailed'), { description: error.message }),
+  })
+  const { mutate: saveMutate, isPending: savePending } = save
+  const saveAction = useCallback(() => saveMutate(), [saveMutate])
+  useEffect(() => {
+    onActionsChange({
+      save: saveAction,
+      canSave: Boolean(data && draft !== null && !memoryQuery.isLoading),
+      pending: savePending,
+    })
+    return () => onActionsChange(null)
+  }, [data, draft, memoryQuery.isLoading, onActionsChange, saveAction, savePending])
+
+  if (memoryQuery.data === null && !memoryQuery.isLoading) {
+    return <p className="rounded-lg border border-[hsl(var(--glass-border))] px-4 py-8 text-center text-xs text-muted-soft">{t('settings.memory.unavailable')}</p>
+  }
+
+  const editable = Boolean(data)
+
+  return (
+    <div className="flex h-full min-h-0 flex-col space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">MEMORY.md</span>
+        <span className="text-xs text-faint">{t('settings.memory.chars', { count: Array.from(content).length })}</span>
+      </div>
+      {editable ? (
+        <TextArea
+          value={content}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={t('settings.memory.memoryPlaceholder')}
+          aria-label="MEMORY.md"
+          className="h-0 min-h-0 flex-1 resize-none font-mono text-xs leading-5 focus:ring-inset"
+        />
+      ) : (
+        <ReadOnlyFileContent
+          content={content}
+          loading={memoryQuery.isLoading}
+          loadingLabel={t('settings.memory.loading')}
+          emptyLabel={t('settings.memory.empty')}
+          readOnlyLabel={t('settings.memory.readOnly')}
+        />
+      )}
+      <p className="text-xs text-faint">{t('settings.memory.hint')}</p>
+    </div>
+  )
+}
+
+function ReadOnlyFileContent({ content, loading, loadingLabel, emptyLabel, readOnlyLabel }: {
+  content: string
+  loading: boolean
+  loadingLabel: string
+  emptyLabel: string
+  readOnlyLabel: string
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]/45">
+      <div className="flex shrink-0 items-center justify-between border-b border-[hsl(var(--glass-divider))] px-3 py-2">
+        <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-soft">{readOnlyLabel}</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+        {loading ? (
+          <p className="text-xs text-muted-soft">{loadingLabel}</p>
+        ) : content ? (
+          <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-foreground/90">{content}</pre>
+        ) : (
+          <p className="text-xs text-muted-soft">{emptyLabel}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LearningPane() {
+  const { t } = useTranslation('agent')
+  const query = useQuery({ queryKey: ['agent', 'learning-status'], queryFn: fetchAgentLearningStatus, retry: false })
+  if (query.data === null && !query.isLoading) {
+    return <p className="rounded-lg border border-[hsl(var(--glass-border))] px-4 py-8 text-center text-xs text-muted-soft">{t('settings.learning.unavailable')}</p>
+  }
+  const status = query.data
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-soft">{t('settings.learning.hint')}</p>
+      <div className="rounded-xl border border-[hsl(var(--glass-border))]">
+        <DetailRow label={t('settings.learning.running')} value={status?.inflight_review_id ? t('settings.learning.yes') : t('settings.learning.no')} />
+        <DetailRow label={t('settings.learning.backlog')} value={status?.backlog == null ? '—' : String(status.backlog)} />
+        <DetailRow label={t('settings.learning.lastReview')} value={status?.last_review_at ?? '—'} />
+        <DetailRow label={t('settings.learning.lastSuccess')} value={status?.last_success_at ?? '—'} />
+      </div>
+    </div>
+  )
+}
+
 function SkillsPane({ nav, onNavigate, onActionsChange, backgroundImage, dark, glassSettings }: {
   nav: SkillsNav
   onNavigate: (nav: SkillsNav) => void
@@ -572,7 +686,6 @@ function SkillsPane({ nav, onNavigate, onActionsChange, backgroundImage, dark, g
     return (
       <SkillEditor
         name={nav.name}
-        skills={skills}
         backgroundImage={backgroundImage}
         dark={dark}
         glassSettings={glassSettings}
@@ -623,10 +736,6 @@ function SkillsPane({ nav, onNavigate, onActionsChange, backgroundImage, dark, g
                 className="pl-9"
               />
             </div>
-            <Button variant="secondary" onClick={() => onNavigate({ view: 'edit', name: null })}>
-              <Plus className="h-4 w-4" />
-              {t('settings.skillAdd')}
-            </Button>
           </div>
 
           <div className="overflow-hidden rounded-xl border border-[hsl(var(--glass-border))]">
@@ -634,7 +743,7 @@ function SkillsPane({ nav, onNavigate, onActionsChange, backgroundImage, dark, g
               <p className="px-4 py-8 text-center text-xs text-muted-soft">{t('settings.skillsEmpty')}</p>
             ) : (
               filtered.map((skill) => {
-                const external = skill.scope === 'user' || skill.scope === 'extra'
+                const external = skill.ownership === 'external' || skill.editable !== true
                 return (
                   <div
                     key={`${skill.scope ?? 'project'}:${skill.name}`}
@@ -689,7 +798,7 @@ function SkillDetail({
   })
   const detail = detailQuery.data
   const scope = detail?.scope ?? fallback?.scope
-  const editable = !scope || scope === 'project'
+  const editable = detail?.editable === true || fallback?.editable === true
   const enabled = detail?.enabled ?? fallback?.enabled ?? true
   const resources = useMemo(() => detail?.resources ?? [], [detail])
   const files = useMemo(() => ['SKILL.md', ...resources], [resources])
@@ -711,7 +820,7 @@ function SkillDetail({
       : scope === 'extra'
         ? t('settings.detailScopeExtra')
         : t('settings.detailScopeProject')
-  const external = scope === 'user' || scope === 'extra'
+  const external = detail?.ownership === 'external' || fallback?.ownership === 'external' || !editable
 
   return (
     <div className="flex h-full flex-col">
@@ -753,6 +862,7 @@ function SkillDetail({
             <div className="mt-4 rounded-xl border border-[hsl(var(--glass-border))]">
               <DetailRow label={t('settings.skillName')} value={name} mono />
               <DetailRow label={t('settings.detailScope')} value={scopeLabel} />
+              <DetailRow label={t('settings.detailOwnership')} value={external ? t('settings.skillScopeExternal') : t('settings.detailScopeManaged')} />
               <DetailRow label={t('settings.detailPath')} value={detail?.path ?? '—'} mono />
               {detail?.license ? <DetailRow label={t('settings.detailLicense')} value={detail.license} /> : null}
             </div>
@@ -800,45 +910,27 @@ function DetailRow({ label, value, mono = false }: { label: string; value: strin
   )
 }
 
-/** Skill editor: create (name editable) or edit the description and body of an existing project-scope skill. */
-function SkillEditor({ name, skills, backgroundImage, dark, glassSettings, onBack, onActionsChange }: { name: string | null; skills: AgentSkill[]; backgroundImage: string; dark: boolean; glassSettings?: AgentLiquidGlassSettings; onBack: () => void; onActionsChange: (actions: SettingsActions | null) => void }) {
+/** Skill editor: edits the complete agent-owned SKILL.md. */
+function SkillEditor({ name, backgroundImage, dark, glassSettings, onBack, onActionsChange }: { name: string; backgroundImage: string; dark: boolean; glassSettings?: AgentLiquidGlassSettings; onBack: () => void; onActionsChange: (actions: SettingsActions | null) => void }) {
   const { t } = useTranslation('agent')
   const queryClient = useQueryClient()
-  const existing = name ? skills.find((skill) => skill.name === name) : undefined
-
-  const [skillName, setSkillName] = useState(name ?? '')
-  const [description, setDescription] = useState(existing?.description ?? '')
-  const [bodyDraft, setBodyDraft] = useState<string | null>(null)
+  const [contentDraft, setContentDraft] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const bodyQuery = useQuery({
-    queryKey: ['agent', 'workspace-file', name],
-    queryFn: () => fetchWorkspaceFile(skillFilePath(name!)),
-    enabled: Boolean(name),
+    queryKey: ['agent', 'skill-detail', name],
+    queryFn: () => fetchAgentSkillDetail(name),
     retry: false,
   })
 
-  // Existing skill: read the current SKILL.md and strip frontmatter for the body
-  // (description is edited separately); a local draft wins over the fetched
-  // content once the user starts editing.
-  const loadedBody = useMemo(() => {
-    if (!name || bodyQuery.data == null) return null
-    const match = /^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/.exec(bodyQuery.data)
-    return match ? match[1].trimStart() : bodyQuery.data
-  }, [name, bodyQuery.data])
-  const body = name ? (bodyDraft ?? loadedBody) : (bodyDraft ?? '')
-  const bodyLoading = Boolean(name) && bodyQuery.isLoading
-
-  const nameValid = SKILL_NAME_PATTERN.test(skillName)
-  const canSave = nameValid && description.trim().length > 0 && body !== null
+  const content = contentDraft ?? bodyQuery.data?.content ?? ''
+  const canSave = Boolean(bodyQuery.data?.editable && !bodyQuery.isLoading && contentDraft !== null)
 
   const save = useMutation({
-    mutationFn: () => putWorkspaceFile(
-      skillFilePath(skillName),
-      `---\nname: ${skillName}\ndescription: ${description.trim()}\n---\n\n${(body ?? '').trimEnd()}\n`,
-    ),
+    mutationFn: () => updateAgentSkill(name, content),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: skillsKey })
+      await queryClient.invalidateQueries({ queryKey: ['agent', 'skill-detail', name] })
       toast.success(t('settings.skillSaved'))
       onBack()
     },
@@ -854,9 +946,10 @@ function SkillEditor({ name, skills, backgroundImage, dark, glassSettings, onBac
   }, [canSave, onActionsChange, saveAction, savePending])
 
   const remove = useMutation({
-    mutationFn: () => deleteWorkspaceFile(skillFilePath(name!)),
+    mutationFn: () => deleteAgentSkill(name),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: skillsKey })
+      queryClient.removeQueries({ queryKey: ['agent', 'skill-detail', name] })
       toast.success(t('settings.skillDeleted'))
       onBack()
     },
@@ -865,39 +958,21 @@ function SkillEditor({ name, skills, backgroundImage, dark, glassSettings, onBac
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-soft">{t('settings.skillName')}</span>
-          <Input
-            value={skillName}
-            onChange={(event) => setSkillName(event.target.value)}
-            placeholder="my-skill"
-            disabled={Boolean(name)}
-            className="font-mono text-xs"
-          />
-          {!name && skillName && !nameValid ? (
-            <span className="text-xs text-red-500">{t('settings.skillNameInvalid')}</span>
-          ) : null}
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-soft">{t('settings.skillDescription')}</span>
-          <Input value={description} onChange={(event) => setDescription(event.target.value)} />
-        </label>
-      </div>
+      <p className="text-sm font-semibold text-foreground">{name}</p>
 
       <label className="flex min-h-0 flex-1 flex-col space-y-1.5">
         <span className="text-xs font-medium text-muted-soft">{t('settings.skillBody')}</span>
         <TextArea
-          value={body ?? ''}
-          onChange={(event) => setBodyDraft(event.target.value)}
+          value={content}
+          onChange={(event) => setContentDraft(event.target.value)}
           placeholder={t('settings.skillBodyPlaceholder')}
           className="h-0 min-h-0 flex-1 resize-none font-mono text-xs leading-5 focus:ring-inset"
-          disabled={bodyLoading}
+          disabled={bodyQuery.isLoading || bodyQuery.data?.editable !== true}
         />
       </label>
 
       <div className="flex items-center gap-2">
-        {name ? (
+        {bodyQuery.data?.deletable === true ? (
           <Button variant="ghost" className="text-destructive" onClick={() => setConfirmDelete(true)}>
             {t('settings.skillDelete')}
           </Button>
@@ -923,25 +998,35 @@ function SkillEditor({ name, skills, backgroundImage, dark, glassSettings, onBac
   )
 }
 
-function AgentsMdPane({ onActionsChange }: { onActionsChange: (actions: SettingsActions | null) => void }) {
+function PersonalityPane({ onActionsChange }: { onActionsChange: (actions: SettingsActions | null) => void }) {
   const { t } = useTranslation('agent')
   const queryClient = useQueryClient()
-  const capabilitiesQuery = useQuery({ queryKey: capabilitiesKey, queryFn: fetchAgentCapabilities, retry: false })
-  const capabilitiesMutation = useCapabilitiesMutation()
   const fileQuery = useQuery({ queryKey: agentsMdKey, queryFn: () => fetchWorkspaceFile('AGENTS.md'), retry: false })
+  const memoryQuery = useQuery({ queryKey: ['agent', 'memory'], queryFn: fetchAgentMemory, retry: false })
 
-  const [draft, setDraft] = useState<string | null>(null)
-  const content = draft ?? fileQuery.data ?? ''
+  const [target, setTarget] = useState<'agents' | 'user'>('agents')
+  const [agentsDraft, setAgentsDraft] = useState<string | null>(null)
+  const [userDraft, setUserDraft] = useState<string | null>(null)
+  const content = target === 'agents' ? (agentsDraft ?? fileQuery.data ?? '') : (userDraft ?? memoryQuery.data?.user ?? '')
+  const userDisabled = memoryQuery.data?.user_profile_enabled === false
+  const userUnavailable = memoryQuery.data === null && !memoryQuery.isLoading
 
-  const globalEnabled = capabilitiesQuery.data?.enable_agents_md !== false
   const bytes = new TextEncoder().encode(content).length
   const overLimit = bytes > AGENTS_MD_LIMIT
 
-  const save = useMutation({
-    mutationFn: () => putWorkspaceFile('AGENTS.md', content),
+  const save = useMutation<unknown, Error>({
+    mutationFn: () => target === 'agents'
+      ? putWorkspaceFile('AGENTS.md', content)
+      : updateAgentMemory('user', content),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: agentsMdKey })
-      toast.success(t('settings.agentsMdSaved'))
+      if (target === 'agents') {
+        setAgentsDraft(null)
+        await queryClient.invalidateQueries({ queryKey: agentsMdKey })
+      } else {
+        setUserDraft(null)
+        await queryClient.invalidateQueries({ queryKey: ['agent', 'memory'] })
+      }
+      toast.success(target === 'agents' ? t('settings.agentsMdSaved') : t('settings.memory.saved'))
     },
     onError: (error) => toast.error(t('settings.saveFailed'), { description: error.message }),
   })
@@ -950,52 +1035,49 @@ function AgentsMdPane({ onActionsChange }: { onActionsChange: (actions: Settings
   const saveAction = useCallback(() => saveMutate(), [saveMutate])
 
   useEffect(() => {
-    onActionsChange({ save: saveAction, canSave: !overLimit && !fileQuery.isLoading, pending: savePending })
+    onActionsChange({
+      save: saveAction,
+      canSave: target === 'agents'
+        ? !overLimit && !fileQuery.isLoading && agentsDraft !== null
+        : !memoryQuery.isLoading && !userDisabled && !userUnavailable && userDraft !== null,
+      pending: savePending,
+    })
     return () => onActionsChange(null)
-  }, [fileQuery.isLoading, onActionsChange, overLimit, saveAction, savePending])
-
-  const remove = useMutation({
-    mutationFn: () => deleteWorkspaceFile('AGENTS.md'),
-    onSuccess: async () => {
-      setDraft('')
-      await queryClient.invalidateQueries({ queryKey: agentsMdKey })
-      toast.success(t('settings.agentsMdDeleted'))
-    },
-    onError: (error) => toast.error(t('settings.saveFailed'), { description: error.message }),
-  })
+  }, [agentsDraft, fileQuery.isLoading, memoryQuery.isLoading, onActionsChange, overLimit, saveAction, savePending, target, userDisabled, userDraft, userUnavailable])
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      <Switch
-        label={t('settings.agentsMdEnable')}
-        description={t('settings.agentsMdEnableHint')}
-        checked={globalEnabled}
-        disabled={capabilitiesQuery.data === null || capabilitiesMutation.isPending}
-        onCheckedChange={(checked) => capabilitiesMutation.mutate(
-          { enable_agents_md: checked },
-          { onError: (error) => toast.error(t('settings.saveFailed'), { description: error.message }) },
-        )}
-      />
-
-      <TextArea
-        value={content}
-        onChange={(event) => setDraft(event.target.value)}
-        placeholder={t('settings.agentsMdPlaceholder')}
-        disabled={fileQuery.isLoading}
-        className="h-0 min-h-0 flex-1 resize-none font-mono text-xs leading-5 focus:ring-inset"
-      />
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={target === 'agents' ? 'secondary' : 'ghost'} onClick={() => setTarget('agents')}>AGENTS.md</Button>
+        <Button size="sm" variant={target === 'user' ? 'secondary' : 'ghost'} onClick={() => setTarget('user')}>USER.md</Button>
+      </div>
+      {target === 'user' && userDisabled ? <p className="text-xs text-amber-500">{t('settings.memory.userDisabled')}</p> : null}
+      {target === 'user' && userUnavailable ? (
+        <p className="rounded-lg border border-[hsl(var(--glass-border))] px-4 py-8 text-center text-xs text-muted-soft">{t('settings.memory.unavailable')}</p>
+      ) : target === 'user' && userDisabled ? (
+        <ReadOnlyFileContent
+          content={content}
+          loading={memoryQuery.isLoading}
+          loadingLabel={t('settings.memory.loading')}
+          emptyLabel={t('settings.memory.empty')}
+          readOnlyLabel={t('settings.memory.readOnly')}
+        />
+      ) : (
+        <TextArea
+          value={content}
+          onChange={(event) => target === 'agents' ? setAgentsDraft(event.target.value) : setUserDraft(event.target.value)}
+          placeholder={target === 'agents' ? t('settings.agentsMdPlaceholder') : t('settings.memory.userPlaceholder')}
+          disabled={target === 'agents' ? fileQuery.isLoading : memoryQuery.isLoading}
+          aria-label={target === 'agents' ? 'AGENTS.md' : 'USER.md'}
+          className="h-0 min-h-0 flex-1 resize-none font-mono text-xs leading-5 focus:ring-inset"
+        />
+      )}
 
       <div className="flex items-center justify-between gap-3">
         <span className={cn('text-xs', overLimit ? 'text-red-500' : 'text-faint')}>
           {t('settings.agentsMdBytes', { bytes: bytes.toLocaleString(), limit: AGENTS_MD_LIMIT.toLocaleString() })}
         </span>
-        <div className="flex items-center gap-2">
-          {fileQuery.data !== null && fileQuery.data !== undefined ? (
-            <Button variant="ghost" className="text-destructive" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              {t('settings.agentsMdDelete')}
-            </Button>
-          ) : null}
-        </div>
+        <div className="flex items-center gap-2" />
       </div>
       <p className="text-xs text-faint">{t('settings.effectiveHint')}</p>
     </div>

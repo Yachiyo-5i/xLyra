@@ -112,13 +112,9 @@
     "skillDeleted": "Skill deleted",
     "skillDelete": "Delete",
     "skillDeleteConfirm": "Delete this skill's SKILL.md? This cannot be undone.",
-    "agentsMdEnable": "Inject AGENTS.md",
-    "agentsMdEnableHint": "When on, the workspace-root AGENTS.md is injected into the system prompt every turn.",
     "agentsMdPlaceholder": "# Project conventions\n\nWrite rules and context the agent should follow…",
     "agentsMdBytes": "{{bytes}} / {{limit}} bytes",
     "agentsMdSaved": "AGENTS.md saved",
-    "agentsMdDeleted": "AGENTS.md deleted",
-    "agentsMdDelete": "Delete file",
     "detailEdit": "Edit",
     "detailOverview": "Overview",
     "detailContents": "Contents · {{count}}",
@@ -178,6 +174,30 @@
       "windowLabel": "Window size (tokens)",
       "windowPlaceholder": "200000",
       "windowInvalid": "Enter a positive integer, or leave empty for the default"
+    },
+    "tabMemory": "Memory",
+    "tabPersonality": "Personality",
+    "detailOwnership": "Ownership",
+    "memory": {
+      "saved": "Memory saved",
+      "unavailable": "Cannot load memory: runner unreachable or too old.",
+      "chars": "{{count}} characters",
+      "userDisabled": "USER.md is disabled by the agent configuration.",
+      "memoryPlaceholder": "# Agent memory\n\nWrite durable facts and preferences…",
+      "userPlaceholder": "# User profile\n\nWrite user preferences and context…",
+      "hint": "Saving replaces the current file content.",
+      "loading": "Loading MEMORY.md…",
+      "readOnly": "Read only",
+      "empty": "This file is empty."
+    },
+    "tabLearning": "Learning",
+    "learning": {
+      "unavailable": "Learning status is unavailable.",
+      "hint": "Background learning runs quietly. This page only shows a lightweight status summary.",
+      "running": "Running",
+      "backlog": "Backlog",
+      "lastReview": "Last review",
+      "lastSuccess": "Last success"
     }
   }
 }

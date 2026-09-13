@@ -112,13 +112,9 @@
     "skillDeleted": "Skill 已删除",
     "skillDelete": "删除",
     "skillDeleteConfirm": "删除该 skill 的 SKILL.md？此操作不可恢复。",
-    "agentsMdEnable": "注入 AGENTS.md",
-    "agentsMdEnableHint": "开启后，工作区根部的 AGENTS.md 会在每轮对话注入系统提示。",
     "agentsMdPlaceholder": "# 项目约定\n\n写下希望 Agent 遵守的规则与背景…",
     "agentsMdBytes": "{{bytes}} / {{limit}} 字节",
     "agentsMdSaved": "AGENTS.md 已保存",
-    "agentsMdDeleted": "AGENTS.md 已删除",
-    "agentsMdDelete": "删除文件",
     "detailEdit": "编辑",
     "detailOverview": "概览",
     "detailContents": "内容 · {{count}}",
@@ -178,6 +174,30 @@
       "windowLabel": "窗口大小（token）",
       "windowPlaceholder": "200000",
       "windowInvalid": "请输入正整数，或留空使用默认值"
+    },
+    "tabMemory": "记忆",
+    "tabPersonality": "人格配置",
+    "detailOwnership": "所有权",
+    "memory": {
+      "saved": "记忆已保存",
+      "unavailable": "无法加载记忆：Runner 未连接或版本过旧。",
+      "chars": "{{count}} 个字符",
+      "userDisabled": "Agent 配置已禁用 USER.md。",
+      "memoryPlaceholder": "# Agent 记忆\n\n记录需要长期保留的事实与偏好…",
+      "userPlaceholder": "# 用户资料\n\n记录用户偏好与背景…",
+      "hint": "保存会直接覆盖当前文件内容。",
+      "loading": "正在加载 MEMORY.md…",
+      "readOnly": "只读",
+      "empty": "文件内容为空。"
+    },
+    "tabLearning": "学习状态",
+    "learning": {
+      "unavailable": "学习状态暂不可用。",
+      "hint": "后台学习会静默运行，此处只显示轻量状态摘要。",
+      "running": "运行中",
+      "backlog": "待处理",
+      "lastReview": "最近复盘",
+      "lastSuccess": "最近成功"
     }
   }
 }
