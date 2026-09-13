@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	defaultStreamingResponseHeaderTimeout       = 60 * time.Second
-	defaultImageGenerationResponseHeaderTimeout = 300 * time.Second
+	defaultNonStreamingResponseHeaderTimeout    = 60 * time.Second
+	defaultStreamingResponseHeaderTimeout       = 30 * time.Second
+	defaultImageGenerationResponseHeaderTimeout = 150 * time.Second
 )
 
 type upstreamClientProfileRequest struct {
@@ -55,6 +56,9 @@ func upstreamClientProfileFromSiteConfig(cfg *site.GatewayConfig, proxyID string
 
 func upstreamClientProfileForRequest(cfg *site.GatewayConfig, request upstreamClientProfileRequest, proxyID string) httpclient.Profile {
 	config := upstreamClientProfileFromSiteConfig(cfg, proxyID)
+	if !request.Stream && (cfg == nil || cfg.ResponseHeaderTimeoutMS == nil) {
+		config.ResponseHeaderTimeout = defaultNonStreamingResponseHeaderTimeout
+	}
 	if request.Stream {
 		config = httpclient.StreamingProfile(config)
 		if cfg == nil || cfg.ResponseHeaderTimeoutMS == nil {

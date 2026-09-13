@@ -340,6 +340,8 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 	transport.MaxIdleConns = profile.MaxIdleConns
 	transport.MaxIdleConnsPerHost = profile.MaxIdleConnsPerHost
 	transport.MaxConnsPerHost = profile.MaxConnsPerHost
+	transport.DisableKeepAlives = false
+	transport.ForceAttemptHTTP2 = true
 	transport.IdleConnTimeout = profile.IdleConnTimeout
 	transport.TLSHandshakeTimeout = 10 * time.Second
 	transport.ExpectContinueTimeout = 1 * time.Second
