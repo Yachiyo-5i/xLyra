@@ -22,10 +22,7 @@ func TestSyncAllEmptyCatalogSkipsRepositoryWrites(t *testing.T) {
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		client: &http.Client{Transport: catalogSyncRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			requests++
-			body := `{"unknown":{"models":{"ignored":{"id":"ignored"}}},"openai":{"models":{}}}`
-			if strings.Contains(req.URL.String(), "model-price-repo") {
-				body = `{"ignored":{"litellm_provider":"bedrock"}}`
-			}
+			body := `{"schema_version":1,"catalog_version":"test","updated_at":"2026-01-01T00:00:00Z","brands":{}}`
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     make(http.Header),
@@ -37,7 +34,7 @@ func TestSyncAllEmptyCatalogSkipsRepositoryWrites(t *testing.T) {
 	if err := service.SyncAll(context.Background()); err != nil {
 		t.Fatalf("SyncAll empty catalog: %v", err)
 	}
-	if requests != 2 {
-		t.Fatalf("requests = %d, want 2 (models.dev + litellm)", requests)
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1 (catalog)", requests)
 	}
 }
