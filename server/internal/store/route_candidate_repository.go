@@ -87,6 +87,7 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 	var credentials []SiteCredential
 	var keyStates []SiteAPIKeyState
 	var pricings []SiteModelPricing
+	var overrides []SiteModelEndpointOverride
 	if err := r.db.WithContext(ctx).Find(&sites).Error; err != nil {
 		return nil, fmt.Errorf("list route candidates: %w", err)
 	}
@@ -107,6 +108,13 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 	}
 	if err := r.db.WithContext(ctx).Where(&SiteModelPricing{Available: true}).Find(&pricings).Error; err != nil {
 		return nil, fmt.Errorf("list route candidates: %w", err)
+	}
+	if err := r.db.WithContext(ctx).Find(&overrides).Error; err != nil {
+		return nil, fmt.Errorf("list route candidates: %w", err)
+	}
+	overrideByModel := map[uuid.UUID]SiteModelEndpointOverride{}
+	for _, override := range overrides {
+		overrideByModel[override.SiteModelID] = override
 	}
 	cooldowns, err := NewRouteCooldownRepository(r.db).ListActive(ctx, time.Now())
 	if err != nil {
@@ -165,7 +173,7 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 		fillRouteKeyCounts(&row, apiKeyModels, credentialsByID, keyStatesByCredentialID, cooldowns)
 		fillRouteSiteCredentialCount(&row, credentials, keyStatesByCredentialID, cooldowns)
 		fillRoutePricing(&row, pricings)
-		row.SupportedEndpointTypes = collectSupportedEndpointTypes(model)
+		row.SupportedEndpointTypes = effectiveSupportedEndpointTypes(canonical, model, overrideByModel[model.ID])
 		items = append(items, row)
 	}
 	sort.SliceStable(items, func(i, j int) bool {
@@ -175,6 +183,41 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 		return items[i].UpstreamModelName < items[j].UpstreamModelName
 	})
 	return items, nil
+}
+
+func effectiveSupportedEndpointTypes(canonical CanonicalModel, model SiteModel, override SiteModelEndpointOverride) []string {
+	base := collectCanonicalEndpointTypes(canonical)
+	if len(base) == 0 {
+		base = collectSupportedEndpointTypes(model)
+	}
+	if override.Mode == "disabled" {
+		return []string{}
+	}
+	if override.Mode != "allowlist" || len(override.EndpointTypes) == 0 {
+		return base
+	}
+	allowed := map[string]struct{}{}
+	for _, item := range base {
+		allowed[item] = struct{}{}
+	}
+	var selected []string
+	var values []string
+	if json.Unmarshal(override.EndpointTypes, &values) == nil {
+		for _, item := range values {
+			if _, ok := allowed[item]; ok {
+				selected = append(selected, item)
+			}
+		}
+	}
+	return selected
+}
+
+func collectCanonicalEndpointTypes(model CanonicalModel) []string {
+	var values []string
+	if json.Unmarshal(model.SupportedEndpointTypes, &values) != nil {
+		return nil
+	}
+	return values
 }
 
 func defaultHealthStatus(value string) string {

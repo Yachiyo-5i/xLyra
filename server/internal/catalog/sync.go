@@ -158,3 +158,11 @@ func defaultString(v, f string) string {
 	}
 	return v
 }
+
+func mustJSON(v any) store.JSON {
+	if v == nil {
+		return store.JSON([]byte("{}"))
+	}
+	b, _ := json.Marshal(v)
+	return store.JSON(b)
+}

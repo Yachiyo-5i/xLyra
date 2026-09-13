@@ -17,6 +17,7 @@ import (
 
 const CanonicalPricingSourceManual = "manual"
 const CanonicalPricingSourceModelsDev = "models_dev"
+const CanonicalPricingSourceCatalog = "catalog"
 
 type CanonicalModel struct {
 	ID                     uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
@@ -31,6 +32,7 @@ type CanonicalModel struct {
 	CacheReadRatio         sql.NullFloat64
 	CacheWriteRatio        sql.NullFloat64
 	CacheWrite1hRatio      sql.NullFloat64 `gorm:"column:cache_write_1h_ratio"`
+	PricingVariants        JSON            `gorm:"type:jsonb"`
 	AudioRatio             sql.NullFloat64
 	AudioCompletionRatio   sql.NullFloat64
 	SupportedEndpointTypes JSON `gorm:"type:jsonb"`
@@ -61,6 +63,7 @@ type UpsertCanonicalModelParams struct {
 	CacheReadRatio         sql.NullFloat64
 	CacheWriteRatio        sql.NullFloat64
 	CacheWrite1hRatio      sql.NullFloat64
+	PricingVariants        JSON
 	AudioRatio             sql.NullFloat64
 	AudioCompletionRatio   sql.NullFloat64
 	SupportedEndpointTypes JSON
@@ -72,6 +75,7 @@ type UpsertCanonicalModelParams struct {
 }
 
 type UpdateCanonicalModelParams struct {
+	PricingVariants        JSON
 	ID                     uuid.UUID
 	ModelKey               string
 	DisplayName            string
@@ -103,6 +107,7 @@ type UpdateCanonicalModelPricingParams struct {
 }
 
 type SyncCanonicalModelPricingParams struct {
+	PricingVariants      JSON
 	ModelKey             string
 	Provider             string
 	Category             string
@@ -350,6 +355,7 @@ func (r CanonicalModelRepository) SyncPricingUpsert(ctx context.Context, params 
 	existing.CacheReadRatio = params.CacheReadRatio
 	existing.CacheWriteRatio = params.CacheWriteRatio
 	existing.CacheWrite1hRatio = params.CacheWrite1hRatio
+	existing.PricingVariants = jsonKeepNonEmpty(params.PricingVariants, existing.PricingVariants)
 	existing.AudioRatio = params.AudioRatio
 	existing.AudioCompletionRatio = params.AudioCompletionRatio
 	existing.PricingSource = stringDefault(params.PricingSource, "none")
@@ -433,6 +439,7 @@ func (r CanonicalModelRepository) Create(ctx context.Context, params UpsertCanon
 		CacheReadRatio:         params.CacheReadRatio,
 		CacheWriteRatio:        params.CacheWriteRatio,
 		CacheWrite1hRatio:      params.CacheWrite1hRatio,
+		PricingVariants:        jsonDefault(params.PricingVariants, "{}"),
 		AudioRatio:             params.AudioRatio,
 		AudioCompletionRatio:   params.AudioCompletionRatio,
 		SupportedEndpointTypes: jsonDefault(params.SupportedEndpointTypes, "[]"),
@@ -480,6 +487,7 @@ func (r CanonicalModelRepository) Update(ctx context.Context, params UpdateCanon
 	item.CacheReadRatio = params.CacheReadRatio
 	item.CacheWriteRatio = params.CacheWriteRatio
 	item.CacheWrite1hRatio = params.CacheWrite1hRatio
+	item.PricingVariants = jsonDefault(params.PricingVariants, "{}")
 	item.SupportedEndpointTypes = jsonDefault(params.SupportedEndpointTypes, "[]")
 	item.Modalities = jsonDefault(params.Modalities, "[]")
 	item.ContextWindow = params.ContextWindow
