@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"strings"
@@ -38,6 +39,8 @@ type gatewayAttemptResult struct {
 	errorMessage               string
 	latencyMS                  int64
 	upstreamLatencyMS          int64
+	upstreamConnectionReused   bool
+	upstreamConnectionObserved bool
 	firstByteLatencyMS         int64
 	promptTokens               int
 	completionTokens           int
@@ -430,9 +433,19 @@ func (h Handler) forwardGatewayRequest(
 		}
 
 		upstreamStartedAt := time.Now()
+		connectionReused := false
+		connectionObserved := false
+		req = req.WithContext(httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{
+			GotConn: func(info httptrace.GotConnInfo) {
+				connectionObserved = true
+				connectionReused = info.Reused
+			},
+		}))
 		var resp *http.Response
 		resp, err = upstreamClient.Do(req)
 		result.upstreamLatencyMS = time.Since(upstreamStartedAt).Milliseconds()
+		result.upstreamConnectionObserved = connectionObserved
+		result.upstreamConnectionReused = connectionReused
 		if err != nil {
 			releaseConcurrency()
 			result.statusCode = transportFailureStatusCode(err)
