@@ -15,7 +15,7 @@ import (
 	"xlyra/server/internal/store"
 )
 
-const catalogSyncURL = "https://raw.githubusercontent.com/Yachiyo-5i/models-price/main/catalog.json"
+const catalogSyncURL = "https://raw.githubusercontent.com/Yachiyo-5i/models-price/refs/heads/main/catalog.json"
 
 type catalogPayload struct {
 	SchemaVersion  int                     `json:"schema_version"`
