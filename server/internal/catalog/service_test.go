@@ -3,9 +3,7 @@ package catalog
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -449,94 +447,4 @@ func TestSyncHelpersExtractNumericValues(t *testing.T) {
 	assertCatalogInt(t, limits, "tokens", 64, true)
 	assertCatalogInt(t, limits, "bad", 0, false)
 	assertCatalogInt(t, nil, "context", 0, false)
-}
-
-func TestFetchCatalogUsesModelsDevHeadersAndDecodesPayload(t *testing.T) {
-	t.Parallel()
-
-	requests := 0
-	service := &SyncService{client: &http.Client{Transport: catalogRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		requests++
-		if req.Method != http.MethodGet {
-			t.Fatalf("method = %s, want GET", req.Method)
-		}
-		if req.URL.String() != modelsDevSyncURL {
-			t.Fatalf("url = %s, want %s", req.URL.String(), modelsDevSyncURL)
-		}
-		if req.Header.Get("Accept") != "application/json" {
-			t.Fatalf("Accept = %q, want application/json", req.Header.Get("Accept"))
-		}
-		if req.Header.Get("User-Agent") != "xLyra/1.0" {
-			t.Fatalf("User-Agent = %q, want xLyra/1.0", req.Header.Get("User-Agent"))
-		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     make(http.Header),
-			Body: io.NopCloser(strings.NewReader(`{
-				"openai": {
-					"models": {
-						"gpt-4o": {
-							"id": "gpt-4o",
-							"name": "GPT-4o",
-							"cost": {"input": 2.5},
-							"modalities": {"input": ["text"], "output": ["text"]},
-							"limit": {"context": 128000}
-						}
-					}
-				}
-			}`)),
-		}, nil
-	})}}
-
-	catalog, err := service.fetchCatalog(context.Background())
-	if err != nil {
-		t.Fatalf("fetchCatalog: %v", err)
-	}
-	if requests != 1 {
-		t.Fatalf("requests = %d, want 1", requests)
-	}
-	model := catalog["openai"].Models["gpt-4o"]
-	if model.ID != "gpt-4o" || model.Name != "GPT-4o" {
-		t.Fatalf("decoded model = %#v", model)
-	}
-	if got := extractFloat(model.Cost, "input"); got != 2.5 {
-		t.Fatalf("decoded cost input = %v, want 2.5", got)
-	}
-}
-
-func TestFetchCatalogReportsHTTPAndDecodeErrors(t *testing.T) {
-	t.Parallel()
-
-	statusService := &SyncService{client: &http.Client{Transport: catalogRoundTripFunc(func(_ *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusBadGateway,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`bad gateway`)),
-		}, nil
-	})}}
-	_, err := statusService.fetchCatalog(context.Background())
-	assertCatalogErrorContains(t, "fetchCatalog status", err, "models.dev returned 502")
-
-	decodeService := &SyncService{client: &http.Client{Transport: catalogRoundTripFunc(func(_ *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`{`)),
-		}, nil
-	})}}
-	if _, err := decodeService.fetchCatalog(context.Background()); err == nil {
-		t.Fatal("expected decode error")
-	}
-}
-
-func assertStringSliceEqual(t *testing.T, got []string, want []string) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("got %#v, want %#v", got, want)
-	}
-	for index := range got {
-		if got[index] != want[index] {
-			t.Fatalf("got %#v, want %#v", got, want)
-		}
-	}
 }

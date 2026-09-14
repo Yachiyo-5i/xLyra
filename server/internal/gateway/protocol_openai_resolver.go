@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -30,6 +31,9 @@ type openAIProtocolResolver struct {
 }
 
 func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequest, candidate routeengine.Candidate) (gatewayProtocolAdapter, error) {
+	if endpointTypes := candidate.Model.SupportedEndpointTypes; len(endpointTypes) > 0 && !endpointTypesAllowRequest(request, endpointTypes) {
+		return nil, fmt.Errorf("credential does not support request endpoint")
+	}
 	if request.DownstreamPath == gatewayEndpointEmbeddings {
 		return newOpenAIEmbeddingsProtocolAdapter(request, candidate), nil
 	}
@@ -86,7 +90,11 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		}
 	}
 
-	endpointTypes, err := r.supportedEndpointTypes(ctx, candidate.Model.SiteModelID)
+	endpointTypes := append([]string(nil), candidate.Model.SupportedEndpointTypes...)
+	var err error
+	if len(endpointTypes) == 0 {
+		endpointTypes, err = r.supportedEndpointTypes(ctx, candidate.Model.SiteModelID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +126,27 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		return newOpenAIResponsesProtocolAdapter(request), nil
 	}
 	return newOpenAIChatProtocolAdapter(request, candidate), nil
+}
+
+func endpointTypesAllowRequest(request gatewayRequest, endpointTypes []string) bool {
+	allowed := func(values ...string) bool {
+		for _, value := range values {
+			if containsEndpointType(endpointTypes, value) {
+				return true
+			}
+		}
+		return false
+	}
+	switch {
+	case request.DownstreamPath == gatewayEndpointEmbeddings:
+		return allowed(upstreamEndpointTypeOpenAIEmbedding)
+	case request.DownstreamPath == gatewayEndpointAudioSpeech:
+		return allowed(upstreamEndpointTypeOpenAIAudioSpeech, upstreamEndpointTypeOpenAI, upstreamEndpointTypeGoogleGemini)
+	case isOpenAIImagesEndpoint(request.DownstreamPath):
+		return allowed(upstreamEndpointTypeOpenAIImage, upstreamEndpointTypeOpenAI, upstreamEndpointTypeGoogleGemini)
+	default:
+		return allowed(upstreamEndpointTypeOpenAI, upstreamEndpointTypeOpenAIResponse, upstreamEndpointTypeAnthropicMessages, upstreamEndpointTypeGoogleGemini)
+	}
 }
 
 func anthropicMessagesProtocolForCandidate(request gatewayRequest, candidate routeengine.Candidate) gatewayProtocolAdapter {

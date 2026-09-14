@@ -149,7 +149,7 @@ func TestBillingMetadataGuardsAndCandidateFallback(t *testing.T) {
 	}, routeengine.Candidate{
 		Model: routeengine.CandidateModel{UpstreamName: "gpt-5.5"},
 	})
-	if result.serviceTier != "priority" || result.billingMode != "fast" || result.costMultiplier != 2.5 || result.multiplierReason != "codex_fast_mode" {
+	if result.serviceTier != "priority" || result.billingMode != "fast" || result.costMultiplier != 1 || result.multiplierReason != "" {
 		t.Fatalf("candidate fallback billing metadata = %#v", result)
 	}
 

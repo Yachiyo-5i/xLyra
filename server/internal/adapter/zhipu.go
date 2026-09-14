@@ -9,11 +9,10 @@ import (
 )
 
 const (
-	zhipuSiteType          = "zhipu"
-	glmCodeSiteType        = "glm_code"
-	zhipuDefaultBaseURL    = "https://open.bigmodel.cn/api/paas/v4"
-	glmCodeDefaultBaseURL  = "https://open.bigmodel.cn/api/coding/paas/v4"
-	zhipuModelsDevProvider = "zhipuai"
+	zhipuSiteType         = "zhipu"
+	glmCodeSiteType       = "glm_code"
+	zhipuDefaultBaseURL   = "https://open.bigmodel.cn/api/paas/v4"
+	glmCodeDefaultBaseURL = "https://open.bigmodel.cn/api/coding/paas/v4"
 )
 
 type Zhipu struct {
@@ -50,7 +49,6 @@ func (z Zhipu) Capabilities() []Capability {
 	return []Capability{
 		CapabilityValidateCredential,
 		CapabilityListModels,
-		CapabilityFetchPricing,
 	}
 }
 
@@ -66,15 +64,6 @@ func (z Zhipu) ListModels(_ context.Context, site SiteConfig, apiKey string) ([]
 		return nil, fmt.Errorf("api key is required")
 	}
 	return zhipuStaticModels(site.SiteType), nil
-}
-
-func (z Zhipu) FetchPricing(ctx context.Context, site SiteConfig, _ SystemAuth) (PricingSnapshot, error) {
-	catalog, err := (OpenAICompatible{client: z.client}).fetchModelsDevCatalog(ctx, site)
-	if err != nil {
-		return PricingSnapshot{}, err
-	}
-	models := zhipuStaticModels(site.SiteType)
-	return openAICompatiblePricingFromModelsDev(zhipuModelsDevProvider, models, catalog), nil
 }
 
 func zhipuStaticModels(siteType string) []Model {

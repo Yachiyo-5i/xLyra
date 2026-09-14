@@ -118,12 +118,12 @@ func (s *Scheduler) RegisterDefaultJobs() {
 	}
 
 	if s.sync == nil {
-		s.logger.Warn("models.dev sync scheduler disabled: sync service is unavailable")
+		s.logger.Warn("model catalog sync scheduler disabled: sync service is unavailable")
 	} else {
-		if _, err := s.cron.AddFunc(modelPricingSyncCron, s.runModelsDevSync); err != nil {
-			s.logger.Error("register models.dev sync scheduler failed", "error", err)
+		if _, err := s.cron.AddFunc(modelPricingSyncCron, s.runModelCatalogSync); err != nil {
+			s.logger.Error("register model catalog sync scheduler failed", "error", err)
 		} else {
-			s.logger.Info("models.dev sync scheduler registered", "interval", modelPricingSyncCron)
+			s.logger.Info("model catalog sync scheduler registered", "interval", modelPricingSyncCron)
 		}
 	}
 
@@ -292,9 +292,9 @@ func (s *Scheduler) runSiteHealthChecks() {
 	s.logger.Info("site health scheduler finished", "site_count", len(enabled), "duration", time.Since(start))
 }
 
-func (s *Scheduler) runModelsDevSync() {
+func (s *Scheduler) runModelCatalogSync() {
 	if !s.syncing.CompareAndSwap(false, true) {
-		s.logger.Warn("models.dev sync skipped: previous run still active")
+		s.logger.Warn("model catalog sync skipped: previous run still active")
 		return
 	}
 	defer s.syncing.Store(false)
@@ -303,7 +303,7 @@ func (s *Scheduler) runModelsDevSync() {
 	defer cancel()
 
 	if err := s.sync.SyncAll(ctx); err != nil {
-		s.logger.Error("models.dev sync failed", "error", err)
+		s.logger.Error("model catalog sync failed", "error", err)
 		return
 	}
 	if s.modelsCacheInvalidator != nil {

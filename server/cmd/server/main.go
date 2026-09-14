@@ -116,7 +116,7 @@ func run() int {
 	logger.Info("business services initializing")
 	oauthService := oauthsvc.NewService(db, masterKey, confFile)
 	siteService := site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
-	syncService := catalog.NewSyncService(db, logger.With("thread", "models-dev-sync"), confFile)
+	syncService := catalog.NewSyncService(db, logger.With("thread", "model-catalog-sync"), confFile)
 	usageSummaryService := usage.NewSummaryService(db, confFile, appTimeZone)
 	backupService := backup.NewService(db, confFile, masterKey, filepath.Join(config.ResolveWorkdir(), "playground"), appTimeZone)
 	automaticBackupService := backup.NewAutomaticService(backupService, masterKey)
@@ -163,10 +163,10 @@ func run() int {
 		ctx, cancel := context.WithTimeout(backgroundCtx, 2*time.Minute)
 		defer cancel()
 		if err := syncService.SyncAll(ctx); err != nil {
-			logger.Warn("startup models.dev sync failed", "error", err)
+			logger.Warn("startup model catalog sync failed", "error", err)
 		} else {
 			gatewayHandler.InvalidateModelsCache()
-			logger.Info("startup models.dev sync completed")
+			logger.Info("startup model catalog sync completed")
 		}
 	}()
 

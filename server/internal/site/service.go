@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/credential"
 	"xlyra/server/internal/httpclient"
@@ -134,12 +135,11 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	httpClients := httpclient.NewManager(confFile)
-	modelCapsClient, _ := httpClients.Client(httpclient.DefaultProfile())
 	return &Service{
 		db:          db,
 		credentials: credential.NewService(masterKey),
 		adapters:    adapter.NewRegistry(),
-		modelCaps:   modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: modelCapsClient}),
+		modelCaps:   catalog.NewCapabilityService(db),
 		oauth:       oauthService,
 		httpClients: httpClients,
 		confFile:    confFile,
@@ -1890,6 +1890,79 @@ func (s *Service) SetAPIKeyModelEnabled(ctx context.Context, siteID uuid.UUID, c
 	return s.apiKeyCredentialFromStore(updated)
 }
 
+func (s *Service) SetAPIKeyModelEndpointOverride(ctx context.Context, siteID, credentialID, siteModelID uuid.UUID, mode string, endpointTypes []string) (APIKeyCredential, error) {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	if mode == "" {
+		mode = "inherit"
+	}
+	if mode != "inherit" && mode != "allowlist" && mode != "disabled" {
+		return APIKeyCredential{}, fmt.Errorf("invalid endpoint override mode %q", mode)
+	}
+	if mode == "allowlist" && len(endpointTypes) == 0 {
+		return APIKeyCredential{}, fmt.Errorf("endpoint types are required for allowlist")
+	}
+	credential, err := s.APIKeyByCredentialID(ctx, siteID, credentialID)
+	if err != nil {
+		return APIKeyCredential{}, err
+	}
+	siteModel, err := store.NewSiteModelRepository(s.db.DB()).GetByID(ctx, siteModelID)
+	if err != nil || siteModel.SiteID != siteID {
+		return APIKeyCredential{}, fmt.Errorf("site model was not found")
+	}
+	if _, err := store.NewSiteAPIKeyModelRepository(s.db.DB()).GetByCredentialModel(ctx, siteID, credentialID, siteModelID); err != nil {
+		return APIKeyCredential{}, fmt.Errorf("api key model was not found")
+	}
+	canonical := store.CanonicalModel{}
+	if siteModel.CanonicalID.Valid {
+		canonical, _ = store.NewCanonicalModelRepository(s.db.DB()).GetByID(ctx, siteModel.CanonicalID.UUID)
+	}
+	siteOverride := store.SiteModelEndpointOverride{}
+	siteOverride, _ = store.NewSiteModelEndpointOverrideRepository(s.db.DB()).Get(ctx, siteModelID)
+	policy := store.ResolveSiteModelEndpointPolicy(canonical, siteModel, siteOverride)
+	endpointTypes = store.NormalizeModelEndpointTypes(endpointTypes)
+	if mode == "allowlist" && len(store.IntersectModelEndpointTypes(policy.SupportedEndpointTypes, endpointTypes)) != len(endpointTypes) {
+		return APIKeyCredential{}, fmt.Errorf("endpoint types exceed site model capabilities")
+	}
+	_, err = store.NewSiteAPIKeyModelRepository(s.db.DB()).UpdateEndpointOverride(ctx, credential.Credential.ID, siteModelID, store.SiteAPIKeyModelEndpointOverride{Mode: mode, EndpointTypes: endpointTypes})
+	if err != nil {
+		return APIKeyCredential{}, err
+	}
+	return credential, nil
+}
+
+func (s *Service) EnsureAPIKeyModelEnabled(ctx context.Context, siteID, credentialID, siteModelID uuid.UUID, enabled bool) (APIKeyCredential, error) {
+	_, err := s.APIKeyByCredentialID(ctx, siteID, credentialID)
+	if err != nil {
+		return APIKeyCredential{}, err
+	}
+	siteModel, err := store.NewSiteModelRepository(s.db.DB()).GetByID(ctx, siteModelID)
+	if err != nil || siteModel.SiteID != siteID {
+		return APIKeyCredential{}, fmt.Errorf("site model was not found")
+	}
+	modelRepo := store.NewSiteAPIKeyModelRepository(s.db.DB())
+	if _, err := modelRepo.GetByCredentialModel(ctx, siteID, credentialID, siteModelID); errors.Is(err, gorm.ErrRecordNotFound) {
+		if _, err := modelRepo.Upsert(ctx, store.UpsertSiteAPIKeyModelParams{SiteID: siteID, SiteCredentialID: credentialID, SiteModelID: siteModelID, UpstreamModelName: siteModel.UpstreamName, DisplayName: siteModel.DisplayName, Available: true, Enabled: enabled, Raw: siteModel.Capabilities}); err != nil {
+			return APIKeyCredential{}, err
+		}
+	} else if err != nil {
+		return APIKeyCredential{}, err
+	}
+	return s.SetAPIKeyModelEnabled(ctx, siteID, credentialID, siteModel.UpstreamName, enabled)
+}
+
+func (s *Service) SiteModelEndpointTypes(ctx context.Context, siteModelID uuid.UUID) ([]string, error) {
+	model, err := store.NewSiteModelRepository(s.db.DB()).GetByID(ctx, siteModelID)
+	if err != nil {
+		return nil, err
+	}
+	canonical := store.CanonicalModel{}
+	if model.CanonicalID.Valid {
+		canonical, _ = store.NewCanonicalModelRepository(s.db.DB()).GetByID(ctx, model.CanonicalID.UUID)
+	}
+	override, _ := store.NewSiteModelEndpointOverrideRepository(s.db.DB()).Get(ctx, siteModelID)
+	return store.ResolveSiteModelEndpointPolicy(canonical, model, override).SupportedEndpointTypes, nil
+}
+
 func (s *Service) syncSiteModelStatusFromAPIKeyModels(ctx context.Context, siteID uuid.UUID, modelName string, updatedAPIKeyModel store.SiteAPIKeyModel) error {
 	apiKeyModelRepo := store.NewSiteAPIKeyModelRepository(s.db.DB())
 	siteModelRepo := store.NewSiteModelRepository(s.db.DB())
@@ -2499,7 +2572,7 @@ func (s *Service) enrichModelCapabilities(ctx context.Context, site store.Site, 
 		return model
 	}
 	model.Capabilities = result.Capabilities
-	return applyModelNameEndpointTypes(site, model)
+	return model
 }
 
 func applyModelNameEndpointTypes(site store.Site, model adapter.Model) adapter.Model {

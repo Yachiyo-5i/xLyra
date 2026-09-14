@@ -535,21 +535,6 @@ func (s *Service) refreshCapabilityState(ctx context.Context, item store.Site, m
 		keyMessages = append(keyMessages, "site did not expose raw api key values; api key summary sync skipped")
 	}
 	pricingSnapshot := adapter.PricingSnapshot{}
-	if userSummary.Pricing != nil {
-		if parser, ok := adapter.AsPricingParser(module); ok {
-			pricingSnapshot = parser.ParsePricing(userSummary.Pricing)
-		}
-	}
-	if len(pricingSnapshot.Items) == 0 {
-		if pricingFetcher, ok := adapter.AsPricingFetcher(module); ok {
-			if snapshot, err := pricingFetcher.FetchPricing(ctx, s.toAdapterSite(ctx, item), auth); err == nil {
-				pricingSnapshot = snapshot
-			} else {
-				syncStatus = "partial"
-				siteMessages = append(siteMessages, err.Error())
-			}
-		}
-	}
 	if err := s.retireSyncedPricingRows(ctx, item, module); err != nil {
 		syncStatus = "partial"
 		siteMessages = append(siteMessages, err.Error())
@@ -710,11 +695,6 @@ func (s *Service) refreshModelOnlyState(ctx context.Context, item store.Site) (R
 		return s.markRefreshFailed(ctx, item, err.Error())
 	}
 
-	module, ok := s.adapters.ModuleForSiteType(item.SiteType)
-	if !ok {
-		return s.markRefreshFailed(ctx, item, fmt.Sprintf("unsupported site_type %q", item.SiteType))
-	}
-
 	syncStatus := "synced"
 	var syncMessage any
 	if result.KeyErrors > 0 {
@@ -731,47 +711,6 @@ func (s *Service) refreshModelOnlyState(ctx context.Context, item store.Site) (R
 	pricingSnapshot := adapter.PricingSnapshot{}
 	pricingGroups := []store.SitePricingGroup{}
 	modelPricings := []store.SiteModelPricing{}
-
-	if pricingFetcher, ok := adapter.AsPricingFetcher(module); ok {
-		auth, authErr := s.pricingAuth(ctx, item)
-		if authErr != nil {
-			syncStatus = "partial"
-			syncMessage = authErr.Error()
-		} else {
-			pricingSnapshot, err = pricingFetcher.FetchPricing(ctx, s.toAdapterSite(ctx, item), auth)
-			if err != nil {
-				syncStatus = "partial"
-				syncMessage = err.Error()
-			} else if len(pricingSnapshot.Items) > 0 || len(pricingSnapshot.Groups) > 0 {
-				siteModelsByName := make(map[string]store.SiteModel, len(result.Models))
-				for _, siteModel := range result.Models {
-					siteModelsByName[siteModel.UpstreamName] = siteModel
-					siteModelsByName[siteModel.DisplayName] = siteModel
-				}
-				groups, pricings, syncErr := syncPricingState(
-					ctx,
-					item.ID,
-					item.SiteType,
-					pricingSnapshot,
-					siteModelsByName,
-					store.NewSitePricingGroupRepository(s.db.DB()),
-					store.NewSiteModelPricingRepository(s.db.DB()),
-					now,
-				)
-				if syncErr != nil {
-					syncStatus = "partial"
-					syncMessage = syncErr.Error()
-				} else {
-					pricingGroups = groups
-					modelPricings = pricings
-				}
-			}
-		}
-	}
-	if err := s.retireSyncedPricingRows(ctx, item, module); err != nil {
-		syncStatus = "partial"
-		syncMessage = err.Error()
-	}
 
 	state, err := store.NewSiteStateRepository(s.db.DB()).Upsert(ctx, store.UpsertSiteStateParams{
 		SiteID:            item.ID,
@@ -1118,7 +1057,7 @@ func syncModelState(ctx context.Context, siteID uuid.UUID, keys []refreshKey, si
 				DisplayName:       defaultString(item.model.DisplayName, item.model.UpstreamName),
 				Available:         true,
 				Enabled:           true,
-				Raw:               jsonBytes(item.model.Capabilities["raw"]),
+				Raw:               jsonBytes(item.model.Capabilities),
 				LastSeenAt:        time.Now(),
 				LastSyncedAt:      time.Now(),
 			})
@@ -2044,9 +1983,6 @@ func modelLimitsJSON(value any) []byte {
 // canonical fallback pricing from taking over on refresh.
 func (s *Service) retireSyncedPricingRows(ctx context.Context, item store.Site, module adapter.Module) error {
 	if _, ok := adapter.AsPricingFetcher(module); ok {
-		return nil
-	}
-	if _, ok := adapter.AsPricingParser(module); ok {
 		return nil
 	}
 	if err := store.NewSiteModelPricingRepository(s.db.DB()).MarkUnavailableExcept(ctx, item.ID, nil); err != nil {

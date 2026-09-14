@@ -32,7 +32,7 @@ func (OpenCodeGo) SiteTypes() []string {
 }
 
 func (OpenCodeGo) Capabilities() []Capability {
-	return []Capability{CapabilityHealthProbe, CapabilityListModels, CapabilityFetchPricing}
+	return []Capability{CapabilityHealthProbe, CapabilityListModels}
 }
 
 func (OpenCodeGo) DefaultBaseURL() string {

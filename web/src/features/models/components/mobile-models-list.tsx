@@ -194,9 +194,10 @@ function MobilePricingBlock({
   pricing: PricingRow
 }) {
   const { t } = useTranslation('models')
-  const endpointTypes = site.supportedEndpointTypes.length
-    ? site.supportedEndpointTypes
-    : []
+        const endpointTypes = [
+          ...site.supportedEndpointTypes.map((endpointType) => ({ endpointType, enabled: true })),
+          ...(site.disabledEndpointTypes ?? []).map((endpointType) => ({ endpointType, enabled: false })),
+        ]
 
   return (
     <div className="rounded-lg bg-[hsl(var(--surface-subtle)/0.58)] px-3 py-3">
@@ -263,16 +264,10 @@ function MobilePricingBlock({
         </div>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {endpointTypes.length ? (
-            endpointTypes.map((endpointType) => (
-              <Badge
-                key={`${site.modelId}-${endpointType}`}
-                variant="neutral"
-                className="max-w-full border-transparent px-2 py-0.5 text-[11px] tracking-normal"
-              >
-                <span className="break-all">
-                  {formatEndpointTypeLabel(endpointType)}
-                </span>
-              </Badge>
+            endpointTypes.map(({ endpointType, enabled }, index) => (
+              <span key={`${site.modelId}-${endpointType}`} className={enabled ? undefined : 'line-through opacity-60'}>
+                {index > 0 ? ' / ' : ''}{formatEndpointTypeLabel(endpointType)}
+              </span>
             ))
           ) : (
             <span className="text-xs text-muted-soft">--</span>

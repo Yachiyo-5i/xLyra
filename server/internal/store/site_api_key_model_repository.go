@@ -3,14 +3,108 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+type SiteAPIKeyModelEndpointOverride struct {
+	Mode          string   `json:"mode"`
+	EndpointTypes []string `json:"endpoint_types"`
+}
+
+type SiteAPIKeyModelCapabilities struct {
+	SupportedEndpointTypes []string                        `json:"supported_endpoint_types"`
+	EndpointOverride       SiteAPIKeyModelEndpointOverride `json:"endpoint_override"`
+}
+
+func (m SiteAPIKeyModel) Capabilities() SiteAPIKeyModelCapabilities {
+	var value SiteAPIKeyModelCapabilities
+	if len(m.Raw) == 0 {
+		return SiteAPIKeyModelCapabilities{EndpointOverride: SiteAPIKeyModelEndpointOverride{Mode: "inherit"}}
+	}
+	if json.Unmarshal(m.Raw, &value) != nil {
+		return SiteAPIKeyModelCapabilities{EndpointOverride: SiteAPIKeyModelEndpointOverride{Mode: "disabled", EndpointTypes: []string{}}}
+	}
+	if value.SupportedEndpointTypes == nil {
+		var nested struct {
+			Raw struct {
+				SupportedEndpointTypes []string `json:"supported_endpoint_types"`
+			} `json:"raw"`
+		}
+		if json.Unmarshal(m.Raw, &nested) == nil {
+			value.SupportedEndpointTypes = nested.Raw.SupportedEndpointTypes
+		}
+	}
+	value.SupportedEndpointTypes = NormalizeModelEndpointTypes(value.SupportedEndpointTypes)
+	if value.EndpointOverride.Mode == "" {
+		value.EndpointOverride.Mode = "inherit"
+	}
+	value.EndpointOverride.EndpointTypes = NormalizeModelEndpointTypes(value.EndpointOverride.EndpointTypes)
+	return value
+}
+
+func NormalizeModelEndpointTypes(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value != "" && !seen[value] {
+			result = append(result, value)
+			seen[value] = true
+		}
+	}
+	return result
+}
+
+func IntersectModelEndpointTypes(base, selected []string) []string {
+	result := []string{}
+	allowed := map[string]bool{}
+	for _, value := range NormalizeModelEndpointTypes(base) {
+		allowed[value] = true
+	}
+	for _, value := range NormalizeModelEndpointTypes(selected) {
+		if allowed[value] {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func (m SiteAPIKeyModel) EffectiveEndpointTypes(siteTypes []string) []string {
+	capabilities := m.Capabilities()
+	switch capabilities.EndpointOverride.Mode {
+	case "disabled":
+		return []string{}
+	case "allowlist":
+		return IntersectModelEndpointTypes(siteTypes, capabilities.EndpointOverride.EndpointTypes)
+	case "inherit":
+		if capabilities.SupportedEndpointTypes == nil {
+			return NormalizeModelEndpointTypes(siteTypes)
+		}
+		return IntersectModelEndpointTypes(siteTypes, capabilities.SupportedEndpointTypes)
+	default:
+		return []string{}
+	}
+}
+
+func (m SiteAPIKeyModel) Manual() bool {
+	var raw struct {
+		Source string `json:"source"`
+		Manual bool   `json:"manual"`
+	}
+	return json.Unmarshal(m.Raw, &raw) == nil && (raw.Manual || raw.Source == "manual")
+}
 
 type SiteAPIKeyModel struct {
 	ID                uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
@@ -58,14 +152,16 @@ func (r SiteAPIKeyModelRepository) Upsert(ctx context.Context, params UpsertSite
 	}
 	model.SiteID = params.SiteID
 	model.SiteCredentialID = params.SiteCredentialID
-	model.SiteModelID = nullUUIDFromAny(params.SiteModelID)
+	if binding := nullUUIDFromAny(params.SiteModelID); binding.Valid || err == gorm.ErrRecordNotFound {
+		model.SiteModelID = binding
+	}
 	model.UpstreamModelName = params.UpstreamModelName
 	model.DisplayName = params.DisplayName
 	model.Available = params.Available
 	if err == gorm.ErrRecordNotFound {
 		model.Enabled = params.Enabled
 	}
-	model.Raw = jsonDefault(params.Raw, "{}")
+	model.Raw = mergeSiteAPIKeyModelRaw(model.Raw, jsonDefault(params.Raw, "{}"))
 	model.LastSeenAt = nullTimeFromAny(params.LastSeenAt)
 	model.LastSyncedAt = nullTimeFromAny(params.LastSyncedAt)
 	if err == gorm.ErrRecordNotFound {
@@ -78,6 +174,24 @@ func (r SiteAPIKeyModelRepository) Upsert(ctx context.Context, params UpsertSite
 		return SiteAPIKeyModel{}, fmt.Errorf("upsert site api key model: %w", err)
 	}
 	return model, nil
+}
+
+func mergeSiteAPIKeyModelRaw(existing, incoming JSON) JSON {
+	oldMeta := map[string]json.RawMessage{}
+	newMeta := map[string]json.RawMessage{}
+	_ = json.Unmarshal(existing, &oldMeta)
+	if json.Unmarshal(incoming, &newMeta) != nil || newMeta == nil {
+		newMeta = map[string]json.RawMessage{}
+	}
+	delete(newMeta, "endpoint_override")
+	if override, ok := oldMeta["endpoint_override"]; ok {
+		newMeta["endpoint_override"] = override
+	}
+	if (SiteAPIKeyModel{Raw: existing}).Manual() {
+		newMeta["manual"] = json.RawMessage("true")
+	}
+	raw, _ := json.Marshal(newMeta)
+	return JSON(raw)
 }
 
 func (r SiteAPIKeyModelRepository) ListBySite(ctx context.Context, siteID uuid.UUID) ([]SiteAPIKeyModel, error) {
@@ -138,7 +252,7 @@ func (r SiteAPIKeyModelRepository) MarkUnavailableExcept(ctx context.Context, si
 	now := time.Now()
 	db := r.db.WithContext(ctx)
 	for _, model := range models {
-		if _, ok := seen[model.UpstreamModelName]; ok {
+		if _, ok := seen[model.UpstreamModelName]; ok || model.Manual() {
 			continue
 		}
 		model.Available = false
@@ -175,6 +289,37 @@ func (r SiteAPIKeyModelRepository) UpdateEnabled(ctx context.Context, siteCreden
 		return SiteAPIKeyModel{}, fmt.Errorf("update site api key model enabled: %w", err)
 	}
 	return model, nil
+}
+
+func (r SiteAPIKeyModelRepository) GetByCredentialModel(ctx context.Context, siteID, credentialID, modelID uuid.UUID) (SiteAPIKeyModel, error) {
+	var item SiteAPIKeyModel
+	err := r.db.WithContext(ctx).Where(&SiteAPIKeyModel{SiteID: siteID, SiteCredentialID: credentialID, SiteModelID: uuid.NullUUID{UUID: modelID, Valid: true}}).First(&item).Error
+	return item, err
+}
+
+func (r SiteAPIKeyModelRepository) UpdateEndpointOverride(ctx context.Context, siteCredentialID, siteModelID uuid.UUID, override SiteAPIKeyModelEndpointOverride) (SiteAPIKeyModel, error) {
+	var model SiteAPIKeyModel
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(&SiteAPIKeyModel{SiteCredentialID: siteCredentialID, SiteModelID: uuid.NullUUID{UUID: siteModelID, Valid: true}}).First(&model).Error; err != nil {
+			return err
+		}
+		meta := map[string]json.RawMessage{}
+		if json.Unmarshal(model.Raw, &meta) != nil || meta == nil {
+			return fmt.Errorf("invalid model metadata")
+		}
+		if override.Mode == "inherit" {
+			delete(meta, "endpoint_override")
+		} else {
+			meta["endpoint_override"], _ = json.Marshal(override)
+		}
+		raw, err := json.Marshal(meta)
+		if err != nil {
+			return err
+		}
+		model.Raw = JSON(raw)
+		return tx.Model(&SiteAPIKeyModel{}).Where(&SiteAPIKeyModel{ID: model.ID}).Updates(map[string]any{"raw": model.Raw}).Error
+	})
+	return model, err
 }
 
 func (r SiteAPIKeyModelRepository) MarkUnavailable(ctx context.Context, siteCredentialID uuid.UUID, siteModelID uuid.UUID) error {
