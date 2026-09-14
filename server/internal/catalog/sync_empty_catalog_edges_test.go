@@ -31,8 +31,8 @@ func TestSyncAllEmptyCatalogSkipsRepositoryWrites(t *testing.T) {
 		})},
 	}
 
-	if err := service.SyncAll(context.Background()); err != nil {
-		t.Fatalf("SyncAll empty catalog: %v", err)
+	if err := service.SyncAll(context.Background()); err == nil {
+		t.Fatal("empty catalog must fail")
 	}
 	if requests != 1 {
 		t.Fatalf("requests = %d, want 1 (catalog)", requests)

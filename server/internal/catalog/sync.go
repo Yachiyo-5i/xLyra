@@ -44,33 +44,18 @@ type catalogModel struct {
 	PricingVariants        map[string]any `json:"pricing_variants"`
 	Status                 string         `json:"status"`
 	Aliases                []string       `json:"aliases"`
+	Cost                   map[string]any `json:"cost"`
+	Experimental           map[string]any `json:"experimental"`
 }
 type SyncService struct {
 	db     *store.Store
 	logger *slog.Logger
 	client *http.Client
-	url    string
-	token  string
 }
 
-func NewSyncService(db *store.Store, logger *slog.Logger, confFiles ...*config.ConfigFile) *SyncService {
-	var cf *config.ConfigFile
-	if len(confFiles) > 0 {
-		cf = confFiles[0]
-	}
-	c, _ := httpclient.NewManager(cf).Client(httpclient.DefaultProfile())
-	url, token := catalogSyncURL, ""
-	if cf != nil {
-		if value, ok := cf.Get("model_catalog.url"); ok {
-			if text, ok := value.(string); ok && strings.TrimSpace(text) != "" {
-				url = strings.TrimSpace(text)
-			}
-		}
-		if value, ok := cf.Get("model_catalog.token"); ok {
-			token, _ = value.(string)
-		}
-	}
-	return &SyncService{db: db, logger: logger, client: c, url: url, token: strings.TrimSpace(token)}
+func NewSyncService(db *store.Store, logger *slog.Logger, _ ...*config.ConfigFile) *SyncService {
+	c, _ := httpclient.NewManager(nil).Client(httpclient.DefaultProfile())
+	return &SyncService{db: db, logger: logger, client: c}
 }
 func (s *SyncService) SyncAll(ctx context.Context) error {
 	start := time.Now()
@@ -79,34 +64,65 @@ func (s *SyncService) SyncAll(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("fetch model catalog: %w", err)
 	}
-	repo := store.NewCanonicalModelRepository(s.db.DB())
+	if len(c.Brands) == 0 {
+		return fmt.Errorf("catalog contains no brands")
+	}
 	total, synced := 0, 0
-	for brand, b := range c.Brands {
-		for id, m := range b.Models {
-			total++
-			if err := s.syncCatalogModel(ctx, repo, brand, id, m); err != nil {
-				s.logger.Warn("catalog model sync failed", "brand", brand, "model_id", id, "error", err)
-				continue
+	err = s.db.WithinTx(ctx, func(tx store.Tx) error {
+		repo := store.NewCanonicalModelRepository(tx)
+		keys := map[string]struct{}{}
+		for brand, b := range c.Brands {
+			for id, m := range b.Models {
+				total++
+				key := CanonicalModelKeyFromUpstream(strings.TrimSpace(m.ModelKey))
+				if key == "" {
+					key = CanonicalModelKeyFromUpstream(strings.TrimSpace(brand + "/" + id))
+				}
+				if key == "" {
+					return fmt.Errorf("catalog model %s/%s has empty model key", brand, id)
+				}
+				if _, ok := keys[key]; ok {
+					return fmt.Errorf("duplicate catalog model key %q", key)
+				}
+				keys[key] = struct{}{}
+				if err := s.syncCatalogModel(ctx, repo, brand, id, m); err != nil {
+					return fmt.Errorf("sync %s/%s: %w", brand, id, err)
+				}
+				synced++
 			}
-			synced++
 		}
+		models, err := repo.ListAll(ctx)
+		if err != nil {
+			return err
+		}
+		for _, model := range models {
+			if model.PricingSource == store.CanonicalPricingSourceCatalog {
+				if _, ok := keys[model.ModelKey]; !ok {
+					if _, err := repo.Archive(ctx, model.ID); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if _, err := ReconcileProviders(ctx, tx); err != nil {
+			return fmt.Errorf("reconcile canonical model providers: %w", err)
+		}
+		return ReconcileCategories(ctx, tx)
+	})
+	if err != nil {
+		return err
 	}
 	s.logger.Info("model catalog sync finished", "total", total, "synced", synced, "catalog_version", c.CatalogVersion, "duration", time.Since(start))
-	if _, err := ReconcileProviders(ctx, s.db.DB()); err != nil {
-		return fmt.Errorf("reconcile canonical model providers: %w", err)
-	}
-	return ReconcileCategories(ctx, s.db.DB())
+	return nil
 }
+
 func (s *SyncService) fetchGithubCatalog(ctx context.Context) (catalogPayload, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, catalogSyncURL, nil)
 	if err != nil {
 		return catalogPayload{}, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "xLyra/1.0")
-	if s.token != "" {
-		req.Header.Set("Authorization", "Bearer "+s.token)
-	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return catalogPayload{}, err
@@ -119,7 +135,7 @@ func (s *SyncService) fetchGithubCatalog(ctx context.Context) (catalogPayload, e
 	if err := json.NewDecoder(resp.Body).Decode(&c); err != nil {
 		return c, err
 	}
-	if c.SchemaVersion != 1 && len(c.Brands) > 0 {
+	if c.SchemaVersion != 1 {
 		return c, fmt.Errorf("invalid catalog schema or empty brands")
 	}
 	return c, nil
@@ -136,8 +152,18 @@ func (s *SyncService) syncCatalogModel(ctx context.Context, repo store.Canonical
 	if caps == nil {
 		caps = map[string]any{}
 	}
+	pricingVariants := map[string]any{}
 	if len(m.PricingVariants) > 0 {
-		caps["pricing_variants"] = m.PricingVariants
+		pricingVariants = m.PricingVariants
+	}
+	if len(m.Cost) > 0 {
+		pricingVariants["cost"] = m.Cost
+	}
+	if len(m.Experimental) > 0 {
+		pricingVariants["experimental"] = m.Experimental
+	}
+	if len(pricingVariants) > 0 {
+		caps["pricing_variants"] = pricingVariants
 	}
 	encoded, err := json.Marshal(caps)
 	if err != nil {
@@ -145,7 +171,24 @@ func (s *SyncService) syncCatalogModel(ctx context.Context, repo store.Canonical
 	}
 	modalities, _ := json.Marshal(m.Modalities)
 	endpoints, _ := json.Marshal(m.SupportedEndpointTypes)
-	model, err := repo.SyncUpsert(ctx, store.UpsertCanonicalModelParams{ModelKey: key, DisplayName: m.DisplayName, Provider: defaultString(m.Provider, brand), Category: defaultString(m.Category, InferCategory(key)), Capabilities: encoded, Status: defaultString(m.Status, "active"), SupportedEndpointTypes: store.JSON(endpoints), Modalities: store.JSON(modalities), InputPrice: nullFloat(m.InputPrice), OutputPrice: nullFloat(m.OutputPrice), CacheReadRatio: nullFloat(m.CacheReadRatio), CacheWriteRatio: nullFloat(m.CacheWriteRatio), CacheWrite1hRatio: nullFloat(m.CacheWrite1hRatio), ContextWindow: nullInt(m.ContextWindow), MaxOutputTokens: nullInt(m.MaxOutputTokens), PricingSource: store.CanonicalPricingSourceManual, LastPricingSyncedAt: sql.NullTime{Time: time.Now(), Valid: true}})
+	cacheReadRatio := m.CacheReadRatio
+	cacheWriteRatio := m.CacheWriteRatio
+	cacheWrite1hRatio := m.CacheWrite1hRatio
+	if m.InputPrice != nil && *m.InputPrice > 0 {
+		if v, ok := m.Cost["cache_read"].(float64); ok && cacheReadRatio == nil {
+			x := v / *m.InputPrice
+			cacheReadRatio = &x
+		}
+		if v, ok := m.Cost["cache_write"].(float64); ok && cacheWriteRatio == nil {
+			x := v / *m.InputPrice
+			cacheWriteRatio = &x
+		}
+		if v, ok := m.Cost["cache_write_1h"].(float64); ok && cacheWrite1hRatio == nil {
+			x := v / *m.InputPrice
+			cacheWrite1hRatio = &x
+		}
+	}
+	model, err := repo.SyncUpsert(ctx, store.UpsertCanonicalModelParams{ModelKey: key, DisplayName: m.DisplayName, Provider: defaultString(m.Provider, brand), Category: defaultString(m.Category, InferCategory(key)), Capabilities: encoded, Status: defaultString(m.Status, "active"), SupportedEndpointTypes: store.JSON(endpoints), Modalities: store.JSON(modalities), InputPrice: nullFloat(m.InputPrice), OutputPrice: nullFloat(m.OutputPrice), CacheReadRatio: nullFloat(cacheReadRatio), CacheWriteRatio: nullFloat(cacheWriteRatio), CacheWrite1hRatio: nullFloat(cacheWrite1hRatio), ContextWindow: nullInt(m.ContextWindow), MaxOutputTokens: nullInt(m.MaxOutputTokens), PricingVariants: mustJSON(pricingVariants), PricingSource: store.CanonicalPricingSourceCatalog, LastPricingSyncedAt: sql.NullTime{Time: time.Now(), Valid: true}})
 	if err != nil {
 		return err
 	}

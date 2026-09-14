@@ -292,8 +292,6 @@ func (s *Scheduler) runSiteHealthChecks() {
 	s.logger.Info("site health scheduler finished", "site_count", len(enabled), "duration", time.Since(start))
 }
 
-func (s *Scheduler) runModelsDevSync() { s.runModelCatalogSync() }
-
 func (s *Scheduler) runModelCatalogSync() {
 	if !s.syncing.CompareAndSwap(false, true) {
 		s.logger.Warn("model catalog sync skipped: previous run still active")

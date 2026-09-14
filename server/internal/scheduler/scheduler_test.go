@@ -91,7 +91,7 @@ func TestRegisterDefaultJobsWithCoreServicesRegistersBaseAndConfiguredJobs(t *te
 	scheduler.RegisterDefaultJobs()
 
 	if entries := scheduler.cron.Entries(); len(entries) != 6 {
-		t.Fatalf("expected site health, models.dev sync, usage summary, site refresh, newapi checkin, and codex version refresh jobs, got %d", len(entries))
+		t.Fatalf("expected site health, model catalog sync, usage summary, site refresh, newapi checkin, and codex version refresh jobs, got %d", len(entries))
 	}
 	if scheduler.siteRefreshID == 0 {
 		t.Fatal("expected configured site refresh job id")
@@ -174,9 +174,9 @@ func TestScheduledJobsSkipWhenPreviousRunIsActive(t *testing.T) {
 	}
 
 	scheduler.syncing.Store(true)
-	scheduler.runModelsDevSync()
+	scheduler.runModelCatalogSync()
 	if !scheduler.syncing.Load() {
-		t.Fatal("models.dev guard should remain active after skipped run")
+		t.Fatal("model catalog guard should remain active after skipped run")
 	}
 
 	scheduler.summarizing.Store(true)
