@@ -47,7 +47,6 @@ func (a Antigravity) Capabilities() []Capability {
 		CapabilitySummarizeAPIKey,
 		CapabilityFetchUserSummary,
 		CapabilityFetchBalance,
-		CapabilityFetchPricing,
 		CapabilityFetchMetadata,
 	}
 }

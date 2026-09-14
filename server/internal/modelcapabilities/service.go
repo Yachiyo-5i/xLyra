@@ -8,9 +8,8 @@ import (
 )
 
 const (
-	sourceUpstream  = "upstream"
-	sourceModelsDev = "models_dev"
-	sourceCurated   = "curated"
+	sourceUpstream = "upstream"
+	sourceCurated  = "curated"
 )
 
 type Input struct {
@@ -32,9 +31,9 @@ type Source interface {
 }
 
 type Config struct {
-	SourcePriority   map[string]int
-	HTTPClient       *http.Client
-	DisableModelsDev bool
+	Catalog        Source
+	SourcePriority map[string]int
+	HTTPClient     *http.Client
 }
 
 type Service struct {
@@ -53,21 +52,16 @@ func NewWithConfig(cfg Config) *Service {
 	}
 
 	return &Service{
-		sources: func() []Source {
-			if cfg.DisableModelsDev {
-				return []Source{curatedSource{}}
-			}
-			return []Source{newModelsDevSource(cfg.HTTPClient), curatedSource{}}
-		}(),
+		sources:    catalogSources(cfg.Catalog),
 		priorities: priorities,
 	}
 }
 
 func defaultPriorities() map[string]int {
 	return map[string]int{
-		sourceModelsDev: 20,
-		sourceUpstream:  60,
-		sourceCurated:   100,
+		sourceUpstream: 60,
+		sourceCurated:  100,
+		"catalog":      1000,
 	}
 }
 
@@ -119,22 +113,28 @@ func (s *Service) Enrich(ctx context.Context, input Input) Result {
 	}
 }
 
-func (s *Service) OfficialName(ctx context.Context, provider string, modelID string) string {
-	provider = normalizeModelsDevProvider(provider)
-	if provider == "" {
+func catalogSources(source Source) []Source {
+	if source == nil {
+		return nil
+	}
+	return []Source{source}
+}
+
+func (s *Service) OfficialName(ctx context.Context, provider, modelID string) string {
+	if s == nil {
 		return ""
 	}
 	for _, source := range s.sources {
-		if md, ok := source.(*modelsDevSource); ok {
-			if name, found := md.LookupName(ctx, provider, modelID); found {
-				return name
-			}
+		values, ok, err := source.Lookup(ctx, Input{Provider: provider, ModelID: modelID})
+		if err == nil && ok {
+			name, _ := values["name"].(string)
+			return name
 		}
 	}
 	return ""
 }
 
-func normalizeModelsDevProvider(provider string) string {
+func normalizeProviderAlias(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "xiaomi_mimo", "xiaomi":
 		return "xiaomi"
@@ -173,6 +173,9 @@ func normalizeCapabilities(values map[string]any) {
 
 	if value, ok := values["reasoning"].(bool); ok {
 		values["supports_reasoning"] = value
+	}
+	if value, ok := values["tool_calling"].(bool); ok {
+		values["supports_tools"] = value
 	}
 	if value, ok := values["tool_call"].(bool); ok {
 		values["supports_tools"] = value

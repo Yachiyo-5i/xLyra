@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/credential"
 	"xlyra/server/internal/httpclient"
@@ -134,12 +135,11 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	httpClients := httpclient.NewManager(confFile)
-	modelCapsClient, _ := httpClients.Client(httpclient.DefaultProfile())
 	return &Service{
 		db:          db,
 		credentials: credential.NewService(masterKey),
 		adapters:    adapter.NewRegistry(),
-		modelCaps:   modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: modelCapsClient, DisableModelsDev: true}),
+		modelCaps:   catalog.NewCapabilityService(db),
 		oauth:       oauthService,
 		httpClients: httpClients,
 		confFile:    confFile,
@@ -2499,7 +2499,7 @@ func (s *Service) enrichModelCapabilities(ctx context.Context, site store.Site, 
 		return model
 	}
 	model.Capabilities = result.Capabilities
-	return applyModelNameEndpointTypes(site, model)
+	return model
 }
 
 func applyModelNameEndpointTypes(site store.Site, model adapter.Model) adapter.Model {

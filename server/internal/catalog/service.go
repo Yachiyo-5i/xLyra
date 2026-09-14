@@ -14,7 +14,6 @@ import (
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/config"
-	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/modelcapabilities"
 	"xlyra/server/internal/store"
 )
@@ -140,12 +139,7 @@ var existingBrandProviders = map[string]struct{}{
 }
 
 func NewService(db *store.Store, confFiles ...*config.ConfigFile) *Service {
-	var confFile *config.ConfigFile
-	if len(confFiles) > 0 {
-		confFile = confFiles[0]
-	}
-	client, _ := httpclient.NewManager(confFile).Client(httpclient.DefaultProfile())
-	return &Service{db: db, capabilities: modelcapabilities.NewWithConfig(modelcapabilities.Config{HTTPClient: client, DisableModelsDev: true})}
+	return &Service{db: db, capabilities: NewCapabilityService(db)}
 }
 
 func NormalizeModelKey(value string) string {
@@ -488,7 +482,7 @@ func ReconcileCategories(ctx context.Context, db store.Tx) error {
 	canonicalRepo := store.NewCanonicalModelRepository(db)
 	for _, canonical := range canonicalModels {
 		siteModels, ok := modelsByCanonicalID[canonical.ID]
-		if !ok || canonical.Status != "active" {
+		if !ok || canonical.Status != "active" || canonical.PricingSource == store.CanonicalPricingSourceCatalog {
 			continue
 		}
 		category := categoryFromSiteModelProtocols(canonical.ModelKey, siteModels)
