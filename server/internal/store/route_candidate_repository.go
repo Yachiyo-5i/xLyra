@@ -57,6 +57,7 @@ type RouteCandidateRow struct {
 	PricingPerRequestValue             sql.NullFloat64
 	PricingBillingType                 sql.NullString
 	PricingQuotaType                   sql.NullInt64
+	PricingVariants                    JSON
 	SupportedEndpointTypes             []string
 }
 
@@ -148,6 +149,7 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 			CanonicalModelID:       canonical.ID,
 			CanonicalModelKey:      canonical.ModelKey,
 			CanonicalDisplayName:   canonical.DisplayName,
+			PricingVariants:        canonical.PricingVariants,
 			SiteID:                 site.ID,
 			SiteName:               site.Name,
 			SiteSlug:               site.Slug,

@@ -28,6 +28,7 @@ type selectedPricing struct {
 	BillingType          string
 	QuotaType            *int64
 	LongContextRule      *longContextRule
+	PricingVariants      map[string]any
 	LongContextApplied   bool
 }
 
@@ -79,7 +80,10 @@ func (h Handler) gatewayPricing(ctx context.Context, candidate routeengine.Candi
 	if candidate.Pricing.QuotaType != nil {
 		fallback.QuotaType = candidate.Pricing.QuotaType
 	}
-	fallback.LongContextRule = longContextRuleForModel(candidate.Model.UpstreamName)
+	if len(candidate.Model.PricingVariants) > 0 {
+		_ = json.Unmarshal(candidate.Model.PricingVariants, &fallback.PricingVariants)
+	}
+	fallback.LongContextRule = longContextRuleForVariants(fallback.PricingVariants)
 
 	pricing, err := store.NewGatewayRepository(h.db.DB()).GetPricingForSiteModel(ctx, candidate.Model.SiteModelID, strings.TrimSpace(groupName))
 	if err != nil {
@@ -231,6 +235,19 @@ func applyUpstreamBillingMetadata(result gatewayAttemptResult, payload map[strin
 	result.billingMode = adjustment.Mode
 	result.costMultiplier = adjustment.Multiplier
 	result.multiplierReason = adjustment.Reason
+	if adjustment.Mode == "fast" {
+		var variants map[string]any
+		if json.Unmarshal(candidate.Model.PricingVariants, &variants) == nil {
+			experimental, _ := variants["experimental"].(map[string]any)
+			modes, _ := experimental["modes"].(map[string]any)
+			fast, _ := modes["fast"].(map[string]any)
+			cost, _ := fast["cost"].(map[string]any)
+			result.pricing = applyCatalogCost(result.pricing, cost)
+			if len(cost) > 0 {
+				result.multiplierReason = "catalog_fast_mode"
+			}
+		}
+	}
 	return result
 }
 
@@ -258,14 +275,6 @@ func billingAdjustmentFromPayload(payload map[string]any, candidate routeengine.
 	}
 
 	adjustment.Mode = "fast"
-	model := strings.TrimSpace(anyString(payload["model"]))
-	if model == "" {
-		model = candidate.Model.UpstreamName
-	}
-	if multiplier, ok := codexFastCostMultiplier(model); ok {
-		adjustment.Multiplier = multiplier
-		adjustment.Reason = "codex_fast_mode"
-	}
 	return adjustment
 }
 
@@ -276,23 +285,6 @@ func isFastServiceTier(serviceTier string) bool {
 	default:
 		return false
 	}
-}
-
-func codexFastCostMultiplier(model string) (float64, bool) {
-	normalized := strings.ToLower(strings.TrimSpace(model))
-	if normalized == "" {
-		return 1, false
-	}
-	if strings.Contains(normalized, "gpt-5.5") {
-		return 2.5, true
-	}
-	if strings.Contains(normalized, "gpt-5.4-mini") {
-		return 1, false
-	}
-	if strings.Contains(normalized, "gpt-5.4") {
-		return 2, true
-	}
-	return 1, false
 }
 
 func applyEstimatedCostBillingAdjustment(result gatewayAttemptResult) gatewayAttemptResult {
@@ -730,4 +722,22 @@ func (u gatewayUsage) outputImageTokensOrCompletion() int {
 		return u.OutputImageTokens
 	}
 	return u.CompletionTokens
+}
+
+func applyCatalogCost(pricing selectedPricing, cost map[string]any) selectedPricing {
+	if v, ok := cost["input"].(float64); ok {
+		pricing.InputValue = &v
+	}
+	if v, ok := cost["output"].(float64); ok {
+		pricing.OutputValue = &v
+	}
+	if pricing.InputValue != nil && *pricing.InputValue > 0 {
+		for key, target := range map[string]**float64{"cache_read": &pricing.CacheRatio, "cache_write": &pricing.CacheWriteRatio, "cache_write_1h": &pricing.CacheWrite1hRatio} {
+			if v, ok := cost[key].(float64); ok {
+				ratio := v / *pricing.InputValue
+				*target = &ratio
+			}
+		}
+	}
+	return pricing
 }

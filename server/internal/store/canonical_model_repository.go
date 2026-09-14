@@ -16,7 +16,6 @@ import (
 )
 
 const CanonicalPricingSourceManual = "manual"
-const CanonicalPricingSourceModelsDev = "models_dev"
 const CanonicalPricingSourceCatalog = "catalog"
 
 type CanonicalModel struct {
@@ -104,23 +103,6 @@ type UpdateCanonicalModelPricingParams struct {
 	CacheReadRatio    sql.NullFloat64
 	CacheWriteRatio   sql.NullFloat64
 	CacheWrite1hRatio sql.NullFloat64
-}
-
-type SyncCanonicalModelPricingParams struct {
-	PricingVariants      JSON
-	ModelKey             string
-	Provider             string
-	Category             string
-	Status               string
-	InputPrice           sql.NullFloat64
-	OutputPrice          sql.NullFloat64
-	CacheReadRatio       sql.NullFloat64
-	CacheWriteRatio      sql.NullFloat64
-	CacheWrite1hRatio    sql.NullFloat64
-	AudioRatio           sql.NullFloat64
-	AudioCompletionRatio sql.NullFloat64
-	PricingSource        string
-	LastPricingSyncedAt  sql.NullTime
 }
 
 type CanonicalModelAlias struct {
@@ -295,14 +277,15 @@ func (r CanonicalModelRepository) SyncUpsert(ctx context.Context, params UpsertC
 	existing.DisplayName = stringDefault(params.DisplayName, existing.DisplayName)
 	existing.Provider = params.Provider
 	existing.Category = params.Category
-	existing.Capabilities = mergeCanonicalModelCapabilities(existing, params.Capabilities)
+	existing.Capabilities = jsonDefault(params.Capabilities, "{}")
 	existing.Status = stringDefault(params.Status, existing.Status)
-	if existing.PricingSource != CanonicalPricingSourceManual {
+	if params.PricingSource == CanonicalPricingSourceCatalog || existing.PricingSource != CanonicalPricingSourceManual {
 		existing.InputPrice = params.InputPrice
 		existing.OutputPrice = params.OutputPrice
 		existing.CacheReadRatio = params.CacheReadRatio
 		existing.CacheWriteRatio = params.CacheWriteRatio
 		existing.CacheWrite1hRatio = params.CacheWrite1hRatio
+		existing.PricingVariants = jsonDefault(params.PricingVariants, "{}")
 		existing.AudioRatio = params.AudioRatio
 		existing.AudioCompletionRatio = params.AudioCompletionRatio
 		existing.PricingSource = stringDefault(params.PricingSource, "none")
@@ -310,98 +293,13 @@ func (r CanonicalModelRepository) SyncUpsert(ctx context.Context, params UpsertC
 	}
 	existing.SupportedEndpointTypes = jsonDefault(params.SupportedEndpointTypes, "[]")
 	existing.Modalities = jsonKeepNonEmpty(params.Modalities, existing.Modalities)
-	existing.ContextWindow = nullInt32OrKeep(params.ContextWindow, existing.ContextWindow)
-	existing.MaxOutputTokens = nullInt32OrKeep(params.MaxOutputTokens, existing.MaxOutputTokens)
+	existing.ContextWindow = params.ContextWindow
+	existing.MaxOutputTokens = params.MaxOutputTokens
 
 	if err := r.db.WithContext(ctx).Save(&existing).Error; err != nil {
 		return CanonicalModel{}, fmt.Errorf("sync upsert canonical model: %w", err)
 	}
 	return existing, nil
-}
-
-func (r CanonicalModelRepository) SyncPricingUpsert(ctx context.Context, params SyncCanonicalModelPricingParams) (CanonicalModel, error) {
-	existing, err := r.GetByKey(ctx, params.ModelKey)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return r.Create(ctx, UpsertCanonicalModelParams{
-			ModelKey:             params.ModelKey,
-			Provider:             params.Provider,
-			Category:             params.Category,
-			Status:               params.Status,
-			InputPrice:           params.InputPrice,
-			OutputPrice:          params.OutputPrice,
-			CacheReadRatio:       params.CacheReadRatio,
-			CacheWriteRatio:      params.CacheWriteRatio,
-			CacheWrite1hRatio:    params.CacheWrite1hRatio,
-			AudioRatio:           params.AudioRatio,
-			AudioCompletionRatio: params.AudioCompletionRatio,
-			PricingSource:        params.PricingSource,
-			LastPricingSyncedAt:  params.LastPricingSyncedAt,
-		})
-	}
-	if err != nil {
-		return CanonicalModel{}, err
-	}
-
-	// The LiteLLM overlay runs after the models.dev sync in the same cycle and
-	// must not override it: models.dev tracks the vendor pricing page's current
-	// numbers. LiteLLM only creates rows, fills rows that have no price yet, and
-	// refreshes rows it owns; a priced models.dev row wins as-is.
-	modelsDevOwned := existing.PricingSource == CanonicalPricingSourceModelsDev && existing.InputPrice.Valid
-	if existing.PricingSource == CanonicalPricingSourceManual || modelsDevOwned {
-		return existing, nil
-	}
-	existing.InputPrice = params.InputPrice
-	existing.OutputPrice = params.OutputPrice
-	existing.CacheReadRatio = params.CacheReadRatio
-	existing.CacheWriteRatio = params.CacheWriteRatio
-	existing.CacheWrite1hRatio = params.CacheWrite1hRatio
-	existing.PricingVariants = jsonKeepNonEmpty(params.PricingVariants, existing.PricingVariants)
-	existing.AudioRatio = params.AudioRatio
-	existing.AudioCompletionRatio = params.AudioCompletionRatio
-	existing.PricingSource = stringDefault(params.PricingSource, "none")
-	existing.LastPricingSyncedAt = params.LastPricingSyncedAt
-
-	if err := r.db.WithContext(ctx).Save(&existing).Error; err != nil {
-		return CanonicalModel{}, fmt.Errorf("sync pricing upsert canonical model: %w", err)
-	}
-	return existing, nil
-}
-
-type FallbackPriceParams struct {
-	ModelKey             string
-	InputPrice           sql.NullFloat64
-	OutputPrice          sql.NullFloat64
-	AudioRatio           sql.NullFloat64
-	AudioCompletionRatio sql.NullFloat64
-	Override             bool
-	Source               string
-	SyncedAt             time.Time
-}
-
-func (r CanonicalModelRepository) FillMissingPrice(ctx context.Context, params FallbackPriceParams) (bool, error) {
-	existing, err := r.GetByKey(ctx, params.ModelKey)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if existing.PricingSource == CanonicalPricingSourceManual {
-		return false, nil
-	}
-	if !params.Override && existing.InputPrice.Valid {
-		return false, nil
-	}
-	existing.InputPrice = params.InputPrice
-	existing.OutputPrice = params.OutputPrice
-	existing.AudioRatio = params.AudioRatio
-	existing.AudioCompletionRatio = params.AudioCompletionRatio
-	existing.PricingSource = stringDefault(params.Source, "curated")
-	existing.LastPricingSyncedAt = sql.NullTime{Time: params.SyncedAt, Valid: true}
-	if err := r.db.WithContext(ctx).Save(&existing).Error; err != nil {
-		return false, fmt.Errorf("fill missing canonical model price: %w", err)
-	}
-	return true, nil
 }
 
 func (r CanonicalModelRepository) UpdatePricing(ctx context.Context, params UpdateCanonicalModelPricingParams) (CanonicalModel, error) {
@@ -450,7 +348,7 @@ func (r CanonicalModelRepository) Create(ctx context.Context, params UpsertCanon
 		LastPricingSyncedAt:    params.LastPricingSyncedAt,
 	}
 	// Insert atomically against the LOWER(model_key) unique index. Concurrent
-	// startup paths (models.dev sync + per-site model matching) create the same
+	// concurrent startup paths create the same
 	// model_key at once; without ON CONFLICT they each miss the existence check
 	// and race to INSERT, producing repeated "duplicate key" errors. DO NOTHING
 	// makes the loser a no-op; we then read back the winner's row.

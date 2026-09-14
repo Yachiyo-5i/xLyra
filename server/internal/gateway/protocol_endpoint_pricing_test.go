@@ -58,14 +58,14 @@ func TestUpstreamBillingMetadataUsesPayloadModelAndCandidateFallback(t *testing.
 		"model":        "gpt-5.5-codex",
 	}, routeengine.Candidate{})
 	if withPayloadModel.serviceTier != "priority" || withPayloadModel.billingMode != "fast" ||
-		withPayloadModel.costMultiplier != 2.5 || withPayloadModel.multiplierReason != "codex_fast_mode" {
+		withPayloadModel.costMultiplier != 1 || withPayloadModel.multiplierReason != "" {
 		t.Fatalf("payload model billing metadata = %#v", withPayloadModel)
 	}
 
 	withCandidateModel := applyUpstreamBillingMetadata(gatewayAttemptResult{}, map[string]any{
 		"service_tier": "fast",
 	}, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gpt-5.4"}})
-	if withCandidateModel.costMultiplier != 2 || withCandidateModel.billingMode != "fast" {
+	if withCandidateModel.costMultiplier != 1 || withCandidateModel.billingMode != "fast" {
 		t.Fatalf("candidate model billing metadata = %#v", withCandidateModel)
 	}
 
