@@ -125,9 +125,9 @@ func (s *SyncService) fetchGithubCatalog(ctx context.Context) (catalogPayload, e
 	return c, nil
 }
 func (s *SyncService) syncCatalogModel(ctx context.Context, repo store.CanonicalModelRepository, brand, id string, m catalogModel) error {
-	key := strings.TrimSpace(m.ModelKey)
+	key := CanonicalModelKeyFromUpstream(strings.TrimSpace(m.ModelKey))
 	if key == "" {
-		key = strings.TrimSpace(brand + "/" + id)
+		key = CanonicalModelKeyFromUpstream(strings.TrimSpace(brand + "/" + id))
 	}
 	if key == "" {
 		return nil
