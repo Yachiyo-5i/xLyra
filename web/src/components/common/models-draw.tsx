@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 import { ChevronLeft, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -27,6 +27,8 @@ export type ModelsDrawItem = {
     fallbackText?: string
   }
   leadingAction?: ReactNode
+  trailingAction?: ReactNode
+  protocols?: { label: string; enabled: boolean }[]
 }
 
 export function ModelsDraw({ open, title, items, loading, pendingItemId, bulkPending, toolbarAction, children, backLabel, onBack, onToggleItem, onBulkToggleItems, onOpenChange }: {
@@ -121,12 +123,24 @@ export function ModelsDraw({ open, title, items, loading, pendingItemId, bulkPen
                               <button type="button" className="block max-w-full cursor-pointer truncate text-left font-medium text-foreground" title={t('modelsDraw.copyName')} onClick={() => copyToClipboard(item.displayName, t('modelsDraw.copied'), t('modelsDraw.copyFailed'))}>
                                 {item.displayName}
                               </button>
-                              {subtitle ? <div className="text-muted-soft truncate text-xs">{subtitle}</div> : null}
+                              {item.protocols?.length ? (
+                                <div className="flex flex-wrap gap-1 text-xs text-muted-soft">
+                                  {item.protocols.map((protocol, index) => (
+                                    <Fragment key={protocol.label}>
+                                      {index > 0 ? <span aria-hidden="true"> / </span> : null}
+                                      <span className={protocol.enabled ? undefined : 'line-through opacity-60'}>{protocol.label}</span>
+                                    </Fragment>
+                                  ))}
+                                </div>
+                              ) : subtitle ? <div className="text-muted-soft truncate text-xs">{subtitle}</div> : null}
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Switch checked={item.enabled} disabled={bulkPending || pendingItemId === item.id || item.toggleDisabled} aria-label={t('modelsDraw.toggleLabel', { name: item.displayName })} onCheckedChange={(checked) => onToggleItem(item, checked)} />
+                          <div className="flex items-center justify-end gap-2">
+                            {item.trailingAction}
+                            <Switch checked={item.enabled} disabled={bulkPending || pendingItemId === item.id || item.toggleDisabled} aria-label={t('modelsDraw.toggleLabel', { name: item.displayName })} onCheckedChange={(checked) => onToggleItem(item, checked)} />
+                          </div>
                         </td>
                       </tr>
                     )

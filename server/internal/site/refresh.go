@@ -1057,7 +1057,7 @@ func syncModelState(ctx context.Context, siteID uuid.UUID, keys []refreshKey, si
 				DisplayName:       defaultString(item.model.DisplayName, item.model.UpstreamName),
 				Available:         true,
 				Enabled:           true,
-				Raw:               jsonBytes(item.model.Capabilities["raw"]),
+				Raw:               jsonBytes(item.model.Capabilities),
 				LastSeenAt:        time.Now(),
 				LastSyncedAt:      time.Now(),
 			})

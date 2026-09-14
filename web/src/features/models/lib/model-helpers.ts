@@ -3,24 +3,24 @@ type TFunction = (key: string, options?: Record<string, unknown>) => string
 export function formatEndpointTypeLabel(value: string): string {
   switch (value) {
     case 'openai':
-      return '/v1/chat/completions'
+      return 'completions'
     case 'openai-response':
-      return '/v1/responses'
+      return 'responses'
     case 'openai-image':
-      return '/v1/images/generations'
+      return 'images'
     case 'openai-embedding':
-      return '/v1/embeddings'
+      return 'embeddings'
     case 'openai-audio-speech':
-      return '/v1/audio/speech'
+      return 'audio/speech'
     case 'openai-response-compact':
-      return '/v1/responses-compact'
+      return 'responses-compact'
     case 'anthropic':
     case 'anthropic-messages':
-      return '/v1/messages'
+      return 'messages'
     case 'google-gemini':
-      return '/v1beta/models/{model}:generateContent'
+      return 'gemini'
     default:
-      return value.startsWith('/v1/') ? value : `/v1/${value}`
+      return value
   }
 }
 

@@ -83,6 +83,7 @@ type MarketplaceModelSite = {
   upstreamName: string
   enabled: boolean
   supportedEndpointTypes: string[]
+  disabledEndpointTypes?: string[]
   supportsMultipleAPIKeys: boolean
   pricingRows: MarketplacePricingRow[]
 }
@@ -207,6 +208,14 @@ export function buildMarketplaceModels(
         supportedSites: [],
       }
 
+      const catalogEndpointTypes = normalizeEndpointTypes(
+        model.capabilities?.supported_endpoint_types,
+      )
+      const keyEndpointTypes = effectiveEndpointTypesForSiteModel(
+        site.id,
+        model,
+        apiKeysMap,
+      )
       group.supportedSites.push({
         siteId: site.id,
         siteName: site.name,
@@ -216,9 +225,10 @@ export function buildMarketplaceModels(
         displayName: model.display_name,
         upstreamName: model.upstream_model_name,
         enabled: model.status === 'active',
-        supportedEndpointTypes: normalizeEndpointTypes(
-          model.capabilities?.supported_endpoint_types,
-        ),
+        supportedEndpointTypes: keyEndpointTypes ?? catalogEndpointTypes,
+        disabledEndpointTypes: keyEndpointTypes
+          ? catalogEndpointTypes.filter((endpointType) => !keyEndpointTypes.includes(endpointType))
+          : [],
         supportsMultipleAPIKeys: site.supports_multiple_api_keys === true,
         pricingRows: [],
       })
@@ -254,6 +264,23 @@ export function buildMarketplaceModels(
   }
 
   return [...grouped.values()].sort(compareMarketplaceModel)
+}
+
+function effectiveEndpointTypesForSiteModel(
+  siteId: string,
+  model: SiteModel,
+  apiKeysMap: Record<string, SiteAPIKey[]>,
+): string[] | null {
+  const names = new Set([model.upstream_model_name, model.display_name].map(normalizeModelName).filter(Boolean))
+  const matched: string[][] = []
+  for (const apiKey of apiKeysMap[siteId] ?? []) {
+    for (const item of apiKey.model_items ?? []) {
+      if (!names.has(normalizeModelName(item.name))) continue
+      matched.push(item.effective_endpoint_types ?? [])
+    }
+  }
+  if (!matched.length) return null
+  return normalizeEndpointTypes(matched.flat())
 }
 
 export function marketplaceUnpricedCredentialRows(
@@ -610,8 +637,29 @@ function buildMarketplaceKeyStatus(
 function normalizeEndpointTypes(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .map((item) => (typeof item === 'string' ? normalizeEndpointType(item) : ''))
     .filter(Boolean)
+    .filter((item, index, values) => values.indexOf(item) === index)
+}
+
+function normalizeEndpointType(value: string): string {
+  switch (value.trim().toLowerCase()) {
+    case 'chat':
+    case 'completions':
+    case 'openai-chat':
+    case 'openai-completions':
+      return 'openai'
+    case 'responses':
+    case 'openai-responses':
+      return 'openai-response'
+    case 'messages':
+    case 'anthropic-message':
+      return 'anthropic-messages'
+    case 'gemini':
+      return 'google-gemini'
+    default:
+      return value.trim().toLowerCase()
+  }
 }
 
 function normalizeGroupName(value: string): string {

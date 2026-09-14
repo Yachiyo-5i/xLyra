@@ -250,7 +250,7 @@ func (h Handler) forwardGatewayRequestResolved(
 			diagnostic:     request.Diagnostic,
 		}
 	}
-	return h.forwardGatewayRequest(ctx, w, requestID, attempt, apiKeyID, canonicalModelID, candidate, request, reservation, protocol)
+	return h.forwardGatewayRequest(withCredentialProtocolResolver(ctx, resolver), w, requestID, attempt, apiKeyID, canonicalModelID, candidate, request, reservation, protocol)
 }
 
 func bridgeReplayItemsFromCalls(calls []bridgeFunctionCall) []any {

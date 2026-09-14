@@ -34,12 +34,14 @@ import {
   DrawTitle,
 } from '@/components/ui/draw'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { toast } from '@/lib/toast'
 import {
   createSiteAPIKey,
   deleteSiteAPIKey,
   listSiteAPIKeys,
+  listSiteModels,
   revealSiteAPIKey,
   refreshSiteAPIKey,
   sitesQueryKeys,
@@ -49,6 +51,8 @@ import {
   updateSiteAPIKeyStatus,
   type Site,
   type SiteAPIKey,
+  type SiteAPIKeyModel,
+  type SiteModel,
 } from '@/features/sites/api/sites'
 import { routeQueryKeys } from '@/features/routes/api/routes'
 import {
@@ -66,6 +70,7 @@ import {
   upsertAPIKey,
 } from '@/features/sites/lib/site-cache'
 import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
+import { formatEndpointTypeLabel } from '@/features/models/lib/model-helpers'
 import {
   SiteAPIKeyFormFields,
 } from '@/features/sites/components/site-api-key-form'
@@ -87,6 +92,10 @@ export function SiteAPIKeysDraw({
   const queryClient = useQueryClient()
   const { t } = useTranslation('sites')
   const [modelsAPIKey, setModelsAPIKey] = useState<SiteAPIKey | null>(null)
+  const [modelProtocolTarget, setModelProtocolTarget] = useState<SiteAPIKeyModel | null>(null)
+  const [modelProtocolMode, setModelProtocolMode] = useState<'inherit' | 'allowlist' | 'disabled'>('inherit')
+  const [modelProtocolTypes, setModelProtocolTypes] = useState<string[]>([])
+  const [addingSiteModel, setAddingSiteModel] = useState<SiteModel | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [addingAPIKey, setAddingAPIKey] = useState(false)
   const [configuringAPIKey, setConfiguringAPIKey] = useState<SiteAPIKey | null>(
@@ -120,6 +129,11 @@ export function SiteAPIKeysDraw({
       return listSiteAPIKeys(site.id)
     },
     enabled: open,
+  })
+  const siteModelsQuery = useQuery({
+    queryKey: site ? [...sitesQueryKeys.models(site.id), 'api-key-options'] : ['sites', 'models', 'none'],
+    queryFn: () => (site ? listSiteModels(site.id) : Promise.resolve({ items: [] as SiteModel[] })),
+    enabled: open && Boolean(modelsAPIKey),
   })
   const invalidatePricingViews = async () => {
     await Promise.all([
@@ -343,13 +357,19 @@ export function SiteAPIKeysDraw({
       apiKeyId,
       model,
       enabled,
+      siteModelId,
+      endpointMode,
+      endpointTypes,
     }: {
       apiKeyId: string
       model: string
-      enabled: boolean
+      enabled?: boolean
+      siteModelId?: string
+      endpointMode?: 'inherit' | 'allowlist' | 'disabled'
+      endpointTypes?: string[]
     }) => {
       if (!site) throw new Error('site required')
-      return updateSiteAPIKeyModelStatus(site.id, apiKeyId, { model, enabled })
+      return updateSiteAPIKeyModelStatus(site.id, apiKeyId, { model, enabled, siteModelId, endpointMode, endpointTypes })
     },
     onSuccess: applyAPIKeyModelUpdate,
     onError: (error) =>
@@ -450,6 +470,11 @@ export function SiteAPIKeysDraw({
       return left.id.localeCompare(right.id)
     },
   )
+  const protocolOptions = (() => {
+    const siteModel = siteModelsQuery.data?.items.find((item) => item.id === modelProtocolTarget?.site_model_id)
+    const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
+    return (modelProtocolTarget?.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
+  })()
   const canAddAPIKey = site ? canAddOfficialAPIKey(site) : false
 
   return (
@@ -988,7 +1013,16 @@ export function SiteAPIKeysDraw({
             ? `${modelsAPIKey.name} ${t('apiKeys.modelsTitle')}`
             : t('apiKeys.modelsTitle')
         }
-        items={buildAPIKeyModelItems(modelsAPIKey)}
+        items={buildAPIKeyModelItems(modelsAPIKey, siteModelsQuery.data?.items ?? [], (model) => {
+          setModelProtocolTarget(model)
+          const mode = model.endpoint_override?.mode ?? 'inherit'
+          setModelProtocolMode(mode)
+          setModelProtocolTypes(mode === 'allowlist'
+            ? (model.endpoint_override?.endpoint_types ?? [])
+            : mode === 'disabled'
+              ? []
+              : endpointTypesForAPIKeyModel(model, siteModelsQuery.data?.items ?? []))
+        })}
         backLabel={t('apiKeys.backToKeys')}
         onBack={() => setModelsAPIKey(null)}
         pendingItemId={
@@ -1021,7 +1055,73 @@ export function SiteAPIKeysDraw({
         onOpenChange={(next) => {
           if (!next) setModelsAPIKey(null)
         }}
+        toolbarAction={modelsAPIKey ? (
+          <Button size="sm" variant="secondary" onClick={() => setAddingSiteModel(siteModelsQuery.data?.items.find((model) => !apiKeyModels(modelsAPIKey).some((item) => item.site_model_id === model.id)) ?? null)}>
+            <Plus className="h-4 w-4" />
+            添加站点模型
+          </Button>
+        ) : null}
       />
+      <Dialog open={Boolean(addingSiteModel)} onOpenChange={(next) => { if (!next) setAddingSiteModel(null) }}>
+        <DialogContent className="w-[min(92vw,520px)] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>添加站点模型</DialogTitle>
+            <DialogDescription>将站点模型加入当前 API Key 后，可单独配置协议。</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-2">
+            {(siteModelsQuery.data?.items ?? []).filter((model) => !apiKeyModels(modelsAPIKey).some((item) => item.site_model_id === model.id)).map((model) => (
+              <button key={model.id} type="button" className="w-full rounded-lg border p-3 text-left hover:bg-muted" onClick={() => setAddingSiteModel(model)}>
+                <div className="font-medium">{model.display_name || model.upstream_model_name}</div>
+                <div className="text-xs text-muted-soft">{model.upstream_model_name}</div>
+              </button>
+            ))}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddingSiteModel(null)}>取消</Button>
+            <Button disabled={!addingSiteModel || !modelsAPIKey || updateModelMutation.isPending} onClick={() => {
+              if (!addingSiteModel || !modelsAPIKey) return
+              updateModelMutation.mutate({ apiKeyId: modelsAPIKey.id, model: addingSiteModel.upstream_model_name, enabled: true, siteModelId: addingSiteModel.id, endpointMode: 'inherit', endpointTypes: [] })
+              setAddingSiteModel(null)
+            }}>添加</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(modelProtocolTarget)} onOpenChange={(nextOpen) => { if (!nextOpen && !updateModelMutation.isPending) setModelProtocolTarget(null) }}>
+        <DialogContent className="w-[min(92vw,520px)] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>配置模型协议</DialogTitle>
+            <DialogDescription>{modelProtocolTarget?.name}</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] p-3 text-sm">
+              <div className="font-medium">当前 Key 实际允许的协议</div>
+              <div className="mt-1 text-xs text-muted-soft">勾选结果会直接用于该 Key 的上游请求协议选择。</div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {protocolOptions.map((endpointType) => (
+                <div key={endpointType} role="button" tabIndex={0} className={`rounded-lg border p-3 text-left transition-colors ${modelProtocolTypes.includes(endpointType) ? 'border-primary bg-primary/10' : 'border-[hsl(var(--glass-border))]'}`} onClick={() => {
+                  setModelProtocolMode('allowlist')
+                  setModelProtocolTypes((current) => current.includes(endpointType) ? current.filter((item) => item !== endpointType) : [...current, endpointType])
+                }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.currentTarget.click() }}>
+                  <Checkbox checked={modelProtocolTypes.includes(endpointType)} label={formatEndpointTypeLabel(endpointType)} description={endpointType} onCheckedChange={() => undefined} />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setModelProtocolMode('inherit'); setModelProtocolTypes(protocolOptions) }}>恢复站点默认</Button>
+              <Button variant="outline" size="sm" onClick={() => { setModelProtocolMode('disabled'); setModelProtocolTypes([]) }}>全部禁用</Button>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>取消</Button>
+            <Button disabled={!modelProtocolTarget?.site_model_id || updateModelMutation.isPending || (modelProtocolMode === 'allowlist' && modelProtocolTypes.length === 0)} onClick={() => {
+              if (!modelProtocolTarget || !modelsAPIKey || !modelProtocolTarget.site_model_id) return
+              updateModelMutation.mutate({ apiKeyId: modelsAPIKey.id, model: modelProtocolTarget.name, enabled: modelProtocolTarget.enabled, siteModelId: modelProtocolTarget.site_model_id, endpointMode: modelProtocolMode, endpointTypes: modelProtocolTypes })
+              setModelProtocolTarget(null)
+            }}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -1079,18 +1179,69 @@ function canAddOfficialAPIKey(site: Site): boolean {
   return site.supports_multiple_api_keys === true
 }
 
-function buildAPIKeyModelItems(apiKey: SiteAPIKey | null): ModelsDrawItem[] {
+function buildAPIKeyModelItems(apiKey: SiteAPIKey | null, siteModels: SiteModel[], onConfigure: (model: SiteAPIKeyModel) => void): ModelsDrawItem[] {
   if (!apiKey) return []
   const models = apiKeyModels(apiKey)
   if (!models.length) return []
-
   return models.map((model) => {
     const name = model.name.trim()
+    const siteModel = siteModels.find((item) => item.id === model.site_model_id)
+    const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
+    const endpointTypes = (model.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
+    const effectiveTypes = model.effective_endpoint_types ?? endpointTypes
+    const protocolTypes = endpointTypes.length ? endpointTypes : effectiveTypes
     return {
       id: name,
       displayName: name,
+      upstreamName: protocolTypes.join(' '),
+      protocols: protocolTypes.map((endpointType) => ({ label: formatEndpointTypeLabel(endpointType), enabled: effectiveTypes.includes(endpointType) })),
       enabled: model.enabled,
       icon: modelNameIconInfo(name),
+      trailingAction: model.site_model_id ? (
+        <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="配置模型协议" aria-label={`配置 ${name} 协议`} onClick={() => onConfigure(model)}>
+          <Settings2 className="h-4 w-4" />
+        </Button>
+      ) : undefined,
     }
   })
+}
+
+function endpointTypesForAPIKeyModel(model: SiteAPIKeyModel, siteModels: SiteModel[]): string[] {
+  const siteModel = siteModels.find((item) => item.id === model.site_model_id)
+  const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
+  return (model.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
+}
+
+function endpointTypesFromCapabilities(capabilities?: Record<string, unknown>): string[] {
+  const direct = capabilities?.supported_endpoint_types
+  if (Array.isArray(direct)) return uniqueEndpointTypes(direct.filter((value): value is string => typeof value === 'string'))
+  const nested = capabilities?.raw
+  if (nested && typeof nested === 'object' && Array.isArray((nested as Record<string, unknown>).supported_endpoint_types)) {
+    return uniqueEndpointTypes(((nested as Record<string, unknown>).supported_endpoint_types as unknown[]).filter((value): value is string => typeof value === 'string'))
+  }
+  return []
+}
+
+function uniqueEndpointTypes(values: string[]): string[] {
+  return [...new Set(values.map((value) => normalizeEndpointType(value)).filter(Boolean))]
+}
+
+function normalizeEndpointType(value: string): string {
+  switch (value.trim().toLowerCase()) {
+    case 'chat':
+    case 'completions':
+    case 'openai-chat':
+    case 'openai-completions':
+      return 'openai'
+    case 'responses':
+    case 'openai-responses':
+      return 'openai-response'
+    case 'messages':
+    case 'anthropic-message':
+      return 'anthropic-messages'
+    case 'gemini':
+      return 'google-gemini'
+    default:
+      return value.trim().toLowerCase()
+  }
 }

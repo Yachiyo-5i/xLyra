@@ -188,30 +188,7 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 }
 
 func effectiveSupportedEndpointTypes(canonical CanonicalModel, model SiteModel, override SiteModelEndpointOverride) []string {
-	base := collectCanonicalEndpointTypes(canonical)
-	if len(base) == 0 {
-		base = collectSupportedEndpointTypes(model)
-	}
-	if override.Mode == "disabled" {
-		return []string{}
-	}
-	if override.Mode != "allowlist" || len(override.EndpointTypes) == 0 {
-		return base
-	}
-	allowed := map[string]struct{}{}
-	for _, item := range base {
-		allowed[item] = struct{}{}
-	}
-	var selected []string
-	var values []string
-	if json.Unmarshal(override.EndpointTypes, &values) == nil {
-		for _, item := range values {
-			if _, ok := allowed[item]; ok {
-				selected = append(selected, item)
-			}
-		}
-	}
-	return selected
+	return siteModelEndpointPolicy(canonical, model, override).SupportedEndpointTypes
 }
 
 func collectCanonicalEndpointTypes(model CanonicalModel) []string {

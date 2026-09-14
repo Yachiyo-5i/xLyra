@@ -374,6 +374,13 @@ export type SiteAPIKey = {
 export type SiteAPIKeyModel = {
   name: string
   enabled: boolean
+  site_model_id?: string | null
+  supported_endpoint_types?: string[]
+  effective_endpoint_types?: string[]
+  endpoint_override?: {
+    mode?: 'inherit' | 'allowlist' | 'disabled'
+    endpoint_types?: string[]
+  }
 }
 
 export type GrokAccountModel = {
@@ -956,13 +963,19 @@ export async function updateSiteAPIKeySecret(
 export async function updateSiteAPIKeyModelStatus(
   siteId: string,
   apiKeyId: string,
-  input: { model: string; enabled: boolean },
+  input: { model: string; enabled?: boolean; siteModelId?: string; endpointMode?: 'inherit' | 'allowlist' | 'disabled'; endpointTypes?: string[] },
 ) {
   return apiFetch<{ api_key: SiteAPIKey }>(
     `/api/v1/sites/${siteId}/api-keys/${apiKeyId}/models`,
     {
       method: 'PUT',
-      body: input,
+      body: {
+        model: input.model,
+        ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+        site_model_id: input.siteModelId,
+        endpoint_mode: input.endpointMode,
+        endpoint_types: input.endpointTypes,
+      },
     },
   )
 }
