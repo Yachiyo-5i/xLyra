@@ -63,7 +63,7 @@ func TestOpenCodeGoModuleRegistration(t *testing.T) {
 	if _, ok := AsHealthProbe(module); !ok {
 		t.Fatal("OpenCode Go must expose health probe")
 	}
-	if got := ModuleCapabilities(module); !reflect.DeepEqual(got, []Capability{CapabilityHealthProbe, CapabilityListModels, CapabilityFetchPricing}) {
+	if got := ModuleCapabilities(module); !reflect.DeepEqual(got, []Capability{CapabilityHealthProbe, CapabilityListModels}) {
 		t.Fatalf("OpenCode Go capabilities = %#v", got)
 	}
 	if got := module.(OpenCodeGo).DefaultBaseURL(); got != openCodeGoDefaultBaseURL {

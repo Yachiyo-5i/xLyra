@@ -96,6 +96,17 @@ type gatewayAttemptResult struct {
 	credentialDecisionSet      bool
 }
 
+type credentialProtocolResolverContextKey struct{}
+
+func withCredentialProtocolResolver(ctx context.Context, resolver upstreamProtocolResolver) context.Context {
+	return context.WithValue(ctx, credentialProtocolResolverContextKey{}, resolver)
+}
+
+func credentialProtocolResolverFromContext(ctx context.Context) upstreamProtocolResolver {
+	resolver, _ := ctx.Value(credentialProtocolResolverContextKey{}).(upstreamProtocolResolver)
+	return resolver
+}
+
 func (h Handler) forwardGatewayRequest(
 	ctx context.Context,
 	w http.ResponseWriter,
@@ -174,6 +185,18 @@ func (h Handler) forwardGatewayRequest(
 				}
 			}
 			defer releaseCredentialSelection()
+		}
+		if resolver := credentialProtocolResolverFromContext(ctx); resolver != nil && len(selectedCredential.SupportedEndpointTypes) > 0 {
+			keyCandidate := candidate
+			keyCandidate.Model.SupportedEndpointTypes = append([]string(nil), selectedCredential.SupportedEndpointTypes...)
+			resolved, resolveErr := resolver.Resolve(ctx, request, keyCandidate)
+			if resolveErr != nil {
+				continue
+			}
+			protocol = resolved
+		}
+		if len(selectedCredential.SupportedEndpointTypes) > 0 && !credentialSupportsProtocol(selectedCredential.SupportedEndpointTypes, protocol.ProtocolName()) {
+			continue
 		}
 		startedAt := time.Now()
 		result := gatewayAttemptResult{
@@ -518,6 +541,61 @@ func (h Handler) forwardGatewayRequest(
 	}
 
 	return lastResult
+}
+
+func credentialSupportsProtocol(endpointTypes []string, protocol string) bool {
+	protocol = strings.ToLower(strings.TrimSpace(protocol))
+	var accepted string
+	switch {
+	case strings.HasPrefix(protocol, "openai_chat"):
+		accepted = "openai"
+	case strings.HasPrefix(protocol, "openai_responses"), strings.HasPrefix(protocol, "codex_responses"):
+		accepted = "openai-response"
+	case strings.HasPrefix(protocol, "openai_images"):
+		accepted = "openai-image"
+	case strings.HasPrefix(protocol, "openai_embeddings"):
+		accepted = "openai-embedding"
+	case strings.HasPrefix(protocol, "openai_audio_speech"), strings.HasPrefix(protocol, "mimo_audio_speech"):
+		accepted = "openai-audio-speech"
+	case strings.HasPrefix(protocol, "anthropic_messages"):
+		accepted = "anthropic-messages"
+	case strings.HasPrefix(protocol, "google_"):
+		accepted = "google-gemini"
+	}
+	if accepted != "" {
+		for _, endpointType := range endpointTypes {
+			if strings.EqualFold(strings.TrimSpace(endpointType), accepted) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, endpointType := range endpointTypes {
+		value := strings.ToLower(strings.TrimSpace(endpointType))
+		switch protocol {
+		case "openai_chat", "openai-chat", "openai":
+			if value == "openai" {
+				return true
+			}
+		case "openai_responses", "openai-responses", "responses":
+			if value == "openai-response" {
+				return true
+			}
+		case "anthropic_messages", "anthropic-messages", "messages":
+			if value == "anthropic-messages" {
+				return true
+			}
+		case "google_gemini", "google-gemini", "gemini":
+			if value == "google-gemini" {
+				return true
+			}
+		default:
+			if value == protocol {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func buildUpstreamRequestBody(protocol gatewayProtocolAdapter, request gatewayRequest, payload map[string]any) ([]byte, string, error) {
@@ -914,7 +992,7 @@ func streamErrorMessageFromEndReason(endReason string) string {
 
 func (h Handler) gatewayCredentials(ctx context.Context, candidate routeengine.Candidate) ([]store.GatewayCredential, error) {
 	repo := store.NewGatewayRepository(h.db.DB())
-	credentialRecords, err := repo.ListCredentialsForSiteModel(ctx, candidate.Site.ID, candidate.Model.SiteModelID)
+	credentialRecords, err := repo.ListCredentialsForSiteModelWithEndpointTypes(ctx, candidate.Site.ID, candidate.Model.SiteModelID, candidate.Model.SupportedEndpointTypes)
 	if err == nil && len(credentialRecords) > 0 {
 		return credentialRecords, nil
 	}

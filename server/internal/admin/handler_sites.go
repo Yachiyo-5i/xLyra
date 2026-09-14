@@ -1152,8 +1152,11 @@ func (h Handler) UpdateSiteAPIKeyModel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		Model   string `json:"model"`
-		Enabled bool   `json:"enabled"`
+		Model         string   `json:"model"`
+		SiteModelID   string   `json:"site_model_id"`
+		Enabled       *bool    `json:"enabled"`
+		EndpointMode  string   `json:"endpoint_mode"`
+		EndpointTypes []string `json:"endpoint_types"`
 	}
 	if !h.decodeJSON(w, r, &payload) {
 		return
@@ -1165,10 +1168,35 @@ func (h Handler) UpdateSiteAPIKeyModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiKey, err := h.sites.SetAPIKeyModelEnabled(r.Context(), siteID, apiKeyID, payload.Model, payload.Enabled)
+	apiKey, err := h.sites.APIKeyByCredentialID(r.Context(), siteID, apiKeyID)
 	if err != nil {
-		h.writeError(w, r, http.StatusBadRequest, "site_api_key_model_update_failed", err.Error())
+		h.writeError(w, r, http.StatusBadRequest, "site_api_key_not_found", err.Error())
 		return
+	}
+	var siteModelID uuid.UUID
+	if strings.TrimSpace(payload.SiteModelID) != "" {
+		siteModelID, err = uuid.Parse(payload.SiteModelID)
+		if err != nil {
+			h.writeError(w, r, http.StatusBadRequest, "invalid_site_model_id", "site_model_id must be a valid UUID")
+			return
+		}
+	}
+	if strings.TrimSpace(payload.Model) != "" && payload.Enabled != nil {
+		if siteModelID != uuid.Nil {
+			apiKey, err = h.sites.EnsureAPIKeyModelEnabled(r.Context(), siteID, apiKeyID, siteModelID, *payload.Enabled)
+		} else {
+			apiKey, err = h.sites.SetAPIKeyModelEnabled(r.Context(), siteID, apiKeyID, payload.Model, *payload.Enabled)
+		}
+		if err != nil {
+			h.writeError(w, r, http.StatusBadRequest, "site_api_key_model_update_failed", err.Error())
+			return
+		}
+	}
+	if strings.TrimSpace(payload.SiteModelID) != "" && (payload.EndpointMode != "" || payload.EndpointTypes != nil) {
+		if _, overrideErr := h.sites.SetAPIKeyModelEndpointOverride(r.Context(), siteID, apiKeyID, siteModelID, payload.EndpointMode, payload.EndpointTypes); overrideErr != nil {
+			h.writeError(w, r, http.StatusBadRequest, "site_api_key_model_endpoint_update_failed", overrideErr.Error())
+			return
+		}
 	}
 
 	apiKeyStates, _ := h.sites.APIKeyStates(r.Context(), siteID)
@@ -1546,14 +1574,48 @@ func (h Handler) siteAPIKeyPayloadFromState(item store.Site, apiKey sitepkg.APIK
 
 	modelNames := make([]string, 0, len(models))
 	modelItems := make([]map[string]any, 0, len(models))
+	siteModelsByID := map[uuid.UUID]store.SiteModel{}
+	if h.sites != nil {
+		if siteModels, err := h.sites.ListModels(context.Background(), item.ID); err == nil {
+			for _, siteModel := range siteModels {
+				siteModelsByID[siteModel.ID] = siteModel
+			}
+		}
+	}
 	for _, model := range models {
 		if !model.Available {
 			continue
 		}
 		modelNames = append(modelNames, model.UpstreamModelName)
+		capabilities := model.Capabilities()
+		effectiveEndpointTypes := capabilities.SupportedEndpointTypes
+		if len(capabilities.SupportedEndpointTypes) == 0 && model.SiteModelID.Valid {
+			if siteModel, ok := siteModelsByID[model.SiteModelID.UUID]; ok {
+				var siteCapabilities struct {
+					SupportedEndpointTypes []string `json:"supported_endpoint_types"`
+				}
+				if json.Unmarshal(siteModel.Capabilities, &siteCapabilities) == nil {
+					capabilities.SupportedEndpointTypes = store.NormalizeModelEndpointTypes(siteCapabilities.SupportedEndpointTypes)
+				}
+				if len(capabilities.SupportedEndpointTypes) == 0 {
+					if endpointTypes, endpointErr := h.sites.SiteModelEndpointTypes(context.Background(), siteModel.ID); endpointErr == nil {
+						capabilities.SupportedEndpointTypes = endpointTypes
+					}
+				}
+			}
+		}
+		if model.SiteModelID.Valid && h.sites != nil {
+			if siteEndpointTypes, endpointErr := h.sites.SiteModelEndpointTypes(context.Background(), model.SiteModelID.UUID); endpointErr == nil {
+				effectiveEndpointTypes = model.EffectiveEndpointTypes(siteEndpointTypes)
+			}
+		}
 		modelItems = append(modelItems, map[string]any{
-			"name":    model.UpstreamModelName,
-			"enabled": model.Enabled,
+			"name":                     model.UpstreamModelName,
+			"site_model_id":            nullableUUIDString(model.SiteModelID),
+			"enabled":                  model.Enabled,
+			"supported_endpoint_types": capabilities.SupportedEndpointTypes,
+			"effective_endpoint_types": effectiveEndpointTypes,
+			"endpoint_override":        capabilities.EndpointOverride,
 		})
 	}
 	var usage any = usageFromCredentialMeta(apiKey.Meta, nil)
@@ -1595,6 +1657,13 @@ func (h Handler) siteAPIKeyPayloadFromState(item store.Site, apiKey sitepkg.APIK
 	}
 
 	return keyItem
+}
+
+func nullableUUIDString(value uuid.NullUUID) any {
+	if !value.Valid || value.UUID == uuid.Nil {
+		return nil
+	}
+	return value.UUID.String()
 }
 
 func siteAPIKeyEffectiveName(values ...string) string {

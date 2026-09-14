@@ -1,7 +1,5 @@
 package gateway
 
-import "strings"
-
 type longContextRule struct {
 	ThresholdTokens  int
 	InputMultiplier  float64
@@ -11,24 +9,6 @@ type longContextRule struct {
 var longContextExclusions = []string{"codex", "mini", "nano", "spark", "image", "audio", "realtime"}
 
 var longContextPrefixes = []string{"gpt-5.6", "gpt-5.5", "gpt-5.4"}
-
-func longContextRuleForModel(model string) *longContextRule {
-	normalized := strings.ToLower(strings.TrimSpace(model))
-	if normalized == "" {
-		return nil
-	}
-	for _, exclusion := range longContextExclusions {
-		if strings.Contains(normalized, exclusion) {
-			return nil
-		}
-	}
-	for _, prefix := range longContextPrefixes {
-		if strings.HasPrefix(normalized, prefix) {
-			return &longContextRule{ThresholdTokens: 272000, InputMultiplier: 2, OutputMultiplier: 1.5}
-		}
-	}
-	return nil
-}
 
 func applyLongContextPricing(usage gatewayUsage, pricing selectedPricing) selectedPricing {
 	rule := pricing.LongContextRule
@@ -52,4 +32,31 @@ func applyLongContextPricing(usage gatewayUsage, pricing selectedPricing) select
 	}
 	pricing.LongContextApplied = true
 	return pricing
+}
+
+func longContextRuleForVariants(raw map[string]any) *longContextRule {
+	c, _ := raw["cost"].(map[string]any)
+	over, _ := c["context_over_200k"].(map[string]any)
+	threshold := 200000
+	if tiers, ok := c["tiers"].([]any); ok {
+		for _, value := range tiers {
+			price, _ := value.(map[string]any)
+			tier, _ := price["tier"].(map[string]any)
+			if tier["type"] == "context" {
+				if size, ok := tier["size"].(float64); ok {
+					threshold = int(size)
+					over = price
+					break
+				}
+			}
+		}
+	}
+	in, _ := c["input"].(float64)
+	out, _ := c["output"].(float64)
+	oi, _ := over["input"].(float64)
+	oo, _ := over["output"].(float64)
+	if in <= 0 || out <= 0 || oi <= 0 || oo <= 0 {
+		return nil
+	}
+	return &longContextRule{ThresholdTokens: threshold, InputMultiplier: oi / in, OutputMultiplier: oo / out}
 }

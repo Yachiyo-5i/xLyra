@@ -72,7 +72,7 @@ func TestSiteJobsReleaseGuardsAfterRepositoryErrors(t *testing.T) {
 	}
 }
 
-func TestModelsDevSyncReleasesGuardAfterRepositoryWriteError(t *testing.T) {
+func TestModelCatalogSyncReleasesGuardAfterRepositoryWriteError(t *testing.T) {
 	t.Parallel()
 
 	writeErr := errors.New("scheduler catalog write stopped")
@@ -103,42 +103,12 @@ func TestModelsDevSyncReleasesGuardAfterRepositoryWriteError(t *testing.T) {
 	})
 
 	scheduler := New(schedulerDiscardLogger(), Options{}, nil, syncService, nil)
-	scheduler.runModelsDevSync()
+	scheduler.runModelCatalogSync()
 
 	if scheduler.syncing.Load() {
-		t.Fatal("models.dev sync guard should be released after repository write error")
+		t.Fatal("model catalog sync guard should be released after repository write error")
 	}
 }
-
-func TestModelsDevSyncInvalidatesModelsCacheAfterSuccess(t *testing.T) {
-	t.Parallel()
-
-	db := schedulerPostgresGorm(t)
-	if err := db.Callback().Query().Replace("gorm:query", func(*gorm.DB) {}); err != nil {
-		t.Fatalf("replace query callback: %v", err)
-	}
-	syncService := catalog.NewSyncService(schedulerStoreWithGorm(t, db), schedulerDiscardLogger())
-	schedulerSetSyncClient(t, syncService, &http.Client{
-		Transport: schedulerCatalogRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-			body := `{"openai":{"models":{}}}`
-			if strings.Contains(req.URL.String(), "model-price-repo") {
-				body = `{"ignored":{"litellm_provider":"bedrock"}}`
-			}
-			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
-		}),
-	})
-
-	invalidated := false
-	scheduler := New(schedulerDiscardLogger(), Options{}, nil, syncService, nil).WithModelsCacheInvalidator(func() {
-		invalidated = true
-	})
-	scheduler.runModelsDevSync()
-	if !invalidated {
-		t.Fatal("models cache was not invalidated after successful sync")
-	}
-}
-
-type schedulerCatalogRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn schedulerCatalogRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return fn(req)
@@ -160,3 +130,5 @@ func schedulerSetSyncClient(t *testing.T, service *catalog.SyncService, client *
 	field := reflect.ValueOf(service).Elem().FieldByName("client")
 	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(client))
 }
+
+type schedulerCatalogRoundTripFunc func(*http.Request) (*http.Response, error)

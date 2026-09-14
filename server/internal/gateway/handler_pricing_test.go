@@ -144,8 +144,8 @@ func TestBillingAdjustmentFromPayloadUsesFastModeByModel(t *testing.T) {
 				"service_tier": "fast",
 			},
 			wantMode:       "fast",
-			wantMultiplier: 2.5,
-			wantReason:     "codex_fast_mode",
+			wantMultiplier: 1,
+			wantReason:     "",
 		},
 		{
 			name: "gpt-5.4 fast",
@@ -154,8 +154,8 @@ func TestBillingAdjustmentFromPayloadUsesFastModeByModel(t *testing.T) {
 				"service_tier": "fast",
 			},
 			wantMode:       "fast",
-			wantMultiplier: 2,
-			wantReason:     "codex_fast_mode",
+			wantMultiplier: 1,
+			wantReason:     "",
 		},
 		{
 			name: "gpt-5.4 mini fast has no surcharge",
@@ -173,8 +173,8 @@ func TestBillingAdjustmentFromPayloadUsesFastModeByModel(t *testing.T) {
 				"service_tier": "priority",
 			},
 			wantMode:       "fast",
-			wantMultiplier: 2.5,
-			wantReason:     "codex_fast_mode",
+			wantMultiplier: 1,
+			wantReason:     "",
 		},
 		{
 			name: "non fast",
@@ -191,8 +191,8 @@ func TestBillingAdjustmentFromPayloadUsesFastModeByModel(t *testing.T) {
 			},
 			candidateModel: "gpt-5.4-codex",
 			wantMode:       "fast",
-			wantMultiplier: 2,
-			wantReason:     "codex_fast_mode",
+			wantMultiplier: 1,
+			wantReason:     "",
 		},
 	}
 

@@ -22,10 +22,11 @@ type GatewayRepository struct {
 }
 
 type GatewayCredential struct {
-	Credential     SiteCredential
-	State          SiteAPIKeyState
-	GroupName      sql.NullString
-	ModelUpdatedAt time.Time
+	Credential             SiteCredential
+	State                  SiteAPIKeyState
+	GroupName              sql.NullString
+	ModelUpdatedAt         time.Time
+	SupportedEndpointTypes []string
 }
 
 type GatewayPricing struct {
@@ -73,6 +74,14 @@ func (r GatewayRepository) GetCredentialForSiteModel(ctx context.Context, siteID
 }
 
 func (r GatewayRepository) ListCredentialsForSiteModel(ctx context.Context, siteID uuid.UUID, siteModelID uuid.UUID) ([]GatewayCredential, error) {
+	return r.listCredentialsForSiteModel(ctx, siteID, siteModelID, nil)
+}
+
+func (r GatewayRepository) ListCredentialsForSiteModelWithEndpointTypes(ctx context.Context, siteID uuid.UUID, siteModelID uuid.UUID, siteEndpointTypes []string) ([]GatewayCredential, error) {
+	return r.listCredentialsForSiteModel(ctx, siteID, siteModelID, siteEndpointTypes)
+}
+
+func (r GatewayRepository) listCredentialsForSiteModel(ctx context.Context, siteID uuid.UUID, siteModelID uuid.UUID, siteEndpointTypes []string) ([]GatewayCredential, error) {
 	var apiKeyModels []SiteAPIKeyModel
 	if err := r.db.WithContext(ctx).Where(map[string]any{"site_id": siteID, "site_model_id": siteModelID}).Find(&apiKeyModels).Error; err != nil {
 		return nil, fmt.Errorf("list gateway credentials for site model: %w", err)
@@ -110,12 +119,19 @@ func (r GatewayRepository) ListCredentialsForSiteModel(ctx context.Context, site
 		if !credentialStateUsableForCredentialAt(credential, state, time.Now()) {
 			continue
 		}
-		candidates = append(candidates, GatewayCredential{
+		gatewayItem := GatewayCredential{
 			Credential:     credential,
 			State:          state,
 			GroupName:      state.GroupName,
 			ModelUpdatedAt: apiModel.UpdatedAt,
-		})
+		}
+		if len(siteEndpointTypes) > 0 {
+			gatewayItem.SupportedEndpointTypes = apiModel.EffectiveEndpointTypes(siteEndpointTypes)
+			if len(gatewayItem.SupportedEndpointTypes) == 0 {
+				continue
+			}
+		}
+		candidates = append(candidates, gatewayItem)
 	}
 	SortGatewayCredentials(candidates)
 	return candidates, nil

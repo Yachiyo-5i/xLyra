@@ -32,7 +32,6 @@ func (a OpenAICompatible) Capabilities() []Capability {
 	return []Capability{
 		CapabilityValidateCredential,
 		CapabilityListModels,
-		CapabilityFetchPricing,
 	}
 }
 

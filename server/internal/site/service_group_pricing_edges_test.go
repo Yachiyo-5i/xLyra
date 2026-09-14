@@ -328,22 +328,6 @@ func (retireParserModule) ParsePricing(any) adapter.PricingSnapshot {
 	return adapter.PricingSnapshot{}
 }
 
-func TestRetireSyncedPricingRowsSkipsAdaptersWithPricingCapability(t *testing.T) {
-	t.Parallel()
-
-	// Any query on the offline gorm DB surfaces as an error, so a module with
-	// pricing capability must not touch the pricing tables at all.
-	service := siteServiceWithQueryError(t, errors.New("unexpected pricing query"))
-	for name, module := range map[string]adapter.Module{
-		"pricing fetcher": retireFetcherModule{},
-		"pricing parser":  retireParserModule{},
-	} {
-		if err := service.retireSyncedPricingRows(t.Context(), store.Site{ID: uuid.New()}, module); err != nil {
-			t.Fatalf("%s: retireSyncedPricingRows() error = %v, want no repo access", name, err)
-		}
-	}
-}
-
 func TestRetireSyncedPricingRowsRetiresStaleNonManualRows(t *testing.T) {
 	t.Parallel()
 

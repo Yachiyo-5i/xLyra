@@ -63,7 +63,7 @@ func TestRegistryRegistersDefaultModulesBySiteType(t *testing.T) {
 		},
 		"antigravity": {
 			wantType:         "adapter.Antigravity",
-			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityListAPIKeys, CapabilityFetchPricing},
+			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityListAPIKeys},
 		},
 		"claude_code": {
 			wantType:         "adapter.ClaudeCode",
@@ -75,15 +75,15 @@ func TestRegistryRegistersDefaultModulesBySiteType(t *testing.T) {
 		},
 		"zhipu": {
 			wantType:         "adapter.Zhipu",
-			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityFetchPricing},
+			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels},
 		},
 		"glm_code": {
 			wantType:         "adapter.Zhipu",
-			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityFetchPricing},
+			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels},
 		},
 		"openai": {
 			wantType:         "adapter.OpenAICompatible",
-			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels, CapabilityFetchPricing},
+			wantCapabilities: []Capability{CapabilityValidateCredential, CapabilityListModels},
 		},
 		"newapi": {
 			wantType:         "adapter.NewAPI",
@@ -103,7 +103,7 @@ func TestRegistryRegistersDefaultModulesBySiteType(t *testing.T) {
 		},
 		"opencode_go": {
 			wantType:         "adapter.OpenCodeGo",
-			wantCapabilities: []Capability{CapabilityHealthProbe, CapabilityListModels, CapabilityFetchPricing},
+			wantCapabilities: []Capability{CapabilityHealthProbe, CapabilityListModels},
 		},
 	}
 
@@ -196,10 +196,9 @@ func TestModuleCapabilitiesUsesDescriptorAndDeduplicates(t *testing.T) {
 			CapabilityListModels,
 			"",
 			CapabilityListModels,
-			CapabilityFetchPricing,
 		},
 	})
-	want := []Capability{CapabilityListModels, CapabilityFetchPricing}
+	want := []Capability{CapabilityListModels}
 	if len(got) != len(want) {
 		t.Fatalf("capabilities = %#v, want %#v", got, want)
 	}

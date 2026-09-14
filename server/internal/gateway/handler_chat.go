@@ -315,7 +315,7 @@ func (h Handler) serveEndpoint(
 				}
 			}
 
-			result := h.forwardGatewayRequest(ctx, w, requestID, index+1, apiKey.ID, plan.CanonicalModel.ID, candidate, attemptRequest, reservation, protocol)
+			result := h.forwardGatewayRequest(withCredentialProtocolResolver(ctx, resolver), w, requestID, index+1, apiKey.ID, plan.CanonicalModel.ID, candidate, attemptRequest, reservation, protocol)
 			if result.success {
 				// Settle only the attempt actually served to the client; tokens from
 				// failed attempts retried via failover must not be added on top.
