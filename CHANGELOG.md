@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.7.2...v1.8.0) (2026-09-14)
+
+
+### Features
+
+* 🎸 切换模型目录为自维护数据同步 ([9898c22](https://github.com/Yachiyo-5i/xLyra/commit/9898c22aa865609b4ca625f9d731dc1819cd45bc))
+* 🎸 完成模型目录协议价格与路由配置接入 ([b1b183f](https://github.com/Yachiyo-5i/xLyra/commit/b1b183f3d0b99a449db063d10a29b80db9d120cb))
+* 🎸 完成自维护模型目录同步闭环 ([bc6a813](https://github.com/Yachiyo-5i/xLyra/commit/bc6a813547a8aa801bc249cc45a8e0ba3e1b6f0d))
+* 🎸 对齐模型目录价格与站点协议路由 ([cc345a4](https://github.com/Yachiyo-5i/xLyra/commit/cc345a4df3a59142adc4c10b32aef99537b474f3))
+* 🎸 接入目录价格与协议能力计费 ([3a1f6e0](https://github.com/Yachiyo-5i/xLyra/commit/3a1f6e0781f446af0364e618a924a56e22ffd4a2))
+* 🎸 支持按 API Key 配置模型协议能力 ([fa1fd81](https://github.com/Yachiyo-5i/xLyra/commit/fa1fd81e7aa4c06691731e2da629ad8fc6609dc4))
+* 🎸 支持按API Key配置模型协议能力 ([76439fe](https://github.com/Yachiyo-5i/xLyra/commit/76439fe14eb60c8d1b56341e7597360a635da6d1))
+* 🎸 移除外部模型信息来源 ([c14962d](https://github.com/Yachiyo-5i/xLyra/commit/c14962d2215965a0779a1015aaa7f2e0e5232ce5))
+
+
+### Bug Fixes
+
+* 🐛 优化上游链路复用与故障切换等待 ([cbe911f](https://github.com/Yachiyo-5i/xLyra/commit/cbe911fbdf63af6a828f34aa9dbbaf4c6d9debf1))
+* 🐛 修复上游余额耗尽后的凭据冷却与恢复 ([7e823f6](https://github.com/Yachiyo-5i/xLyra/commit/7e823f6ec1301589607d5429c556cd528e4885c5))
+* 🐛 修复标准模型键不一致导致价格未同步 ([a7369f8](https://github.com/Yachiyo-5i/xLyra/commit/a7369f8af937c2e7a91cef8e0aedc4d0df007e6f))
+* 🐛 修正模型目录远程地址 ([bbe3a0c](https://github.com/Yachiyo-5i/xLyra/commit/bbe3a0cdc1d69a1063e4ba21f0aa850549f97abc))
+
 ## [1.7.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.7.1...v1.7.2) (2026-09-11)
 
 
