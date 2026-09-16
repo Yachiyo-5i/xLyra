@@ -529,7 +529,7 @@ func (h Handler) siteModelTestProtocolAdapter(ctx context.Context, request gatew
 	case siteModelTestProtocolChatCompletions:
 		return newOpenAIChatProtocolAdapter(request, candidate), nil
 	case siteModelTestProtocolResponses:
-		return newOpenAIResponsesProtocolAdapter(request), nil
+		return newOpenAIResponsesProtocolAdapterForCandidate(request, candidate), nil
 	case siteModelTestProtocolMessages:
 		return anthropicMessagesProtocolForCandidate(request, candidate), nil
 	default:
