@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.8.0...v1.8.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* 🐛 修复 Codex 图片模型下游请求无可用路由的问题 ([f418d1c](https://github.com/Yachiyo-5i/xLyra/commit/f418d1c34800f6a079e5bf4b00b4d61f187be540))
+* 🐛 修复 DeepSeek 工具参数正则导致请求失败 ([bdb2d30](https://github.com/Yachiyo-5i/xLyra/commit/bdb2d30c43c5d89fa304416793d8f2d287b02e41))
+* 🐛 修复 DeepSeek 工具参数正则导致请求失败的问题 ([581bcd0](https://github.com/Yachiyo-5i/xLyra/commit/581bcd08b6669b4b73d93d906bf36c723acc4038))
+* 🐛 修复智谱和 DeepSeek Responses 端点地址 ([d746aa8](https://github.com/Yachiyo-5i/xLyra/commit/d746aa873d67b4c3fb552103c6a56d3f70918b50))
+
 ## [1.8.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.7.2...v1.8.0) (2026-09-14)
 
 
