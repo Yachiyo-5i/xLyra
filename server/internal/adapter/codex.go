@@ -295,8 +295,9 @@ func codexModelsWithImageRoute(models []Model) []Model {
 		UpstreamName: codexImageSlug,
 		DisplayName:  defaultString(stringFromAny(route["display_name"]), codexImageSlug),
 		Capabilities: map[string]any{
-			"source": "codex_image_route",
-			"raw":    route,
+			"source":                   "codex_image_route",
+			"supported_endpoint_types": []string{"openai-image"},
+			"raw":                      route,
 		},
 	})
 }

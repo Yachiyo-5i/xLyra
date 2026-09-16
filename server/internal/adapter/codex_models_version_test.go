@@ -43,6 +43,21 @@ func TestCodexImageRouteModelCarriesImageCapability(t *testing.T) {
 	}
 }
 
+func TestCodexModelsWithImageRouteCarriesTopLevelImageCapability(t *testing.T) {
+	models := codexModelsWithImageRoute([]Model{{UpstreamName: "gpt-5.5"}})
+	if len(models) != 2 {
+		t.Fatalf("models length = %d, want 2", len(models))
+	}
+	image := models[1]
+	if image.UpstreamName != codexImageSlug {
+		t.Fatalf("image route model = %q, want %q", image.UpstreamName, codexImageSlug)
+	}
+	endpoints, _ := image.Capabilities["supported_endpoint_types"].([]string)
+	if len(endpoints) != 1 || endpoints[0] != "openai-image" {
+		t.Fatalf("image route capabilities = %#v, want top-level openai-image endpoint", image.Capabilities)
+	}
+}
+
 func TestHasUpstreamModelMatchesByName(t *testing.T) {
 	models := []Model{
 		{UpstreamName: "gpt-5.6-sol"},
