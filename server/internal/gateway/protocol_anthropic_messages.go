@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -199,6 +200,9 @@ func (a *providerAnthropicMessagesProtocolAdapter) BuildUpstreamPayload(request 
 		return nil, err
 	}
 	a.responseTools = inner.responseTools()
+	if strings.EqualFold(a.provider, "deepseek") {
+		payload = sanitizeDeepSeekAnthropicPatterns(payload)
+	}
 	hydrateProviderAnthropicThinking(payload, candidate, request.DownstreamPath != gatewayEndpointMessages)
 	return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
 }
@@ -1043,6 +1047,65 @@ func anthropicToolInputSchema(parameters any) any {
 		return schema
 	}
 	return map[string]any{"type": "object", "properties": map[string]any{}}
+}
+
+func sanitizeDeepSeekAnthropicPatterns(payload map[string]any) map[string]any {
+	out := clonePayload(payload)
+	rawTools, ok := payload["tools"].([]any)
+	if !ok {
+		return out
+	}
+	tools := make([]any, len(rawTools))
+	for i, rawTool := range rawTools {
+		tool, ok := rawTool.(map[string]any)
+		if !ok {
+			tools[i] = rawTool
+			continue
+		}
+		clonedTool := clonePayload(tool)
+		if schema, ok := tool["input_schema"]; ok {
+			clonedTool["input_schema"] = sanitizeDeepSeekAnthropicSchemaValue(schema)
+		}
+		tools[i] = clonedTool
+	}
+	out["tools"] = tools
+	return out
+}
+
+func sanitizeDeepSeekAnthropicSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := clonePayload(typed)
+		for key, child := range typed {
+			switch key {
+			case "pattern":
+				if pattern, ok := child.(string); ok {
+					if _, err := regexp.Compile(pattern); err != nil {
+						delete(out, key)
+					}
+				}
+			case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies":
+				if schemas, ok := child.(map[string]any); ok {
+					cloned := clonePayload(schemas)
+					for name, schema := range schemas {
+						cloned[name] = sanitizeDeepSeekAnthropicSchemaValue(schema)
+					}
+					out[key] = cloned
+				}
+			case "items", "prefixItems", "additionalItems", "additionalProperties", "unevaluatedItems", "unevaluatedProperties", "contains", "propertyNames", "allOf", "anyOf", "oneOf", "not", "if", "then", "else":
+				out[key] = sanitizeDeepSeekAnthropicSchemaValue(child)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, child := range typed {
+			out[i] = sanitizeDeepSeekAnthropicSchemaValue(child)
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func encodeCanonicalToolChoiceAsAnthropic(raw any) any {
