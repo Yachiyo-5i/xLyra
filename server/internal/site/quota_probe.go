@@ -343,8 +343,9 @@ func quotaProbeCredentialEligible(credentialType string) bool {
 
 // defaultQuotaProbeTypeForSite 给未显式配置 quota_probe 的站点类型提供默认探测。
 // 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）与 GLM Code 官方站
-// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口；指向中转/镜像的站点
-// 不默认探测，避免对未实现额度接口的第三方端点持续报错。
+// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口，Moonshot 官方站
+// （api.moonshot.cn）有余额接口；指向中转/镜像的站点不默认探测，避免对未实现
+// 额度接口的第三方端点持续报错。
 func defaultQuotaProbeTypeForSite(item store.Site) string {
 	switch item.SiteType {
 	case "kimi_code":
@@ -354,6 +355,10 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 	case "glm_code":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "open.bigmodel.cn", "api.z.ai") {
 			return QuotaProbeTypeGLM
+		}
+	case "moonshot":
+		if quotaProbeBaseURLOfficial(item.BaseURL, "api.moonshot.cn") {
+			return QuotaProbeTypeMoonshot
 		}
 	}
 	return ""
@@ -534,6 +539,8 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 		kind, entries, result.Plan, err = probeKimiQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeGLM:
 		kind, entries, result.Plan, err = probeGLMQuota(ctx, client, baseURL, secret)
+	case QuotaProbeTypeMoonshot:
+		kind, entries, err = probeMoonshotBalance(ctx, client, baseURL, secret)
 	default:
 		err = fmt.Errorf("unsupported quota probe type %q", probeType)
 	}
@@ -1006,6 +1013,44 @@ func glmPlanName(level string) string {
 		return ""
 	}
 	return strings.ToUpper(string(runes[:1])) + strings.ToLower(string(runes[1:]))
+}
+
+// probeMoonshotBalance 查询 Moonshot（Kimi 开放平台）账户余额。
+// 接口：GET {base}/v1/users/me/balance（Bearer 认证）。响应金额字段为 JSON 数字、
+// 单位 CNY 元；available_balance 为现金 + 赠送金合计，官方文档注明 ≤ 0 时拦截
+// API 调用，此时报 "insufficient balance"。
+func probeMoonshotBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, error) {
+	payload, err := quotaProbeGetJSON(ctx, client, quotaProbeMoonshotBalanceURL(baseURL), secret)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if code := quotaProbeFloat(payload["code"]); code != nil && *code != 0 {
+		return "", nil, fmt.Errorf("balance endpoint returned code %v", *code)
+	}
+
+	data, _ := payload["data"].(map[string]any)
+	entry := QuotaProbeEntry{Label: "balance", Unit: "cny"}
+	entry.Remaining = quotaProbeFloat(data["available_balance"])
+	if entry.Remaining == nil {
+		return "", nil, fmt.Errorf("balance endpoint did not contain balance data")
+	}
+	entries := []QuotaProbeEntry{entry}
+	if *entry.Remaining <= 0 {
+		return "balance", entries, fmt.Errorf("moonshot reported insufficient balance")
+	}
+	return "balance", entries, nil
+}
+
+// quotaProbeMoonshotBalanceURL 返回余额接口地址。余额接口在 /v1 命名空间下，
+// 容忍用户把 base_url 填成 .../v1，避免拼出 /v1/v1/users。
+func quotaProbeMoonshotBalanceURL(baseURL string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		base = "https://api.moonshot.cn"
+	}
+	base = strings.TrimSuffix(base, "/v1")
+	return base + "/v1/users/me/balance"
 }
 
 func quotaProbeGLMLimitURL(baseURL string) (string, error) {

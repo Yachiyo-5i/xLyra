@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -873,6 +874,9 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 	if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: "glm_code"}); got != QuotaProbeTypeGLM {
 		t.Fatalf("glm_code default probe = %q, want %q", got, QuotaProbeTypeGLM)
 	}
+	if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: "moonshot"}); got != QuotaProbeTypeMoonshot {
+		t.Fatalf("moonshot default probe = %q, want %q", got, QuotaProbeTypeMoonshot)
+	}
 
 	official := []struct {
 		siteType string
@@ -883,6 +887,8 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 		{"kimi_code", "https://api.kimi.com/coding/v1", QuotaProbeTypeKimi},
 		{"glm_code", "https://open.bigmodel.cn/api/coding/paas/v4", QuotaProbeTypeGLM},
 		{"glm_code", "https://api.z.ai/api/coding/paas/v4", QuotaProbeTypeGLM},
+		{"moonshot", "https://api.moonshot.cn", QuotaProbeTypeMoonshot},
+		{"moonshot", "https://api.moonshot.cn/v1", QuotaProbeTypeMoonshot},
 	}
 	for _, tc := range official {
 		if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: tc.siteType, BaseURL: tc.baseURL}); got != tc.want {
@@ -899,6 +905,8 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 		{"glm_code", "https://relay.example.com/api/coding/paas/v4"},
 		{"glm_code", "https://bigmodel.cn.evil.example.com/api/coding/paas/v4"},
 		{"glm_code", "not a url"},
+		{"moonshot", "https://relay.example.com/v1"},
+		{"moonshot", "https://moonshot.cn.evil.example.com"},
 	}
 	for _, tc := range thirdParty {
 		if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: tc.siteType, BaseURL: tc.baseURL}); got != "" {
@@ -906,7 +914,7 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 		}
 	}
 
-	for _, siteType := range []string{"moonshot", "zhipu", "newapi", "openai"} {
+	for _, siteType := range []string{"zhipu", "newapi", "openai"} {
 		if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: siteType}); got != "" {
 			t.Fatalf("site_type %q default probe = %q, want empty", siteType, got)
 		}
@@ -1199,5 +1207,100 @@ func TestSyncCodingPlanQuotaCooldownSkipsFailedProbe(t *testing.T) {
 	service.syncCodingPlanQuotaCooldown(context.Background(), uuid.New(), uuid.New(), QuotaProbeResult{Status: "error"})
 	if updates != 0 {
 		t.Fatalf("cooldown writes = %d, want 0 for failed probe", updates)
+	}
+}
+
+// 2026-09 实测 api.moonshot.cn/v1/users/me/balance 响应：金额字段为 JSON 数字，单位 CNY 元。
+const moonshotBalanceFixture = `{"code":0,"data":{"available_balance":49.58894,"voucher_balance":46.58893,"cash_balance":3.00001},"scode":"0x0","status":true}`
+
+func TestProbeMoonshotBalance(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/users/me/balance" {
+			t.Errorf("balance path = %q, want /v1/users/me/balance", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer sk-moonshot" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(moonshotBalanceFixture))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeMoonshot, server.URL, "sk-moonshot")
+	if result.Status != "ok" || result.Kind != "balance" {
+		t.Fatalf("expected ok balance result, got %+v", result)
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 balance entry, got %+v", result.Entries)
+	}
+	entry := result.Entries[0]
+	if entry.Label != "balance" || entry.Unit != "cny" {
+		t.Fatalf("unexpected entry %+v", entry)
+	}
+	if entry.Remaining == nil || *entry.Remaining != 49.58894 {
+		t.Fatalf("remaining = %+v, want 49.58894", entry.Remaining)
+	}
+}
+
+func TestProbeMoonshotBalanceInsufficient(t *testing.T) {
+	// 2026-09 实测欠费账户：cash_balance 为负，available_balance 归零，平台拦截 API 调用。
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"data":{"available_balance":0,"voucher_balance":0,"cash_balance":-31.14918},"scode":"0x0","status":true}`))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeMoonshot, server.URL, "sk-moonshot")
+	if result.Status != "error" || !strings.Contains(result.Error, "insufficient balance") {
+		t.Fatalf("expected insufficient balance error, got %+v", result)
+	}
+}
+
+func TestProbeMoonshotBalanceStripsV1Suffix(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/users/me/balance" {
+			t.Errorf("balance path = %q, want /v1/users/me/balance (base_url /v1 suffix must be stripped)", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(moonshotBalanceFixture))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeMoonshot, server.URL+"/v1", "sk-moonshot")
+	if result.Status != "ok" {
+		t.Fatalf("expected ok result when base_url ends with /v1, got %+v", result)
+	}
+}
+
+func TestProbeMoonshotBalanceRejectsErrorCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1001,"data":{"available_balance":10},"scode":"0x0","status":false}`))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeMoonshot, server.URL, "sk-moonshot")
+	if result.Status != "error" || !strings.Contains(result.Error, "code 1001") {
+		t.Fatalf("expected error code 1001, got %+v", result)
+	}
+}
+
+func TestQuotaProbeMoonshotBalanceURL(t *testing.T) {
+	cases := []struct {
+		baseURL string
+		want    string
+	}{
+		{"", "https://api.moonshot.cn/v1/users/me/balance"},
+		{"https://api.moonshot.cn", "https://api.moonshot.cn/v1/users/me/balance"},
+		{"https://api.moonshot.cn/", "https://api.moonshot.cn/v1/users/me/balance"},
+		{"https://api.moonshot.cn/v1", "https://api.moonshot.cn/v1/users/me/balance"},
+	}
+	for _, tc := range cases {
+		if got := quotaProbeMoonshotBalanceURL(tc.baseURL); got != tc.want {
+			t.Fatalf("quotaProbeMoonshotBalanceURL(%q) = %q, want %q", tc.baseURL, got, tc.want)
+		}
 	}
 }
