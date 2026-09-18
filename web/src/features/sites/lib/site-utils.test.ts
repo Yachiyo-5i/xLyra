@@ -124,6 +124,20 @@ describe('GLM quota formatting', () => {
       { label: 'weeklyQuota', value: '0%', valuePrefix: 'remaining' },
     ])
   })
+
+  it('shows the monthly MCP window when present', () => {
+    const site = glmSite([
+      { label: 'five_hour', unit: 'percent', remaining: 99, limit: 100, used: 1 },
+      { label: 'weekly', unit: 'percent', remaining: 80, limit: 100, used: 20 },
+      { label: 'monthly', unit: 'percent', remaining: 99.3, limit: 100, used: 0.7 },
+    ])
+    expect(formatSiteBalance(site)).toBe('99% / 80%')
+    expect(siteBalanceDetails(site).map((detail) => ({ label: detail.label, value: detail.value, valuePrefix: detail.valuePrefix }))).toEqual([
+      { label: 'fiveHourQuota', value: '99%', valuePrefix: 'remaining' },
+      { label: 'weeklyQuota', value: '80%', valuePrefix: 'remaining' },
+      { label: 'monthlyQuota', value: '99.3%', valuePrefix: 'remaining' },
+    ])
+  })
 })
 
 describe('sub2api key quota formatting', () => {

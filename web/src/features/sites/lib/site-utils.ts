@@ -335,11 +335,12 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
   return [{ label: 'accountBalance', value: fallback }]
 }
 
-const WINDOW_QUOTA_ENTRY_ORDER = ['five_hour', 'weekly'] as const
+const WINDOW_QUOTA_ENTRY_ORDER = ['five_hour', 'weekly', 'monthly'] as const
 
 const WINDOW_QUOTA_ENTRY_LABELS: Record<string, SiteBalanceDetailLabel> = {
   five_hour: 'fiveHourQuota',
   weekly: 'weeklyQuota',
+  monthly: 'monthlyQuota',
 }
 
 function fiveHourWeeklyQuotaDetails(probe: SiteQuotaProbeSummary, language?: string): SiteBalanceDetail[] {
