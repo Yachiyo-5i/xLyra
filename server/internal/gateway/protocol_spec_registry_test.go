@@ -341,6 +341,33 @@ func TestAlternateProtocolForOfficialMiMoAnthropicMessages(t *testing.T) {
 	}
 }
 
+func TestAlternateProtocolForOfficialMoonshotAnthropicMessages(t *testing.T) {
+	t.Parallel()
+
+	alt, ok := alternateProtocolForCandidate(canonicalProtocolAnthropicMessages, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "moonshot", BaseURL: "https://api.moonshot.cn"},
+		Model: routeengine.CandidateModel{UpstreamName: "kimi-k2.6"},
+	})
+	if !ok {
+		t.Fatal("expected official Moonshot Anthropic alternate protocol")
+	}
+	if alt.BaseURL != "" || alt.BasePath != "/anthropic" || alt.Path != "/v1/messages" {
+		t.Fatalf("unexpected alternate protocol: %#v", alt)
+	}
+
+	adapter := newProviderAnthropicMessagesProtocolAdapter("moonshot", alt, canonicalProtocolAnthropicMessages)
+	if endpoint := adapter.UpstreamPath("https://api.moonshot.cn"); endpoint != "https://api.moonshot.cn/anthropic/v1/messages" {
+		t.Fatalf("upstream path = %q, want https://api.moonshot.cn/anthropic/v1/messages", endpoint)
+	}
+
+	if _, ok := alternateProtocolForCandidate(canonicalProtocolAnthropicMessages, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "newapi", BaseURL: "https://api.moonshot.cn"},
+		Model: routeengine.CandidateModel{UpstreamName: "kimi-k2.6"},
+	}); ok {
+		t.Fatal("third-party proxy site must not use official Moonshot alternate protocol")
+	}
+}
+
 func TestApplyRequestPolicyForModelOverrides(t *testing.T) {
 	t.Parallel()
 
