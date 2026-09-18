@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -342,9 +343,10 @@ func quotaProbeCredentialEligible(credentialType string) bool {
 }
 
 // defaultQuotaProbeTypeForSite 给未显式配置 quota_probe 的站点类型提供默认探测。
-// 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）与 GLM Code 官方站
-// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口；指向中转/镜像的站点
-// 不默认探测，避免对未实现额度接口的第三方端点持续报错。
+// 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）、GLM Code 官方站
+// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口，DeepSeek 官方站
+// （api.deepseek.com）有余额接口；指向中转/镜像的站点不默认探测，避免对未实现
+// 额度接口的第三方端点持续报错。
 func defaultQuotaProbeTypeForSite(item store.Site) string {
 	switch item.SiteType {
 	case "kimi_code":
@@ -354,6 +356,10 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 	case "glm_code":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "open.bigmodel.cn", "api.z.ai") {
 			return QuotaProbeTypeGLM
+		}
+	case "deepseek":
+		if quotaProbeBaseURLOfficial(item.BaseURL, "api.deepseek.com") {
+			return QuotaProbeTypeDeepSeek
 		}
 	}
 	return ""
@@ -534,6 +540,8 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 		kind, entries, result.Plan, err = probeKimiQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeGLM:
 		kind, entries, result.Plan, err = probeGLMQuota(ctx, client, baseURL, secret)
+	case QuotaProbeTypeDeepSeek:
+		kind, entries, err = probeDeepSeekBalance(ctx, client, baseURL, secret)
 	default:
 		err = fmt.Errorf("unsupported quota probe type %q", probeType)
 	}
@@ -1006,6 +1014,80 @@ func glmPlanName(level string) string {
 		return ""
 	}
 	return strings.ToUpper(string(runes[:1])) + strings.ToLower(string(runes[1:]))
+}
+
+// probeDeepSeekBalance 查询 DeepSeek 账户余额。
+// 接口：GET {base}/user/balance（Bearer 认证）。余额接口不属于 /v1 命名空间，
+// base_url 以 /v1 结尾时剥掉再拼。响应金额字段是字符串数字；is_available
+// 为 false 且各币种余额均为 0 时报 "insufficient balance"。
+func probeDeepSeekBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, error) {
+	payload, err := quotaProbeGetJSON(ctx, client, deepSeekBalanceBaseURL(baseURL)+"/user/balance", secret)
+	if err != nil {
+		return "", nil, err
+	}
+
+	entries := make([]QuotaProbeEntry, 0, 2)
+	insufficient := false
+	if available, ok := payload["is_available"].(bool); ok && !available {
+		insufficient = true
+	}
+	for _, raw := range anySlice(payload["balance_infos"]) {
+		item, _ := raw.(map[string]any)
+		entry := QuotaProbeEntry{
+			Label: "balance",
+			Unit:  quotaProbeUnit(anyString(item["currency"]), "cny"),
+		}
+		if total, ok := quotaProbeNumber(item["total_balance"]); ok {
+			entry.Remaining = &total
+		}
+		if toppedUp, ok := quotaProbeNumber(item["topped_up_balance"]); ok {
+			entry.Used = &toppedUp
+		}
+		if granted, ok := quotaProbeNumber(item["granted_balance"]); ok {
+			entry.Limit = &granted
+		}
+		if entry.Remaining != nil {
+			entries = append(entries, entry)
+		}
+	}
+	if len(entries) == 0 {
+		return "", nil, fmt.Errorf("balance endpoint did not contain balance data")
+	}
+	if insufficient {
+		for i := range entries {
+			if entries[i].Remaining != nil && *entries[i].Remaining > 0 {
+				return "balance", entries, nil
+			}
+		}
+		return "balance", entries, fmt.Errorf("deepseek reported insufficient balance")
+	}
+	return "balance", entries, nil
+}
+
+// deepSeekBalanceBaseURL 返回余额接口的 base：DeepSeek 的 /user/balance 不在
+// /v1 命名空间下，base_url 以 /v1 结尾时剥掉。
+func deepSeekBalanceBaseURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
+		return trimmed[:len(trimmed)-len("/v1")]
+	}
+	return trimmed
+}
+
+// quotaProbeNumber 解析可能以字符串出现的数字（DeepSeek 余额接口的金额字段
+// 是字符串），兼容数字类型。
+func quotaProbeNumber(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	}
+	return 0, false
 }
 
 func quotaProbeGLMLimitURL(baseURL string) (string, error) {

@@ -12,11 +12,12 @@ const (
 
 	ResponsesHostedToolImageGeneration = "image_generation"
 
-	QuotaProbeTypeSub2API = "sub2api"
-	QuotaProbeTypeNewAPI  = "newapi"
-	QuotaProbeTypeXLyra   = "xlyra"
-	QuotaProbeTypeKimi    = "kimi"
-	QuotaProbeTypeGLM     = "glm"
+	QuotaProbeTypeSub2API  = "sub2api"
+	QuotaProbeTypeNewAPI   = "newapi"
+	QuotaProbeTypeXLyra    = "xlyra"
+	QuotaProbeTypeKimi     = "kimi"
+	QuotaProbeTypeGLM      = "glm"
+	QuotaProbeTypeDeepSeek = "deepseek"
 )
 
 type GatewayConfig struct {
@@ -52,6 +53,8 @@ func NormalizeQuotaProbeType(value string) (string, error) {
 		return QuotaProbeTypeKimi, nil
 	case QuotaProbeTypeGLM:
 		return QuotaProbeTypeGLM, nil
+	case QuotaProbeTypeDeepSeek:
+		return QuotaProbeTypeDeepSeek, nil
 	default:
 		return "", fmt.Errorf("unsupported quota_probe type %q", value)
 	}
