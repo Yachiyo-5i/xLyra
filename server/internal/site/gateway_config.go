@@ -18,6 +18,7 @@ const (
 	QuotaProbeTypeKimi     = "kimi"
 	QuotaProbeTypeGLM      = "glm"
 	QuotaProbeTypeDeepSeek = "deepseek"
+	QuotaProbeTypeMoonshot = "moonshot"
 )
 
 type GatewayConfig struct {
@@ -53,6 +54,8 @@ func NormalizeQuotaProbeType(value string) (string, error) {
 		return QuotaProbeTypeKimi, nil
 	case QuotaProbeTypeGLM:
 		return QuotaProbeTypeGLM, nil
+	case QuotaProbeTypeMoonshot:
+		return QuotaProbeTypeMoonshot, nil
 	case QuotaProbeTypeDeepSeek:
 		return QuotaProbeTypeDeepSeek, nil
 	default:

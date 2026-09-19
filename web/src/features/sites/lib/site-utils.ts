@@ -241,8 +241,8 @@ function formatProbePercent(value: number) {
 
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
-  if (probe.probe_type === 'deepseek') {
-    return formatDeepSeekBalance(probe.entries)
+  if (probe.probe_type === 'deepseek' || probe.probe_type === 'moonshot') {
+    return formatAccountBalance(probe.entries)
   }
   if (probe.probe_type === 'kimi' || probe.probe_type === 'glm') {
     return formatFiveHourWeeklyQuotaBalance(probe)
@@ -288,6 +288,8 @@ export type SiteBalanceDetailLabel =
   | 'accountBalance'
   | 'grantedBalance'
   | 'toppedUpBalance'
+  | 'cashBalance'
+  | 'voucherBalance'
   | 'used'
   | 'remaining'
   | 'unlimited'
@@ -315,17 +317,23 @@ function formatBalanceAmount(value: number, unit?: string) {
   return `${value < 0 ? '-' : ''}${prefix}${formatProbeAmount(Math.abs(value))}${suffix}`
 }
 
-export function formatDeepSeekBalance(entries?: SiteQuotaProbeEntry[]) {
+export function formatAccountBalance(entries?: SiteQuotaProbeEntry[]) {
   const values = (entries ?? [])
     .filter((entry) => entry.label === 'balance' && typeof entry.remaining === 'number')
     .map((entry) => formatBalanceAmount(entry.remaining!, entry.unit))
   return values.length > 0 ? values.join(' / ') : undefined
 }
 
-export function deepSeekBalanceDetails(entries?: SiteQuotaProbeEntry[]): SiteBalanceDetail[] {
+export function accountBalanceDetails(entries?: SiteQuotaProbeEntry[]): SiteBalanceDetail[] {
   return (entries ?? []).flatMap((entry) => {
     if (entry.label !== 'balance' || typeof entry.remaining !== 'number') return []
     const rows: SiteBalanceDetail[] = [{ label: 'accountBalance', value: formatBalanceAmount(entry.remaining, entry.unit) }]
+    if (typeof entry.cash_balance === 'number') {
+      rows.push({ label: 'cashBalance', value: formatBalanceAmount(entry.cash_balance, entry.unit) })
+    }
+    if (typeof entry.voucher_balance === 'number') {
+      rows.push({ label: 'voucherBalance', value: formatBalanceAmount(entry.voucher_balance, entry.unit) })
+    }
     if (typeof entry.granted_balance === 'number') {
       rows.push({ label: 'grantedBalance', value: formatBalanceAmount(entry.granted_balance, entry.unit) })
     }
@@ -340,7 +348,7 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
   const probe = site.quota_probe
   if (probe) {
     const probeType = probe.probe_type
-    if (probeType === 'deepseek') return deepSeekBalanceDetails(probe.entries)
+    if (probeType === 'deepseek' || probeType === 'moonshot') return accountBalanceDetails(probe.entries)
     if (probeType === 'kimi' || probeType === 'glm') {
       return fiveHourWeeklyQuotaDetails(probe, language)
     }

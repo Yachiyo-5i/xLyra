@@ -63,6 +63,8 @@
       "tokenBalance": "令牌余额",
       "tokenUsed": "令牌已用量",
       "accountBalance": "账户余额",
+      "cashBalance": "现金余额",
+      "voucherBalance": "代金券余额",
       "grantedBalance": "赠送余额",
       "toppedUpBalance": "充值余额",
       "used": "已用量",

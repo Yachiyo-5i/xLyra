@@ -58,7 +58,7 @@ import { routeQueryKeys } from '@/features/routes/api/routes'
 import {
   apiKeyModels,
   canCompleteAPIKey,
-  deepSeekBalanceDetails,
+  accountBalanceDetails,
   formatAPIKeyValue,
   formatDisplayQuota,
   formatProbeAmount,
@@ -542,8 +542,8 @@ export function SiteAPIKeysDraw({
                       ? t('apiKeys.openCodeGoPlan')
                       : null
                   const probe = item.quota_probe
-                  const balanceDetails = site?.quota_probe?.probe_type === 'deepseek'
-                    ? deepSeekBalanceDetails(probe?.entries).filter((detail) => detail.label === 'accountBalance')
+                  const balanceDetails = site?.quota_probe?.probe_type === 'deepseek' || site?.quota_probe?.probe_type === 'moonshot'
+                    ? accountBalanceDetails(probe?.entries).filter((detail) => detail.label === 'accountBalance')
                     : []
                   const probeEntry = probe?.entries?.length
                     ? (probe.entries.find(

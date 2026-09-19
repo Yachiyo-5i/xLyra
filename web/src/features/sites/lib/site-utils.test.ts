@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteQuotaProbeEntry } from '@/features/sites/api/sites'
-import { deepSeekBalanceDetails, formatDeepSeekBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { accountBalanceDetails, formatAccountBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -204,8 +204,8 @@ describe('DeepSeek balance formatting', () => {
       { label: 'balance', unit: 'cny', remaining: -0.5, granted_balance: 0, topped_up_balance: -0.5 },
       { label: 'balance', unit: 'usd', remaining: 2.5, granted_balance: 1, topped_up_balance: 1.5 },
     ]
-    expect(formatDeepSeekBalance(entries)).toBe('-¥0.50 / $2.50')
-    const details = deepSeekBalanceDetails(entries)
+    expect(formatAccountBalance(entries)).toBe('-¥0.50 / $2.50')
+    const details = accountBalanceDetails(entries)
     expect(details).toEqual([
       { label: 'accountBalance', value: '-¥0.50' },
       { label: 'grantedBalance', value: '¥0.00' },
@@ -218,7 +218,22 @@ describe('DeepSeek balance formatting', () => {
   })
 
   it('keeps missing balance data distinct from a zero balance', () => {
-    expect(formatDeepSeekBalance([])).toBeUndefined()
-    expect(deepSeekBalanceDetails([{ label: 'balance', unit: 'usd' }])).toEqual([])
+    expect(formatAccountBalance([])).toBeUndefined()
+    expect(accountBalanceDetails([{ label: 'balance', unit: 'usd' }])).toEqual([])
+  })
+})
+
+describe('Moonshot balance formatting', () => {
+  it.each([0, -0.5, 2.5])('preserves available balance %s independently of cash debt', (available) => {
+    const entries = [{ label: 'balance', unit: 'cny', remaining: available, cash_balance: -31.14918, voucher_balance: Math.max(available, 0) }]
+    const site = { ...siteWithSyncState('unknown'), site_type: 'moonshot', quota_probe: { probe_type: 'moonshot', entries, remaining_min: available, unit: 'cny' } }
+    const amount = available < 0 ? '-¥0.50' : available === 0 ? '¥0.00' : '¥2.50'
+    expect(formatSiteBalance(site)).toBe(amount)
+    expect(siteBalanceDetails(site)).toEqual([
+      { label: 'accountBalance', value: amount },
+      { label: 'cashBalance', value: '-¥31.15' },
+      { label: 'voucherBalance', value: available > 0 ? '¥2.50' : '¥0.00' },
+    ])
+    expect(accountBalanceDetails(entries).filter((detail) => detail.label === 'accountBalance')).toEqual([{ label: 'accountBalance', value: amount }])
   })
 })

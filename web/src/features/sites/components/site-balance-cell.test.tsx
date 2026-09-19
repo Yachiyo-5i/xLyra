@@ -192,3 +192,96 @@ describe('DeepSeek balance details', () => {
     expect(balance).toContain('aria-haspopup="dialog"')
   })
 })
+
+describe('Moonshot balance details', () => {
+  const site: Site = {
+    id: 'moonshot-site',
+    name: 'Moonshot',
+    slug: 'moonshot',
+    site_type: 'moonshot',
+    base_url: 'https://api.moonshot.cn',
+    status: 'active',
+    enabled: true,
+    routing_priority: 0,
+    meta: {},
+    created_at: '2026-09-19T00:00:00Z',
+    updated_at: '2026-09-19T00:00:00Z',
+    quota_probe: {
+      probe_type: 'moonshot',
+      unit: 'cny',
+      entries: [
+        { label: 'balance', unit: 'cny', remaining: 0, cash_balance: -31.14918, voucher_balance: 0 },
+      ],
+    },
+  }
+
+  it.each([false, true])('renders separate quota rows with API keys loaded: %s', (keysLoaded) => {
+    const apiKeys: SiteAPIKey[] = keysLoaded ? [{
+      id: 'moonshot-key',
+      name: 'Moonshot key',
+      key: 'sk-***',
+      routing_priority: 0,
+      upstream_cost_multiplier: 1,
+      status: 'active',
+      enabled: true,
+      models: [],
+      quota_probe: { status: 'ok', kind: 'balance', entries: site.quota_probe?.entries },
+    }] : []
+    const markup = renderToStaticMarkup(
+      <I18nextProvider i18n={i18n}>
+        <SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />
+      </I18nextProvider>,
+    )
+    const rows = [...markup.matchAll(/<div[^>]*><span[^>]*>([^<]+)<\/span><span[^>]*>([^<]+)<\/span><\/div>/g)]
+      .map((match) => [match[1], match[2]])
+    expect(rows).toEqual([
+      ['账户余额', '¥0.00'],
+      ['现金余额', '-¥31.15'],
+      ['代金券余额', '¥0.00'],
+    ])
+  })
+
+  it('includes all quota rows in the desktop tooltip description', () => {
+    const markup = renderToStaticMarkup(
+      <I18nextProvider i18n={i18n}>
+        <SiteBalanceCell site={site} />
+      </I18nextProvider>,
+    )
+    expect(markup).toContain('role="tooltip"')
+    expect(markup).toContain('账户余额 ¥0.00, 现金余额 -¥31.15, 代金券余额 ¥0.00')
+  })
+
+  it('makes the mobile Moonshot balance a drawer trigger without requiring loaded API keys', () => {
+    const noop = () => {}
+    const markup = renderToStaticMarkup(
+      <I18nextProvider i18n={i18n}>
+        <MobileSitesList
+          items={[site]}
+          modelsMap={{}}
+          apiKeysMap={{}}
+          validationSnapshots={{}}
+          refreshingSiteIds={[]}
+          togglingSiteId={null}
+          deletingSiteId={null}
+          updatedAtMode="absolute"
+          now={Date.parse(site.updated_at)}
+          onUpdatedAtModeChange={noop}
+          onRefresh={noop}
+          onToggleEnabled={noop}
+          onEdit={noop}
+          onDelete={noop}
+          onOpenModels={noop}
+          onOpenAPIKeys={noop}
+          onOpenGrokAccounts={noop}
+          onOpenTest={noop}
+          onOpenUsageSplit={noop}
+          resolvedMode="light"
+          siteTypes={[]}
+        />
+      </I18nextProvider>,
+    )
+    const buttons = markup.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? []
+    const balance = buttons.find((button) => button.includes('¥0.00'))
+    expect(balance).toContain('aria-haspopup="dialog"')
+  })
+})

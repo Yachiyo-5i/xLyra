@@ -25,6 +25,8 @@ const (
 )
 
 type QuotaProbeEntry struct {
+	CashBalance     *float64 `json:"cash_balance,omitempty"`
+	VoucherBalance  *float64 `json:"voucher_balance,omitempty"`
 	GrantedBalance  *float64 `json:"granted_balance,omitempty"`
 	ToppedUpBalance *float64 `json:"topped_up_balance,omitempty"`
 	Label           string   `json:"label"`
@@ -362,6 +364,10 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 		if quotaProbeBaseURLOfficial(item.BaseURL, "open.bigmodel.cn", "api.z.ai") {
 			return QuotaProbeTypeGLM
 		}
+	case "moonshot":
+		if quotaProbeBaseURLOfficial(item.BaseURL, "api.moonshot.cn") {
+			return QuotaProbeTypeMoonshot
+		}
 	case "deepseek":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "api.deepseek.com") {
 			return QuotaProbeTypeDeepSeek
@@ -554,6 +560,8 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 		kind, entries, result.Plan, err = probeKimiQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeGLM:
 		kind, entries, result.Plan, err = probeGLMQuota(ctx, client, baseURL, secret)
+	case QuotaProbeTypeMoonshot:
+		kind, entries, result.IsAvailable, err = probeMoonshotBalance(ctx, client, baseURL, secret)
 	case QuotaProbeTypeDeepSeek:
 		kind, entries, result.IsAvailable, err = probeDeepSeekBalance(ctx, client, baseURL, secret)
 	default:
@@ -1081,6 +1089,38 @@ func glmPlanName(level string) string {
 		return ""
 	}
 	return strings.ToUpper(string(runes[:1])) + strings.ToLower(string(runes[1:]))
+}
+
+func probeMoonshotBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, *bool, error) {
+	payload, err := quotaProbeGetJSON(ctx, client, quotaProbeMoonshotBalanceURL(baseURL), secret)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	if code := quotaProbeFloat(payload["code"]); code != nil && *code != 0 {
+		return "", nil, nil, fmt.Errorf("balance endpoint returned code %v", *code)
+	}
+
+	data, _ := payload["data"].(map[string]any)
+	entry := QuotaProbeEntry{Label: "balance", Unit: "cny", CashBalance: quotaProbeFloat(data["cash_balance"]), VoucherBalance: quotaProbeFloat(data["voucher_balance"])}
+	entry.Remaining = quotaProbeFloat(data["available_balance"])
+	if entry.Remaining == nil {
+		return "", nil, nil, fmt.Errorf("balance endpoint did not contain balance data")
+	}
+	entries := []QuotaProbeEntry{entry}
+	available := *entry.Remaining > 0
+	return "balance", entries, &available, nil
+}
+
+// quotaProbeMoonshotBalanceURL 返回余额接口地址。余额接口在 /v1 命名空间下，
+// 容忍用户把 base_url 填成 .../v1，避免拼出 /v1/v1/users。
+func quotaProbeMoonshotBalanceURL(baseURL string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		base = "https://api.moonshot.cn"
+	}
+	base = strings.TrimSuffix(base, "/v1")
+	return base + "/v1/users/me/balance"
 }
 
 func probeDeepSeekBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, *bool, error) {

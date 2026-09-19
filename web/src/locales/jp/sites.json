@@ -63,6 +63,8 @@
       "tokenBalance": "トークン残高",
       "tokenUsed": "トークン使用量",
       "accountBalance": "アカウント残高",
+      "cashBalance": "現金残高",
+      "voucherBalance": "クーポン残高",
       "grantedBalance": "付与残高",
       "toppedUpBalance": "チャージ残高",
       "used": "使用量",
