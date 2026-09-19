@@ -226,6 +226,14 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure api_keys.key_kind column: %w", err)
 		}
 	}
+	if !migrator.HasColumn(&APIKey{}, "SortOrder") {
+		if err := migrator.AddColumn(&APIKey{}, "SortOrder"); err != nil {
+			return fmt.Errorf("ensure api key sort order: %w", err)
+		}
+	}
+	if err := NewAPIKeyRepository(db).InitializeOrder(ctx); err != nil {
+		return err
+	}
 	hadUpstreamCostMultiplier := migrator.HasColumn(&SiteCredential{}, "UpstreamCostMultiplier")
 	for _, field := range []string{"DisplayName", "RoutingPriority", "UpstreamCostMultiplier"} {
 		if migrator.HasColumn(&SiteCredential{}, field) {

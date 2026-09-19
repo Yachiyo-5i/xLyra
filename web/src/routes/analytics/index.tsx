@@ -95,6 +95,7 @@ export function AnalyticsPage() {
   const optionsQuery = useQuery({
     queryKey: analyticsQueryKeys.options(),
     queryFn: getAnalyticsOptions,
+    refetchOnWindowFocus: 'always',
     staleTime: 5 * 60_000,
   })
   const contributionsQuery = useQuery({

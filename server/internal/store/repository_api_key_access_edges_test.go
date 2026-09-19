@@ -252,6 +252,10 @@ func TestAPIKeyRepositoryCreateUpdateDeleteAndUsageOffline(t *testing.T) {
 	db := storeTransactionGorm(t, "api key repository mutations")
 	var created APIKey
 	storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*schemaUpgradeMarker); ok {
+			tx.Statement.RowsAffected = 1
+			return
+		}
 		item, ok := tx.Statement.Dest.(*APIKey)
 		if !ok {
 			tx.AddError(errors.New("unexpected api key create destination"))
@@ -263,6 +267,15 @@ func TestAPIKeyRepositoryCreateUpdateDeleteAndUsageOffline(t *testing.T) {
 	})
 	queryCalls := 0
 	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*schemaUpgradeMarker); ok {
+			tx.Statement.RowsAffected = 1
+			return
+		}
+		if dest, ok := tx.Statement.Dest.(*[]APIKeyListOption); ok {
+			*dest = []APIKeyListOption{{SortOrder: 3}}
+			tx.Statement.RowsAffected = 1
+			return
+		}
 		queryCalls++
 		item, ok := tx.Statement.Dest.(*APIKey)
 		if !ok {
@@ -342,7 +355,7 @@ func TestAPIKeyRepositoryCreateUpdateDeleteAndUsageOffline(t *testing.T) {
 		t.Fatalf("Delete returned error: %v", err)
 	}
 
-	if key.ID != apiKeyID || created.Scope != "gateway" || created.Status != "active" ||
+	if key.SortOrder != 4 || key.ID != apiKeyID || created.Scope != "gateway" || created.Status != "active" ||
 		created.KeyKind != "generated" || created.ModelPolicy != "allow_all" || created.SitePolicy != "allow_all" {
 		t.Fatalf("created api key defaults = key:%#v captured:%#v", key, created)
 	}

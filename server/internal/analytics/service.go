@@ -219,7 +219,6 @@ func (s *Service) Options(ctx context.Context) (AnalyticsOptions, error) {
 		return AnalyticsOptions{}, fmt.Errorf("analytics site states: %w", err)
 	}
 	sortAnalyticsSiteOptions(sites, states)
-	sortAnalyticsAPIKeyOptions(apiKeys)
 	result := AnalyticsOptions{
 		Sites:   make([]AnalyticsOption, 0, len(sites)),
 		APIKeys: make([]AnalyticsOption, 0, len(apiKeys)),
@@ -253,20 +252,6 @@ func sortAnalyticsSiteOptions(sites []store.SiteListOption, states map[uuid.UUID
 			return analyticsOptionCollator.CompareString(sites[i].Name, sites[j].Name) < 0
 		}
 		return sites[i].ID.String() < sites[j].ID.String()
-	})
-}
-
-func sortAnalyticsAPIKeyOptions(apiKeys []store.APIKeyListOption) {
-	sort.SliceStable(apiKeys, func(i, j int) bool {
-		aActive := apiKeys[i].Status == "active"
-		bActive := apiKeys[j].Status == "active"
-		if aActive != bActive {
-			return aActive
-		}
-		if !apiKeys[i].CreatedAt.Equal(apiKeys[j].CreatedAt) {
-			return apiKeys[i].CreatedAt.Before(apiKeys[j].CreatedAt)
-		}
-		return apiKeys[i].ID.String() < apiKeys[j].ID.String()
 	})
 }
 

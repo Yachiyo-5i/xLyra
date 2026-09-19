@@ -170,3 +170,65 @@ func capturedAPIKeyQuotaFlagUpdate(tx *gorm.DB) (apiKeyQuotaFlagUpdate, error) {
 	}
 	return apiKeyQuotaFlagUpdate{Column: column, IDs: ids}, nil
 }
+
+func TestRestoreAPIKeyOrderField(t *testing.T) {
+	t.Parallel()
+	parsed, err := schema.Parse(&store.APIKey{}, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		row  map[string]any
+		want int64
+	}{
+		{map[string]any{"sort_order": json.Number("7")}, 7},
+		{map[string]any{}, 0},
+	} {
+		var key store.APIKey
+		if err := applyRowToModel(context.Background(), parsed, reflect.ValueOf(&key).Elem(), tc.row); err != nil {
+			t.Fatal(err)
+		}
+		if key.SortOrder != tc.want {
+			t.Fatalf("restored rank = %d, want %d", key.SortOrder, tc.want)
+		}
+	}
+}
+
+func TestImportAPIKeysPreservesSavedOrderAndBackfillsLegacyOrder(t *testing.T) {
+	t.Parallel()
+	for _, saved := range []bool{false, true} {
+		db := backupOfflineGorm(t)
+		var imported []store.APIKey
+		if err := db.Callback().Create().Replace("gorm:create", func(tx *gorm.DB) {
+			imported = append(imported, tx.Statement.Dest.([]store.APIKey)...)
+			tx.Statement.RowsAffected = int64(len(imported))
+		}); err != nil {
+			t.Fatal(err)
+		}
+		activeID, disabledID := uuid.New(), uuid.New()
+		rows := []map[string]any{
+			{"id": disabledID.String(), "status": "disabled", "created_at": "2026-01-01T00:00:00Z"},
+			{"id": activeID.String(), "status": "active", "created_at": "2026-02-01T00:00:00Z"},
+		}
+		if saved {
+			rows[0]["sort_order"] = json.Number("2")
+			rows[1]["sort_order"] = json.Number("1")
+		}
+		var table backupTable
+		for _, candidate := range backupTables {
+			if candidate.Name == "api_keys" {
+				table = candidate
+			}
+		}
+		if err := importTable(context.Background(), db, table, rows); err != nil {
+			t.Fatal(err)
+		}
+		wantFirst := disabledID
+		if saved {
+			wantFirst = activeID
+		}
+		if len(imported) != 2 || imported[0].ID != wantFirst || imported[0].SortOrder != 1 || imported[1].SortOrder != 2 {
+			t.Fatalf("saved=%v: imported keys have incorrect ranks", saved)
+		}
+	}
+}

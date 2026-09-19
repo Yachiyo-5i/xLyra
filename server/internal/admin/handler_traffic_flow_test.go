@@ -52,9 +52,9 @@ func TestBuildTrafficFlowTopologyMatchesManagementOrdering(t *testing.T) {
 	topology := buildTrafficFlowTopology(
 		[]store.APIKey{
 			{ID: disabledNewID, Name: "Disabled New", Status: "disabled", CreatedAt: base.Add(4 * time.Hour)},
-			{ID: activeNewID, Name: "Active New", Status: "active", CreatedAt: base.Add(3 * time.Hour)},
+			{ID: activeNewID, SortOrder: 1, Name: "Active New", Status: "active", CreatedAt: base.Add(3 * time.Hour)},
 			{ID: disabledOldID, Name: "Disabled Old", Status: "disabled", CreatedAt: base},
-			{ID: activeOldID, Name: "Active Old", Status: "active", CreatedAt: base.Add(time.Hour)},
+			{ID: activeOldID, SortOrder: 2, Name: "Active Old", Status: "active", CreatedAt: base.Add(time.Hour)},
 		},
 		[]store.Site{
 			{ID: disabledSiteID, Name: "Disabled High Weight", SiteType: "openai", Enabled: false, RoutingPriority: 9, CreatedAt: base},
@@ -64,7 +64,7 @@ func TestBuildTrafficFlowTopologyMatchesManagementOrdering(t *testing.T) {
 		},
 	)
 
-	wantDownstream := []uuid.UUID{activeOldID, activeNewID}
+	wantDownstream := []uuid.UUID{activeNewID, activeOldID}
 	if len(topology.Downstream) != len(wantDownstream) {
 		t.Fatalf("downstream count = %d, want %d", len(topology.Downstream), len(wantDownstream))
 	}

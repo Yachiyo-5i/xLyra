@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/common/page-header'
 import type { TokenUsageBreakdown } from '@/components/common/token-usage-hover-card'
 import { PaginationControls } from '@/components/ui/pagination'
 import { listDownstreamAPIKeys, downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
-import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-utils'
 import { getRequestLogSummary, listRequestLogs, requestQueryKeys, type RequestLogItem } from '@/features/requests/api/requests'
 import { RequestsFilterBar } from '@/features/requests/components/requests-filter-bar'
 import { RequestsMobileFilterBar } from '@/features/requests/components/requests-mobile-filter-bar'
@@ -71,16 +70,14 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
   const apiKeysQuery = useQuery({
     queryKey: downstreamAPIKeyQueryKeys.list(),
     queryFn: listDownstreamAPIKeys,
+    refetchOnWindowFocus: 'always',
   })
 
   const sites = useMemo(
     () => sortSitesForDisplay(sitesQuery.data?.items ?? EMPTY_SITES),
     [sitesQuery.data?.items],
   )
-  const apiKeys = useMemo(
-    () => sortAPIKeysForDisplay(apiKeysQuery.data?.items ?? EMPTY_API_KEYS),
-    [apiKeysQuery.data?.items],
-  )
+  const apiKeys = apiKeysQuery.data?.items ?? EMPTY_API_KEYS
   const items = requestsQuery.data?.items ?? EMPTY_REQUESTS
   const totalItems = requestsQuery.data?.meta?.total ?? items.length
   const currentPage = page

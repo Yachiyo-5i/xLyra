@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Link, LoaderCircle, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
+import { ArrowDownUp, Copy, Link, LoaderCircle, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { EmptyState } from '@/components/common/empty-state'
@@ -38,6 +38,7 @@ import {
   type DownstreamAPIKey,
   type QuotaResetScope,
 } from '@/features/api-keys/api/api-keys'
+import { APIKeyOrderDraw } from '@/features/api-keys/components/api-key-order-draw'
 import { APIKeyFormDraw } from '@/features/api-keys/components/api-key-form-draw'
 import { APIKeyModelsDraw } from '@/features/api-keys/components/api-key-models-draw'
 import { APIKeysSkeleton } from '@/features/api-keys/components/api-keys-skeleton'
@@ -48,7 +49,6 @@ import {
   isAPIKeyActive,
   readLastUsedMode,
   saveLastUsedMode,
-  sortAPIKeysForDisplay,
   sortCanonicalModels,
   toUpdateInput,
 } from '@/features/api-keys/lib/api-key-utils'
@@ -74,6 +74,7 @@ export function DownstreamAPIKeysWorkspace() {
   const isMobile = useMobileLayout()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [orderOpen, setOrderOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingKey, setEditingKey] = useState<DownstreamAPIKey | null>(null)
   const [modelsKey, setModelsKey] = useState<DownstreamAPIKey | null>(null)
@@ -94,6 +95,7 @@ export function DownstreamAPIKeysWorkspace() {
   const apiKeysQuery = useQuery({
     queryKey: downstreamAPIKeyQueryKeys.list(),
     queryFn: listDownstreamAPIKeys,
+    refetchOnWindowFocus: 'always',
   })
   const canonicalModelsQuery = useQuery({
     queryKey: [...sitesQueryKeys.all, 'canonical-models'],
@@ -127,7 +129,7 @@ export function DownstreamAPIKeysWorkspace() {
 
       return matchesStatus && matchesSearch
     })
-    return sortAPIKeysForDisplay(filtered)
+    return filtered
   }, [apiKeys, search, statusFilter])
 
   const saveMutation = useMutation({
@@ -151,6 +153,7 @@ export function DownstreamAPIKeysWorkspace() {
           return { ...current, items, meta: { ...current.meta, count: items.length } }
         },
       )
+      void queryClient.invalidateQueries({ queryKey: downstreamAPIKeyQueryKeys.list() })
       setFormOpen(false)
       setEditingKey(null)
       toast.success(variables.id ? t('workspace.toast.keyUpdated') : t('workspace.toast.keyCreated'))
@@ -261,8 +264,18 @@ export function DownstreamAPIKeysWorkspace() {
     onToggleLastUsedMode: () => setLastUsedMode((current) => (current === 'absolute' ? 'relative' : 'absolute')),
   }
 
+  const orderButton = (
+    <Button variant="outline" onClick={() => setOrderOpen(true)} disabled={apiKeys.length < 2 || !apiKeysQuery.data?.meta?.order_revision} aria-label={t('order.title')}>
+      <ArrowDownUp className="h-4 w-4" />
+      {!isMobile ? t('order.title') : null}
+    </Button>
+  )
+
   const dialogs = (
     <>
+      {orderOpen && apiKeysQuery.data ? (
+        <APIKeyOrderDraw initialData={apiKeysQuery.data} onClose={() => setOrderOpen(false)} />
+      ) : null}
       {formOpen ? (
         <APIKeyFormDraw
           open={formOpen}
@@ -521,6 +534,7 @@ export function DownstreamAPIKeysWorkspace() {
                 />
                 <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
               </div>
+              {orderButton}
               <Button
                 variant="secondary"
                 size="icon"
@@ -605,6 +619,7 @@ export function DownstreamAPIKeysWorkspace() {
         </div>
 
         <div className="flex items-center gap-2">
+          {orderButton}
           <Button
             variant="outline"
             onClick={() => apiKeysQuery.refetch()}

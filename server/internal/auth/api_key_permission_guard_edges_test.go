@@ -29,7 +29,14 @@ func TestReplaceAdminAccessTokenWithMissingStoreStopsAtRepositoryBoundaryOffline
 func TestDeleteAPIKeyReturnsNotFoundWhenDeleteAffectsNoRowsOffline(t *testing.T) {
 	t.Parallel()
 
-	service := newAPIKeyPermissionGuardService(t)
+	service := NewService(authTransactionOnlyGorm(t), apiKeyPermissionGuardMasterKey)
+
+	if err := service.db.Callback().Create().Replace("gorm:create", func(tx *gorm.DB) { tx.Statement.RowsAffected = 1 }); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.db.Callback().Query().Replace("gorm:query", func(tx *gorm.DB) { tx.Statement.RowsAffected = 1 }); err != nil {
+		t.Fatal(err)
+	}
 	if err := service.db.Callback().Delete().Replace("gorm:delete", func(tx *gorm.DB) {
 		tx.Statement.RowsAffected = 0
 	}); err != nil {

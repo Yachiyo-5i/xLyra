@@ -1,4 +1,15 @@
 {
+  "order": {
+    "title": "Reorder keys",
+    "description": "Drag or use the arrow buttons to reorder all keys. Saved order applies across devices and related pages.",
+    "saved": "Key order saved",
+    "failed": "Failed to save key order",
+    "conflict": "The key list or order has changed. Reload before reordering. Reloading discards your unsaved order.",
+    "reload": "Reload",
+    "drag": "Drag {{name}} to reorder, or use the arrow keys",
+    "up": "Move {{name}} up",
+    "down": "Move {{name}} down"
+  },
   "quota": {
     "unlimited": "Unlimited",
     "used": "Used {{amount}}",

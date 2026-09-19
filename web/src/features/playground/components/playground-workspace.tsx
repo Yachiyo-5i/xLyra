@@ -17,7 +17,6 @@ import {
   listPlaygroundModels,
   listServerConversations,
 } from '@/features/playground/api/playground'
-import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-utils'
 import { PlaygroundRail } from '@/features/playground/components/playground-rail'
 import { PlaygroundModeSwitcher } from '@/features/playground/components/playground-mode-switcher'
 import { MobileConversationPicker } from '@/features/playground/components/mobile-conversation-picker'
@@ -123,9 +122,10 @@ export function PlaygroundWorkspace() {
   const apiKeysQuery = useQuery({
     queryKey: downstreamAPIKeyQueryKeys.list(),
     queryFn: listDownstreamAPIKeys,
+    refetchOnWindowFocus: 'always',
   })
   const apiKeys = useMemo(
-    () => sortAPIKeysForDisplay((apiKeysQuery.data?.items ?? []).filter((key) => key.status !== 'disabled')),
+    () => (apiKeysQuery.data?.items ?? []).filter((key) => key.status !== 'disabled'),
     [apiKeysQuery.data],
   )
 

@@ -51,7 +51,7 @@ func TestDevPostgresAuthServiceReadOnlySmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list api keys: %v", err)
 	}
-	assertAuthSmokeAPIKeysNewestFirst(t, apiKeys)
+	assertAuthSmokeAPIKeysDisplayOrder(t, apiKeys)
 
 	if len(apiKeys) > 0 {
 		first := apiKeys[0]
@@ -183,11 +183,13 @@ func assertAuthSmokeRecordNotFound(t *testing.T, err error) {
 	}
 }
 
-func assertAuthSmokeAPIKeysNewestFirst(t *testing.T, apiKeys []store.APIKey) {
+func assertAuthSmokeAPIKeysDisplayOrder(t *testing.T, apiKeys []store.APIKey) {
 	t.Helper()
-	for i := 1; i < len(apiKeys); i++ {
-		if apiKeys[i].CreatedAt.After(apiKeys[i-1].CreatedAt) {
-			t.Fatalf("api keys are not newest first at index %d", i)
+	expected := append([]store.APIKey(nil), apiKeys...)
+	store.SortAPIKeys(expected)
+	for i := range apiKeys {
+		if apiKeys[i].ID != expected[i].ID {
+			t.Fatalf("api keys are not in display order at index %d", i)
 		}
 	}
 }

@@ -80,7 +80,7 @@ function TrafficFlowPage() {
   const lastUpstreamUsageRef = useRef<Record<string, number>>({})
   const usageBaselineReadyRef = useRef({ downstream: false, upstream: false })
   const tokenDisplayRef = useRef(0)
-  const topologyQuery = useQuery({ queryKey: ['traffic-flow', 'topology'], queryFn: getTrafficFlowTopology, staleTime: 30_000, refetchInterval: 60_000 })
+  const topologyQuery = useQuery({ queryKey: ['traffic-flow', 'topology'], queryFn: getTrafficFlowTopology, refetchOnWindowFocus: 'always', staleTime: 30_000, refetchInterval: 60_000 })
   const rateLimitQuery = useQuery({ queryKey: ['settings', 'rate-limits'], queryFn: fetchRateLimitSettings, staleTime: 60_000 })
   const topology = topologyQuery.data ?? null
 

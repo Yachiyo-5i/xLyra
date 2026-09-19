@@ -26,6 +26,14 @@ func TestCreateAPIKeyWithCustomValuePersistsOffline(t *testing.T) {
 	var createdAPIKey store.APIKey
 	deleteCount := 0
 	if err := service.db.Callback().Query().Replace("gorm:query", func(tx *gorm.DB) {
+		if tx.Statement.Table == "schema_upgrade_markers" {
+			tx.Statement.RowsAffected = 1
+			return
+		}
+		if dest, ok := tx.Statement.Dest.(*[]store.APIKeyListOption); ok {
+			*dest = nil
+			return
+		}
 		count, ok := tx.Statement.Dest.(*int64)
 		if !ok {
 			tx.AddError(errors.New("unexpected create api key query destination"))
@@ -50,6 +58,10 @@ func TestCreateAPIKeyWithCustomValuePersistsOffline(t *testing.T) {
 		t.Fatalf("replace row callback: %v", err)
 	}
 	if err := service.db.Callback().Create().Replace("gorm:create", func(tx *gorm.DB) {
+		if tx.Statement.Table == "schema_upgrade_markers" {
+			tx.Statement.RowsAffected = 1
+			return
+		}
 		switch dest := tx.Statement.Dest.(type) {
 		case *store.APIKey:
 			createdAPIKey = *dest

@@ -20,6 +20,7 @@ import (
 type APIKey struct {
 	ID                     uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	Name                   string
+	SortOrder              int64 `gorm:"default:0;not null"`
 	KeyPrefix              string
 	KeyHash                string `gorm:"column:key_hash"`
 	EncryptedSecret        sql.NullString
@@ -53,6 +54,7 @@ type APIKey struct {
 }
 
 type APIKeyListOption struct {
+	SortOrder int64
 	ID        uuid.UUID
 	Name      string
 	Status    string
@@ -208,7 +210,18 @@ func (r APIKeyRepository) Create(ctx context.Context, params CreateAPIKeyParams)
 		ExpiresAt:            timePtrFromAny(params.ExpiresAt),
 		CreatedByAdminID:     uuidPtrFromAny(params.CreatedByAdminID),
 	}
-	if err := r.db.WithContext(ctx).Create(&apiKey).Error; err != nil {
+	err := r.withOrderLock(ctx, func(tx *gorm.DB) error {
+		var last []APIKeyListOption
+		if err := tx.Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{{Column: clause.Column{Name: "sort_order"}, Desc: true}}}).Limit(1).Find(&last).Error; err != nil {
+			return fmt.Errorf("load api key order: %w", err)
+		}
+		apiKey.SortOrder = 1
+		if len(last) > 0 {
+			apiKey.SortOrder = last[0].SortOrder + 1
+		}
+		return tx.Create(&apiKey).Error
+	})
+	if err != nil {
 		return APIKey{}, fmt.Errorf("create api key: %w", err)
 	}
 	return apiKey, nil
@@ -318,9 +331,7 @@ func (r APIKeyRepository) List(ctx context.Context) ([]APIKey, error) {
 	if err := r.db.WithContext(ctx).Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list api keys: %w", err)
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].CreatedAt.After(items[j].CreatedAt)
-	})
+	SortAPIKeys(items)
 	return items, nil
 }
 
@@ -329,6 +340,7 @@ func (r APIKeyRepository) ListOptions(ctx context.Context) ([]APIKeyListOption, 
 	if err := r.db.WithContext(ctx).Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list api key options: %w", err)
 	}
+	SortAPIKeyOptions(items)
 	return items, nil
 }
 
@@ -406,14 +418,16 @@ func (r APIKeyRepository) RotateSecret(ctx context.Context, params RotateAPIKeyS
 }
 
 func (r APIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	result := r.db.WithContext(ctx).Where(&APIKey{ID: id}).Delete(&APIKey{})
-	if result.Error != nil {
-		return fmt.Errorf("delete api key: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("delete api key: not found")
-	}
-	return nil
+	return r.withOrderLock(ctx, func(tx *gorm.DB) error {
+		result := tx.Where(&APIKey{ID: id}).Delete(&APIKey{})
+		if result.Error != nil {
+			return fmt.Errorf("delete api key: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("delete api key: not found")
+		}
+		return nil
+	})
 }
 
 func (r APIKeyRepository) AddUsage(ctx context.Context, id uuid.UUID, amount float64) (APIKey, error) {

@@ -195,6 +195,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Delete("/settings/site-groups/{siteGroupID}", adminHandler.DeleteSiteGroup)
 				protected.Get("/api-keys", adminHandler.ListAPIKeys)
 				protected.Post("/api-keys", adminHandler.CreateAPIKey)
+				protected.Put("/api-keys/order", adminHandler.ReorderAPIKeys)
 				protected.Get("/api-keys/{apiKeyID}", adminHandler.GetAPIKey)
 				protected.Get("/api-keys/{apiKeyID}/reveal", adminHandler.RevealAPIKey)
 				protected.Post("/api-keys/{apiKeyID}/rotate", adminHandler.RotateAPIKey)

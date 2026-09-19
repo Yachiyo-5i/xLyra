@@ -62,7 +62,7 @@ func TestDevPostgresStoreSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list api keys: %v", err)
 	}
-	assertAPIKeysNewestFirst(t, apiKeys)
+	assertAPIKeysDisplayOrder(t, apiKeys)
 
 	apiKeyIDs := apiKeyIDsForSmoke(apiKeys, 3)
 	apiKeysByID, err := NewAPIKeyRepository(gormDB).ListByIDs(ctx, apiKeyIDs)
@@ -295,11 +295,13 @@ func assertCanonicalModelsSorted(t *testing.T, models []CanonicalModelWithStats)
 	}
 }
 
-func assertAPIKeysNewestFirst(t *testing.T, apiKeys []APIKey) {
+func assertAPIKeysDisplayOrder(t *testing.T, apiKeys []APIKey) {
 	t.Helper()
-	for i := 1; i < len(apiKeys); i++ {
-		if apiKeys[i].CreatedAt.After(apiKeys[i-1].CreatedAt) {
-			t.Fatalf("api keys are not newest first at index %d", i)
+	expected := append([]APIKey(nil), apiKeys...)
+	SortAPIKeys(expected)
+	for i := range apiKeys {
+		if apiKeys[i].ID != expected[i].ID {
+			t.Fatalf("api keys are not in display order at index %d", i)
 		}
 	}
 }
