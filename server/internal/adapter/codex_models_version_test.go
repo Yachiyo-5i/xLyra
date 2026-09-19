@@ -77,6 +77,17 @@ func TestHasUpstreamModelMatchesByName(t *testing.T) {
 	}
 }
 
+func TestCodexUpstreamImageModelDefaultsToImageProtocol(t *testing.T) {
+	models := codexModelsWithImageRoute(codexModelsFromItems([]map[string]any{{"slug": "gpt-image-2"}}))
+	if len(models) != 1 {
+		t.Fatalf("models = %#v, want one image model", models)
+	}
+	endpoints, _ := models[0].Capabilities["supported_endpoint_types"].([]string)
+	if len(endpoints) != 1 || endpoints[0] != "openai-image" {
+		t.Fatalf("image protocols = %v", endpoints)
+	}
+}
+
 func TestVersionGreaterThan(t *testing.T) {
 	cases := []struct {
 		a    string

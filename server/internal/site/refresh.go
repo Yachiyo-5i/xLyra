@@ -1276,10 +1276,13 @@ func (s *Service) syncSiteModelsFromAPIKeyState(ctx context.Context, siteID uuid
 		}
 	}
 
+	isCodex := strings.EqualFold(strings.TrimSpace(siteType), "codex")
 	siteModels := make([]store.SiteModel, 0, len(activeModelNames))
 	for name := range activeModelNames {
 		capabilities := []byte(`{}`)
-		if strings.EqualFold(strings.TrimSpace(siteType), "grok") {
+		if isCodex {
+			capabilities = codexSiteModelCapabilities(rawCapabilitiesByModel[name], name)
+		} else if strings.EqualFold(strings.TrimSpace(siteType), "grok") {
 			capabilities = grokSiteModelCapabilities(rawCapabilitiesByModel[name], name)
 		} else if strings.EqualFold(strings.TrimSpace(siteType), "opencode_go") {
 			var capabilityErr error
@@ -1298,23 +1301,40 @@ func (s *Service) syncSiteModelsFromAPIKeyState(ctx context.Context, siteID uuid
 				return nil, fmt.Errorf("marshal site model capabilities: %w", marshalErr)
 			}
 		}
-		siteModel, err := siteModelRepo.Upsert(ctx, store.UpsertSiteModelParams{
-			SiteID:       siteID,
-			UpstreamName: name,
-			DisplayName:  name,
-			Capabilities: capabilities,
-			Status:       "active",
-		})
-		if err != nil {
-			return nil, fmt.Errorf("upsert site model: %w", err)
+		var siteModel store.SiteModel
+		persist := func(db store.Tx) error {
+			var err error
+			siteModel, err = store.NewSiteModelRepository(db).Upsert(ctx, store.UpsertSiteModelParams{
+				SiteID:       siteID,
+				UpstreamName: name,
+				DisplayName:  name,
+				Capabilities: capabilities,
+				Status:       "active",
+			})
+			if err != nil {
+				return fmt.Errorf("upsert site model: %w", err)
+			}
+			// Bind the contributing api-key models to this site model so credential
+			// selection (ListCredentialsForSiteModel) can find the right key. The
+			// full-site refresh does this in syncModelState; the single-key path must
+			// too, otherwise a freshly refreshed key's models stay unbound and routing
+			// falls back to an arbitrary credential.
+			apiKeyModelRepo := store.NewSiteAPIKeyModelRepository(db)
+			if err := apiKeyModelRepo.BindSiteModel(ctx, siteID, name, siteModel.ID); err != nil {
+				return fmt.Errorf("bind api key models to site model: %w", err)
+			}
+			if isCodex {
+				return apiKeyModelRepo.BackfillEndpointTypesInTx(ctx, siteID, name, codexModelEndpointTypes(nil, name))
+			}
+			return nil
 		}
-		// Bind the contributing api-key models to this site model so credential
-		// selection (ListCredentialsForSiteModel) can find the right key. The
-		// full-site refresh does this in syncModelState; the single-key path must
-		// too, otherwise a freshly refreshed key's models stay unbound and routing
-		// falls back to an arbitrary credential.
-		if err := apiKeyModelRepo.BindSiteModel(ctx, siteID, name, siteModel.ID); err != nil {
-			return nil, fmt.Errorf("bind api key models to site model: %w", err)
+		if isCodex {
+			err = s.db.WithinTx(ctx, persist)
+		} else {
+			err = persist(s.db.DB())
+		}
+		if err != nil {
+			return nil, err
 		}
 		siteModels = append(siteModels, siteModel)
 	}
@@ -1332,6 +1352,32 @@ func (s *Service) syncSiteModelsFromAPIKeyState(ctx context.Context, siteID uuid
 	}
 
 	return siteModels, nil
+}
+
+func codexSiteModelCapabilities(raw store.JSON, modelName string) []byte {
+	capabilities := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &capabilities)
+	}
+	if capabilities == nil {
+		capabilities = map[string]any{}
+	}
+	if strings.TrimSpace(anyString(capabilities["source"])) == "" {
+		capabilities["source"] = "codex"
+	}
+	capabilities["supported_endpoint_types"] = codexModelEndpointTypes(raw, modelName)
+	return jsonBytes(capabilities)
+}
+
+func codexModelEndpointTypes(raw store.JSON, modelName string) []string {
+	endpoints := (store.SiteAPIKeyModel{Raw: raw}).Capabilities().SupportedEndpointTypes
+	if len(endpoints) == 0 {
+		endpoints = []string{"openai", "openai-response"}
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "gpt-image") {
+			endpoints = []string{"openai-image"}
+		}
+	}
+	return endpoints
 }
 
 func grokSiteModelCapabilities(raw store.JSON, modelName string) []byte {

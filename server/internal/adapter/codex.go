@@ -269,6 +269,8 @@ func codexModelsFromItems(items []map[string]any) []Model {
 		}
 		if endpoints := stringSliceFromAny(item["supported_endpoint_types"]); len(endpoints) > 0 {
 			capabilities["supported_endpoint_types"] = endpoints
+		} else if strings.HasPrefix(strings.ToLower(id), "gpt-image") {
+			capabilities["supported_endpoint_types"] = []string{"openai-image"}
 		} else {
 			capabilities["supported_endpoint_types"] = []string{"openai", "openai-response"}
 		}

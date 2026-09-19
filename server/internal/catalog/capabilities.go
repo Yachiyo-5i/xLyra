@@ -48,7 +48,10 @@ func (s capabilitySource) Lookup(ctx context.Context, input modelcapabilities.In
 	if err := json.Unmarshal(model.SupportedEndpointTypes, &endpoints); err != nil {
 		return nil, false, err
 	}
-	values["supported_endpoint_types"] = endpoints
+	delete(values, "supported_endpoint_types")
+	if len(endpoints) > 0 {
+		values["supported_endpoint_types"] = endpoints
+	}
 	values["name"] = model.DisplayName
 	values["category"] = model.Category
 	if model.ContextWindow.Valid {

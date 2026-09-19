@@ -551,7 +551,7 @@ func (h Handler) siteModelTestProtocolAdapter(ctx context.Context, request gatew
 	if err != nil {
 		return nil, err
 	}
-	if !isAntigravitySite(candidate.Site.SiteType) && !credentialSupportsProtocol(candidate.Model.SupportedEndpointTypes, resolved.ProtocolName()) {
+	if !isAntigravitySite(candidate.Site.SiteType) && !credentialSupportsAdapter(candidate.Model.SupportedEndpointTypes, resolved) {
 		return nil, siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", "selected API key does not support the resolved upstream protocol")
 	}
 	return resolved, nil

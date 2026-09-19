@@ -1,6 +1,34 @@
 package gateway
 
-import "testing"
+import (
+	"testing"
+
+	routeengine "xlyra/server/internal/router"
+)
+
+func TestCodexImageCredentialSupportsResolvedAdapter(t *testing.T) {
+	request := typedGatewayRequest(gatewayEndpointImagesGenerations, map[string]any{"model": "gpt-image-2", "prompt": "draw a cat"})
+	protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), request, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "codex"},
+		Model: routeengine.CandidateModel{UpstreamName: "gpt-image-2", SupportedEndpointTypes: []string{"openai-image"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !credentialSupportsAdapter([]string{"openai-image"}, protocol) {
+		t.Fatal("image credential must support the resolved Codex image adapter")
+	}
+	if credentialSupportsAdapter([]string{"openai-response"}, protocol) {
+		t.Fatal("responses-only credential must not grant image access")
+	}
+	textProtocol := newCodexProtocolAdapter(gatewayRequest{DownstreamPath: gatewayEndpointResponses})
+	if credentialSupportsAdapter([]string{"openai-image"}, textProtocol) {
+		t.Fatal("image-only credential must not grant text access")
+	}
+	if !credentialSupportsAdapter([]string{"openai-response"}, textProtocol) {
+		t.Fatal("responses credential must retain text access")
+	}
+}
 
 func TestCredentialSupportsProtocolMapsAdaptersToEndpointTypes(t *testing.T) {
 	tests := []struct {

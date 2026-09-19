@@ -195,7 +195,7 @@ func (h Handler) forwardGatewayRequest(
 			}
 			protocol = resolved
 		}
-		if len(selectedCredential.SupportedEndpointTypes) > 0 && !credentialSupportsProtocol(selectedCredential.SupportedEndpointTypes, protocol.ProtocolName()) {
+		if len(selectedCredential.SupportedEndpointTypes) > 0 && !credentialSupportsAdapter(selectedCredential.SupportedEndpointTypes, protocol) {
 			continue
 		}
 		startedAt := time.Now()
@@ -541,6 +541,13 @@ func (h Handler) forwardGatewayRequest(
 	}
 
 	return lastResult
+}
+
+func credentialSupportsAdapter(endpointTypes []string, protocol gatewayProtocolAdapter) bool {
+	if codex, ok := protocol.(codexProtocolAdapter); ok && codex.downstreamImages {
+		return containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAIImage)
+	}
+	return credentialSupportsProtocol(endpointTypes, protocol.ProtocolName())
 }
 
 func credentialSupportsProtocol(endpointTypes []string, protocol string) bool {
