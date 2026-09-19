@@ -554,7 +554,7 @@ export function SiteCreateSheet({
   const isGrok = siteType === 'grok'
   const canConfigureQuotaProbe = siteType === 'openai' || siteType === 'anthropic'
   const showAPIKeyField = !isGrok && currentCredType !== 'system_token' && currentCredType !== 'oauth' && currentCredType !== 'xlyra' && !!siteType && mode === 'create'
-  const supportsAPIKeyCostMultiplier = siteType === 'openai' || siteType === 'anthropic'
+  const supportsAPIKeyCostMultiplier = siteType === 'openai' || siteType === 'anthropic' || siteType === 'google_gemini'
   const groupOptions = useMemo(() => siteGroups.filter((group) => group.enabled).map((group) => ({
     value: group.id,
     label: group.name,

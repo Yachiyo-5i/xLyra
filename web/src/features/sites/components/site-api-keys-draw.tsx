@@ -246,7 +246,6 @@ export function SiteAPIKeysDraw({
         current?.id === result.api_key.id ? result.api_key : current,
       )
       setConfiguringAPIKey(null)
-      onOpenChange(false)
       await queryClient.invalidateQueries({ queryKey: routeQueryKeys.all })
       await invalidatePricingViews()
       toast.success(t('apiKeys.toast.updated'))
