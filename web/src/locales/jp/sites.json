@@ -72,6 +72,7 @@
       "weeklyQuota": "週間枠",
       "dailyQuota": "日次枠",
       "monthlyQuota": "月間枠",
+      "mcpMonthlyQuota": "MCP 月間クォータ",
       "plan": "プラン",
       "expiresAt": "有効期限",
       "probeFailed": "残高プローブ失敗",

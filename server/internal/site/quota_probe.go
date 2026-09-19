@@ -325,6 +325,9 @@ func codingPlanQuotaCooldownDeadline(result QuotaProbeResult, now time.Time) (ti
 	var deadline time.Time
 	windows := []string{}
 	for _, entry := range result.Entries {
+		if entry.Label != "five_hour" && entry.Label != "weekly" {
+			continue
+		}
 		if entry.Remaining == nil || *entry.Remaining > 0 || entry.ResetAt == nil {
 			continue
 		}
@@ -514,6 +517,15 @@ func quotaProbePrimaryEntry(result QuotaProbeResult) (QuotaProbeEntry, bool) {
 }
 
 func quotaProbeSummaryEntry(probeType string, result QuotaProbeResult) (QuotaProbeEntry, bool) {
+	if probeType == QuotaProbeTypeGLM {
+		entries := make([]QuotaProbeEntry, 0, 2)
+		for _, entry := range result.Entries {
+			if entry.Label == "five_hour" || entry.Label == "weekly" {
+				entries = append(entries, entry)
+			}
+		}
+		result.Entries = entries
+	}
 	if probeType == QuotaProbeTypeSub2API {
 		for _, entry := range result.Entries {
 			if entry.Label == "balance" && !entry.Unlimited && entry.Remaining != nil {
@@ -915,8 +927,11 @@ func kimiMembershipPlanName(level string, region string) string {
 // probeGLMQuota 查询 GLM Coding Plan 的额度。
 // 接口：GET {origin}/api/monitor/usage/quota/limit，Bearer 为推理用 API Key，
 // origin 取站点 base_url 的 scheme://host（open.bigmodel.cn 与 api.z.ai 同路径）。
-// TOKENS_LIMIT 按窗口时长识别 5 小时（300 分钟）/ 周（10080 分钟）窗口；
-// percentage 是已用百分比。
+// 套餐按制式分代返回不同 type（2026-07-30 积分制上线，旧套餐并存）：
+//   - TOKENS_LIMIT：旧 Token 套餐，5 小时/周窗口，percentage 是已用百分比
+//   - CREDIT_LIMIT：积分制套餐，5 小时/周窗口，usage/currentValue/remaining 为积分绝对值
+//   - TIME_LIMIT：MCP 工具月度额度（unit=5 分钟×1），usageDetails 为各模型调用次数
+// 窗口按 unit × number 换算分钟数识别：300 分钟 = 5 小时，10080 分钟 = 周。
 func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, string, error) {
 	endpoint, err := quotaProbeGLMLimitURL(baseURL)
 	if err != nil {
@@ -934,21 +949,23 @@ func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, sec
 		return "", nil, "", fmt.Errorf("quota limit endpoint did not return data")
 	}
 
-	entries := make([]QuotaProbeEntry, 0, 2)
+	entries := make([]QuotaProbeEntry, 0, 3)
 	// 同一窗口可能以不同单位编码出现两次（unit=3/number=5 与 unit=5/number=300
 	// 都是 300 分钟），按 label 去重并保留剩余最少的一条，与 summary 取最紧张
 	// 窗口的口径一致。
 	entryIndex := map[string]int{}
 	for _, raw := range anySlice(data["limits"]) {
 		item, _ := raw.(map[string]any)
-		if !strings.EqualFold(anyString(item["type"]), "TOKENS_LIMIT") {
-			continue
-		}
-		label := glmWindowLabel(item)
-		if label == "" {
-			continue
-		}
-		if entry, ok := glmPercentEntry(label, item); ok {
+		switch strings.ToUpper(anyString(item["type"])) {
+		case "TOKENS_LIMIT", "CREDIT_LIMIT":
+			label := glmWindowLabel(item)
+			if label == "" {
+				continue
+			}
+			entry, ok := glmLimitEntry(label, item)
+			if !ok {
+				continue
+			}
 			if at, dup := entryIndex[label]; dup {
 				if entry.Remaining != nil && *entry.Remaining < *entries[at].Remaining {
 					entries[at] = entry
@@ -957,9 +974,26 @@ func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, sec
 			}
 			entryIndex[label] = len(entries)
 			entries = append(entries, entry)
+		case "TIME_LIMIT":
+			// MCP 月度额度（usage/currentValue/remaining 是调用次数，非金额），
+			// 按次数转百分比折算进 monthly label。
+			entry, ok := glmMCPMonthlyEntry(item)
+			if !ok {
+				continue
+			}
+			if at, dup := entryIndex[entry.Label]; dup {
+				if entry.Remaining != nil && *entry.Remaining < *entries[at].Remaining {
+					entries[at] = entry
+				}
+				continue
+			}
+			entryIndex[entry.Label] = len(entries)
+			entries = append(entries, entry)
 		}
 	}
-	if len(entries) == 0 {
+	_, hasFiveHour := entryIndex["five_hour"]
+	_, hasWeekly := entryIndex["weekly"]
+	if !hasFiveHour && !hasWeekly {
 		return "", nil, "", fmt.Errorf("quota limit endpoint did not contain token quota data")
 	}
 	return "token_plan", entries, glmPlanName(anyString(data["level"])), nil
@@ -989,16 +1023,43 @@ func glmWindowLabel(item map[string]any) string {
 	return ""
 }
 
-// glmPercentEntry 把一条 TOKENS_LIMIT 折算成百分比 entry（limit 恒为 100），
-// 与 kimi 的 entries 同构，前端按 five_hour/weekly label 渲染。
-// TOKENS_LIMIT 只有 percentage（已用百分比）；usage/remaining/currentValue 计数
-// 仅出现在 TIME_LIMIT（工具调用次数额度）上，不在这里换算。
-func glmPercentEntry(label string, item map[string]any) (QuotaProbeEntry, bool) {
+// glmLimitEntry 把一条 TOKENS_LIMIT / CREDIT_LIMIT 折算成百分比 entry
+// （limit 恒为 100），与 kimi 的 entries 同构，前端按 five_hour/weekly label 渲染。
+// 积分制 CREDIT_LIMIT 的 usage/currentValue/remaining 是积分绝对值：优先按
+// currentValue/usage 换算精确百分比——上游 percentage 是服务端取整（如
+// 1438/12000 记为 11 而非 11.98），有舍入误差，仅在缺少绝对值时作兜底。
+func glmLimitEntry(label string, item map[string]any) (QuotaProbeEntry, bool) {
+	usage := quotaProbeFloat(item["usage"])
+	current := quotaProbeFloat(item["currentValue"])
+	if usage != nil && *usage > 0 && current != nil {
+		used := clampQuotaPercent(*current / *usage * 100)
+		return glmQuotaPercentEntry(label, used, item), true
+	}
 	used := quotaProbeFloat(item["percentage"])
 	if used == nil {
 		return QuotaProbeEntry{}, false
 	}
-	clamped := min(100, max(0, *used))
+	return glmQuotaPercentEntry(label, *used, item), true
+}
+
+// glmMCPMonthlyEntry 把 TIME_LIMIT（MCP 工具月度调用次数额度）折算成 monthly
+// 百分比 entry；次数口径转百分比，避免被前端当金额单位展示。
+func glmMCPMonthlyEntry(item map[string]any) (QuotaProbeEntry, bool) {
+	usage := quotaProbeFloat(item["usage"])
+	current := quotaProbeFloat(item["currentValue"])
+	if usage != nil && *usage > 0 && current != nil {
+		used := clampQuotaPercent(*current / *usage * 100)
+		return glmQuotaPercentEntry("monthly", used, item), true
+	}
+	used := quotaProbeFloat(item["percentage"])
+	if used == nil {
+		return QuotaProbeEntry{}, false
+	}
+	return glmQuotaPercentEntry("monthly", *used, item), true
+}
+
+func glmQuotaPercentEntry(label string, used float64, item map[string]any) QuotaProbeEntry {
+	clamped := clampQuotaPercent(used)
 	limit := 100.0
 	remaining := 100 - clamped
 	entry := QuotaProbeEntry{Label: label, Unit: "percent", Limit: &limit, Used: &clamped, Remaining: &remaining}
@@ -1006,7 +1067,11 @@ func glmPercentEntry(label string, item map[string]any) (QuotaProbeEntry, bool) 
 		resetAt := time.UnixMilli(int64(*reset)).UTC().Format(time.RFC3339)
 		entry.ResetAt = &resetAt
 	}
-	return entry, true
+	return entry
+}
+
+func clampQuotaPercent(value float64) float64 {
+	return min(100, max(0, value))
 }
 
 // glmPlanName 把 data.level（如 "pro"）转为档位名（"Pro"）。
