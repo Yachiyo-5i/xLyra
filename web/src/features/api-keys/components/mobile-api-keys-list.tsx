@@ -237,7 +237,7 @@ function MobileQuotaMetric({ apiKey }: { apiKey: DownstreamAPIKey }) {
   return (
     <div className="min-w-0 px-2 py-2">
       <span className="block text-[11px] text-muted-soft">{t('table.headers.quota')}</span>
-      <div className="mt-1"><APIKeyQuotaCell apiKey={apiKey} truncateValues={false} compactValues detailsMode="sheet" /></div>
+      <div className="mt-1"><APIKeyQuotaCell apiKey={apiKey} truncateValues={false} compactValues /></div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { HoverDetails } from '@/components/common/hover-details'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -20,15 +21,6 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { PaginationControls } from '@/components/ui/pagination'
 import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -36,7 +28,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { LanguageSwitcher } from '@/components/common/language-switcher'
-import { useMobileLayout } from '@/hooks/use-media-query'
 import { APP_LOGO_SRC, APP_NAME } from '@/lib/brand'
 import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
@@ -509,11 +500,6 @@ function AccumulatedUsageCard({ overview }: { overview: PortalOverview }) {
 
 function QuotaLimitsCard({ overview }: { overview: PortalOverview }) {
   const { t } = useTranslation('portal')
-  const isMobile = useMobileLayout()
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
-  const [tooltipHeight, setTooltipHeight] = useState<number | null>(null)
-  const tooltipId = useId()
   const { daily, weekly } = overview.quota
   const total: PortalPeriodicQuota = {
     limit: overview.quota.limit,
@@ -543,28 +529,12 @@ function QuotaLimitsCard({ overview }: { overview: PortalOverview }) {
       unlimited: quota.unlimited,
     })),
   ]
-  const measureTooltip = useCallback((node: HTMLDivElement | null) => {
-    const nextHeight = node?.offsetHeight ?? null
-    setTooltipHeight((current) => current === nextHeight ? current : nextHeight)
-  }, [])
   if (rows.length === 0) return null
 
   const trigger = (
     <button
       type="button"
       className="inline-block max-w-full min-w-0 rounded-sm text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
-      onMouseEnter={!isMobile ? (event) => setMousePos({ x: event.clientX, y: event.clientY }) : undefined}
-      onMouseMove={!isMobile ? (event) => setMousePos({ x: event.clientX, y: event.clientY }) : undefined}
-      onMouseLeave={!isMobile ? () => {
-        setMousePos(null)
-        setTooltipHeight(null)
-      } : undefined}
-      onFocus={!isMobile ? (event) => {
-        const rect = event.currentTarget.getBoundingClientRect()
-        setMousePos({ x: rect.left + rect.width / 2, y: rect.bottom })
-      } : undefined}
-      onBlur={!isMobile ? () => setMousePos(null) : undefined}
-      aria-describedby={!isMobile && mousePos ? tooltipId : undefined}
     >
       <span className="sr-only">{t('overview.quotaDetails')}, </span>
       <span className="block space-y-1.5 text-xs tabular-nums">
@@ -573,32 +543,17 @@ function QuotaLimitsCard({ overview }: { overview: PortalOverview }) {
     </button>
   )
 
-  const tooltip = mousePos && !isMobile ? (
-    <div
-      id={tooltipId}
-      ref={measureTooltip}
-      role="tooltip"
-      className="glass-panel-strong pointer-events-none fixed z-[160] w-[min(420px,calc(100vw-24px))] rounded-lg px-4 py-2 text-xs text-foreground shadow-lg"
-      style={getPortalQuotaTooltipLayout(mousePos, detailRows.length, tooltipHeight)}
-    >
-      <PortalQuotaDetails rows={detailRows} t={t} />
-    </div>
-  ) : null
-
   return <Card className="h-full"><CardContent className="flex h-full flex-col gap-2 p-5">
     <p className="text-muted-soft text-xs">{t('overview.limitsTitle')}</p>
-    {isMobile ? (
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetTrigger asChild>{trigger}</SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>{t('overview.quotaDetails')}</SheetTitle>
-            <SheetDescription>{overview.key.name}</SheetDescription>
-          </SheetHeader>
-          <SheetBody><PortalQuotaDetails rows={detailRows} t={t} /></SheetBody>
-        </SheetContent>
-      </Sheet>
-    ) : <>{trigger}{tooltip}</>}
+      <HoverDetails
+        asChild
+        title={t('overview.quotaDetails')}
+        description={overview.key.name}
+        contentClassName="w-[420px]"
+        content={<PortalQuotaDetails rows={detailRows} t={t} />}
+      >
+        {trigger}
+      </HoverDetails>
   </CardContent></Card>
 }
 
@@ -645,17 +600,6 @@ function portalQuotaDot(quota: Pick<PortalPeriodicQuota, 'limit' | 'used' | 'rem
   if (quota.unlimited || quota.limit == null || quota.limit <= 0) return 'bg-emerald-500'
   const remain = Math.min(Math.max((quota.remaining ?? Math.max(quota.limit - quota.used, 0)) / quota.limit * 100, 0), 100)
   return remain <= 10 ? 'bg-red-500' : remain <= 30 ? 'bg-amber-500' : 'bg-emerald-500'
-}
-
-function getPortalQuotaTooltipLayout(mousePos: { x: number; y: number }, rowCount: number, measuredHeight: number | null): CSSProperties {
-  if (typeof window === 'undefined') return { left: mousePos.x + 14, top: mousePos.y + 14, width: 420 }
-  const width = Math.min(420, Math.max(240, window.innerWidth - 24))
-  const height = measuredHeight ?? 44 + 36 * Math.max(1, rowCount)
-  const left = Math.max(12, Math.min(mousePos.x + 14, window.innerWidth - width - 12))
-  const top = mousePos.y + 14 + height > window.innerHeight - 12
-    ? Math.max(12, mousePos.y - height - 14)
-    : mousePos.y + 14
-  return { left, top, width }
 }
 
 const trendColors = { tokens: 'hsl(var(--primary))', cost: '#f59e0b', requests: '#10b981' }

@@ -3,7 +3,7 @@ import { forwardRef, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Draw, DrawBody, DrawContent, DrawDescription, DrawHeader, DrawTitle, DrawTrigger } from '@/components/ui/draw'
+import { HoverDetails } from '@/components/common/hover-details'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { SiteBalanceDetailsContent } from '@/features/sites/components/site-balance-cell'
@@ -300,20 +300,13 @@ function MobileSiteBalance({ site, apiKeys }: { site: Site; apiKeys: SiteAPIKey[
   }
 
   return (
-    <Draw>
-      <DrawTrigger asChild>
-        <MobileMetricButton label={t('table.headers.balance')} value={value} />
-      </DrawTrigger>
-      <DrawContent side="bottom">
-        <DrawHeader>
-          <DrawTitle>{site.name} · {t('table.headers.balance')}</DrawTitle>
-          <DrawDescription className="sr-only">{site.name}</DrawDescription>
-        </DrawHeader>
-        <DrawBody className="text-sm leading-6">
-          <SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />
-        </DrawBody>
-      </DrawContent>
-    </Draw>
+    <HoverDetails
+      asChild
+      title={`${site.name} · ${t('table.headers.balance')}`}
+      content={<SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />}
+    >
+      <MobileMetricButton label={t('table.headers.balance')} value={value} />
+    </HoverDetails>
   )
 }
 

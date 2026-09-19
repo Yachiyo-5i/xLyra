@@ -1,14 +1,6 @@
-import { useCallback, useId, useState, type CSSProperties } from 'react'
+import { useMobileLayout } from '@/hooks/use-media-query'
+import { HoverDetails } from '@/components/common/hover-details'
 import { useTranslation } from 'react-i18next'
-import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
 import type { DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
 import { formatCompactDollarQuota, formatDollarQuota } from '@/features/api-keys/lib/api-key-utils'
 
@@ -26,26 +18,14 @@ type APIKeyQuotaCellProps = {
   apiKey: DownstreamAPIKey
   truncateValues?: boolean
   compactValues?: boolean
-  detailsMode?: 'popover' | 'sheet'
 }
 
-const QUOTA_TOOLTIP_WIDTH = 420
-const QUOTA_TOOLTIP_OFFSET = 14
-const QUOTA_TOOLTIP_MARGIN = 12
-
-export function APIKeyQuotaCell({ apiKey, truncateValues = true, compactValues = false, detailsMode = 'popover' }: APIKeyQuotaCellProps) {
+export function APIKeyQuotaCell({ apiKey, truncateValues = true, compactValues = false }: APIKeyQuotaCellProps) {
   const { t } = useTranslation('api-keys')
-  const [open, setOpen] = useState(false)
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
-  const [tooltipHeight, setTooltipHeight] = useState<number | null>(null)
-  const tooltipId = useId()
+  const isMobile = useMobileLayout()
   const rows = quotaRows(apiKey, t)
   const configuredRows = rows.filter((row) => row.id !== 'accumulated' && !row.unlimited && row.limit != null)
   const detailRows = rows.filter((row) => row.id === 'accumulated' || configuredRows.includes(row))
-  const measureTooltip = useCallback((node: HTMLDivElement | null) => {
-    const nextHeight = node?.offsetHeight ?? null
-    setTooltipHeight((current) => current === nextHeight ? current : nextHeight)
-  }, [])
 
   if (configuredRows.length === 0) {
     return (
@@ -62,18 +42,6 @@ export function APIKeyQuotaCell({ apiKey, truncateValues = true, compactValues =
     <button
       type="button"
       className="inline-block max-w-full min-w-0 rounded-sm text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
-      onMouseEnter={detailsMode === 'popover' ? (event) => setMousePos({ x: event.clientX, y: event.clientY }) : undefined}
-      onMouseMove={detailsMode === 'popover' ? (event) => setMousePos({ x: event.clientX, y: event.clientY }) : undefined}
-      onMouseLeave={detailsMode === 'popover' ? () => {
-        setMousePos(null)
-        setTooltipHeight(null)
-      } : undefined}
-      onFocus={detailsMode === 'popover' ? (event) => {
-        const rect = event.currentTarget.getBoundingClientRect()
-        setMousePos({ x: rect.left + rect.width / 2, y: rect.bottom })
-      } : undefined}
-      onBlur={detailsMode === 'popover' ? () => setMousePos(null) : undefined}
-      aria-describedby={detailsMode === 'popover' && mousePos ? tooltipId : undefined}
     >
       <span className="sr-only">{t('quota.detailsLabel')}, </span>
       <span className="block space-y-1.5 text-xs tabular-nums">
@@ -89,53 +57,17 @@ export function APIKeyQuotaCell({ apiKey, truncateValues = true, compactValues =
     </button>
   )
 
-  if (detailsMode === 'sheet') {
-    return (
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>{trigger}</SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>{t('quota.detailsTitle')}</SheetTitle>
-            <SheetDescription>{apiKey.name}</SheetDescription>
-          </SheetHeader>
-          <SheetBody><QuotaDetails rows={detailRows} compactValues={false} t={t} /></SheetBody>
-        </SheetContent>
-      </Sheet>
-    )
-  }
-
-  const tooltip = mousePos && detailsMode === 'popover'
-    ? (
-      <div
-        id={tooltipId}
-        ref={measureTooltip}
-        role="tooltip"
-        className="glass-panel-strong pointer-events-none fixed z-[160] w-[min(420px,calc(100vw-24px))] rounded-lg px-4 py-2 text-xs text-foreground shadow-lg"
-        style={getQuotaTooltipLayout(mousePos, detailRows.length, tooltipHeight)}
-      >
-        <QuotaDetails rows={detailRows} compactValues={compactValues} t={t} />
-      </div>
-    )
-    : null
-
-  return <>{trigger}{tooltip}</>
-}
-
-function getQuotaTooltipLayout(mousePos: { x: number; y: number }, rowCount: number, measuredHeight: number | null): CSSProperties {
-  if (typeof window === 'undefined') {
-    return { left: mousePos.x + QUOTA_TOOLTIP_OFFSET, top: mousePos.y + QUOTA_TOOLTIP_OFFSET, width: QUOTA_TOOLTIP_WIDTH }
-  }
-
-  const width = Math.min(QUOTA_TOOLTIP_WIDTH, Math.max(240, window.innerWidth - QUOTA_TOOLTIP_MARGIN * 2))
-  const tooltipHeight = measuredHeight ?? 44 + 36 * Math.max(1, rowCount)
-  const preferredLeft = mousePos.x + QUOTA_TOOLTIP_OFFSET
-  const preferredTop = mousePos.y + QUOTA_TOOLTIP_OFFSET
-  const left = Math.max(QUOTA_TOOLTIP_MARGIN, Math.min(preferredLeft, window.innerWidth - width - QUOTA_TOOLTIP_MARGIN))
-  const top = preferredTop + tooltipHeight > window.innerHeight - QUOTA_TOOLTIP_MARGIN
-    ? Math.max(QUOTA_TOOLTIP_MARGIN, mousePos.y - tooltipHeight - QUOTA_TOOLTIP_OFFSET)
-    : preferredTop
-
-  return { left, top, width }
+  return (
+    <HoverDetails
+      asChild
+      title={t('quota.detailsTitle')}
+      description={apiKey.name}
+      contentClassName="w-[420px]"
+      content={<QuotaDetails rows={detailRows} compactValues={isMobile ? false : compactValues} t={t} />}
+    >
+      {trigger}
+    </HoverDetails>
+  )
 }
 
 function quotaRows(apiKey: DownstreamAPIKey, t: (key: string, options?: Record<string, unknown>) => string): QuotaRow[] {

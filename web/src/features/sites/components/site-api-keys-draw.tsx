@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HoverDetails } from '@/components/common/hover-details'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LoaderCircle,
@@ -560,7 +561,6 @@ export function SiteAPIKeysDraw({
                         : null
                     : null
                   const probeFailed = Boolean(probe && probe.status !== 'ok')
-                  const syncBadge = apiKeySyncBadge(item.sync_status)
 
                   return (
                     <div
@@ -580,14 +580,7 @@ export function SiteAPIKeysDraw({
                               {item.group}
                             </Badge>
                           ) : null}
-                          {item.sync_status ? (
-                            <Badge
-                              variant="outline"
-                              className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}
-                            >
-                              {syncBadge.label(t)}
-                            </Badge>
-                          ) : null}
+                          {item.sync_status ? <APIKeySyncStatusBadge apiKey={item} /> : null}
                         </div>
                         <Switch
                           checked={item.enabled}
@@ -1142,6 +1135,27 @@ export function SiteAPIKeysDraw({
 function formatAPIKeyNumber(value: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(
     value,
+  )
+}
+
+function APIKeySyncStatusBadge({ apiKey }: { apiKey: SiteAPIKey }) {
+  const { t } = useTranslation('sites')
+  const status = apiKey.sync_status?.trim().toLowerCase()
+  const message = ['failed', 'partial', 'stale'].includes(status ?? '') ? apiKey.message?.trim() : undefined
+  const syncBadge = apiKeySyncBadge(status)
+  return (
+    <HoverDetails
+      asChild
+      disabled={!message}
+      title={syncBadge.label(t)}
+      description={apiKey.name || t('apiKeys.defaultKey')}
+      titleClassName={syncBadge.className}
+      content={<div className="whitespace-pre-wrap break-words text-muted-foreground">{message}</div>}
+    >
+      <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
+        {syncBadge.label(t)}
+      </Badge>
+    </HoverDetails>
   )
 }
 

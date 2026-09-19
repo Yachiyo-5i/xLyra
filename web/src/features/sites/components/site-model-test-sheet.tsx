@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import * as PopoverPrimitive from '@radix-ui/react-popover'
+import { HoverDetails } from '@/components/common/hover-details'
 import { FlaskConical, LoaderCircle, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BrandMark } from '@/components/common/brand-mark'
@@ -318,36 +318,15 @@ export function SiteModelTestSheet({
 }
 
 function FailureResponsePopover({ value, children }: { value: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-
+  const { t } = useTranslation('sites')
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen} modal={false}>
-      <PopoverPrimitive.Trigger asChild>
-        <span
-          className="inline-flex"
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
-        >
-          {children}
-        </span>
-      </PopoverPrimitive.Trigger>
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          align="start"
-          sideOffset={8}
-          className="glass-panel-strong z-[140] w-[420px] max-w-[calc(100vw-32px)] rounded-lg p-3"
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <code className="block max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[hsl(var(--surface-subtle))] px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-            {value}
-          </code>
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+    <HoverDetails
+      title={t('test.status.failed')}
+      contentClassName="w-[420px]"
+      content={<code className="block whitespace-pre-wrap break-all rounded-md bg-[hsl(var(--surface-subtle))] px-3 py-2 text-xs leading-relaxed text-muted-foreground">{value}</code>}
+    >
+      {children}
+    </HoverDetails>
   )
 }
 

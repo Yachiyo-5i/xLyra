@@ -1,14 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { HoverDetails } from '@/components/common/hover-details'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { accountBalanceDetails, formatDateTime, formatSiteBalance, isSub2APIQuotaSite, siteBalanceDetails, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 import type { Site, SiteAPIKey } from '@/features/sites/api/sites'
-
-type PointerPosition = {
-  x: number
-  y: number
-}
 
 function getBalanceDetails(site: Site, apiKeys: SiteAPIKey[], language: string) {
   const details = siteBalanceDetails(site, language)
@@ -99,10 +93,6 @@ export function SiteBalanceDetailsContent({ site, apiKeys = [] }: { site: Site; 
 
 export function SiteBalanceCell({ site, apiKeys = [], className }: { site: Site; apiKeys?: SiteAPIKey[]; className?: string }) {
   const { t, i18n } = useTranslation('sites')
-  const tooltipId = useId()
-  const closeTimer = useRef<number | null>(null)
-  const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState<PointerPosition | null>(null)
   const value = formatSiteBalance(site)
   const { details, keyDetails } = getBalanceDetails(site, apiKeys, i18n.language)
   const showTooltip = keyDetails.length > 0 || details.length > 0
@@ -138,76 +128,17 @@ export function SiteBalanceCell({ site, apiKeys = [], className }: { site: Site;
         }).join('; ')}`
       : undefined
 
-  useEffect(() => () => {
-    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
-  }, [])
-
-  const cancelClose = () => {
-    if (closeTimer.current === null) return
-    window.clearTimeout(closeTimer.current)
-    closeTimer.current = null
-  }
-  const scheduleClose = () => {
-    cancelClose()
-    closeTimer.current = window.setTimeout(() => {
-      setOpen(false)
-      closeTimer.current = null
-    }, 150)
-  }
-
-  const tooltip = open && position && showTooltip && typeof document !== 'undefined'
-    ? createPortal(
-        <div
-          id={tooltipId}
-          role="tooltip"
-          className="glass-panel-strong fixed z-[160] max-h-[min(70vh,520px)] w-[min(440px,calc(100vw-32px))] overflow-y-auto overscroll-contain rounded-lg px-3 py-2 text-xs leading-5 shadow-lg"
-          style={{
-            left: Math.min(position.x + 12, Math.max(12, window.innerWidth - 456)),
-            top: position.y <= window.innerHeight / 2 ? position.y + 14 : undefined,
-            bottom: position.y > window.innerHeight / 2 ? window.innerHeight - position.y + 14 : undefined,
-          }}
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
-        >
-          <SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />
-        </div>,
-        document.body,
-      )
-    : null
-
   return (
-    <>
-      <span
-        className={cn('text-sm text-foreground tabular-nums', className)}
-        aria-describedby={showTooltip ? tooltipId : undefined}
-        tabIndex={showTooltip ? 0 : undefined}
-        onMouseEnter={(event) => {
-          if (!showTooltip) return
-          cancelClose()
-          setOpen(true)
-          setPosition({ x: event.clientX, y: event.clientY })
-        }}
-        onMouseMove={(event) => {
-          if (!showTooltip) return
-          setPosition({ x: event.clientX, y: event.clientY })
-        }}
-        onMouseLeave={scheduleClose}
-        onFocus={(event) => {
-          if (!showTooltip) return
-          cancelClose()
-          const rect = event.currentTarget.getBoundingClientRect()
-          setOpen(true)
-          setPosition({ x: rect.left + rect.width / 2, y: rect.bottom })
-        }}
-        onBlur={() => {
-          cancelClose()
-          setOpen(false)
-        }}
-      >
-        {value}
-      </span>
-      {!open && showTooltip ? <span id={tooltipId} role="tooltip" className="sr-only">{tooltipDescription}</span> : null}
-      {tooltip}
-    </>
+    <HoverDetails
+      asChild
+      disabled={!showTooltip}
+      title={t('table.headers.balance')}
+      description={site.name}
+      accessibleDescription={tooltipDescription}
+      contentClassName="w-[440px]"
+      content={<SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />}
+    >
+      <span className={cn('text-sm text-foreground tabular-nums', className)}>{value}</span>
+    </HoverDetails>
   )
 }
