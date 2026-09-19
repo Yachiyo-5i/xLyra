@@ -241,6 +241,9 @@ function formatProbePercent(value: number) {
 
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
+  if (probe.probe_type === 'deepseek') {
+    return formatDeepSeekBalance(probe.entries)
+  }
   if (probe.probe_type === 'kimi' || probe.probe_type === 'glm') {
     return formatFiveHourWeeklyQuotaBalance(probe)
   }
@@ -283,6 +286,8 @@ export type SiteBalanceDetailLabel =
   | 'tokenBalance'
   | 'tokenUsed'
   | 'accountBalance'
+  | 'grantedBalance'
+  | 'toppedUpBalance'
   | 'used'
   | 'remaining'
   | 'unlimited'
@@ -304,10 +309,37 @@ export function isSub2APIQuotaSite(site: Site) {
   return site.gateway_config?.quota_probe === 'sub2api'
 }
 
+function formatBalanceAmount(value: number, unit?: string) {
+  const { prefix, suffix } = quotaProbeCurrency(unit)
+  return `${value < 0 ? '-' : ''}${prefix}${formatProbeAmount(Math.abs(value))}${suffix}`
+}
+
+export function formatDeepSeekBalance(entries?: SiteQuotaProbeEntry[]) {
+  const values = (entries ?? [])
+    .filter((entry) => entry.label === 'balance' && typeof entry.remaining === 'number')
+    .map((entry) => formatBalanceAmount(entry.remaining!, entry.unit))
+  return values.length > 0 ? values.join(' / ') : undefined
+}
+
+export function deepSeekBalanceDetails(entries?: SiteQuotaProbeEntry[]): SiteBalanceDetail[] {
+  return (entries ?? []).flatMap((entry) => {
+    if (entry.label !== 'balance' || typeof entry.remaining !== 'number') return []
+    const rows: SiteBalanceDetail[] = [{ label: 'accountBalance', value: formatBalanceAmount(entry.remaining, entry.unit) }]
+    if (typeof entry.granted_balance === 'number') {
+      rows.push({ label: 'grantedBalance', value: formatBalanceAmount(entry.granted_balance, entry.unit) })
+    }
+    if (typeof entry.topped_up_balance === 'number') {
+      rows.push({ label: 'toppedUpBalance', value: formatBalanceAmount(entry.topped_up_balance, entry.unit) })
+    }
+    return rows
+  })
+}
+
 export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDetail[] {
   const probe = site.quota_probe
   if (probe) {
     const probeType = probe.probe_type
+    if (probeType === 'deepseek') return deepSeekBalanceDetails(probe.entries)
     if (probeType === 'kimi' || probeType === 'glm') {
       return fiveHourWeeklyQuotaDetails(probe, language)
     }

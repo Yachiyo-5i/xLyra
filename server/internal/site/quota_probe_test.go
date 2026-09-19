@@ -2,9 +2,9 @@ package site
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -1234,8 +1234,11 @@ func TestProbeDeepSeekBalance(t *testing.T) {
 	if entry.Remaining == nil || *entry.Remaining != 47.44 {
 		t.Fatalf("remaining = %+v, want 47.44 (string amount parsed)", entry.Remaining)
 	}
-	if entry.Used == nil || *entry.Used != 47.44 || entry.Limit == nil || *entry.Limit != 0 {
-		t.Fatalf("topped_up/granted = %+v/%+v, want 47.44/0", entry.Used, entry.Limit)
+	if entry.ToppedUpBalance == nil || *entry.ToppedUpBalance != 47.44 || entry.GrantedBalance == nil || *entry.GrantedBalance != 0 {
+		t.Fatalf("incorrect balance components: %+v", entry)
+	}
+	if entry.Used != nil || entry.Limit != nil || result.IsAvailable == nil || !*result.IsAvailable {
+		t.Fatalf("incorrect balance semantics: %+v", result)
 	}
 }
 
@@ -1257,16 +1260,45 @@ func TestProbeDeepSeekBalanceStripsV1Suffix(t *testing.T) {
 	}
 }
 
-func TestProbeDeepSeekBalanceInsufficient(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"is_available":false,"balance_infos":[{"currency":"CNY","total_balance":"0.00","granted_balance":"0.00","topped_up_balance":"0.00"}]}`))
-	}))
-	defer server.Close()
+func TestProbeDeepSeekBalancePreservesSignedAmounts(t *testing.T) {
+	for _, amount := range []float64{47.44, 0, -0.5} {
+		t.Run(fmt.Sprint(amount), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"is_available":false,"balance_infos":[{"currency":"CNY","total_balance":"%.2f","granted_balance":"0.00","topped_up_balance":"%.2f"}]}`, amount, amount)
+			}))
+			defer server.Close()
+			result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
+			if result.Status != "ok" || len(result.Entries) != 1 || result.IsAvailable == nil || *result.IsAvailable {
+				t.Fatalf("balance query must succeed independently of availability: %+v", result)
+			}
+			if result.Entries[0].Remaining == nil || *result.Entries[0].Remaining != amount {
+				t.Fatalf("balance = %+v, want %v", result.Entries[0], amount)
+			}
+			entry, ok := quotaProbeSummaryEntry(QuotaProbeTypeDeepSeek, result)
+			if !ok || entry.Remaining == nil || *entry.Remaining != amount {
+				t.Fatalf("summary balance = %+v, want %v", entry, amount)
+			}
+		})
+	}
+}
 
-	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
-	if result.Status != "error" || !strings.Contains(result.Error, "insufficient balance") {
-		t.Fatalf("expected insufficient balance error, got %+v", result)
+func TestProbeDeepSeekBalanceRejectsMissingAmounts(t *testing.T) {
+	for _, payload := range []string{
+		`{"is_available":false,"balance_infos":[]}`,
+		`{"is_available":false,"balance_infos":[{"currency":"CNY","total_balance":"invalid"}]}`,
+	} {
+		t.Run(payload, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(payload))
+			}))
+			defer server.Close()
+			result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
+			if result.Status != "error" || len(result.Entries) != 0 {
+				t.Fatalf("invalid balance must not become zero: %+v", result)
+			}
+		})
 	}
 }
 

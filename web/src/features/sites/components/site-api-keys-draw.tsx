@@ -58,6 +58,7 @@ import { routeQueryKeys } from '@/features/routes/api/routes'
 import {
   apiKeyModels,
   canCompleteAPIKey,
+  deepSeekBalanceDetails,
   formatAPIKeyValue,
   formatDisplayQuota,
   formatProbeAmount,
@@ -541,6 +542,9 @@ export function SiteAPIKeysDraw({
                       ? t('apiKeys.openCodeGoPlan')
                       : null
                   const probe = item.quota_probe
+                  const balanceDetails = site?.quota_probe?.probe_type === 'deepseek'
+                    ? deepSeekBalanceDetails(probe?.entries).filter((detail) => detail.label === 'accountBalance')
+                    : []
                   const probeEntry = probe?.entries?.length
                     ? (probe.entries.find(
                         (entry) => entry.label === 'balance',
@@ -674,6 +678,15 @@ export function SiteAPIKeysDraw({
                             <span className="text-red-400" title={probe?.error}>
                               {t('apiKeys.quotaProbeFailed')}
                             </span>
+                          ) : balanceDetails.length > 0 ? (
+                            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+                              {balanceDetails.map((detail, index) => (
+                                <div key={`${detail.label}-${index}`} className="contents">
+                                  <span>{t(`table.quotaDetails.${detail.label}`)}</span>
+                                  <span className="text-foreground tabular-nums">{detail.value}</span>
+                                </div>
+                              ))}
+                            </div>
                           ) : (openCodeGoQuotaText ?? probeText ?? quotaText) ? (
                             <span className="tabular-nums whitespace-normal" title={site?.site_type === 'opencode_go' ? t('apiKeys.openCodeGoUnavailable') : undefined}>
                               {openCodeGoQuotaText ?? probeText ?? quotaText}

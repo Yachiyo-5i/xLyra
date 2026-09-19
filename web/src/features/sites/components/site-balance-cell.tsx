@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { formatDateTime, formatSiteBalance, isSub2APIQuotaSite, siteBalanceDetails, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { deepSeekBalanceDetails, formatDateTime, formatSiteBalance, isSub2APIQuotaSite, siteBalanceDetails, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 import type { Site, SiteAPIKey } from '@/features/sites/api/sites'
 
 type PointerPosition = {
@@ -12,10 +12,11 @@ type PointerPosition = {
 
 function getBalanceDetails(site: Site, apiKeys: SiteAPIKey[], language: string) {
   const details = siteBalanceDetails(site, language)
-  const sub2APIKeys = isSub2APIQuotaSite(site) ? apiKeys : []
-  const keyDetails = sub2APIKeys.map((apiKey) => ({
+  const deepSeek = site.quota_probe?.probe_type === 'deepseek'
+  const detailKeys = isSub2APIQuotaSite(site) || deepSeek ? apiKeys : []
+  const keyDetails = detailKeys.map((apiKey) => ({
     apiKey,
-    details: sub2APIKeyQuotaDetails(apiKey.quota_probe, language),
+    details: deepSeek ? deepSeekBalanceDetails(apiKey.quota_probe?.entries) : sub2APIKeyQuotaDetails(apiKey.quota_probe, language),
   }))
 
   return { details, keyDetails }

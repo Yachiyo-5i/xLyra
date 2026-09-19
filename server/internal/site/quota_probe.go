@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -26,23 +25,26 @@ const (
 )
 
 type QuotaProbeEntry struct {
-	Label     string   `json:"label"`
-	Unit      string   `json:"unit,omitempty"`
-	Remaining *float64 `json:"remaining,omitempty"`
-	Limit     *float64 `json:"limit,omitempty"`
-	Used      *float64 `json:"used,omitempty"`
-	Unlimited bool     `json:"unlimited,omitempty"`
-	ResetAt   *string  `json:"reset_at,omitempty"`
+	GrantedBalance  *float64 `json:"granted_balance,omitempty"`
+	ToppedUpBalance *float64 `json:"topped_up_balance,omitempty"`
+	Label           string   `json:"label"`
+	Unit            string   `json:"unit,omitempty"`
+	Remaining       *float64 `json:"remaining,omitempty"`
+	Limit           *float64 `json:"limit,omitempty"`
+	Used            *float64 `json:"used,omitempty"`
+	Unlimited       bool     `json:"unlimited,omitempty"`
+	ResetAt         *string  `json:"reset_at,omitempty"`
 }
 
 type QuotaProbeResult struct {
-	Status    string            `json:"status"`
-	Error     string            `json:"error,omitempty"`
-	Kind      string            `json:"kind,omitempty"`
-	Plan      string            `json:"plan,omitempty"`
-	ExpiresAt *string           `json:"expires_at,omitempty"`
-	Entries   []QuotaProbeEntry `json:"entries,omitempty"`
-	FetchedAt time.Time         `json:"fetched_at"`
+	IsAvailable *bool             `json:"is_available,omitempty"`
+	Status      string            `json:"status"`
+	Error       string            `json:"error,omitempty"`
+	Kind        string            `json:"kind,omitempty"`
+	Plan        string            `json:"plan,omitempty"`
+	ExpiresAt   *string           `json:"expires_at,omitempty"`
+	Entries     []QuotaProbeEntry `json:"entries,omitempty"`
+	FetchedAt   time.Time         `json:"fetched_at"`
 }
 
 func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Site {
@@ -541,7 +543,7 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 	case QuotaProbeTypeGLM:
 		kind, entries, result.Plan, err = probeGLMQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeDeepSeek:
-		kind, entries, err = probeDeepSeekBalance(ctx, client, baseURL, secret)
+		kind, entries, result.IsAvailable, err = probeDeepSeekBalance(ctx, client, baseURL, secret)
 	default:
 		err = fmt.Errorf("unsupported quota probe type %q", probeType)
 	}
@@ -1016,78 +1018,46 @@ func glmPlanName(level string) string {
 	return strings.ToUpper(string(runes[:1])) + strings.ToLower(string(runes[1:]))
 }
 
-// probeDeepSeekBalance 查询 DeepSeek 账户余额。
-// 接口：GET {base}/user/balance（Bearer 认证）。余额接口不属于 /v1 命名空间，
-// base_url 以 /v1 结尾时剥掉再拼。响应金额字段是字符串数字；is_available
-// 为 false 且各币种余额均为 0 时报 "insufficient balance"。
-func probeDeepSeekBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, error) {
+func probeDeepSeekBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, *bool, error) {
 	payload, err := quotaProbeGetJSON(ctx, client, deepSeekBalanceBaseURL(baseURL)+"/user/balance", secret)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-
+	var available *bool
+	if value, ok := payload["is_available"].(bool); ok {
+		available = &value
+	}
 	entries := make([]QuotaProbeEntry, 0, 2)
-	insufficient := false
-	if available, ok := payload["is_available"].(bool); ok && !available {
-		insufficient = true
-	}
 	for _, raw := range anySlice(payload["balance_infos"]) {
 		item, _ := raw.(map[string]any)
 		entry := QuotaProbeEntry{
-			Label: "balance",
-			Unit:  quotaProbeUnit(anyString(item["currency"]), "cny"),
-		}
-		if total, ok := quotaProbeNumber(item["total_balance"]); ok {
-			entry.Remaining = &total
-		}
-		if toppedUp, ok := quotaProbeNumber(item["topped_up_balance"]); ok {
-			entry.Used = &toppedUp
-		}
-		if granted, ok := quotaProbeNumber(item["granted_balance"]); ok {
-			entry.Limit = &granted
+			Label:           "balance",
+			Unit:            quotaProbeUnit(anyString(item["currency"]), "cny"),
+			Remaining:       quotaProbeFloat(item["total_balance"]),
+			GrantedBalance:  quotaProbeFloat(item["granted_balance"]),
+			ToppedUpBalance: quotaProbeFloat(item["topped_up_balance"]),
 		}
 		if entry.Remaining != nil {
 			entries = append(entries, entry)
 		}
 	}
 	if len(entries) == 0 {
-		return "", nil, fmt.Errorf("balance endpoint did not contain balance data")
+		return "", nil, nil, fmt.Errorf("balance endpoint did not contain balance data")
 	}
-	if insufficient {
-		for i := range entries {
-			if entries[i].Remaining != nil && *entries[i].Remaining > 0 {
-				return "balance", entries, nil
-			}
-		}
-		return "balance", entries, fmt.Errorf("deepseek reported insufficient balance")
-	}
-	return "balance", entries, nil
+	return "balance", entries, available, nil
 }
 
 // deepSeekBalanceBaseURL 返回余额接口的 base：DeepSeek 的 /user/balance 不在
 // /v1 命名空间下，base_url 以 /v1 结尾时剥掉。
 func deepSeekBalanceBaseURL(baseURL string) string {
 	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if trimmed == "" {
+		return "https://api.deepseek.com"
+	}
 	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
 		return trimmed[:len(trimmed)-len("/v1")]
 	}
 	return trimmed
-}
-
-// quotaProbeNumber 解析可能以字符串出现的数字（DeepSeek 余额接口的金额字段
-// 是字符串），兼容数字类型。
-func quotaProbeNumber(value any) (float64, bool) {
-	switch typed := value.(type) {
-	case float64:
-		return typed, true
-	case string:
-		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
-		if err != nil {
-			return 0, false
-		}
-		return parsed, true
-	}
-	return 0, false
 }
 
 func quotaProbeGLMLimitURL(baseURL string) (string, error) {
