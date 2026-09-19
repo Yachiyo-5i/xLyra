@@ -18,7 +18,7 @@ func zhipuFindModel(t *testing.T, models []Model, name string) Model {
 	return Model{}
 }
 
-func TestZhipuListModelsMergesUpstreamWithCuratedExtras(t *testing.T) {
+func TestZhipuListModelsUsesOnlyUpstreamModels(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/models" {
 			t.Errorf("models path = %q, want /models", r.URL.Path)
@@ -43,29 +43,27 @@ func TestZhipuListModelsMergesUpstreamWithCuratedExtras(t *testing.T) {
 		t.Errorf("glm-5.3 owned_by = %v, want z-ai", got)
 	}
 
-	seen := map[string]int{}
-	for _, model := range models {
-		seen[model.UpstreamName]++
+	wantNames := []string{"glm-5.3", "glm-4.7", "glm-5.3-flash"}
+	if len(models) != len(wantNames) {
+		t.Fatalf("ListModels returned %d models, want only %d upstream models", len(models), len(wantNames))
 	}
-	if seen["glm-4.7"] != 1 {
-		t.Errorf("glm-4.7 appears %d times, want 1 (upstream and curated must dedupe)", seen["glm-4.7"])
-	}
-
-	if got := zhipuFindModel(t, models, "embedding-3").Capabilities["source"]; got != "curated" {
-		t.Errorf("embedding-3 source = %v, want curated (upstream /models omits embeddings)", got)
-	}
-	if _, ok := seen["glm-image"]; !ok {
-		t.Errorf("glm-image missing from merged list")
+	for i, name := range wantNames {
+		if models[i].UpstreamName != name {
+			t.Errorf("model[%d] = %q, want %q", i, models[i].UpstreamName, name)
+		}
+		if got := models[i].Capabilities["source"]; got != "upstream" {
+			t.Errorf("model[%d] source = %v, want upstream", i, got)
+		}
 	}
 }
 
-func TestGLMCodeListModelsMergesUpstreamModels(t *testing.T) {
+func TestGLMCodeListModelsUsesOnlyUpstreamModels(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/models" {
 			t.Errorf("models path = %q, want /models", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"data":[{"id":"glm-5.3"},{"id":"glm-4.5-air"}]}`))
+		w.Write([]byte(`{"data":[{"id":"glm-4.5-air"}]}`))
 	}))
 	defer server.Close()
 
@@ -74,29 +72,12 @@ func TestGLMCodeListModelsMergesUpstreamModels(t *testing.T) {
 		t.Fatalf("ListModels returned error: %v", err)
 	}
 
-	if got := zhipuFindModel(t, models, "glm-5.3").Capabilities["source"]; got != "upstream" {
-		t.Errorf("glm-5.3 source = %v, want upstream", got)
+	if len(models) != 1 {
+		t.Fatalf("ListModels returned %d models, want only 1 upstream model", len(models))
 	}
 	if got := zhipuFindModel(t, models, "glm-4.5-air").Capabilities["source"]; got != "upstream" {
-		t.Errorf("glm-4.5-air source = %v, want upstream (dynamic entry wins over curated)", got)
+		t.Errorf("glm-4.5-air source = %v, want upstream", got)
 	}
-	if got := zhipuFindModel(t, models, "glm-4.7").Capabilities["source"]; got != "curated" {
-		t.Errorf("glm-4.7 source = %v, want curated (coding fallback supplement)", got)
-	}
-	for _, name := range []string{"embedding-3", "glm-image"} {
-		if model := zhipuFindModelQuiet(models, name); model != nil {
-			t.Errorf("%s should not be merged into glm_code sites", name)
-		}
-	}
-}
-
-func zhipuFindModelQuiet(models []Model, name string) *Model {
-	for i := range models {
-		if models[i].UpstreamName == name {
-			return &models[i]
-		}
-	}
-	return nil
 }
 
 func TestZhipuListModelsPropagatesUpstreamErrors(t *testing.T) {

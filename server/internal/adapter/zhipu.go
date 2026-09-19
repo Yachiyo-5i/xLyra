@@ -65,16 +65,6 @@ func (z Zhipu) ListModels(ctx context.Context, site SiteConfig, apiKey string) (
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("api key is required")
 	}
-	// /models 接口未写入智谱官方文档（2026-09 实测可用），路径为 BaseURL + "/models"。
-	models, err := z.fetchUpstreamModels(ctx, site, apiKey)
-	if err != nil {
-		return nil, err
-	}
-	// 上游 /models 只返回聊天模型，embedding、图像等静态 curated 列表补齐。
-	return mergeZhipuModels(models, zhipuStaticModels(site.SiteType)), nil
-}
-
-func (z Zhipu) fetchUpstreamModels(ctx context.Context, site SiteConfig, apiKey string) ([]Model, error) {
 	baseURL := strings.TrimSpace(site.BaseURL)
 	if baseURL == "" {
 		baseURL = z.defaultBaseURL
@@ -130,70 +120,6 @@ func (z Zhipu) fetchUpstreamModels(ctx context.Context, site SiteConfig, apiKey 
 		return nil, fmt.Errorf("upstream models list is empty")
 	}
 	return models, nil
-}
-
-// mergeZhipuModels 以动态列表为准（上游按新到旧排序），静态列表只补充上游未返回的
-// 模型（embedding、图像、长文本等不在 /models 返回值里）。
-func mergeZhipuModels(upstreamModels, staticModels []Model) []Model {
-	seen := make(map[string]bool, len(upstreamModels))
-	merged := make([]Model, 0, len(upstreamModels)+len(staticModels))
-	for _, model := range upstreamModels {
-		seen[strings.ToLower(model.UpstreamName)] = true
-		merged = append(merged, model)
-	}
-	for _, model := range staticModels {
-		if !seen[strings.ToLower(model.UpstreamName)] {
-			merged = append(merged, model)
-		}
-	}
-	return merged
-}
-
-func zhipuStaticModels(siteType string) []Model {
-	modelIDs := []string{
-		"glm-5.3",
-		"glm-5.3-flash",
-		"glm-5.2",
-		"glm-5.1",
-		"glm-5",
-		"glm-5-turbo",
-		"glm-4.7",
-		"glm-4.7-flashx",
-		"glm-4.7-flash",
-		"glm-4.6",
-		"glm-4.5-air",
-		"glm-4.5-airx",
-		"glm-4-long",
-		"embedding-3",
-		"embedding-2",
-		"glm-image",
-	}
-	if strings.EqualFold(strings.TrimSpace(siteType), glmCodeSiteType) {
-		modelIDs = []string{
-			"glm-5.3",
-			"glm-5.3-flash",
-			"glm-5.1",
-			"glm-5-turbo",
-			"glm-4.7",
-			"glm-4.5-air",
-		}
-	}
-
-	models := make([]Model, 0, len(modelIDs))
-	for _, modelID := range modelIDs {
-		capabilities := map[string]any{
-			"supported_endpoint_types": zhipuEndpointTypes(modelID),
-			"source":                   "curated",
-			"tool_call":                true,
-			"supports_tools":           true,
-		}
-		models = append(models, Model{
-			UpstreamName: modelID,
-			DisplayName:  modelID,
-			Capabilities: capabilities,
-		})
-	}
-	return models
 }
 
 func zhipuEndpointTypes(modelID string) []string {
