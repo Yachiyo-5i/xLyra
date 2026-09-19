@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { HoverDetails } from '@/components/common/hover-details'
+import { ErrorDetails } from '@/components/common/error-details'
 import { FlaskConical, LoaderCircle, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BrandMark } from '@/components/common/brand-mark'
@@ -11,6 +11,7 @@ import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/lib/toast'
+import { APIError } from '@/lib/http'
 import {
   listCanonicalModels,
   listSiteAPIKeys,
@@ -106,7 +107,20 @@ export function SiteModelTestSheet({
       setResults((current) => ({ ...current, [modelId]: { status: 'success', result } }))
     },
     onError: (error, model) => {
-      const message = error instanceof Error ? error.message : String(error)
+      let message = error instanceof Error ? error.message : String(error)
+      if (error instanceof APIError) {
+        switch (error.code) {
+          case 'model_test_protocol_unsupported':
+            message = t('test.errors.protocolUnsupported')
+            break
+          case 'model_test_protocol_unavailable':
+            message = t('test.errors.protocolUnavailable')
+            break
+          case 'model_test_credential_unavailable':
+            message = t('test.errors.credentialUnavailable')
+            break
+        }
+      }
       setResults((current) => ({ ...current, [model.id]: { status: 'error', message } }))
       toast.error(t('test.toast.testFailed'), { description: message })
     },
@@ -253,20 +267,20 @@ export function SiteModelTestSheet({
                               {record ? (
                                 record.status === 'success' ? (
                                   failureResponse ? (
-                                    <FailureResponsePopover value={failureResponse}>
+                                    <ErrorDetails message={failureResponse}>
                                       <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
                                         {record.result.ok ? t('test.status.success') : t('test.status.failed')}
                                       </StatusBadge>
-                                    </FailureResponsePopover>
+                                    </ErrorDetails>
                                   ) : (
                                     <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
                                       {record.result.ok ? t('test.status.success') : t('test.status.failed')}
                                     </StatusBadge>
                                   )
                                 ) : (
-                                  <FailureResponsePopover value={record.message}>
+                                  <ErrorDetails message={record.message}>
                                     <StatusBadge status="error" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.failed')}</StatusBadge>
-                                  </FailureResponsePopover>
+                                  </ErrorDetails>
                                 )
                               ) : (
                                 <StatusBadge status="idle" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.untested')}</StatusBadge>
@@ -314,19 +328,6 @@ export function SiteModelTestSheet({
         </DrawBody>
       </DrawContent>
     </Draw>
-  )
-}
-
-function FailureResponsePopover({ value, children }: { value: string; children: ReactNode }) {
-  const { t } = useTranslation('sites')
-  return (
-    <HoverDetails
-      title={t('test.status.failed')}
-      contentClassName="w-[420px]"
-      content={<code className="block whitespace-pre-wrap break-all rounded-md bg-[hsl(var(--surface-subtle))] px-3 py-2 text-xs leading-relaxed text-muted-foreground">{value}</code>}
-    >
-      {children}
-    </HoverDetails>
   )
 }
 

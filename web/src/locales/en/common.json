@@ -21,6 +21,7 @@
     "clear": "Clear"
   },
   "status": {
+    "error": "Error",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "loading": "Loading...",

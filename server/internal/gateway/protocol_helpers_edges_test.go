@@ -363,7 +363,7 @@ func TestGatewaySiteModelDiagnosticProtocolHelpersAndRecorder(t *testing.T) {
 		t.Fatal("expected invalid protocol error")
 	}
 
-	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeOpenAI}, siteModelTestProtocolMessages)
+	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeAnthropicMessages}, siteModelTestProtocolMessages)
 	if err != nil || path != gatewayEndpointMessages {
 		t.Fatalf("messages protocol path = %q err=%v", path, err)
 	}

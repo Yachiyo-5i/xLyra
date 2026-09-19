@@ -348,6 +348,11 @@
       "auto": "Auto-select key"
     },
     "test": "Test",
+    "errors": {
+      "protocolUnsupported": "The selected protocol is not enabled for this model on the current key. Choose another protocol or key.",
+      "protocolUnavailable": "This model has no enabled protocols. Check its protocol settings.",
+      "credentialUnavailable": "No key is available for this model, or the selected key is unavailable. Check the key and model settings."
+    },
     "toast": {
       "testFailed": "Test failed"
     },

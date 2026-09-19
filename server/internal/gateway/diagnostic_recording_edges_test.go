@@ -66,7 +66,7 @@ func TestSiteModelTestCredentialRejectsOAuthSitesWithoutService(t *testing.T) {
 					ID:       uuid.New(),
 					SiteType: tt.siteType,
 				},
-			}, uuid.Nil)
+			}, nil)
 			if err == nil {
 				t.Fatal("siteModelTestCredential returned nil error")
 			}

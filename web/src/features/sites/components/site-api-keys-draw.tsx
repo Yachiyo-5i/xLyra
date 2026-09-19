@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HoverDetails } from '@/components/common/hover-details'
+import { ErrorDetails } from '@/components/common/error-details'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LoaderCircle,
@@ -1143,18 +1143,15 @@ function APIKeySyncStatusBadge({ apiKey }: { apiKey: SiteAPIKey }) {
   const message = ['failed', 'partial', 'stale'].includes(status ?? '') ? apiKey.message?.trim() : undefined
   const syncBadge = apiKeySyncBadge(status)
   return (
-    <HoverDetails
+    <ErrorDetails
       asChild
-      disabled={!message}
-      title={syncBadge.label(t)}
+      message={message}
       description={apiKey.name || t('apiKeys.defaultKey')}
-      titleClassName={syncBadge.className}
-      content={<div className="whitespace-pre-wrap break-words text-muted-foreground">{message}</div>}
     >
       <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
         {syncBadge.label(t)}
       </Badge>
-    </HoverDetails>
+    </ErrorDetails>
   )
 }
 

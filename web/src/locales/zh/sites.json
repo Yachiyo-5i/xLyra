@@ -350,6 +350,11 @@
       "auto": "自动选择 Key"
     },
     "test": "测试",
+    "errors": {
+      "protocolUnsupported": "当前 Key 对该模型未启用所选协议，请切换协议或 Key。",
+      "protocolUnavailable": "该模型没有启用的协议，请检查协议配置。",
+      "credentialUnavailable": "该模型没有可用的 Key，或所选 Key 不可用，请检查 Key 及模型配置。"
+    },
     "toast": {
       "testFailed": "测试失败"
     },

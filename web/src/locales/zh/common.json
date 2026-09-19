@@ -21,6 +21,7 @@
     "clear": "清空"
   },
   "status": {
+    "error": "错误",
     "enabled": "启用",
     "disabled": "禁用",
     "loading": "加载中...",

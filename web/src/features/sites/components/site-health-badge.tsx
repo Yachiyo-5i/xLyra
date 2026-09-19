@@ -1,4 +1,4 @@
-import { HoverDetails } from '@/components/common/hover-details'
+import { ErrorDetails } from '@/components/common/error-details'
 import { useTranslation } from 'react-i18next'
 import { StatusBadge } from '@/components/common/status-badge'
 import { isSiteAbnormal } from '@/features/sites/lib/site-utils'
@@ -15,15 +15,12 @@ export function SiteHealthBadge({ site, validation, className }: SiteHealthBadge
   const { t } = useTranslation('sites')
   const health = siteHealthStatus(site, validation, t)
   return (
-    <HoverDetails
+    <ErrorDetails
       asChild
-      disabled={health.status !== 'error' || !health.message}
-      title={health.label}
-      titleClassName="text-red-300"
-      content={<div className="whitespace-pre-wrap break-words text-muted-foreground">{health.message}</div>}
+      message={health.status === 'error' ? health.message : undefined}
     >
       <StatusBadge status={health.status} className={className}>{health.label}</StatusBadge>
-    </HoverDetails>
+    </ErrorDetails>
   )
 }
 

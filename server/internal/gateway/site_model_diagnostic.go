@@ -170,18 +170,13 @@ func (h Handler) TestSiteModel(ctx context.Context, input SiteModelTestInput) (S
 	}
 	base.Model.CanonicalModel = canonical.ModelKey
 
-	endpointTypes, err := (openAIProtocolResolver{db: h.db}).supportedEndpointTypesFromCapabilities(ctx, model.ID)
-	if err != nil {
-		return SiteModelTestResult{}, fmt.Errorf("read site model capabilities: %w", err)
+	override, err := store.NewSiteModelEndpointOverrideRepository(h.db.DB()).Get(ctx, model.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return SiteModelTestResult{}, fmt.Errorf("read site model endpoint override: %w", err)
 	}
-	downstreamPath, err := siteModelTestDownstreamPathForProtocol(endpointTypes, protocolMode)
-	if err != nil {
-		return SiteModelTestResult{}, err
-	}
-
-	request, err := siteModelTestGatewayRequest(downstreamPath, canonical.ModelKey, prompt, stream)
-	if err != nil {
-		return SiteModelTestResult{}, siteModelTestError(http.StatusBadRequest, "test_request_build_failed", err.Error())
+	endpointTypes := store.ResolveSiteModelEndpointPolicy(canonical, model, override).SupportedEndpointTypes
+	if len(endpointTypes) == 0 {
+		return SiteModelTestResult{}, siteModelTestError(http.StatusBadRequest, "model_test_protocol_unavailable", "model has no enabled protocols")
 	}
 	candidate := routeengine.Candidate{
 		Site: routeengine.CandidateSite{
@@ -193,12 +188,36 @@ func (h Handler) TestSiteModel(ctx context.Context, input SiteModelTestInput) (S
 			RoutingPriority: site.RoutingPriority,
 		},
 		Model: routeengine.CandidateModel{
-			SiteModelID:     model.ID,
-			UpstreamName:    model.UpstreamName,
-			DisplayName:     canonical.ModelKey,
-			MatchSource:     model.MatchSource,
-			MatchConfidence: model.MatchConfidence,
+			SupportedEndpointTypes: endpointTypes,
+			SiteModelID:            model.ID,
+			UpstreamName:           model.UpstreamName,
+			DisplayName:            canonical.ModelKey,
+			MatchSource:            model.MatchSource,
+			MatchConfidence:        model.MatchConfidence,
 		},
+	}
+
+	var selectedCredential *store.GatewayCredential
+	if sitepkg.CredentialTypeForSiteType(site.SiteType) != "oauth" {
+		credential, credentialErr := h.siteModelTestStoredCredential(ctx, candidate, input.SiteCredentialID)
+		if credentialErr != nil {
+			if errors.Is(credentialErr, gorm.ErrRecordNotFound) {
+				return SiteModelTestResult{}, siteModelTestError(http.StatusBadRequest, "model_test_credential_unavailable", "no available API key for this model or the selected key is unavailable")
+			}
+			return SiteModelTestResult{}, fmt.Errorf("select model test credential: %w", credentialErr)
+		}
+		selectedCredential = &credential
+		if credential.SupportedEndpointTypes != nil {
+			candidate.Model.SupportedEndpointTypes = credential.SupportedEndpointTypes
+		}
+	}
+	downstreamPath, err := siteModelTestDownstreamPathForProtocol(candidate.Model.SupportedEndpointTypes, protocolMode)
+	if err != nil {
+		return SiteModelTestResult{}, err
+	}
+	request, err := siteModelTestGatewayRequest(downstreamPath, canonical.ModelKey, prompt, stream)
+	if err != nil {
+		return SiteModelTestResult{}, siteModelTestError(http.StatusBadRequest, "test_request_build_failed", err.Error())
 	}
 
 	protocol, err := h.siteModelTestProtocolAdapter(ctx, request, candidate, protocolMode)
@@ -209,7 +228,7 @@ func (h Handler) TestSiteModel(ctx context.Context, input SiteModelTestInput) (S
 	testCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	requestID := "site-model-test/" + uuid.NewString()
-	result := h.forwardSiteModelTestRequest(testCtx, requestID, canonical.ID, candidate, request, protocol, input.SiteCredentialID)
+	result := h.forwardSiteModelTestRequest(testCtx, requestID, canonical.ID, candidate, request, protocol, selectedCredential)
 
 	response := base
 	response.OK = result.success
@@ -258,7 +277,7 @@ func (h Handler) forwardSiteModelTestRequest(
 	candidate routeengine.Candidate,
 	request gatewayRequest,
 	protocol gatewayProtocolAdapter,
-	requestedCredentialID uuid.UUID,
+	selectedCredential *store.GatewayCredential,
 ) gatewayAttemptResult {
 	startedAt := time.Now()
 	result := gatewayAttemptResult{
@@ -271,7 +290,7 @@ func (h Handler) forwardSiteModelTestRequest(
 		diagnostic:       true,
 	}
 
-	upstreamKey, accountID, credentialMasked, credentialID, groupName, errType, err := h.siteModelTestCredential(ctx, candidate, requestedCredentialID)
+	upstreamKey, accountID, credentialMasked, credentialID, groupName, errType, err := h.siteModelTestCredential(ctx, candidate, selectedCredential)
 	if err != nil {
 		result.statusCode = http.StatusBadGateway
 		result.errorType = errType
@@ -287,22 +306,10 @@ func (h Handler) forwardSiteModelTestRequest(
 	result.credentialMasked = credentialMasked
 	result.credentialAttempt = 1
 	result.credentialTotal = 1
-	if credentialID != uuid.Nil {
-		credential, credentialErr := store.NewSiteCredentialRepository(h.db.DB()).GetByID(ctx, credentialID)
-		if credentialErr == nil {
-			state := store.SiteAPIKeyState{}
-			if states, stateErr := store.NewSiteAPIKeyStateRepository(h.db.DB()).ListBySite(ctx, candidate.Site.ID); stateErr == nil {
-				for _, item := range states {
-					if item.SiteCredentialID == credentialID {
-						state = item
-						break
-					}
-				}
-			}
-			result.credentialName = store.SiteCredentialDisplayName(credential, state)
-			result.credentialPriority = store.SiteCredentialRoutingPriority(credential)
-			result.credentialCostMultiplier = store.SiteCredentialUpstreamCostMultiplier(credential)
-		}
+	if selectedCredential != nil {
+		result.credentialName = store.SiteCredentialDisplayName(selectedCredential.Credential, selectedCredential.State)
+		result.credentialPriority = store.SiteCredentialRoutingPriority(selectedCredential.Credential)
+		result.credentialCostMultiplier = store.SiteCredentialUpstreamCostMultiplier(selectedCredential.Credential)
 	}
 
 	selectedPricing := h.gatewayPricing(ctx, candidate, groupName)
@@ -408,7 +415,7 @@ func (h Handler) forwardSiteModelTestRequest(
 	return h.handleBufferedResponse(ctx, requestID, uuid.Nil, canonicalModelID, candidate, protocol, resp, result, startedAt)
 }
 
-func (h Handler) siteModelTestCredential(ctx context.Context, candidate routeengine.Candidate, requestedCredentialID uuid.UUID) (string, string, string, uuid.UUID, string, string, error) {
+func (h Handler) siteModelTestCredential(ctx context.Context, candidate routeengine.Candidate, credential *store.GatewayCredential) (string, string, string, uuid.UUID, string, string, error) {
 	if isCodexSite(candidate.Site.SiteType) {
 		if h.oauth == nil {
 			return "", "", "", uuid.Nil, "", "codex_oauth_unavailable", fmt.Errorf("oauth service is not available")
@@ -439,23 +446,18 @@ func (h Handler) siteModelTestCredential(ctx context.Context, candidate routeeng
 		}
 		return connection.AccessToken, connection.AccountID, connection.Connection.MaskedAccessToken, uuid.Nil, "", "", nil
 	}
+	if credential == nil {
+		return "", "", "", uuid.Nil, "", "upstream_credential_unavailable", gorm.ErrRecordNotFound
+	}
 	if isGrokSite(candidate.Site.SiteType) {
 		if h.oauth == nil {
 			return "", "", "", uuid.Nil, "", "grok_oauth_unavailable", fmt.Errorf("oauth service is not available")
-		}
-		credential, err := h.siteModelTestStoredCredential(ctx, candidate, requestedCredentialID)
-		if err != nil {
-			return "", "", "", uuid.Nil, "", "upstream_credential_unavailable", err
 		}
 		accessToken, err := h.oauth.EnsureGrokAccessToken(ctx, credential.Credential.ID)
 		if err != nil {
 			return "", "", "", credential.Credential.ID, "", "grok_oauth_refresh_failed", err
 		}
 		return accessToken, "", credential.Credential.MaskedSecret, credential.Credential.ID, credential.GroupName.String, "", nil
-	}
-	credential, err := h.siteModelTestStoredCredential(ctx, candidate, requestedCredentialID)
-	if err != nil {
-		return "", "", "", uuid.Nil, "", "upstream_credential_unavailable", err
 	}
 	upstreamKey, err := h.credentials.Decrypt(credential.Credential.EncryptedSecret)
 	if err != nil {
@@ -475,6 +477,16 @@ func (h Handler) siteModelTestStoredCredential(ctx context.Context, candidate ro
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return store.GatewayCredential{}, err
 		}
+		if requestedCredentialID != uuid.Nil {
+			return store.GatewayCredential{}, gorm.ErrRecordNotFound
+		}
+		hasBindings, err := store.NewGatewayRepository(h.db.DB()).HasCredentialBindingsForSiteModel(ctx, candidate.Site.ID, candidate.Model.SiteModelID)
+		if err != nil {
+			return store.GatewayCredential{}, err
+		}
+		if hasBindings {
+			return store.GatewayCredential{}, gorm.ErrRecordNotFound
+		}
 		credential, err := repo.GetBySiteAndType(ctx, candidate.Site.ID, "xlyra_access_token")
 		if err != nil {
 			return store.GatewayCredential{}, err
@@ -487,7 +499,7 @@ func (h Handler) siteModelTestStoredCredential(ctx context.Context, candidate ro
 
 func (h Handler) siteModelTestGatewayCredential(ctx context.Context, candidate routeengine.Candidate, requestedCredentialID uuid.UUID) (store.GatewayCredential, error) {
 	if requestedCredentialID != uuid.Nil {
-		credentials, err := store.NewGatewayRepository(h.db.DB()).ListCredentialsForSiteModel(ctx, candidate.Site.ID, candidate.Model.SiteModelID)
+		credentials, err := store.NewGatewayRepository(h.db.DB()).ListCredentialsForSiteModelWithEndpointTypes(ctx, candidate.Site.ID, candidate.Model.SiteModelID, candidate.Model.SupportedEndpointTypes)
 		if err != nil {
 			return store.GatewayCredential{}, err
 		}
@@ -520,21 +532,29 @@ func selectSiteModelTestGatewayCredential(credentials []store.GatewayCredential,
 }
 
 func (h Handler) siteModelTestProtocolAdapter(ctx context.Context, request gatewayRequest, candidate routeengine.Candidate, protocol string) (gatewayProtocolAdapter, error) {
-	if siteModelTestUsesSiteProtocolResolver(candidate.Site.SiteType) {
-		return (openAIProtocolResolver{db: h.db}).Resolve(ctx, request, candidate)
+	var resolved gatewayProtocolAdapter
+	var err error
+	if siteModelTestUsesSiteProtocolResolver(candidate.Site.SiteType) || protocol == "" || protocol == siteModelTestProtocolAuto {
+		resolved, err = (openAIProtocolResolver{db: h.db}).Resolve(ctx, request, candidate)
+	} else {
+		switch protocol {
+		case siteModelTestProtocolChatCompletions:
+			resolved = newOpenAIChatProtocolAdapter(request, candidate)
+		case siteModelTestProtocolResponses:
+			resolved = newOpenAIResponsesProtocolAdapterForCandidate(request, candidate)
+		case siteModelTestProtocolMessages:
+			resolved = anthropicMessagesProtocolForCandidate(request, candidate)
+		default:
+			return nil, siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
+		}
 	}
-	switch protocol {
-	case "", siteModelTestProtocolAuto:
-		return (openAIProtocolResolver{db: h.db}).Resolve(ctx, request, candidate)
-	case siteModelTestProtocolChatCompletions:
-		return newOpenAIChatProtocolAdapter(request, candidate), nil
-	case siteModelTestProtocolResponses:
-		return newOpenAIResponsesProtocolAdapterForCandidate(request, candidate), nil
-	case siteModelTestProtocolMessages:
-		return anthropicMessagesProtocolForCandidate(request, candidate), nil
-	default:
-		return nil, siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
+	if err != nil {
+		return nil, err
 	}
+	if !isAntigravitySite(candidate.Site.SiteType) && !credentialSupportsProtocol(candidate.Model.SupportedEndpointTypes, resolved.ProtocolName()) {
+		return nil, siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", "selected API key does not support the resolved upstream protocol")
+	}
+	return resolved, nil
 }
 
 func siteModelTestUsesSiteProtocolResolver(siteType string) bool {
@@ -637,7 +657,7 @@ func (h Handler) handleSiteModelTestStreamResponse(
 
 func siteModelTestDownstreamPath(endpointTypes []string) (string, error) {
 	if len(endpointTypes) == 0 {
-		return gatewayEndpointChatCompletions, nil
+		return "", siteModelTestError(http.StatusBadRequest, "model_test_protocol_unavailable", "model has no enabled protocols for this API key")
 	}
 	supportsText := false
 	for _, endpointType := range endpointTypes {
@@ -677,18 +697,23 @@ func normalizeSiteModelTestProtocol(value string) (string, error) {
 }
 
 func siteModelTestDownstreamPathForProtocol(endpointTypes []string, protocol string) (string, error) {
+	var path, endpointType string
 	switch protocol {
 	case "", siteModelTestProtocolAuto:
 		return siteModelTestDownstreamPath(endpointTypes)
 	case siteModelTestProtocolChatCompletions:
-		return gatewayEndpointChatCompletions, nil
+		path, endpointType = gatewayEndpointChatCompletions, upstreamEndpointTypeOpenAI
 	case siteModelTestProtocolResponses:
-		return gatewayEndpointResponses, nil
+		path, endpointType = gatewayEndpointResponses, upstreamEndpointTypeOpenAIResponse
 	case siteModelTestProtocolMessages:
-		return gatewayEndpointMessages, nil
+		path, endpointType = gatewayEndpointMessages, upstreamEndpointTypeAnthropicMessages
 	default:
 		return "", siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
 	}
+	if !containsEndpointType(endpointTypes, endpointType) {
+		return "", siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", fmt.Sprintf("protocol %s is not enabled for the selected API key and model", protocol))
+	}
+	return path, nil
 }
 
 func siteModelTestGatewayRequest(path string, model string, prompt string, stream bool) (gatewayRequest, error) {
