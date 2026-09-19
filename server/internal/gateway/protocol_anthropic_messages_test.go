@@ -609,3 +609,58 @@ func TestAnthropicContentHasMeaningfulTextCoversNonTextAndWhitespaceBlocks(t *te
 		t.Fatal("expected non-empty text block to be meaningful")
 	}
 }
+
+func TestAnthropicMessagesAdapterValidatesThinkingBudget(t *testing.T) {
+	t.Parallel()
+
+	baseRequest := func(thinking map[string]any) gatewayRequest {
+		return gatewayRequest{
+			DownstreamPath: gatewayEndpointMessages,
+			Payload: map[string]any{
+				"model":      "claude-sonnet-4-20250514",
+				"max_tokens": 16384,
+				"thinking":   thinking,
+				"messages":   []any{map[string]any{"role": "user", "content": "hi"}},
+			},
+		}
+	}
+	candidate := routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "anthropic"},
+		Model: routeengine.CandidateModel{UpstreamName: "claude-sonnet-4-20250514"},
+	}
+
+	lowBudgetPayload, err := (anthropicMessagesProtocolAdapter{}).BuildUpstreamPayload(baseRequest(map[string]any{
+		"type": "enabled", "budget_tokens": 1023,
+	}), candidate)
+	if err != nil {
+		t.Fatalf("low thinking budget rejected: %v", err)
+	}
+	if got := lowBudgetPayload["thinking"].(map[string]any)["budget_tokens"]; got != 1024 {
+		t.Fatalf("thinking budget = %v, want 1024", got)
+	}
+	if _, err := (anthropicMessagesProtocolAdapter{}).BuildUpstreamPayload(baseRequest(map[string]any{
+		"type": "enabled", "budget_tokens": 16384,
+	}), candidate); err != nil {
+		t.Fatalf("thinking budget normalization rejected: %v", err)
+	}
+	aliasRequest := baseRequest(map[string]any{"type": "enabled", "budget_tokens": 32768})
+	aliasRequest.Payload["max_tokens"] = 65536
+	aliasRequest.Payload["max_completion_tokens"] = 16384
+	aliasPayload, err := (anthropicMessagesProtocolAdapter{}).BuildUpstreamPayload(aliasRequest, candidate)
+	if err != nil {
+		t.Fatalf("thinking budget alias normalization rejected: %v", err)
+	}
+	if got := aliasPayload["max_completion_tokens"]; got != 49152 {
+		t.Fatalf("max_completion_tokens = %v, want 49152", got)
+	}
+	legacyRequest := baseRequest(nil)
+	legacyRequest.Payload["thinking_budget"] = 32768
+	legacyRequest.Payload["max_tokens"] = 16384
+	legacyPayload, err := (anthropicMessagesProtocolAdapter{}).BuildUpstreamPayload(legacyRequest, candidate)
+	if err != nil {
+		t.Fatalf("legacy thinking budget normalization rejected: %v", err)
+	}
+	if got := legacyPayload["max_tokens"]; got != 49152 {
+		t.Fatalf("legacy max_tokens = %v, want 49152", got)
+	}
+}

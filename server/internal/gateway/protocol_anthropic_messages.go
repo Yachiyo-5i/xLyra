@@ -101,7 +101,9 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 	if request.DownstreamPath == gatewayEndpointMessages {
 		payload := clonePayload(request.Payload)
 		payload["model"] = candidate.Model.UpstreamName
-		return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
+		payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
+		normalizeAnthropicThinkingBudget(payload)
+		return payload, nil
 	}
 	if request.Canonical != nil {
 		canonical, responseTools, err := prepareResponsesNamespaceToolsForAnthropic(*request.Canonical)
@@ -115,9 +117,16 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 		if err != nil {
 			return nil, err
 		}
-		return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
+		payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
+		normalizeAnthropicThinkingBudget(payload)
+		return payload, nil
 	}
-	return convertRequestBetweenProtocols(canonicalProtocolAnthropicMessages, canonicalProtocolAnthropicMessages, request.Payload, stringFromPayloadModel(request.Payload), candidate)
+	payload, err := convertRequestBetweenProtocols(canonicalProtocolAnthropicMessages, canonicalProtocolAnthropicMessages, request.Payload, stringFromPayloadModel(request.Payload), candidate)
+	if err != nil {
+		return nil, err
+	}
+	normalizeAnthropicThinkingBudget(payload)
+	return payload, nil
 }
 
 func (anthropicMessagesProtocolAdapter) UpstreamPath(baseURL string) string {
@@ -1157,6 +1166,53 @@ func anthropicMaxTokens(request canonicalRequest, candidate routeengine.Candidat
 		return value, nil
 	}
 	return defaultAnthropicMaxTokens, nil
+}
+
+func normalizeAnthropicThinkingBudget(payload map[string]any) {
+	thinking, ok := payload["thinking"].(map[string]any)
+	if ok {
+		thinkingType := strings.TrimSpace(anyString(thinking["type"]))
+		if thinkingType != "" && !strings.EqualFold(thinkingType, "enabled") {
+			return
+		}
+	}
+	budgetKey := ""
+	var budget int
+	budget, ok = intFromAny(thinking["budget_tokens"])
+	if ok {
+		budgetKey = "budget_tokens"
+	}
+	if !ok {
+		budget, ok = intFromAny(payload["thinking_budget"])
+		if ok {
+			budgetKey = "thinking_budget"
+		}
+	}
+	if !ok {
+		return
+	}
+	if budget < 1024 {
+		budget = 1024
+		if budgetKey == "budget_tokens" {
+			thinking[budgetKey] = budget
+		} else {
+			payload[budgetKey] = budget
+		}
+	}
+	foundMaxTokens := false
+	for _, key := range []string{"max_tokens", "max_output_tokens", "max_completion_tokens"} {
+		maxTokens, ok := intFromAny(payload[key])
+		if !ok || maxTokens <= 0 {
+			continue
+		}
+		foundMaxTokens = true
+		if budget >= maxTokens {
+			payload[key] = budget + maxTokens
+		}
+	}
+	if !foundMaxTokens {
+		payload["max_tokens"] = budget + defaultAnthropicMaxTokens
+	}
 }
 
 func anthropicImageURL(raw any) string {
