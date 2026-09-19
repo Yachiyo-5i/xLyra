@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	claudeCodeGatewayUserAgent      = adapter.ClaudeCodeUserAgent
 	claudeCodeGatewayApp            = "cli"
 	claudeCodeGatewayAnthropicBeta  = adapter.ClaudeCodeOAuthBeta
 	claudeCodeGatewaySystemPrompt   = "You are Claude Code, Anthropic's official CLI for Claude."
@@ -36,6 +35,8 @@ const (
 	codexGatewayWindowHeader        = "X-Codex-Window-Id"
 	codexGatewayBetaFeatures        = "terminal_resize_reflow"
 )
+
+var claudeCodeGatewayUserAgent = adapter.ClaudeCodeUserAgent
 
 var claudeCodeLegacyMetadataUserIDPattern = regexp.MustCompile(`^user_([a-fA-F0-9]{64})_account_([a-fA-F0-9-]*)_session_([a-fA-F0-9-]{36})$`)
 
@@ -150,7 +151,7 @@ func isGPTModelName(model string) bool {
 }
 
 func applyCodexClientImpersonationHeaders(req *http.Request) {
-	req.Header.Set("User-Agent", codexGatewayUserAgent)
+	req.Header.Set("User-Agent", codexGatewayUserAgent())
 	req.Header.Set("Originator", codexOriginator)
 	ensureCodexFingerprintHeaders(req)
 }
@@ -188,7 +189,7 @@ func codexHeaderValueOrNew(req *http.Request, header string) string {
 }
 
 func applyClaudeCodeClientImpersonationHeaders(req *http.Request, sessionID string) {
-	req.Header.Set("User-Agent", claudeCodeGatewayUserAgent)
+	req.Header.Set("User-Agent", claudeCodeGatewayUserAgent())
 	req.Header.Set(claudeCodeGatewayAppHeader, claudeCodeGatewayApp)
 	req.Header.Set(claudeCodeGatewayBetaHeader, claudeCodeGatewayAnthropicBeta)
 	req.Header.Set(claudeCodeGatewayVersionHeader, claudeCodeGatewayAPIVersion)

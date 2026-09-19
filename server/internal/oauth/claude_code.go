@@ -128,7 +128,7 @@ func (s *Service) claudeCodeTokenRequest(ctx context.Context, payload map[string
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", adapter.ClaudeCodeUserAgent)
+	req.Header.Set("User-Agent", adapter.ClaudeCodeUserAgent())
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return claudeCodeTokenResponse{}, fmt.Errorf("%s: %w", action, err)
@@ -157,7 +157,7 @@ func (s *Service) fetchClaudeCodeProfile(ctx context.Context, accessToken string
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("User-Agent", adapter.ClaudeCodeUserAgent)
+	req.Header.Set("User-Agent", adapter.ClaudeCodeUserAgent())
 	req.Header.Set("X-App", "cli")
 	req.Header.Set("anthropic-beta", adapter.ClaudeCodeOAuthBeta)
 	req.Header.Set("anthropic-version", adapter.ClaudeCodeAPIVersion)

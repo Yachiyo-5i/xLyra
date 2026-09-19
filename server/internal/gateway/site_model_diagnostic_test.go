@@ -262,8 +262,8 @@ func TestSiteModelTestClientImpersonationOverridesDiagnosticUserAgent(t *testing
 		wantUA  string
 		wantSID bool
 	}{
-		{name: "codex", model: "gpt-5.4", wantUA: codexGatewayUserAgent},
-		{name: "claude_code", model: "claude-sonnet-4-5", wantUA: claudeCodeGatewayUserAgent, wantSID: true},
+		{name: "codex", model: "gpt-5.4", wantUA: codexGatewayUserAgent()},
+		{name: "claude_code", model: "claude-sonnet-4-5", wantUA: claudeCodeGatewayUserAgent(), wantSID: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodPost, "https://api.example.test/v1/responses", nil)

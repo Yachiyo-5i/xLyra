@@ -21,8 +21,8 @@ func TestApplyClaudeCodeOAuthGatewayHeadersUsesBearerAndRemovesAPIKey(t *testing
 	if got := req.Header.Get("Authorization"); got != "Bearer token-main" {
 		t.Fatalf("Authorization = %q, want Bearer token-main", got)
 	}
-	if got := req.Header.Get("User-Agent"); got != claudeCodeGatewayUserAgent {
-		t.Fatalf("User-Agent = %q, want %q", got, claudeCodeGatewayUserAgent)
+	if got := req.Header.Get("User-Agent"); got != claudeCodeGatewayUserAgent() {
+		t.Fatalf("User-Agent = %q, want %q", got, claudeCodeGatewayUserAgent())
 	}
 	if got := req.Header.Get("anthropic-beta"); got != claudeCodeGatewayAnthropicBeta {
 		t.Fatalf("anthropic-beta = %q, want %q", got, claudeCodeGatewayAnthropicBeta)

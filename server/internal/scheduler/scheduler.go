@@ -12,6 +12,7 @@ import (
 
 	"xlyra/server/internal/backup"
 	"xlyra/server/internal/catalog"
+	"xlyra/server/internal/claudeversion"
 	"xlyra/server/internal/codexversion"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/site"
@@ -22,6 +23,7 @@ const (
 	usageSummaryCron          = "1 0 * * *"
 	modelPricingSyncCron      = "@every 4h"
 	codexVersionRefreshCron   = "@every 6h"
+	claudeVersionRefreshCron  = "@every 6h"
 	automaticBackupJobTimeout = 10 * time.Minute
 )
 
@@ -65,6 +67,8 @@ type Scheduler struct {
 	refreshing    atomic.Bool
 	checkingIn    atomic.Bool
 	versioning    atomic.Bool
+
+	claudeVersioning atomic.Bool
 
 	modelsCacheInvalidator func()
 }
@@ -146,6 +150,13 @@ func (s *Scheduler) RegisterDefaultJobs() {
 		s.logger.Info("codex version refresh scheduler registered", "interval", codexVersionRefreshCron)
 	}
 	go s.runCodexVersionRefresh()
+
+	if _, err := s.cron.AddFunc(claudeVersionRefreshCron, s.runClaudeVersionRefresh); err != nil {
+		s.logger.Error("register claude code version refresh scheduler failed", "error", err)
+	} else {
+		s.logger.Info("claude code version refresh scheduler registered", "interval", claudeVersionRefreshCron)
+	}
+	go s.runClaudeVersionRefresh()
 
 	s.RegisterConfiguredJobs()
 	if s.options.ConfigFile != nil {
@@ -331,6 +342,26 @@ func (s *Scheduler) runCodexVersionRefresh() {
 	}
 	if next := codexversion.Version(); next != previous {
 		s.logger.Info("codex version refreshed", "previous", previous, "current", next)
+	}
+}
+
+func (s *Scheduler) runClaudeVersionRefresh() {
+	if !s.claudeVersioning.CompareAndSwap(false, true) {
+		s.logger.Warn("claude code version refresh skipped: previous run still active")
+		return
+	}
+	defer s.claudeVersioning.Store(false)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	previous := claudeversion.Version()
+	if err := claudeversion.Refresh(ctx); err != nil {
+		s.logger.Warn("claude code version refresh failed", "error", err, "current", previous)
+		return
+	}
+	if next := claudeversion.Version(); next != previous {
+		s.logger.Info("claude code version refreshed", "previous", previous, "current", next)
 	}
 }
 
