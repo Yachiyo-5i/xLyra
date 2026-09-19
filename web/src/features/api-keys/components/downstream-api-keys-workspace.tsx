@@ -154,7 +154,7 @@ export function DownstreamAPIKeysWorkspace() {
           return { ...current, items, meta: { ...current.meta, count: items.length } }
         },
       )
-      void queryClient.invalidateQueries({ queryKey: downstreamAPIKeyQueryKeys.list() })
+      await queryClient.invalidateQueries({ queryKey: downstreamAPIKeyQueryKeys.list() })
       await invalidatePlaygroundModels(queryClient, result.id)
       setFormOpen(false)
       setEditingKey(null)
@@ -266,8 +266,13 @@ export function DownstreamAPIKeysWorkspace() {
     onToggleLastUsedMode: () => setLastUsedMode((current) => (current === 'absolute' ? 'relative' : 'absolute')),
   }
 
+  async function openOrder() {
+    const result = await apiKeysQuery.refetch()
+    if (result.data) setOrderOpen(true)
+  }
+
   const orderButton = (
-    <Button variant="outline" onClick={() => setOrderOpen(true)} disabled={apiKeys.length < 2 || !apiKeysQuery.data?.meta?.order_revision} aria-label={t('order.title')}>
+    <Button variant="outline" onClick={() => void openOrder()} disabled={apiKeys.length < 2 || apiKeysQuery.isFetching || !apiKeysQuery.data?.meta?.order_revision} aria-label={t('order.title')}>
       <ArrowDownUp className="h-4 w-4" />
       {!isMobile ? t('order.title') : null}
     </Button>
