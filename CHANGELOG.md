@@ -5,12 +5,9 @@
 
 ### Features
 
-* 🎸 新增 DeepSeek 账户余额探测 ([8018ad6](https://github.com/Yachiyo-5i/xLyra/commit/8018ad6247244a7577fda241ee0d42dc3b143386))
-* 🎸 新增 DeepSeek 账户余额探测 ([2ff22ed](https://github.com/Yachiyo-5i/xLyra/commit/2ff22ed93a5e160959c066312f28cdcfb9c5c22a))
-* 🎸 新增 Moonshot 账户余额探测 ([33abd21](https://github.com/Yachiyo-5i/xLyra/commit/33abd210b4c4878124b7132ed0feda1aa876ab3c))
-* 🎸 新增 Moonshot 账户余额探测 ([25e8a26](https://github.com/Yachiyo-5i/xLyra/commit/25e8a26146cd94f8cf3b3b824695ff18f2a47afb))
-* 🎸 智谱模型列表改为动态拉取上游 /models ([140222a](https://github.com/Yachiyo-5i/xLyra/commit/140222a1972862bd586a672446899d80c6cf03b6))
-* 🎸 智谱模型列表改为动态拉取上游 /models ([25346c9](https://github.com/Yachiyo-5i/xLyra/commit/25346c92d66eaeaf8dc537cb7b77863004151c6b))
+* 🎸 新增 DeepSeek 账户余额探测 ([8018ad6](https://github.com/Yachiyo-5i/xLyra/commit/8018ad6247244a7577fda241ee0d42dc3b143386), [2ff22ed](https://github.com/Yachiyo-5i/xLyra/commit/2ff22ed93a5e160959c066312f28cdcfb9c5c22a))
+* 🎸 新增 Moonshot 账户余额探测 ([33abd21](https://github.com/Yachiyo-5i/xLyra/commit/33abd210b4c4878124b7132ed0feda1aa876ab3c), [25e8a26](https://github.com/Yachiyo-5i/xLyra/commit/25e8a26146cd94f8cf3b3b824695ff18f2a47afb))
+* 🎸 智谱模型列表改为动态拉取上游 /models ([140222a](https://github.com/Yachiyo-5i/xLyra/commit/140222a1972862bd586a672446899d80c6cf03b6), [25346c9](https://github.com/Yachiyo-5i/xLyra/commit/25346c92d66eaeaf8dc537cb7b77863004151c6b))
 
 
 ### Bug Fixes
@@ -19,11 +16,9 @@
 * 🐛 修复 Claude Code 和 Codex 自动同步版本后后续请求未使用新版本的问题 ([638224b](https://github.com/Yachiyo-5i/xLyra/commit/638224b69be8005539b84d0f2d552ae179e9a07b))
 * 🐛 修复 Codex 账号图像模型协议缺失及权限校验异常导致无法生图的问题 ([2d6e3c8](https://github.com/Yachiyo-5i/xLyra/commit/2d6e3c89d09d527b8ef5341210f40648bd1b0231))
 * 🐛 修复 DeepSeek 零余额和负余额更新异常并完善多币种余额展示 ([99d2298](https://github.com/Yachiyo-5i/xLyra/commit/99d2298c2166dff5370b183d2a5e20424974e973))
-* 🐛 修复 GLM Coding Plan 积分制套餐额度探测失败 ([9730619](https://github.com/Yachiyo-5i/xLyra/commit/973061972c1c638af01702c581144247d9b03cb8))
-* 🐛 修复 GLM Coding Plan 积分制套餐额度探测失败 ([7398c5c](https://github.com/Yachiyo-5i/xLyra/commit/7398c5c66382957651ffac408d35a4fa34d5c5cd))
+* 🐛 修复 GLM Coding Plan 积分制套餐额度探测失败 ([9730619](https://github.com/Yachiyo-5i/xLyra/commit/973061972c1c638af01702c581144247d9b03cb8), [7398c5c](https://github.com/Yachiyo-5i/xLyra/commit/7398c5c66382957651ffac408d35a4fa34d5c5cd))
 * 🐛 修复 Kimi 兼容适配误改聊天输出上限和自定义站点地址的问题 ([5de8add](https://github.com/Yachiyo-5i/xLyra/commit/5de8add92e8cf172ee518090458cc8bd414e1b21))
-* 🐛 修复 Kimi 开放平台 Anthropic Messages 端点缺少 /anthropic 前缀 ([56e63c9](https://github.com/Yachiyo-5i/xLyra/commit/56e63c93760ef6ae21baca8d7f3de0e901f55b76))
-* 🐛 修复 Kimi 开放平台 Anthropic Messages 端点缺少 /anthropic 前缀 ([8f3c5b7](https://github.com/Yachiyo-5i/xLyra/commit/8f3c5b7b82b1b98a9aad33f6e14dfdd26889e5a9))
+* 🐛 修复 Kimi 开放平台 Anthropic Messages 端点缺少 /anthropic 前缀 ([56e63c9](https://github.com/Yachiyo-5i/xLyra/commit/56e63c93760ef6ae21baca8d7f3de0e901f55b76), [8f3c5b7](https://github.com/Yachiyo-5i/xLyra/commit/8f3c5b7b82b1b98a9aad33f6e14dfdd26889e5a9))
 * 🐛 修复 Moonshot 零余额更新和欠费余额展示的问题 ([1fe6d26](https://github.com/Yachiyo-5i/xLyra/commit/1fe6d267a4595fb52784d547af3ec7d2a7e28824))
 * 🐛 修复同名站点创建失败并统一错误与额度详情提示 ([b3d75aa](https://github.com/Yachiyo-5i/xLyra/commit/b3d75aac0a8477afd120ebc3b9e8d111d792c411))
 * 🐛 修复密钥配置返回流程并支持 Gemini 组倍率 ([8fb0def](https://github.com/Yachiyo-5i/xLyra/commit/8fb0def0ed02292ab7c4b6d869ffe8a27012f5b6))
