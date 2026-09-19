@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestSiteCreateBuildsDefaultsOffline(t *testing.T) {
@@ -42,6 +44,82 @@ func TestSiteCreateBuildsDefaultsOffline(t *testing.T) {
 	}
 	if !captured.Enabled || captured.RoutingPriority != 2.5 || string(captured.Meta) != "{}" {
 		t.Fatalf("captured site defaults = %#v", *captured)
+	}
+}
+
+func TestSiteCreateRetriesSlugConflictsOffline(t *testing.T) {
+	t.Parallel()
+
+	for _, conflicts := range []int{0, 1, 2, 5} {
+		t.Run(fmt.Sprint(conflicts), func(t *testing.T) {
+			db := storeRepositoryOfflineGorm(t)
+			attempts := 0
+			seen := map[string]bool{}
+			siteID := uuid.New()
+			storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
+				conflict, ok := tx.Statement.Clauses["ON CONFLICT"].Expression.(clause.OnConflict)
+				if !ok || !conflict.DoNothing || len(conflict.Columns) != 1 || conflict.Columns[0].Name != "slug" {
+					t.Fatal("create must handle only slug conflicts")
+				}
+				item := tx.Statement.Dest.(*Site)
+				if attempts == 0 {
+					if item.Slug != "glm" {
+						t.Fatalf("initial slug = %q, want glm", item.Slug)
+					}
+				} else if !strings.HasPrefix(item.Slug, "glm-") || len(item.Slug) != len("glm-")+8 {
+					t.Fatalf("retry slug = %q, want original slug with random suffix", item.Slug)
+				}
+				if seen[item.Slug] {
+					t.Fatalf("reused conflicting slug %q", item.Slug)
+				}
+				seen[item.Slug] = true
+				attempts++
+				if attempts <= conflicts {
+					tx.Statement.RowsAffected = 0
+					return
+				}
+				item.ID = siteID
+				tx.Statement.RowsAffected = 1
+			})
+
+			site, err := NewSiteRepository(db).Create(context.Background(), CreateSiteParams{
+				Name: "glm", Slug: "glm", SiteType: "zhipu", Status: "active",
+			})
+			if conflicts == 5 {
+				if err == nil || site.ID != uuid.Nil || attempts != 5 {
+					t.Fatalf("exhausted retries: site=%#v error=%v attempts=%d", site, err, attempts)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Create returned error: %v", err)
+			}
+			if attempts != conflicts+1 || site.ID != siteID || !seen[site.Slug] {
+				t.Fatalf("created site=%#v attempts=%d", site, attempts)
+			}
+			if site.Name != "glm" || site.SiteType != "zhipu" || site.Status != "active" {
+				t.Fatalf("create changed non-slug fields: %#v", site)
+			}
+		})
+	}
+}
+
+func TestSiteCreatePreservesOtherErrorsOffline(t *testing.T) {
+	t.Parallel()
+
+	for _, failure := range []error{gorm.ErrDuplicatedKey, context.Canceled, errors.New("database unavailable")} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			db := storeRepositoryOfflineGorm(t)
+			attempts := 0
+			storeReplaceCreateCallback(t, db, func(tx *gorm.DB) {
+				attempts++
+				tx.AddError(failure)
+			})
+			_, err := NewSiteRepository(db).Create(context.Background(), CreateSiteParams{Name: "glm", Slug: "glm"})
+			if !errors.Is(err, failure) || attempts != 1 {
+				t.Fatalf("error=%v attempts=%d, want original error without retry", err, attempts)
+			}
+		})
 	}
 }
 

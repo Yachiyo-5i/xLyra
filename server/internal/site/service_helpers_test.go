@@ -146,7 +146,10 @@ func TestSiteTypeAndCredentialTypeHelpersNormalizeDefaults(t *testing.T) {
 	if !SupportsAPIKeyCostMultiplier("anthropic") {
 		t.Fatal("anthropic should support api key cost multiplier")
 	}
-	for _, siteType := range []string{"google_gemini", "deepseek", "newapi", "grok"} {
+	if !SupportsAPIKeyCostMultiplier(" Google_Gemini ") {
+		t.Fatal("google_gemini should support api key cost multiplier")
+	}
+	for _, siteType := range []string{"deepseek", "newapi", "grok"} {
 		if SupportsAPIKeyCostMultiplier(siteType) {
 			t.Fatalf("site type %q should not support api key cost multiplier", siteType)
 		}
@@ -635,6 +638,26 @@ func TestCapabilityProviderForSiteMapsSupportedAdapters(t *testing.T) {
 	} {
 		if got := capabilityProviderForSite(tc.siteType); got != tc.want {
 			t.Fatalf("provider for %q = %q, want %q", tc.siteType, got, tc.want)
+		}
+	}
+}
+
+func TestPrepareGeminiAPIKeyCostMultiplier(t *testing.T) {
+	t.Parallel()
+
+	for _, multiplier := range []float64{0.5, 1.25, 0, 101, 1.23456} {
+		prepared, err := prepareCreateCredentialInputs("google_gemini", []CredentialInput{
+			{Type: "api_key", Secret: "gemini-key", UpstreamCostMultiplier: &multiplier},
+		})
+		if multiplier == 0.5 || multiplier == 1.25 {
+			if err != nil {
+				t.Fatalf("prepare Gemini multiplier %v: %v", multiplier, err)
+			}
+			if len(prepared) != 1 || prepared[0].UpstreamCostMultiplier == nil || *prepared[0].UpstreamCostMultiplier != multiplier {
+				t.Fatalf("Gemini multiplier %v was not preserved: %#v", multiplier, prepared)
+			}
+		} else if err == nil {
+			t.Fatalf("invalid Gemini multiplier %v should be rejected", multiplier)
 		}
 	}
 }

@@ -74,6 +74,7 @@ export function OAuthConnectionCard({
     queryKey: oauthQueryKeys.detail(item.id),
     queryFn: () => getOAuthConnection(item.id),
     staleTime: 30_000,
+    refetchOnWindowFocus: 'always',
   })
   const detail = detailQuery.data?.connection
   const connection = detail ?? item

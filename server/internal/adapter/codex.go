@@ -269,6 +269,8 @@ func codexModelsFromItems(items []map[string]any) []Model {
 		}
 		if endpoints := stringSliceFromAny(item["supported_endpoint_types"]); len(endpoints) > 0 {
 			capabilities["supported_endpoint_types"] = endpoints
+		} else if strings.HasPrefix(strings.ToLower(id), "gpt-image") {
+			capabilities["supported_endpoint_types"] = []string{"openai-image"}
 		} else {
 			capabilities["supported_endpoint_types"] = []string{"openai", "openai-response"}
 		}
@@ -295,8 +297,9 @@ func codexModelsWithImageRoute(models []Model) []Model {
 		UpstreamName: codexImageSlug,
 		DisplayName:  defaultString(stringFromAny(route["display_name"]), codexImageSlug),
 		Capabilities: map[string]any{
-			"source": "codex_image_route",
-			"raw":    route,
+			"source":                   "codex_image_route",
+			"supported_endpoint_types": []string{"openai-image"},
+			"raw":                      route,
 		},
 	})
 }

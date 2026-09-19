@@ -22,7 +22,7 @@ import (
 
 // codexGatewayUserAgent is resolved at package init so it carries the runtime
 // Codex client version rather than a build-time constant.
-var codexGatewayUserAgent = adapter.CodexUserAgent()
+var codexGatewayUserAgent = adapter.CodexUserAgent
 
 func isCodexSite(siteType string) bool {
 	return strings.EqualFold(strings.TrimSpace(siteType), "codex")
@@ -30,7 +30,7 @@ func isCodexSite(siteType string) bool {
 
 func applyCodexGatewayHeaders(req *http.Request, accountID string, stream bool) {
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", codexGatewayUserAgent)
+	req.Header.Set("User-Agent", codexGatewayUserAgent())
 	req.Header.Set("Connection", "Keep-Alive")
 	req.Header.Set("Originator", codexOriginator)
 	if stream {

@@ -16,6 +16,10 @@ const gatewayEndpointResponses = "/v1/responses"
 type openAIResponsesProtocolAdapter struct {
 	includeUsage       bool
 	downstreamProtocol canonicalProtocol
+	officialBaseURL    string
+	baseURL            string
+	basePath           string
+	path               string
 }
 
 type responsesUsage struct {
@@ -109,6 +113,24 @@ func newOpenAIResponsesProtocolAdapter(request gatewayRequest) gatewayProtocolAd
 	}
 }
 
+func newOpenAIResponsesProtocolAdapterForCandidate(request gatewayRequest, candidate routeengine.Candidate) gatewayProtocolAdapter {
+	a := newOpenAIResponsesProtocolAdapter(request).(openAIResponsesProtocolAdapter)
+	spec := effectiveProtocolSpec(canonicalProtocolOpenAIResponses, candidate)
+	a.officialBaseURL = spec.OfficialBaseURL
+	a.basePath = spec.BasePath
+	a.path = spec.Path
+	if alt, ok := alternateProtocolForCandidate(canonicalProtocolOpenAIResponses, candidate); ok && canonicalProtocol(normalizeSpecKey(alt.Protocol)) == canonicalProtocolOpenAIResponses {
+		a.baseURL = strings.TrimSpace(alt.BaseURL)
+		if strings.TrimSpace(alt.BasePath) != "" {
+			a.basePath = alt.BasePath
+		}
+		if strings.TrimSpace(alt.Path) != "" {
+			a.path = alt.Path
+		}
+	}
+	return a
+}
+
 func (a openAIResponsesProtocolAdapter) ProtocolName() string {
 	switch a.downstreamProtocol {
 	case canonicalProtocolOpenAIResponses:
@@ -119,8 +141,15 @@ func (a openAIResponsesProtocolAdapter) ProtocolName() string {
 	return "openai_responses"
 }
 
-func (openAIResponsesProtocolAdapter) UpstreamPath(baseURL string) string {
-	return strings.TrimRight(strings.TrimSpace(baseURL), "/") + gatewayEndpointResponses
+func (a openAIResponsesProtocolAdapter) UpstreamPath(baseURL string) string {
+	if a.baseURL != "" {
+		baseURL = a.baseURL
+	}
+	return upstreamPathFromSpec(baseURL, resolvedProtocolSpec{
+		OfficialBaseURL: a.officialBaseURL,
+		BasePath:        a.basePath,
+		Path:            a.path,
+	}, gatewayEndpointResponses)
 }
 
 func (a openAIResponsesProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {

@@ -106,7 +106,7 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		}
 	case canonicalProtocolOpenAIResponses:
 		if containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAIResponse) {
-			return newOpenAIResponsesProtocolAdapter(request), nil
+			return newOpenAIResponsesProtocolAdapterForCandidate(request, candidate), nil
 		}
 	case canonicalProtocolAnthropicMessages:
 		if containsEndpointType(endpointTypes, upstreamEndpointTypeAnthropicMessages) {
@@ -123,7 +123,7 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 	}
 
 	if shouldUseOpenAIResponses(request, candidate, endpointTypes) {
-		return newOpenAIResponsesProtocolAdapter(request), nil
+		return newOpenAIResponsesProtocolAdapterForCandidate(request, candidate), nil
 	}
 	return newOpenAIChatProtocolAdapter(request, candidate), nil
 }

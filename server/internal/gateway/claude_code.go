@@ -12,7 +12,7 @@ func isClaudeCodeSite(siteType string) bool {
 func applyClaudeCodeOAuthGatewayHeaders(req *http.Request, accessToken string) {
 	req.Header.Del("x-api-key")
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(accessToken))
-	req.Header.Set("User-Agent", claudeCodeGatewayUserAgent)
+	req.Header.Set("User-Agent", claudeCodeGatewayUserAgent())
 	req.Header.Set(claudeCodeGatewayAppHeader, claudeCodeGatewayApp)
 	req.Header.Set(claudeCodeGatewayBetaHeader, claudeCodeGatewayAnthropicBeta)
 	req.Header.Set(claudeCodeGatewayVersionHeader, claudeCodeGatewayAPIVersion)

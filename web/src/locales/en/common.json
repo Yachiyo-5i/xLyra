@@ -1,4 +1,7 @@
 {
+  "table": {
+    "resizeColumn": "Resize {{column}} column width"
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",
@@ -21,6 +24,7 @@
     "clear": "Clear"
   },
   "status": {
+    "error": "Error",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "loading": "Loading...",

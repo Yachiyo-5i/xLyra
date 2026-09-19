@@ -65,7 +65,7 @@ export type ResponsesToolPolicy = 'passthrough' | 'compatibility'
 export type ResponsesHostedTool = 'image_generation'
 export type ResponsesImageGenerationPolicy =
   'passthrough' | 'strip_auto_tool' | 'disabled'
-export type QuotaProbeType = 'none' | 'sub2api' | 'newapi' | 'xlyra' | 'kimi' | 'glm'
+export type QuotaProbeType = 'none' | 'sub2api' | 'newapi' | 'xlyra' | 'kimi' | 'glm' | 'deepseek' | 'moonshot'
 
 export type SiteQuotaProbeSummary = {
   status?: string
@@ -85,6 +85,10 @@ export type SiteQuotaProbeSummary = {
 }
 
 export type SiteQuotaProbeEntry = {
+  cash_balance?: number
+  voucher_balance?: number
+  granted_balance?: number
+  topped_up_balance?: number
   label: string
   unit?: string
   remaining?: number
@@ -95,6 +99,7 @@ export type SiteQuotaProbeEntry = {
 }
 
 export type SiteQuotaProbeResult = {
+  is_available?: boolean
   status?: string
   error?: string
   kind?: string

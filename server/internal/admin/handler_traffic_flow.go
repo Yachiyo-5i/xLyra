@@ -104,17 +104,7 @@ func (h Handler) trafficFlowTopology(r *http.Request) (trafficFlowTopology, erro
 }
 
 func buildTrafficFlowTopology(apiKeys []store.APIKey, sites []store.Site) trafficFlowTopology {
-	sort.SliceStable(apiKeys, func(i, j int) bool {
-		leftActive := apiKeys[i].Status == "active"
-		rightActive := apiKeys[j].Status == "active"
-		if leftActive != rightActive {
-			return leftActive
-		}
-		if !apiKeys[i].CreatedAt.Equal(apiKeys[j].CreatedAt) {
-			return apiKeys[i].CreatedAt.Before(apiKeys[j].CreatedAt)
-		}
-		return apiKeys[i].ID.String() < apiKeys[j].ID.String()
-	})
+	store.SortAPIKeys(apiKeys)
 	sort.SliceStable(sites, func(i, j int) bool {
 		if sites[i].RoutingPriority != sites[j].RoutingPriority {
 			return sites[i].RoutingPriority > sites[j].RoutingPriority

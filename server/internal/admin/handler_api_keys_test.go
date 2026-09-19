@@ -26,6 +26,7 @@ func TestAPIKeyHandlersRequireAuthService(t *testing.T) {
 		call func(http.ResponseWriter, *http.Request)
 	}{
 		{name: "create", req: adminTestRequest(http.MethodPost, "/api/v1/api-keys", ""), call: handler.CreateAPIKey},
+		{name: "reorder", req: adminTestRequest(http.MethodPut, "/api/v1/api-keys/order", ""), call: handler.ReorderAPIKeys},
 		{name: "list", req: adminTestRequest(http.MethodGet, "/api/v1/api-keys", ""), call: handler.ListAPIKeys},
 		{name: "get", req: adminRequestWithRouteParam(http.MethodGet, "/api/v1/api-keys/"+apiKeyID, "", "apiKeyID", apiKeyID), call: handler.GetAPIKey},
 		{name: "update", req: adminRequestWithRouteParam(http.MethodPatch, "/api/v1/api-keys/"+apiKeyID, `{}`, "apiKeyID", apiKeyID), call: handler.UpdateAPIKey},
@@ -634,5 +635,15 @@ func TestAPIKeyPermissionPayloadsExposeExpectedFields(t *testing.T) {
 	}})
 	if len(groupPayloads) != 1 || groupPayloads[0]["api_key_id"] != apiKeyID.String() || groupPayloads[0]["group_id"] != groupID.String() || groupPayloads[0]["enabled"] != true {
 		t.Fatalf("unexpected site group payloads: %#v", groupPayloads)
+	}
+}
+
+func TestReorderAPIKeysRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+	handler := adminHandlerWithAuthService()
+	id := uuid.NewString()
+	for _, body := range []string{`{}`, `{"ids":[],"revision":""}`, `{"revision":"saved"}`, `{"ids":["` + id + `","` + id + `"],"revision":"saved"}`} {
+		rec := adminPerform(handler.ReorderAPIKeys, adminTestRequest(http.MethodPut, "/api/v1/api-keys/order", body))
+		assertAdminErrorCode(t, rec, http.StatusBadRequest, "invalid_api_key_order")
 	}
 }

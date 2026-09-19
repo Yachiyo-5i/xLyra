@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ErrorDetails } from '@/components/common/error-details'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LoaderCircle,
@@ -58,6 +59,7 @@ import { routeQueryKeys } from '@/features/routes/api/routes'
 import {
   apiKeyModels,
   canCompleteAPIKey,
+  accountBalanceDetails,
   formatAPIKeyValue,
   formatDisplayQuota,
   formatProbeAmount,
@@ -244,7 +246,6 @@ export function SiteAPIKeysDraw({
         current?.id === result.api_key.id ? result.api_key : current,
       )
       setConfiguringAPIKey(null)
-      onOpenChange(false)
       await queryClient.invalidateQueries({ queryKey: routeQueryKeys.all })
       await invalidatePricingViews()
       toast.success(t('apiKeys.toast.updated'))
@@ -541,6 +542,9 @@ export function SiteAPIKeysDraw({
                       ? t('apiKeys.openCodeGoPlan')
                       : null
                   const probe = item.quota_probe
+                  const balanceDetails = site?.quota_probe?.probe_type === 'deepseek' || site?.quota_probe?.probe_type === 'moonshot'
+                    ? accountBalanceDetails(probe?.entries).filter((detail) => detail.label === 'accountBalance')
+                    : []
                   const probeEntry = probe?.entries?.length
                     ? (probe.entries.find(
                         (entry) => entry.label === 'balance',
@@ -556,7 +560,6 @@ export function SiteAPIKeysDraw({
                         : null
                     : null
                   const probeFailed = Boolean(probe && probe.status !== 'ok')
-                  const syncBadge = apiKeySyncBadge(item.sync_status)
 
                   return (
                     <div
@@ -576,14 +579,7 @@ export function SiteAPIKeysDraw({
                               {item.group}
                             </Badge>
                           ) : null}
-                          {item.sync_status ? (
-                            <Badge
-                              variant="outline"
-                              className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}
-                            >
-                              {syncBadge.label(t)}
-                            </Badge>
-                          ) : null}
+                          {item.sync_status ? <APIKeySyncStatusBadge apiKey={item} /> : null}
                         </div>
                         <Switch
                           checked={item.enabled}
@@ -674,6 +670,15 @@ export function SiteAPIKeysDraw({
                             <span className="text-red-400" title={probe?.error}>
                               {t('apiKeys.quotaProbeFailed')}
                             </span>
+                          ) : balanceDetails.length > 0 ? (
+                            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+                              {balanceDetails.map((detail, index) => (
+                                <div key={`${detail.label}-${index}`} className="contents">
+                                  <span>{t(`table.quotaDetails.${detail.label}`)}</span>
+                                  <span className="text-foreground tabular-nums">{detail.value}</span>
+                                </div>
+                              ))}
+                            </div>
                           ) : (openCodeGoQuotaText ?? probeText ?? quotaText) ? (
                             <span className="tabular-nums whitespace-normal" title={site?.site_type === 'opencode_go' ? t('apiKeys.openCodeGoUnavailable') : undefined}>
                               {openCodeGoQuotaText ?? probeText ?? quotaText}
@@ -1129,6 +1134,24 @@ export function SiteAPIKeysDraw({
 function formatAPIKeyNumber(value: number) {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(
     value,
+  )
+}
+
+function APIKeySyncStatusBadge({ apiKey }: { apiKey: SiteAPIKey }) {
+  const { t } = useTranslation('sites')
+  const status = apiKey.sync_status?.trim().toLowerCase()
+  const message = ['failed', 'partial', 'stale'].includes(status ?? '') ? apiKey.message?.trim() : undefined
+  const syncBadge = apiKeySyncBadge(status)
+  return (
+    <ErrorDetails
+      asChild
+      message={message}
+      description={apiKey.name || t('apiKeys.defaultKey')}
+    >
+      <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
+        {syncBadge.label(t)}
+      </Badge>
+    </ErrorDetails>
   )
 }
 

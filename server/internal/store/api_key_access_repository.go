@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const apiKeyAccessDetailBatchSize = 1000
@@ -103,11 +104,11 @@ func (r APIKeyAccessRepository) EnabledSiteIDsForGroups(ctx context.Context, gro
 		return nil, nil
 	}
 	var groupSites []SiteGroupSite
-	if err := r.db.WithContext(ctx).Where(map[string]any{"group_id": groupIDs}).Find(&groupSites).Error; err != nil {
+	if err := r.db.WithContext(ctx).Clauses(clause.Select{Columns: []clause.Column{{Name: "group_id"}, {Name: "site_id"}}}).Where(map[string]any{"group_id": groupIDs}).Find(&groupSites).Error; err != nil {
 		return nil, fmt.Errorf("list api key group site ids: %w", err)
 	}
 	var groups []SiteGroup
-	if err := r.db.WithContext(ctx).Where(map[string]any{"id": groupIDs}).Find(&groups).Error; err != nil {
+	if err := r.db.WithContext(ctx).Clauses(clause.Select{Columns: []clause.Column{{Name: "id"}, {Name: "enabled"}}}).Where(map[string]any{"id": groupIDs}).Find(&groups).Error; err != nil {
 		return nil, fmt.Errorf("list api key group site ids: %w", err)
 	}
 	enabledGroups := map[uuid.UUID]struct{}{}
@@ -249,7 +250,7 @@ func (r APIKeyAccessRepository) EnabledSiteModelIDsForCanonical(ctx context.Cont
 
 func (r APIKeyAccessRepository) EnabledSiteModelIDs(ctx context.Context, apiKeyID uuid.UUID) ([]uuid.UUID, error) {
 	var rows []APIKeySiteModelPermission
-	if err := r.db.WithContext(ctx).Where(&APIKeySiteModelPermission{APIKeyID: apiKeyID, Enabled: true}).Find(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Clauses(clause.Select{Columns: []clause.Column{{Name: "site_model_id"}}}).Where(&APIKeySiteModelPermission{APIKeyID: apiKeyID, Enabled: true}).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list api key site model ids: %w", err)
 	}
 	ids := make([]uuid.UUID, 0, len(rows))

@@ -10,6 +10,9 @@ import (
 func TestCodexModelsFromItemsEnforcesMinimalClientVersion(t *testing.T) {
 	restore := codexversion.WithFetcher(func(context.Context) (string, error) { return "0.144.1", nil })
 	defer restore()
+	if err := codexversion.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh returned error: %v", err)
+	}
 
 	items := []map[string]any{
 		{"slug": "gpt-5.6-sol", "priority": 6, "minimal_client_version": "0.144.0"},
@@ -43,6 +46,21 @@ func TestCodexImageRouteModelCarriesImageCapability(t *testing.T) {
 	}
 }
 
+func TestCodexModelsWithImageRouteCarriesTopLevelImageCapability(t *testing.T) {
+	models := codexModelsWithImageRoute([]Model{{UpstreamName: "gpt-5.5"}})
+	if len(models) != 2 {
+		t.Fatalf("models length = %d, want 2", len(models))
+	}
+	image := models[1]
+	if image.UpstreamName != codexImageSlug {
+		t.Fatalf("image route model = %q, want %q", image.UpstreamName, codexImageSlug)
+	}
+	endpoints, _ := image.Capabilities["supported_endpoint_types"].([]string)
+	if len(endpoints) != 1 || endpoints[0] != "openai-image" {
+		t.Fatalf("image route capabilities = %#v, want top-level openai-image endpoint", image.Capabilities)
+	}
+}
+
 func TestHasUpstreamModelMatchesByName(t *testing.T) {
 	models := []Model{
 		{UpstreamName: "gpt-5.6-sol"},
@@ -56,6 +74,17 @@ func TestHasUpstreamModelMatchesByName(t *testing.T) {
 	}
 	if hasUpstreamModel(models, "") {
 		t.Fatal("hasUpstreamModel should reject empty upstream name")
+	}
+}
+
+func TestCodexUpstreamImageModelDefaultsToImageProtocol(t *testing.T) {
+	models := codexModelsWithImageRoute(codexModelsFromItems([]map[string]any{{"slug": "gpt-image-2"}}))
+	if len(models) != 1 {
+		t.Fatalf("models = %#v, want one image model", models)
+	}
+	endpoints, _ := models[0].Capabilities["supported_endpoint_types"].([]string)
+	if len(endpoints) != 1 || endpoints[0] != "openai-image" {
+		t.Fatalf("image protocols = %v", endpoints)
 	}
 }
 

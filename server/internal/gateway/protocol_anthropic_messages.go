@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -100,7 +101,9 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 	if request.DownstreamPath == gatewayEndpointMessages {
 		payload := clonePayload(request.Payload)
 		payload["model"] = candidate.Model.UpstreamName
-		return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
+		payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
+		normalizeAnthropicThinkingBudget(payload)
+		return payload, nil
 	}
 	if request.Canonical != nil {
 		canonical, responseTools, err := prepareResponsesNamespaceToolsForAnthropic(*request.Canonical)
@@ -114,9 +117,16 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 		if err != nil {
 			return nil, err
 		}
-		return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
+		payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
+		normalizeAnthropicThinkingBudget(payload)
+		return payload, nil
 	}
-	return convertRequestBetweenProtocols(canonicalProtocolAnthropicMessages, canonicalProtocolAnthropicMessages, request.Payload, stringFromPayloadModel(request.Payload), candidate)
+	payload, err := convertRequestBetweenProtocols(canonicalProtocolAnthropicMessages, canonicalProtocolAnthropicMessages, request.Payload, stringFromPayloadModel(request.Payload), candidate)
+	if err != nil {
+		return nil, err
+	}
+	normalizeAnthropicThinkingBudget(payload)
+	return payload, nil
 }
 
 func (anthropicMessagesProtocolAdapter) UpstreamPath(baseURL string) string {
@@ -199,6 +209,9 @@ func (a *providerAnthropicMessagesProtocolAdapter) BuildUpstreamPayload(request 
 		return nil, err
 	}
 	a.responseTools = inner.responseTools()
+	if strings.EqualFold(a.provider, "deepseek") {
+		payload = sanitizeDeepSeekAnthropicPatterns(payload)
+	}
 	hydrateProviderAnthropicThinking(payload, candidate, request.DownstreamPath != gatewayEndpointMessages)
 	return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
 }
@@ -1045,6 +1058,65 @@ func anthropicToolInputSchema(parameters any) any {
 	return map[string]any{"type": "object", "properties": map[string]any{}}
 }
 
+func sanitizeDeepSeekAnthropicPatterns(payload map[string]any) map[string]any {
+	out := clonePayload(payload)
+	rawTools, ok := payload["tools"].([]any)
+	if !ok {
+		return out
+	}
+	tools := make([]any, len(rawTools))
+	for i, rawTool := range rawTools {
+		tool, ok := rawTool.(map[string]any)
+		if !ok {
+			tools[i] = rawTool
+			continue
+		}
+		clonedTool := clonePayload(tool)
+		if schema, ok := tool["input_schema"]; ok {
+			clonedTool["input_schema"] = sanitizeDeepSeekAnthropicSchemaValue(schema)
+		}
+		tools[i] = clonedTool
+	}
+	out["tools"] = tools
+	return out
+}
+
+func sanitizeDeepSeekAnthropicSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := clonePayload(typed)
+		for key, child := range typed {
+			switch key {
+			case "pattern":
+				if pattern, ok := child.(string); ok {
+					if _, err := regexp.Compile(pattern); err != nil {
+						delete(out, key)
+					}
+				}
+			case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies":
+				if schemas, ok := child.(map[string]any); ok {
+					cloned := clonePayload(schemas)
+					for name, schema := range schemas {
+						cloned[name] = sanitizeDeepSeekAnthropicSchemaValue(schema)
+					}
+					out[key] = cloned
+				}
+			case "items", "prefixItems", "additionalItems", "additionalProperties", "unevaluatedItems", "unevaluatedProperties", "contains", "propertyNames", "allOf", "anyOf", "oneOf", "not", "if", "then", "else":
+				out[key] = sanitizeDeepSeekAnthropicSchemaValue(child)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, child := range typed {
+			out[i] = sanitizeDeepSeekAnthropicSchemaValue(child)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
 func encodeCanonicalToolChoiceAsAnthropic(raw any) any {
 	switch value := raw.(type) {
 	case string:
@@ -1094,6 +1166,53 @@ func anthropicMaxTokens(request canonicalRequest, candidate routeengine.Candidat
 		return value, nil
 	}
 	return defaultAnthropicMaxTokens, nil
+}
+
+func normalizeAnthropicThinkingBudget(payload map[string]any) {
+	thinking, ok := payload["thinking"].(map[string]any)
+	if ok {
+		thinkingType := strings.TrimSpace(anyString(thinking["type"]))
+		if thinkingType != "" && !strings.EqualFold(thinkingType, "enabled") {
+			return
+		}
+	}
+	budgetKey := ""
+	var budget int
+	budget, ok = intFromAny(thinking["budget_tokens"])
+	if ok {
+		budgetKey = "budget_tokens"
+	}
+	if !ok {
+		budget, ok = intFromAny(payload["thinking_budget"])
+		if ok {
+			budgetKey = "thinking_budget"
+		}
+	}
+	if !ok {
+		return
+	}
+	if budget < 1024 {
+		budget = 1024
+		if budgetKey == "budget_tokens" {
+			thinking[budgetKey] = budget
+		} else {
+			payload[budgetKey] = budget
+		}
+	}
+	foundMaxTokens := false
+	for _, key := range []string{"max_tokens", "max_output_tokens", "max_completion_tokens"} {
+		maxTokens, ok := intFromAny(payload[key])
+		if !ok || maxTokens <= 0 {
+			continue
+		}
+		foundMaxTokens = true
+		if budget >= maxTokens {
+			payload[key] = budget + maxTokens
+		}
+	}
+	if !foundMaxTokens {
+		payload["max_tokens"] = budget + defaultAnthropicMaxTokens
+	}
 }
 
 func anthropicImageURL(raw any) string {

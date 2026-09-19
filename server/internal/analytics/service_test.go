@@ -60,9 +60,16 @@ func TestAnalyticsOptionOrdering(t *testing.T) {
 		{ID: activeNew, Status: "active", CreatedAt: base.Add(time.Hour)},
 		{ID: activeOld, Status: "active", CreatedAt: base},
 	}
-	sortAnalyticsAPIKeyOptions(apiKeys)
-	if apiKeys[0].ID != activeOld || apiKeys[1].ID != activeNew || apiKeys[2].ID != disabledKey {
+	store.SortAPIKeyOptions(apiKeys)
+	if apiKeys[0].ID != disabledKey || apiKeys[1].ID != activeOld || apiKeys[2].ID != activeNew {
 		t.Fatalf("api key option order = %#v", apiKeys)
+	}
+	apiKeys[0].SortOrder = 3
+	apiKeys[1].SortOrder = 2
+	apiKeys[2].SortOrder = 1
+	store.SortAPIKeyOptions(apiKeys)
+	if apiKeys[0].ID != activeNew || apiKeys[1].ID != activeOld || apiKeys[2].ID != disabledKey {
+		t.Fatal("analytics options must follow manual order")
 	}
 }
 

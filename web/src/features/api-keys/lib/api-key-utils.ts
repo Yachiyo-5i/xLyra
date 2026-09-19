@@ -89,18 +89,6 @@ export function isAPIKeyActive(apiKey: DownstreamAPIKey) {
   return apiKey.status === 'active'
 }
 
-export function sortAPIKeysForDisplay(apiKeys: DownstreamAPIKey[]) {
-  return [...apiKeys].sort((a, b) => {
-    const activeDelta = Number(isAPIKeyActive(b)) - Number(isAPIKeyActive(a))
-    if (activeDelta !== 0) return activeDelta
-
-    const createdDelta = dateValue(a.created_at) - dateValue(b.created_at)
-    if (createdDelta !== 0) return createdDelta
-
-    return a.id.localeCompare(b.id)
-  })
-}
-
 export function buildMappingModelKeys(
   canonicalModels: CanonicalModelItem[],
   siteModels: SiteModel[],
@@ -152,11 +140,6 @@ function enabledSiteGroupIds(apiKey: DownstreamAPIKey | null) {
   return (apiKey?.site_groups ?? [])
     .filter((group) => group.enabled !== false)
     .map((group) => group.group_id)
-}
-
-function dateValue(value: string | null | undefined) {
-  const timestamp = value ? Date.parse(value) : NaN
-  return Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp
 }
 
 export function toUpdateInput(

@@ -3,6 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, FlaskConical, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { DataTable } from '@/components/common/data-table'
+import { defaultTableColumnWidths } from '@/lib/table-column-widths'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -29,6 +30,12 @@ import type { SiteUpdatedAtDisplayMode, ValidationSnapshot } from '@/features/si
 
 const EMPTY_MODELS: SiteModel[] = []
 const EMPTY_API_KEYS: SiteAPIKey[] = []
+
+const SITES_COLUMN_SIZING = {
+  storageKey: 'xlyra:sites:table-column-widths:v1',
+  defaultWidths: defaultTableColumnWidths([24, 8, 13, 8, 8, 6, 7, 10, 11]),
+  minimumWidths: [10, 5, 7, 5, 5, 4, 5, 7, 7],
+}
 
 export function SitesTable({
   items, modelsMap, apiKeysMap, validationSnapshots, refreshingSiteIds, togglingSiteId, deletingSiteId,
@@ -119,7 +126,7 @@ export function SitesTable({
           </div>
         )
       },
-      meta: { className: 'w-[24%]', cellClassName: 'min-w-0', align: 'left' as const },
+      meta: { cellClassName: 'min-w-0', align: 'left' as const },
     },
     {
       id: 'health',
@@ -128,7 +135,7 @@ export function SitesTable({
         const value = validationSnapshots[row.original.id] ?? row.original.validation
         return <SiteHealthBadge site={row.original} validation={value} />
       },
-      meta: { className: 'w-[8%]', align: 'center' as const },
+      meta: { align: 'center' as const },
     },
     {
       id: 'resources',
@@ -165,13 +172,13 @@ export function SitesTable({
           </div>
         )
       },
-      meta: { className: 'w-[13%]', align: 'center' as const },
+      meta: { align: 'center' as const },
     },
     {
       id: 'balance',
       header: t('table.headers.balance'),
       cell: ({ row }) => <SiteBalanceCell site={row.original} apiKeys={apiKeysMap[row.original.id] ?? EMPTY_API_KEYS} />,
-      meta: { className: 'w-[8%]', align: 'center' as const },
+      meta: { align: 'center' as const },
     },
     {
       id: 'usage',
@@ -220,13 +227,13 @@ export function SitesTable({
           </div>
         )
       },
-      meta: { className: 'w-[8%]', align: 'center' as const },
+      meta: { align: 'center' as const },
     },
     {
       id: 'priority',
       header: t('table.headers.priority'),
       cell: ({ row }) => <span className="text-sm text-foreground tabular-nums">{formatRoutingPriority(row.original.routing_priority)}</span>,
-      meta: { className: 'w-[6%]', align: 'center' as const },
+      meta: { align: 'center' as const },
     },
     {
       id: 'routing',
@@ -246,7 +253,7 @@ export function SitesTable({
           />
         )
       },
-      meta: { className: 'w-[7%]', align: 'center' as const },
+      meta: { align: 'center' as const },
     },
     {
       id: 'updated_at',
@@ -278,7 +285,7 @@ export function SitesTable({
           </button>
         )
       },
-      meta: { className: 'w-[10%]', align: 'center' as const },
+      meta: { align: 'center' as const, resizeLabel: t('table.headers.updatedAt') },
     },
     {
       id: 'actions',
@@ -302,12 +309,14 @@ export function SitesTable({
           </div>
         )
       },
-      meta: { className: 'w-[11%]', align: 'left' as const },
+      meta: { align: 'left' as const },
     },
   ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenGrokAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, resolvedMode, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
 
   return (
     <DataTable
+      columnSizing={SITES_COLUMN_SIZING}
+      stickyHeader="container"
       columns={columns}
       data={tableItems}
       getRowId={(site) => site.id}

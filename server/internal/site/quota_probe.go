@@ -25,23 +25,28 @@ const (
 )
 
 type QuotaProbeEntry struct {
-	Label     string   `json:"label"`
-	Unit      string   `json:"unit,omitempty"`
-	Remaining *float64 `json:"remaining,omitempty"`
-	Limit     *float64 `json:"limit,omitempty"`
-	Used      *float64 `json:"used,omitempty"`
-	Unlimited bool     `json:"unlimited,omitempty"`
-	ResetAt   *string  `json:"reset_at,omitempty"`
+	CashBalance     *float64 `json:"cash_balance,omitempty"`
+	VoucherBalance  *float64 `json:"voucher_balance,omitempty"`
+	GrantedBalance  *float64 `json:"granted_balance,omitempty"`
+	ToppedUpBalance *float64 `json:"topped_up_balance,omitempty"`
+	Label           string   `json:"label"`
+	Unit            string   `json:"unit,omitempty"`
+	Remaining       *float64 `json:"remaining,omitempty"`
+	Limit           *float64 `json:"limit,omitempty"`
+	Used            *float64 `json:"used,omitempty"`
+	Unlimited       bool     `json:"unlimited,omitempty"`
+	ResetAt         *string  `json:"reset_at,omitempty"`
 }
 
 type QuotaProbeResult struct {
-	Status    string            `json:"status"`
-	Error     string            `json:"error,omitempty"`
-	Kind      string            `json:"kind,omitempty"`
-	Plan      string            `json:"plan,omitempty"`
-	ExpiresAt *string           `json:"expires_at,omitempty"`
-	Entries   []QuotaProbeEntry `json:"entries,omitempty"`
-	FetchedAt time.Time         `json:"fetched_at"`
+	IsAvailable *bool             `json:"is_available,omitempty"`
+	Status      string            `json:"status"`
+	Error       string            `json:"error,omitempty"`
+	Kind        string            `json:"kind,omitempty"`
+	Plan        string            `json:"plan,omitempty"`
+	ExpiresAt   *string           `json:"expires_at,omitempty"`
+	Entries     []QuotaProbeEntry `json:"entries,omitempty"`
+	FetchedAt   time.Time         `json:"fetched_at"`
 }
 
 func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Site {
@@ -322,6 +327,9 @@ func codingPlanQuotaCooldownDeadline(result QuotaProbeResult, now time.Time) (ti
 	var deadline time.Time
 	windows := []string{}
 	for _, entry := range result.Entries {
+		if entry.Label != "five_hour" && entry.Label != "weekly" {
+			continue
+		}
 		if entry.Remaining == nil || *entry.Remaining > 0 || entry.ResetAt == nil {
 			continue
 		}
@@ -342,9 +350,10 @@ func quotaProbeCredentialEligible(credentialType string) bool {
 }
 
 // defaultQuotaProbeTypeForSite 给未显式配置 quota_probe 的站点类型提供默认探测。
-// 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）与 GLM Code 官方站
-// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口；指向中转/镜像的站点
-// 不默认探测，避免对未实现额度接口的第三方端点持续报错。
+// 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）、GLM Code 官方站
+// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口，DeepSeek 官方站
+// （api.deepseek.com）有余额接口；指向中转/镜像的站点不默认探测，避免对未实现
+// 额度接口的第三方端点持续报错。
 func defaultQuotaProbeTypeForSite(item store.Site) string {
 	switch item.SiteType {
 	case "kimi_code":
@@ -354,6 +363,14 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 	case "glm_code":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "open.bigmodel.cn", "api.z.ai") {
 			return QuotaProbeTypeGLM
+		}
+	case "moonshot":
+		if quotaProbeBaseURLOfficial(item.BaseURL, "api.moonshot.cn") {
+			return QuotaProbeTypeMoonshot
+		}
+	case "deepseek":
+		if quotaProbeBaseURLOfficial(item.BaseURL, "api.deepseek.com") {
+			return QuotaProbeTypeDeepSeek
 		}
 	}
 	return ""
@@ -506,6 +523,15 @@ func quotaProbePrimaryEntry(result QuotaProbeResult) (QuotaProbeEntry, bool) {
 }
 
 func quotaProbeSummaryEntry(probeType string, result QuotaProbeResult) (QuotaProbeEntry, bool) {
+	if probeType == QuotaProbeTypeGLM {
+		entries := make([]QuotaProbeEntry, 0, 2)
+		for _, entry := range result.Entries {
+			if entry.Label == "five_hour" || entry.Label == "weekly" {
+				entries = append(entries, entry)
+			}
+		}
+		result.Entries = entries
+	}
 	if probeType == QuotaProbeTypeSub2API {
 		for _, entry := range result.Entries {
 			if entry.Label == "balance" && !entry.Unlimited && entry.Remaining != nil {
@@ -534,6 +560,10 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 		kind, entries, result.Plan, err = probeKimiQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeGLM:
 		kind, entries, result.Plan, err = probeGLMQuota(ctx, client, baseURL, secret)
+	case QuotaProbeTypeMoonshot:
+		kind, entries, result.IsAvailable, err = probeMoonshotBalance(ctx, client, baseURL, secret)
+	case QuotaProbeTypeDeepSeek:
+		kind, entries, result.IsAvailable, err = probeDeepSeekBalance(ctx, client, baseURL, secret)
 	default:
 		err = fmt.Errorf("unsupported quota probe type %q", probeType)
 	}
@@ -905,8 +935,11 @@ func kimiMembershipPlanName(level string, region string) string {
 // probeGLMQuota 查询 GLM Coding Plan 的额度。
 // 接口：GET {origin}/api/monitor/usage/quota/limit，Bearer 为推理用 API Key，
 // origin 取站点 base_url 的 scheme://host（open.bigmodel.cn 与 api.z.ai 同路径）。
-// TOKENS_LIMIT 按窗口时长识别 5 小时（300 分钟）/ 周（10080 分钟）窗口；
-// percentage 是已用百分比。
+// 套餐按制式分代返回不同 type（2026-07-30 积分制上线，旧套餐并存）：
+//   - TOKENS_LIMIT：旧 Token 套餐，5 小时/周窗口，percentage 是已用百分比
+//   - CREDIT_LIMIT：积分制套餐，5 小时/周窗口，usage/currentValue/remaining 为积分绝对值
+//   - TIME_LIMIT：MCP 工具月度额度（unit=5 分钟×1），usageDetails 为各模型调用次数
+// 窗口按 unit × number 换算分钟数识别：300 分钟 = 5 小时，10080 分钟 = 周。
 func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, string, error) {
 	endpoint, err := quotaProbeGLMLimitURL(baseURL)
 	if err != nil {
@@ -924,21 +957,23 @@ func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, sec
 		return "", nil, "", fmt.Errorf("quota limit endpoint did not return data")
 	}
 
-	entries := make([]QuotaProbeEntry, 0, 2)
+	entries := make([]QuotaProbeEntry, 0, 3)
 	// 同一窗口可能以不同单位编码出现两次（unit=3/number=5 与 unit=5/number=300
 	// 都是 300 分钟），按 label 去重并保留剩余最少的一条，与 summary 取最紧张
 	// 窗口的口径一致。
 	entryIndex := map[string]int{}
 	for _, raw := range anySlice(data["limits"]) {
 		item, _ := raw.(map[string]any)
-		if !strings.EqualFold(anyString(item["type"]), "TOKENS_LIMIT") {
-			continue
-		}
-		label := glmWindowLabel(item)
-		if label == "" {
-			continue
-		}
-		if entry, ok := glmPercentEntry(label, item); ok {
+		switch strings.ToUpper(anyString(item["type"])) {
+		case "TOKENS_LIMIT", "CREDIT_LIMIT":
+			label := glmWindowLabel(item)
+			if label == "" {
+				continue
+			}
+			entry, ok := glmLimitEntry(label, item)
+			if !ok {
+				continue
+			}
 			if at, dup := entryIndex[label]; dup {
 				if entry.Remaining != nil && *entry.Remaining < *entries[at].Remaining {
 					entries[at] = entry
@@ -947,9 +982,26 @@ func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, sec
 			}
 			entryIndex[label] = len(entries)
 			entries = append(entries, entry)
+		case "TIME_LIMIT":
+			// MCP 月度额度（usage/currentValue/remaining 是调用次数，非金额），
+			// 按次数转百分比折算进 monthly label。
+			entry, ok := glmMCPMonthlyEntry(item)
+			if !ok {
+				continue
+			}
+			if at, dup := entryIndex[entry.Label]; dup {
+				if entry.Remaining != nil && *entry.Remaining < *entries[at].Remaining {
+					entries[at] = entry
+				}
+				continue
+			}
+			entryIndex[entry.Label] = len(entries)
+			entries = append(entries, entry)
 		}
 	}
-	if len(entries) == 0 {
+	_, hasFiveHour := entryIndex["five_hour"]
+	_, hasWeekly := entryIndex["weekly"]
+	if !hasFiveHour && !hasWeekly {
 		return "", nil, "", fmt.Errorf("quota limit endpoint did not contain token quota data")
 	}
 	return "token_plan", entries, glmPlanName(anyString(data["level"])), nil
@@ -979,16 +1031,43 @@ func glmWindowLabel(item map[string]any) string {
 	return ""
 }
 
-// glmPercentEntry 把一条 TOKENS_LIMIT 折算成百分比 entry（limit 恒为 100），
-// 与 kimi 的 entries 同构，前端按 five_hour/weekly label 渲染。
-// TOKENS_LIMIT 只有 percentage（已用百分比）；usage/remaining/currentValue 计数
-// 仅出现在 TIME_LIMIT（工具调用次数额度）上，不在这里换算。
-func glmPercentEntry(label string, item map[string]any) (QuotaProbeEntry, bool) {
+// glmLimitEntry 把一条 TOKENS_LIMIT / CREDIT_LIMIT 折算成百分比 entry
+// （limit 恒为 100），与 kimi 的 entries 同构，前端按 five_hour/weekly label 渲染。
+// 积分制 CREDIT_LIMIT 的 usage/currentValue/remaining 是积分绝对值：优先按
+// currentValue/usage 换算精确百分比——上游 percentage 是服务端取整（如
+// 1438/12000 记为 11 而非 11.98），有舍入误差，仅在缺少绝对值时作兜底。
+func glmLimitEntry(label string, item map[string]any) (QuotaProbeEntry, bool) {
+	usage := quotaProbeFloat(item["usage"])
+	current := quotaProbeFloat(item["currentValue"])
+	if usage != nil && *usage > 0 && current != nil {
+		used := clampQuotaPercent(*current / *usage * 100)
+		return glmQuotaPercentEntry(label, used, item), true
+	}
 	used := quotaProbeFloat(item["percentage"])
 	if used == nil {
 		return QuotaProbeEntry{}, false
 	}
-	clamped := min(100, max(0, *used))
+	return glmQuotaPercentEntry(label, *used, item), true
+}
+
+// glmMCPMonthlyEntry 把 TIME_LIMIT（MCP 工具月度调用次数额度）折算成 monthly
+// 百分比 entry；次数口径转百分比，避免被前端当金额单位展示。
+func glmMCPMonthlyEntry(item map[string]any) (QuotaProbeEntry, bool) {
+	usage := quotaProbeFloat(item["usage"])
+	current := quotaProbeFloat(item["currentValue"])
+	if usage != nil && *usage > 0 && current != nil {
+		used := clampQuotaPercent(*current / *usage * 100)
+		return glmQuotaPercentEntry("monthly", used, item), true
+	}
+	used := quotaProbeFloat(item["percentage"])
+	if used == nil {
+		return QuotaProbeEntry{}, false
+	}
+	return glmQuotaPercentEntry("monthly", *used, item), true
+}
+
+func glmQuotaPercentEntry(label string, used float64, item map[string]any) QuotaProbeEntry {
+	clamped := clampQuotaPercent(used)
 	limit := 100.0
 	remaining := 100 - clamped
 	entry := QuotaProbeEntry{Label: label, Unit: "percent", Limit: &limit, Used: &clamped, Remaining: &remaining}
@@ -996,7 +1075,11 @@ func glmPercentEntry(label string, item map[string]any) (QuotaProbeEntry, bool) 
 		resetAt := time.UnixMilli(int64(*reset)).UTC().Format(time.RFC3339)
 		entry.ResetAt = &resetAt
 	}
-	return entry, true
+	return entry
+}
+
+func clampQuotaPercent(value float64) float64 {
+	return min(100, max(0, value))
 }
 
 // glmPlanName 把 data.level（如 "pro"）转为档位名（"Pro"）。
@@ -1006,6 +1089,80 @@ func glmPlanName(level string) string {
 		return ""
 	}
 	return strings.ToUpper(string(runes[:1])) + strings.ToLower(string(runes[1:]))
+}
+
+func probeMoonshotBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, *bool, error) {
+	payload, err := quotaProbeGetJSON(ctx, client, quotaProbeMoonshotBalanceURL(baseURL), secret)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	if code := quotaProbeFloat(payload["code"]); code != nil && *code != 0 {
+		return "", nil, nil, fmt.Errorf("balance endpoint returned code %v", *code)
+	}
+
+	data, _ := payload["data"].(map[string]any)
+	entry := QuotaProbeEntry{Label: "balance", Unit: "cny", CashBalance: quotaProbeFloat(data["cash_balance"]), VoucherBalance: quotaProbeFloat(data["voucher_balance"])}
+	entry.Remaining = quotaProbeFloat(data["available_balance"])
+	if entry.Remaining == nil {
+		return "", nil, nil, fmt.Errorf("balance endpoint did not contain balance data")
+	}
+	entries := []QuotaProbeEntry{entry}
+	available := *entry.Remaining > 0
+	return "balance", entries, &available, nil
+}
+
+// quotaProbeMoonshotBalanceURL 返回余额接口地址。余额接口在 /v1 命名空间下，
+// 容忍用户把 base_url 填成 .../v1，避免拼出 /v1/v1/users。
+func quotaProbeMoonshotBalanceURL(baseURL string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		base = "https://api.moonshot.cn"
+	}
+	base = strings.TrimSuffix(base, "/v1")
+	return base + "/v1/users/me/balance"
+}
+
+func probeDeepSeekBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, *bool, error) {
+	payload, err := quotaProbeGetJSON(ctx, client, deepSeekBalanceBaseURL(baseURL)+"/user/balance", secret)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	var available *bool
+	if value, ok := payload["is_available"].(bool); ok {
+		available = &value
+	}
+	entries := make([]QuotaProbeEntry, 0, 2)
+	for _, raw := range anySlice(payload["balance_infos"]) {
+		item, _ := raw.(map[string]any)
+		entry := QuotaProbeEntry{
+			Label:           "balance",
+			Unit:            quotaProbeUnit(anyString(item["currency"]), "cny"),
+			Remaining:       quotaProbeFloat(item["total_balance"]),
+			GrantedBalance:  quotaProbeFloat(item["granted_balance"]),
+			ToppedUpBalance: quotaProbeFloat(item["topped_up_balance"]),
+		}
+		if entry.Remaining != nil {
+			entries = append(entries, entry)
+		}
+	}
+	if len(entries) == 0 {
+		return "", nil, nil, fmt.Errorf("balance endpoint did not contain balance data")
+	}
+	return "balance", entries, available, nil
+}
+
+// deepSeekBalanceBaseURL 返回余额接口的 base：DeepSeek 的 /user/balance 不在
+// /v1 命名空间下，base_url 以 /v1 结尾时剥掉。
+func deepSeekBalanceBaseURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if trimmed == "" {
+		return "https://api.deepseek.com"
+	}
+	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
+		return trimmed[:len(trimmed)-len("/v1")]
+	}
+	return trimmed
 }
 
 func quotaProbeGLMLimitURL(baseURL string) (string, error) {

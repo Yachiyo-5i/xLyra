@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, useRef, type ReactNode } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -7,6 +7,9 @@ import {
   type RowData,
 } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
+import { DataTableHeader, TableColumnResizeHandle, type StickyTableHeader } from '@/components/common/data-table-header'
+import { useTableColumnSizing } from '@/hooks/use-table-column-sizing'
+import type { TableColumnSizingOptions } from '@/lib/table-column-widths'
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -15,6 +18,7 @@ declare module '@tanstack/react-table' {
     headerClassName?: string
     cellClassName?: string
     align?: 'left' | 'center' | 'right'
+    resizeLabel?: string
   }
 }
 
@@ -27,6 +31,8 @@ type DataTableProps<TData, TValue> = {
   emptyState?: ReactNode
   className?: string
   hideHeaderWhenEmpty?: boolean
+  columnSizing?: TableColumnSizingOptions
+  stickyHeader?: StickyTableHeader
   renderRowBefore?: (row: TData, index: number, colSpan: number) => ReactNode
   renderBodyAppend?: (colSpan: number) => ReactNode
 }
@@ -48,6 +54,8 @@ export function DataTable<TData, TValue>({
   hideHeaderWhenEmpty,
   renderRowBefore,
   renderBodyAppend,
+  columnSizing,
+  stickyHeader,
 }: DataTableProps<TData, TValue>) {
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -57,6 +65,9 @@ export function DataTable<TData, TValue>({
     getRowId,
   })
 
+  const tableRef = useRef<HTMLTableElement>(null)
+  const sizing = useTableColumnSizing(tableRef, columnSizing)
+  const leafColumns = table.getVisibleLeafColumns()
   const rows = table.getRowModel().rows
   const isEmpty = rows.length === 0
 
@@ -73,20 +84,28 @@ export function DataTable<TData, TValue>({
   }
 
   return (
-    <div className={cn('overflow-hidden rounded-lg', className)}>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-full table-fixed border-collapse text-left">
-          <thead className="bg-[hsl(var(--surface-subtle))]">
+    <div className={cn('rounded-lg', stickyHeader !== 'page' && 'overflow-hidden', className)}>
+      <div className={stickyHeader === 'page' ? undefined : 'overflow-x-auto'}>
+        <table ref={tableRef} className="w-full min-w-full table-fixed border-collapse text-left">
+          {columnSizing ? (
+            <colgroup>
+              {leafColumns.map((column, index) => <col key={column.id} style={{ width: `${sizing.widths[index]}%` }} />)}
+            </colgroup>
+          ) : null}
+          <DataTableHeader sticky={stickyHeader}>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="text-faint text-xs uppercase tracking-[0.16em]">
-                {headerGroup.headers.map((header) => {
+                {headerGroup.headers.map((header, index) => {
                   const meta = header.column.columnDef.meta
+                  const previousColumn = leafColumns[index - 1]
+                  const resizeLabel = previousColumn?.columnDef.meta?.resizeLabel
+                    ?? (typeof previousColumn?.columnDef.header === 'string' ? previousColumn.columnDef.header : String(index))
 
                   return (
                     <th
                       key={header.id}
                       className={cn(
-                        'whitespace-nowrap px-4 py-3 font-medium',
+                        'relative whitespace-nowrap px-4 py-3 font-medium',
                         getAlignmentClass(meta?.align),
                         meta?.className,
                         meta?.headerClassName,
@@ -95,12 +114,15 @@ export function DataTable<TData, TValue>({
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
+                      {columnSizing && index > 0 && headerGroup.depth === table.getHeaderGroups().length - 1 ? (
+                        <TableColumnResizeHandle sizing={sizing} index={index - 1} label={resizeLabel} />
+                      ) : null}
                     </th>
                   )
                 })}
               </tr>
             ))}
-          </thead>
+          </DataTableHeader>
           <tbody>
             {rows.length ? (
               rows.map((row, index) => (

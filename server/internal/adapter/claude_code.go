@@ -10,16 +10,20 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"xlyra/server/internal/claudeversion"
 )
 
 const (
 	claudeCodeSiteType       = "claude_code"
 	claudeCodeDefaultBaseURL = "https://api.anthropic.com"
-	ClaudeCodeClientVersion  = "2.1.205"
-	ClaudeCodeUserAgent      = "claude-cli/" + ClaudeCodeClientVersion + " (external, cli)"
 	ClaudeCodeOAuthBeta      = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,prompt-caching-scope-2026-01-05,effort-2025-11-24,context-management-2025-06-27,extended-cache-ttl-2025-04-11"
 	ClaudeCodeAPIVersion     = "2023-06-01"
 )
+
+func ClaudeCodeUserAgent() string {
+	return "claude-cli/" + claudeversion.Version() + " (external, cli)"
+}
 
 type ClaudeCode struct {
 	client *http.Client
@@ -247,7 +251,7 @@ func applyClaudeCodeOAuthHeaders(req *http.Request, accessToken string) {
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(accessToken))
 	req.Header.Set("anthropic-version", ClaudeCodeAPIVersion)
 	req.Header.Set("anthropic-beta", ClaudeCodeOAuthBeta)
-	req.Header.Set("User-Agent", ClaudeCodeUserAgent)
+	req.Header.Set("User-Agent", ClaudeCodeUserAgent())
 	req.Header.Set("X-App", "cli")
 	req.Header.Set("Accept", "application/json")
 }

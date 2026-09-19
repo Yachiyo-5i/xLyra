@@ -480,6 +480,9 @@ func importTable(ctx context.Context, db *gorm.DB, table backupTable, rows []map
 	if sliceValue.Len() == 0 {
 		return nil
 	}
+	if keys, ok := items.(*[]store.APIKey); ok {
+		store.BackfillAPIKeyOrder(*keys)
+	}
 	var report func(int)
 	if len(progress) > 0 {
 		report = progress[0]

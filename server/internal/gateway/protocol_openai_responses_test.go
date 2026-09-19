@@ -1503,7 +1503,7 @@ func TestAnthropicMessagesAdapterPreservesNativeMessagesPayload(t *testing.T) {
 		DownstreamPath: gatewayEndpointMessages,
 		Payload: map[string]any{
 			"model":      "claude-sonnet-4-20250514",
-			"max_tokens": 128,
+			"max_tokens": 2048,
 			"thinking":   map[string]any{"type": "enabled", "budget_tokens": 1024},
 			"messages": []any{
 				map[string]any{

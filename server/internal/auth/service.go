@@ -776,6 +776,10 @@ func (s *Service) disableExpiredAPIKeys(ctx context.Context) {
 	_, _ = s.apiKeys.DisableExpiredAPIKeys(ctx, time.Now())
 }
 
+func (s *Service) ReorderAPIKeys(ctx context.Context, ids []uuid.UUID, revision string) error {
+	return s.apiKeys.Reorder(ctx, ids, revision)
+}
+
 func (s *Service) ListAPIKeys(ctx context.Context) ([]store.APIKey, error) {
 	s.disableExpiredAPIKeys(ctx)
 	return s.apiKeys.List(ctx)
@@ -1259,6 +1263,26 @@ func (s *Service) APIKeyRateLimit(ctx context.Context, id uuid.UUID) (RateLimitI
 		return RateLimitInput{}, err
 	}
 	return rateLimitInputFromStore(item), nil
+}
+
+func (s *Service) ResolveAPIKeyModelListAccess(ctx context.Context, apiKey store.APIKey) (APIKeyAccessSets, error) {
+	access := APIKeyAccessSets{APIKey: apiKey}
+	if apiKey.ModelPolicy == "allow_list" {
+		ids, err := store.NewAPIKeyAccessRepository(s.db).EnabledSiteModelIDs(ctx, apiKey.ID)
+		if err != nil {
+			return APIKeyAccessSets{}, err
+		}
+		access.AllowedSiteModelIDs = ids
+		if len(ids) == 0 {
+			return access, nil
+		}
+	}
+	siteIDs, err := s.effectiveAllowedSiteIDs(ctx, apiKey)
+	if err != nil {
+		return APIKeyAccessSets{}, err
+	}
+	access.AllowedSiteIDs = siteIDs
+	return access, nil
 }
 
 func (s *Service) ResolveAPIKeyAccessSets(ctx context.Context, apiKeyID uuid.UUID) (APIKeyAccessSets, error) {

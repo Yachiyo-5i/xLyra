@@ -797,6 +797,12 @@
         }
       },
       "alternate_protocols": {
+        "openai_responses": {
+          "protocol": "openai_responses",
+          "base_url": "https://open.bigmodel.cn/api/v1",
+          "path": "/responses",
+          "official_only": true
+        },
         "anthropic_messages": {
           "protocol": "anthropic_messages",
           "base_url": "https://open.bigmodel.cn/api/anthropic",
@@ -910,6 +916,7 @@
         "https://platform.kimi.com/docs/api/overview",
         "https://platform.kimi.com/docs/api/models-overview",
         "https://platform.kimi.com/docs/api/tool-use",
+        "https://platform.kimi.com/docs/api/messages",
         "https://platform.kimi.com/docs/pricing/chat"
       ],
       "request_params": {
@@ -924,10 +931,26 @@
           "tool_choice"
         ]
       },
+      "protocol_request_params": {
+        "anthropic_messages": {
+          "defaults": {
+            "max_tokens": 8192
+          }
+        }
+      },
       "reasoning": {
         "thinking": "metadata"
       },
-      "official_base_url": "https://api.moonshot.cn"
+      "official_base_url": "https://api.moonshot.cn",
+      "alternate_protocols": {
+        "anthropic_messages": {
+          "protocol": "anthropic_messages",
+          "base_path": "/anthropic",
+          "path": "/v1/messages",
+          "official_only": true,
+          "when_downstream_protocol": "anthropic_messages"
+        }
+      }
     },
     "dashscope": {
       "protocol": "openai_chat",
@@ -958,6 +981,12 @@
       "protocol": "openai_chat",
       "official_base_url": "https://api.deepseek.com",
       "alternate_protocols": {
+        "openai_responses": {
+          "protocol": "openai_responses",
+          "base_url": "https://api.deepseek.com",
+          "path": "/responses",
+          "official_only": true
+        },
         "anthropic_messages": {
           "protocol": "anthropic_messages",
           "base_path": "/anthropic",

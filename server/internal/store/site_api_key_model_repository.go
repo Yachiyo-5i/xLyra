@@ -279,6 +279,37 @@ func (r SiteAPIKeyModelRepository) BindSiteModel(ctx context.Context, siteID uui
 	return nil
 }
 
+func (r SiteAPIKeyModelRepository) BackfillEndpointTypesInTx(ctx context.Context, siteID uuid.UUID, upstreamModelName string, endpointTypes []string) error {
+	db := r.db.WithContext(ctx)
+	var models []SiteAPIKeyModel
+	if err := db.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		Where(&SiteAPIKeyModel{SiteID: siteID, UpstreamModelName: upstreamModelName}).Find(&models).Error; err != nil {
+		return fmt.Errorf("list api key models for endpoint backfill: %w", err)
+	}
+	for _, model := range models {
+		if len(model.Capabilities().SupportedEndpointTypes) > 0 {
+			continue
+		}
+		meta := map[string]json.RawMessage{}
+		if len(model.Raw) > 0 && json.Unmarshal(model.Raw, &meta) != nil {
+			return fmt.Errorf("invalid model metadata for endpoint backfill")
+		}
+		if meta == nil {
+			meta = map[string]json.RawMessage{}
+		}
+		meta["supported_endpoint_types"], _ = json.Marshal(endpointTypes)
+		raw, err := json.Marshal(meta)
+		if err != nil {
+			return err
+		}
+		if err := db.Model(&SiteAPIKeyModel{}).Where(&SiteAPIKeyModel{ID: model.ID}).
+			Updates(map[string]any{"raw": JSON(raw)}).Error; err != nil {
+			return fmt.Errorf("backfill api key model endpoint types: %w", err)
+		}
+	}
+	return nil
+}
+
 func (r SiteAPIKeyModelRepository) UpdateEnabled(ctx context.Context, siteCredentialID uuid.UUID, upstreamModelName string, enabled bool) (SiteAPIKeyModel, error) {
 	var model SiteAPIKeyModel
 	if err := r.db.WithContext(ctx).Where(&SiteAPIKeyModel{SiteCredentialID: siteCredentialID, UpstreamModelName: upstreamModelName}).First(&model).Error; err != nil {

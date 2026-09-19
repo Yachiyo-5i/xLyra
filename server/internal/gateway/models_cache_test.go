@@ -26,13 +26,13 @@ func TestModelsCacheCachesAndInvalidates(t *testing.T) {
 		}, nil
 	}
 
-	first, err := cache.getOrBuild(context.Background(), apiKey, build)
+	first, err := cache.getOrBuild(context.Background(), apiKey, "", build)
 	if err != nil {
 		t.Fatalf("first getOrBuild returned error: %v", err)
 	}
 	first["object"] = "mutated"
 
-	second, err := cache.getOrBuild(context.Background(), apiKey, build)
+	second, err := cache.getOrBuild(context.Background(), apiKey, "", build)
 	if err != nil {
 		t.Fatalf("second getOrBuild returned error: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestModelsCacheCachesAndInvalidates(t *testing.T) {
 	}
 
 	cache.invalidate()
-	if _, err := cache.getOrBuild(context.Background(), apiKey, build); err != nil {
+	if _, err := cache.getOrBuild(context.Background(), apiKey, "", build); err != nil {
 		t.Fatalf("getOrBuild after invalidate returned error: %v", err)
 	}
 	if calls != 2 {
@@ -71,7 +71,7 @@ func TestModelsCacheInvalidateDuringBuildDoesNotStoreStalePayload(t *testing.T) 
 
 	done := make(chan error)
 	go func() {
-		_, err := cache.getOrBuild(context.Background(), apiKey, build)
+		_, err := cache.getOrBuild(context.Background(), apiKey, "", build)
 		done <- err
 	}()
 	<-buildStarted
@@ -81,7 +81,7 @@ func TestModelsCacheInvalidateDuringBuildDoesNotStoreStalePayload(t *testing.T) 
 		t.Fatalf("first getOrBuild returned error: %v", err)
 	}
 
-	payload, err := cache.getOrBuild(context.Background(), apiKey, build)
+	payload, err := cache.getOrBuild(context.Background(), apiKey, "", build)
 	if err != nil {
 		t.Fatalf("second getOrBuild returned error: %v", err)
 	}
@@ -149,19 +149,19 @@ func TestModelsCacheInvalidateKeyOnlyRemovesTargetAPIKey(t *testing.T) {
 		}, nil
 	}
 
-	if _, err := cache.getOrBuild(context.Background(), firstKey, build); err != nil {
+	if _, err := cache.getOrBuild(context.Background(), firstKey, "", build); err != nil {
 		t.Fatalf("first key build: %v", err)
 	}
-	if _, err := cache.getOrBuild(context.Background(), secondKey, build); err != nil {
+	if _, err := cache.getOrBuild(context.Background(), secondKey, "", build); err != nil {
 		t.Fatalf("second key build: %v", err)
 	}
 
 	cache.invalidateKey(firstKey.ID)
 
-	if _, err := cache.getOrBuild(context.Background(), firstKey, build); err != nil {
+	if _, err := cache.getOrBuild(context.Background(), firstKey, "", build); err != nil {
 		t.Fatalf("first key rebuild: %v", err)
 	}
-	if _, err := cache.getOrBuild(context.Background(), secondKey, build); err != nil {
+	if _, err := cache.getOrBuild(context.Background(), secondKey, "", build); err != nil {
 		t.Fatalf("second key cached read: %v", err)
 	}
 	if calls[firstKey.ID] != 2 {
@@ -172,7 +172,7 @@ func TestModelsCacheInvalidateKeyOnlyRemovesTargetAPIKey(t *testing.T) {
 	}
 
 	cache.invalidateKey(uuid.Nil)
-	if _, err := cache.getOrBuild(context.Background(), secondKey, build); err != nil {
+	if _, err := cache.getOrBuild(context.Background(), secondKey, "", build); err != nil {
 		t.Fatalf("second key cached read after nil invalidation: %v", err)
 	}
 	if calls[secondKey.ID] != 1 {
@@ -540,4 +540,17 @@ func TestGatewayModelEndpointTypesOverrideStaleCategory(t *testing.T) {
 	if metadata["category"] != "image" {
 		t.Fatalf("category = %v, want image", metadata["category"])
 	}
+}
+
+func (c *modelsCache) get(apiKeyID uuid.UUID) (map[string]any, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	item, ok := c.items[apiKeyID]
+	if !ok {
+		return nil, false
+	}
+	if time.Since(item.cached) > modelsCacheFreshTTL {
+		return nil, false
+	}
+	return cloneModelsPayload(item.payload), true
 }

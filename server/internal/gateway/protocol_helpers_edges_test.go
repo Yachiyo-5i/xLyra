@@ -40,9 +40,10 @@ func TestGatewayModelsCacheRefreshAsyncStoresFreshClone(t *testing.T) {
 		}, nil
 	}
 
-	cache.refreshAsync(apiKey, build)
+	cache.items[apiKey.ID] = modelsCacheEntry{payload: map[string]any{"object": "stale"}, cached: time.Now().Add(-modelsCacheFreshTTL)}
+	_, _ = cache.getOrBuild(context.Background(), apiKey, "", build)
 	<-buildStarted
-	cache.refreshAsync(apiKey, build)
+	_, _ = cache.getOrBuild(context.Background(), apiKey, "", build)
 	close(releaseBuild)
 	waitForGatewayModelsCacheEntry(t, cache, apiKey.ID)
 
@@ -363,7 +364,7 @@ func TestGatewaySiteModelDiagnosticProtocolHelpersAndRecorder(t *testing.T) {
 		t.Fatal("expected invalid protocol error")
 	}
 
-	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeOpenAI}, siteModelTestProtocolMessages)
+	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeAnthropicMessages}, siteModelTestProtocolMessages)
 	if err != nil || path != gatewayEndpointMessages {
 		t.Fatalf("messages protocol path = %q err=%v", path, err)
 	}

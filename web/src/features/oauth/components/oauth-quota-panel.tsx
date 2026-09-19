@@ -1,4 +1,5 @@
-import { useCallback, useState, type CSSProperties } from 'react'
+import { useState } from 'react'
+import { HoverDetails } from '@/components/common/hover-details'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Ticket } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,9 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
 import { useTranslation } from 'react-i18next'
-import { useMobileLayout } from '@/hooks/use-media-query'
 import { toast } from '@/lib/toast'
 import {
   consumeOAuthConnectionResetCredit,
@@ -43,10 +42,6 @@ const QUOTA_PROGRESS_THRESHOLDS: ProgressThreshold[] = [
   { max: 100, variant: 'success' },
 ]
 
-const ALL_MODELS_TOOLTIP_WIDTH = 420
-const ALL_MODELS_TOOLTIP_OFFSET = 14
-const ALL_MODELS_TOOLTIP_MARGIN = 12
-
 export function QuotaPanel({
   connectionId,
   provider,
@@ -62,12 +57,8 @@ export function QuotaPanel({
 }) {
   const { t, i18n } = useTranslation('oauth')
   const queryClient = useQueryClient()
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
-  const [mobileModelsOpen, setMobileModelsOpen] = useState(false)
   const [resetCreditsOpen, setResetCreditsOpen] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
-  const [desktopTooltipHeight, setDesktopTooltipHeight] = useState<number | null>(null)
-  const isMobile = useMobileLayout()
   const isAntigravity = isAntigravityProvider(provider)
   const isCodex = provider === 'codex'
   const isClaudeCode = provider === 'claude_code'
@@ -83,13 +74,12 @@ export function QuotaPanel({
       ? getClaudeCodeQuotaEntries(claudeCodeFiveHour, quota?.weekly, modelQuotas, t)
       : []
   const hoverTooltipTitle = isClaudeCode ? t('quota.allQuotas') : t('quota.allModels')
-  const canOpenMobileModels = isMobile && hoverQuotaEntries.length > 0
-  const desktopTooltipLayout = mousePos ? getAllModelsTooltipLayout(mousePos, hoverQuotaEntries.length, desktopTooltipHeight) : null
   const resetCreditsQuery = useQuery({
     queryKey: oauthQueryKeys.resetCredits(connectionId ?? ''),
     queryFn: () => listOAuthConnectionResetCredits(connectionId ?? ''),
     enabled: isCodex && resetCreditsOpen && Boolean(connectionId),
     staleTime: 30_000,
+    refetchOnWindowFocus: 'always',
   })
   const effectiveResetCredits = resetCreditsQuery.data ?? resetCreditsData
   const resetCredits = effectiveResetCredits?.credits ?? []
@@ -107,11 +97,6 @@ export function QuotaPanel({
       return consumeOAuthConnectionResetCredit(connectionId, idempotencyKey, creditId)
     },
   })
-
-  const measureDesktopTooltip = useCallback((node: HTMLDivElement | null) => {
-    const nextHeight = node?.offsetHeight ?? null
-    setDesktopTooltipHeight((current) => current === nextHeight ? current : nextHeight)
-  }, [])
 
   async function handleConfirmReset() {
     try {
@@ -146,107 +131,59 @@ export function QuotaPanel({
   }
 
   return (
-    <div
-      className={cn(
-        'py-1',
-        canOpenMobileModels ? 'cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]' : null,
-      )}
-      role={canOpenMobileModels ? 'button' : undefined}
-      tabIndex={canOpenMobileModels ? 0 : undefined}
-      aria-label={canOpenMobileModels ? hoverTooltipTitle : undefined}
-      onClick={() => {
-        if (canOpenMobileModels) setMobileModelsOpen(true)
-      }}
-      onKeyDown={(event) => {
-        if (!canOpenMobileModels) return
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          setMobileModelsOpen(true)
-        }
-      }}
-      onMouseMove={(event) => {
-        if (!isMobile && hoverQuotaEntries.length > 0) {
-          setMousePos({ x: event.clientX, y: event.clientY })
-        }
-      }}
-      onMouseEnter={(event) => {
-        if (!isMobile && hoverQuotaEntries.length > 0) {
-          setMousePos({ x: event.clientX, y: event.clientY })
-        }
-      }}
-      onMouseLeave={() => {
-        setMousePos(null)
-        setDesktopTooltipHeight(null)
-      }}
-    >
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-foreground">{t('quota.title')}</div>
-        {isCodex ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-soft hover:text-foreground"
-            disabled={!connectionId || loading}
-            onClick={(event) => {
-              event.stopPropagation()
-              setResetCreditsOpen(true)
-            }}
-          >
-            <Ticket className="h-3.5 w-3.5" />
-            {t('quota.resetCredits.count', { count: resetCreditCount })}
-          </Button>
-        ) : null}
-      </div>
-      {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
-        </div>
-      ) : isAntigravity && modelQuotas.length > 0 ? (
-        <div className="space-y-3">
-          {visibleModelQuotas.length ? visibleModelQuotas.map((item, index) => (
-            <QuotaProgress key={`${item.name ?? item.display_name ?? 'model'}-${index}`} label={formatQuotaCardModelLabel(item, t)} window={item} t={t} language={i18n.language} />
-          )) : (
-            <QuotaProgress label={t('quota.modelQuota')} t={t} language={i18n.language} />
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <QuotaProgress label={t('quota.fiveHour')} window={claudeCodeFiveHour} t={t} language={i18n.language} />
-          <QuotaProgress label={t('quota.weekly')} window={quota?.weekly} t={t} language={i18n.language} />
-        </div>
-      )}
-
-      {desktopTooltipLayout && !isMobile && hoverQuotaEntries.length > 0 ? (
-        <div
-          ref={measureDesktopTooltip}
-          className="pointer-events-none fixed z-50 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] p-3 shadow-lg"
-          style={desktopTooltipLayout}
-        >
-          <div className="mb-2 text-xs font-medium text-muted-soft">{hoverTooltipTitle}</div>
+    <div className="py-1">
+      <HoverDetails
+        className="block"
+        disabled={hoverQuotaEntries.length === 0}
+        title={hoverTooltipTitle}
+        contentClassName="w-[420px]"
+        content={
           <div className="space-y-2.5">
             {hoverQuotaEntries.map((entry, index) => (
               <QuotaModelRow key={`${entry.label}-${index}`} item={entry.window} label={entry.label} t={t} language={i18n.language} />
             ))}
           </div>
+        }
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium text-foreground">{t('quota.title')}</div>
+          {isCodex ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-soft hover:text-foreground"
+              disabled={!connectionId || loading}
+              onClick={(event) => {
+                event.stopPropagation()
+                setResetCreditsOpen(true)
+              }}
+            >
+              <Ticket className="h-3.5 w-3.5" />
+              {t('quota.resetCredits.count', { count: resetCreditCount })}
+            </Button>
+          ) : null}
         </div>
-      ) : null}
-
-      <Draw open={mobileModelsOpen} onOpenChange={setMobileModelsOpen}>
-        <DrawContent side="right" size="wide">
-          <DrawHeader>
-            <DrawTitle>{hoverTooltipTitle}</DrawTitle>
-          </DrawHeader>
-          <DrawBody>
-            <div className="space-y-3">
-              {hoverQuotaEntries.map((entry, index) => (
-                <QuotaModelRow key={`${entry.label}-${index}`} item={entry.window} label={entry.label} t={t} language={i18n.language} />
-              ))}
-            </div>
-          </DrawBody>
-        </DrawContent>
-      </Draw>
+        {loading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        ) : isAntigravity && modelQuotas.length > 0 ? (
+          <div className="space-y-3">
+            {visibleModelQuotas.length ? visibleModelQuotas.map((item, index) => (
+              <QuotaProgress key={`${item.name ?? item.display_name ?? 'model'}-${index}`} label={formatQuotaCardModelLabel(item, t)} window={item} t={t} language={i18n.language} />
+            )) : (
+              <QuotaProgress label={t('quota.modelQuota')} t={t} language={i18n.language} />
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <QuotaProgress label={t('quota.fiveHour')} window={claudeCodeFiveHour} t={t} language={i18n.language} />
+            <QuotaProgress label={t('quota.weekly')} window={quota?.weekly} t={t} language={i18n.language} />
+          </div>
+        )}
+      </HoverDetails>
 
       {isCodex ? (
         <Dialog open={resetCreditsOpen} onOpenChange={(open) => { if (!consumeResetMutation.isPending) setResetCreditsOpen(open) }}>
@@ -311,36 +248,6 @@ export function QuotaPanel({
       ) : null}
     </div>
   )
-}
-
-function getAllModelsTooltipLayout(mousePos: { x: number; y: number }, modelCount: number, measuredHeight: number | null): CSSProperties {
-  if (typeof window === 'undefined') {
-    return {
-      left: mousePos.x + ALL_MODELS_TOOLTIP_OFFSET,
-      top: mousePos.y + ALL_MODELS_TOOLTIP_OFFSET,
-      width: ALL_MODELS_TOOLTIP_WIDTH,
-    }
-  }
-
-  const viewportWidth = window.innerWidth
-  const viewportHeight = window.innerHeight
-  const width = Math.min(ALL_MODELS_TOOLTIP_WIDTH, Math.max(240, viewportWidth - ALL_MODELS_TOOLTIP_MARGIN * 2))
-  const preferredLeft = mousePos.x + ALL_MODELS_TOOLTIP_OFFSET
-  const preferredTop = mousePos.y + ALL_MODELS_TOOLTIP_OFFSET
-  const tooltipHeight = measuredHeight ?? 44 + 36 * Math.max(1, modelCount)
-  const left = Math.max(
-    ALL_MODELS_TOOLTIP_MARGIN,
-    Math.min(preferredLeft, viewportWidth - width - ALL_MODELS_TOOLTIP_MARGIN),
-  )
-  const top = preferredTop + tooltipHeight > viewportHeight - ALL_MODELS_TOOLTIP_MARGIN
-    ? Math.max(ALL_MODELS_TOOLTIP_MARGIN, mousePos.y - tooltipHeight - ALL_MODELS_TOOLTIP_OFFSET)
-    : preferredTop
-
-  return {
-    left,
-    top,
-    width,
-  }
 }
 
 function getVisibleAntigravityQuotaModels(items: OAuthQuotaWindowLike[]) {

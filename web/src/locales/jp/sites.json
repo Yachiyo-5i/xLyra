@@ -63,6 +63,10 @@
       "tokenBalance": "トークン残高",
       "tokenUsed": "トークン使用量",
       "accountBalance": "アカウント残高",
+      "cashBalance": "現金残高",
+      "voucherBalance": "クーポン残高",
+      "grantedBalance": "付与残高",
+      "toppedUpBalance": "チャージ残高",
       "used": "使用量",
       "remaining": "残り",
       "unlimited": "無制限",
@@ -70,6 +74,7 @@
       "weeklyQuota": "週間枠",
       "dailyQuota": "日次枠",
       "monthlyQuota": "月間枠",
+      "mcpMonthlyQuota": "MCP 月間クォータ",
       "plan": "プラン",
       "expiresAt": "有効期限",
       "probeFailed": "残高プローブ失敗",
@@ -324,6 +329,11 @@
       "auto": "Key を自動選択"
     },
     "test": "テスト",
+    "errors": {
+      "protocolUnsupported": "現在のキーでは、このモデルの選択したプロトコルが有効になっていません。別のプロトコルまたはキーを選択してください。",
+      "protocolUnavailable": "このモデルには有効なプロトコルがありません。プロトコル設定を確認してください。",
+      "credentialUnavailable": "このモデルで使用できるキーがないか、選択したキーが使用できません。キーとモデルの設定を確認してください。"
+    },
     "toast": {
       "testFailed": "テストに失敗しました"
     },

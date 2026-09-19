@@ -1,4 +1,6 @@
-import { Fragment, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject, useRef, useState } from 'react'
+import { Fragment, useRef, type RefObject } from 'react'
+import { DataTableHeader, TableColumnResizeHandle } from '@/components/common/data-table-header'
+import { useTableColumnSizing } from '@/hooks/use-table-column-sizing'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
@@ -10,15 +12,7 @@ import { RequestDetailRow } from '@/features/requests/components/request-detail-
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
 import { RequestTiming } from '@/features/requests/components/request-timing'
 import { requestFailoverBadgeClassName } from '@/features/requests/lib/request-badge-styles'
-import {
-  readRequestsTableColumnWidthsPreference,
-  writeRequestsTableColumnWidthsPreference,
-} from '@/features/requests/lib/request-preferences'
-import {
-  REQUEST_TABLE_COLUMN_MINIMUM_WIDTHS,
-  resizeRequestTableColumnBoundary,
-  type RequestTableColumnWidths,
-} from '@/features/requests/lib/request-table-columns'
+import { REQUEST_TABLE_COLUMN_SIZING } from '@/features/requests/lib/request-table-columns'
 import {
   formatCurrency,
   formatDateTime,
@@ -53,14 +47,6 @@ const requestTableHeaders = [
   { id: 'cost', label: 'table.headers.cost', className: 'px-4 py-3 font-medium text-right' },
 ] as const
 
-type ColumnResizeState = {
-  boundaryIndex: number
-  pointerID: number
-  startX: number
-  tableWidth: number
-  widths: RequestTableColumnWidths
-}
-
 export function RequestsTable({
   items,
   expandedId,
@@ -69,74 +55,8 @@ export function RequestsTable({
   className,
 }: RequestsTableProps) {
   const { t, i18n } = useTranslation('requests')
-  const [columnWidths, setColumnWidths] = useState<RequestTableColumnWidths>(() => readRequestsTableColumnWidthsPreference())
-  const columnWidthsRef = useRef(columnWidths)
-  const resizeStateRef = useRef<ColumnResizeState | null>(null)
   const tableRef = useRef<HTMLTableElement>(null)
-
-  function updateColumnWidths(widths: RequestTableColumnWidths) {
-    columnWidthsRef.current = widths
-    setColumnWidths(widths)
-  }
-
-  function resizeColumnBoundary(boundaryIndex: number, deltaPercent: number) {
-    const widths = resizeRequestTableColumnBoundary(columnWidthsRef.current, boundaryIndex, deltaPercent)
-    updateColumnWidths(widths)
-    return widths
-  }
-
-  function handleColumnResizerPointerDown(boundaryIndex: number, event: ReactPointerEvent<HTMLSpanElement>) {
-    if (event.button !== 0) return
-
-    const tableWidth = tableRef.current?.getBoundingClientRect().width ?? 0
-    if (tableWidth <= 0) return
-
-    event.preventDefault()
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    resizeStateRef.current = {
-      boundaryIndex,
-      pointerID: event.pointerId,
-      startX: event.clientX,
-      tableWidth,
-      widths: columnWidthsRef.current,
-    }
-  }
-
-  function handleColumnResizerPointerMove(event: ReactPointerEvent<HTMLSpanElement>) {
-    const resizeState = resizeStateRef.current
-    if (!resizeState || resizeState.pointerID !== event.pointerId) return
-
-    event.preventDefault()
-    event.stopPropagation()
-    const deltaPercent = ((event.clientX - resizeState.startX) / resizeState.tableWidth) * 100
-    const widths = resizeRequestTableColumnBoundary(resizeState.widths, resizeState.boundaryIndex, deltaPercent)
-    updateColumnWidths(widths)
-  }
-
-  function handleColumnResizerPointerEnd(event: ReactPointerEvent<HTMLSpanElement>) {
-    const resizeState = resizeStateRef.current
-    if (!resizeState || resizeState.pointerID !== event.pointerId) return
-
-    event.preventDefault()
-    event.stopPropagation()
-    resizeStateRef.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    writeRequestsTableColumnWidthsPreference(columnWidthsRef.current)
-  }
-
-  function handleColumnResizerKeyDown(boundaryIndex: number, event: KeyboardEvent<HTMLSpanElement>) {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-
-    event.preventDefault()
-    event.stopPropagation()
-    const direction = event.key === 'ArrowLeft' ? -1 : 1
-    const widths = resizeColumnBoundary(boundaryIndex, direction * (event.shiftKey ? 5 : 1))
-    writeRequestsTableColumnWidthsPreference(widths)
-  }
-
+  const sizing = useTableColumnSizing(tableRef, REQUEST_TABLE_COLUMN_SIZING)
   if (!items.length) {
     return (
       <div ref={scrollContainerRef} className={className}>
@@ -152,46 +72,28 @@ export function RequestsTable({
     >
       <table ref={tableRef} className="w-full table-fixed border-collapse text-left">
         <colgroup>
-          {columnWidths.map((width, index) => (
+          {sizing.widths.map((width, index) => (
             <col key={requestTableHeaders[index].id} style={{ width: `${width}%` }} />
           ))}
         </colgroup>
-        <thead className="sticky -top-6 z-10 bg-[hsl(var(--surface-base))] shadow-[0_1px_0_hsl(var(--glass-divider))] lg:-top-8">
+        <DataTableHeader sticky="page">
           <tr className="text-faint text-xs uppercase tracking-[0.16em]">
             {requestTableHeaders.map((header, index) => {
               const boundaryIndex = index - 1
               const canResize = boundaryIndex >= 0
-              const maximumWidth = canResize
-                ? 100 - REQUEST_TABLE_COLUMN_MINIMUM_WIDTHS.reduce((total, minimum, minimumIndex) => minimumIndex === boundaryIndex ? total : total + minimum, 0)
-                : 0
               const headerLabel = t(header.label)
               const resizerColumnLabel = canResize ? t(requestTableHeaders[boundaryIndex].label) : ''
               return (
                 <th key={header.id} className={cn('relative', header.id === 'status' && 'overflow-hidden', header.className)}>
                   {header.id === 'expand' ? <span className="sr-only">{headerLabel}</span> : headerLabel}
                   {canResize ? (
-                    <span
-                      role="separator"
-                      aria-orientation="vertical"
-                      aria-label={t('table.resizeColumn', { column: resizerColumnLabel })}
-                      aria-valuenow={columnWidths[boundaryIndex]}
-                      aria-valuemin={REQUEST_TABLE_COLUMN_MINIMUM_WIDTHS[boundaryIndex]}
-                      aria-valuemax={maximumWidth}
-                      tabIndex={0}
-                      className="absolute -left-2 top-0 z-20 h-full w-4 cursor-col-resize touch-none select-none outline-none after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-[hsl(var(--glass-divider))] after:opacity-50 hover:after:bg-primary hover:after:opacity-100 focus-visible:after:bg-primary focus-visible:after:opacity-100"
-                      style={{ cursor: 'col-resize' }}
-                      onPointerDown={(event) => handleColumnResizerPointerDown(boundaryIndex, event)}
-                      onPointerMove={handleColumnResizerPointerMove}
-                      onPointerUp={handleColumnResizerPointerEnd}
-                      onPointerCancel={handleColumnResizerPointerEnd}
-                      onKeyDown={(event) => handleColumnResizerKeyDown(boundaryIndex, event)}
-                    />
+                    <TableColumnResizeHandle sizing={sizing} index={boundaryIndex} label={resizerColumnLabel} />
                   ) : null}
                 </th>
               )
             })}
           </tr>
-        </thead>
+        </DataTableHeader>
         <tbody>
           {items.map((item) => {
             const expanded = expandedId === item.id

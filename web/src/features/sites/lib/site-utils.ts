@@ -241,6 +241,9 @@ function formatProbePercent(value: number) {
 
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
+  if (probe.probe_type === 'deepseek' || probe.probe_type === 'moonshot') {
+    return formatAccountBalance(probe.entries)
+  }
   if (probe.probe_type === 'kimi' || probe.probe_type === 'glm') {
     return formatFiveHourWeeklyQuotaBalance(probe)
   }
@@ -283,6 +286,10 @@ export type SiteBalanceDetailLabel =
   | 'tokenBalance'
   | 'tokenUsed'
   | 'accountBalance'
+  | 'grantedBalance'
+  | 'toppedUpBalance'
+  | 'cashBalance'
+  | 'voucherBalance'
   | 'used'
   | 'remaining'
   | 'unlimited'
@@ -290,6 +297,7 @@ export type SiteBalanceDetailLabel =
   | 'weeklyQuota'
   | 'dailyQuota'
   | 'monthlyQuota'
+  | 'mcpMonthlyQuota'
 
 export type SiteBalanceDetail = {
   /** i18n key 后缀（table.quotaDetails.*）；entry 类行用 labelText 直传 */
@@ -304,10 +312,43 @@ export function isSub2APIQuotaSite(site: Site) {
   return site.gateway_config?.quota_probe === 'sub2api'
 }
 
+function formatBalanceAmount(value: number, unit?: string) {
+  const { prefix, suffix } = quotaProbeCurrency(unit)
+  return `${value < 0 ? '-' : ''}${prefix}${formatProbeAmount(Math.abs(value))}${suffix}`
+}
+
+export function formatAccountBalance(entries?: SiteQuotaProbeEntry[]) {
+  const values = (entries ?? [])
+    .filter((entry) => entry.label === 'balance' && typeof entry.remaining === 'number')
+    .map((entry) => formatBalanceAmount(entry.remaining!, entry.unit))
+  return values.length > 0 ? values.join(' / ') : undefined
+}
+
+export function accountBalanceDetails(entries?: SiteQuotaProbeEntry[]): SiteBalanceDetail[] {
+  return (entries ?? []).flatMap((entry) => {
+    if (entry.label !== 'balance' || typeof entry.remaining !== 'number') return []
+    const rows: SiteBalanceDetail[] = [{ label: 'accountBalance', value: formatBalanceAmount(entry.remaining, entry.unit) }]
+    if (typeof entry.cash_balance === 'number') {
+      rows.push({ label: 'cashBalance', value: formatBalanceAmount(entry.cash_balance, entry.unit) })
+    }
+    if (typeof entry.voucher_balance === 'number') {
+      rows.push({ label: 'voucherBalance', value: formatBalanceAmount(entry.voucher_balance, entry.unit) })
+    }
+    if (typeof entry.granted_balance === 'number') {
+      rows.push({ label: 'grantedBalance', value: formatBalanceAmount(entry.granted_balance, entry.unit) })
+    }
+    if (typeof entry.topped_up_balance === 'number') {
+      rows.push({ label: 'toppedUpBalance', value: formatBalanceAmount(entry.topped_up_balance, entry.unit) })
+    }
+    return rows
+  })
+}
+
 export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDetail[] {
   const probe = site.quota_probe
   if (probe) {
     const probeType = probe.probe_type
+    if (probeType === 'deepseek' || probeType === 'moonshot') return accountBalanceDetails(probe.entries)
     if (probeType === 'kimi' || probeType === 'glm') {
       return fiveHourWeeklyQuotaDetails(probe, language)
     }
@@ -335,11 +376,12 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
   return [{ label: 'accountBalance', value: fallback }]
 }
 
-const WINDOW_QUOTA_ENTRY_ORDER = ['five_hour', 'weekly'] as const
+const WINDOW_QUOTA_ENTRY_ORDER = ['five_hour', 'weekly', 'monthly'] as const
 
 const WINDOW_QUOTA_ENTRY_LABELS: Record<string, SiteBalanceDetailLabel> = {
   five_hour: 'fiveHourQuota',
   weekly: 'weeklyQuota',
+  monthly: 'monthlyQuota',
 }
 
 function fiveHourWeeklyQuotaDetails(probe: SiteQuotaProbeSummary, language?: string): SiteBalanceDetail[] {
@@ -349,7 +391,9 @@ function fiveHourWeeklyQuotaDetails(probe: SiteQuotaProbeSummary, language?: str
     .filter((entry): entry is SiteQuotaProbeEntry => !!entry)
   const rows: SiteBalanceDetail[] = []
   for (const entry of ordered) {
-    const label = WINDOW_QUOTA_ENTRY_LABELS[entry.label]
+    const label = probe.probe_type === 'glm' && entry.label === 'monthly'
+      ? 'mcpMonthlyQuota'
+      : WINDOW_QUOTA_ENTRY_LABELS[entry.label]
     if (!label || typeof entry.remaining !== 'number') continue
     const value = formatProbePercent(entry.remaining)
     let extra: string | undefined

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Site struct {
@@ -88,10 +89,22 @@ func (r SiteRepository) Create(ctx context.Context, params CreateSiteParams) (Si
 		RoutingPriority: params.RoutingPriority,
 		Meta:            jsonDefault(params.Meta, "{}"),
 	}
-	if err := r.db.WithContext(ctx).Create(&site).Error; err != nil {
-		return Site{}, fmt.Errorf("create site: %w", err)
+	for attempt := range 5 {
+		if attempt > 0 {
+			site.Slug = params.Slug + "-" + uuid.NewString()[:8]
+		}
+		result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "slug"}},
+			DoNothing: true,
+		}).Create(&site)
+		if result.Error != nil {
+			return Site{}, fmt.Errorf("create site: %w", result.Error)
+		}
+		if result.RowsAffected > 0 {
+			return site, nil
+		}
 	}
-	return site, nil
+	return Site{}, fmt.Errorf("create site: could not generate a unique slug")
 }
 
 func (r SiteRepository) Update(ctx context.Context, params UpdateSiteParams) (Site, error) {

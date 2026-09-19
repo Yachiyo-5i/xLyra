@@ -44,7 +44,7 @@ func TestApplyDownstreamPassthroughHeadersPassesClientHeadersForResponses(t *tes
 
 func TestApplyDownstreamPassthroughHeadersDropsAllDownstreamHeadersForCodex(t *testing.T) {
 	upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://example.test/v1/responses")
-	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent)
+	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent())
 	upstreamReq.Header.Set("Originator", codexOriginator)
 
 	downstreamHeaders := http.Header{}
@@ -62,7 +62,7 @@ func TestApplyDownstreamPassthroughHeadersDropsAllDownstreamHeadersForCodex(t *t
 		DownstreamHeaders: downstreamHeaders,
 	}, testRouteCandidateForSite("codex", "gpt-5.4"))
 
-	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent())
 	assertGatewayHeader(t, upstreamReq, "Originator", codexOriginator)
 	for _, key := range []string{"Session-Id", "X-Oai-Attestation", "X-Codex-Installation-Id", "Openai-Beta", "X-Codex-Turn-State", "X-Downstream-Trace"} {
 		assertNoGatewayHeader(t, upstreamReq, key)
@@ -71,7 +71,7 @@ func TestApplyDownstreamPassthroughHeadersDropsAllDownstreamHeadersForCodex(t *t
 
 func TestApplyDownstreamPassthroughHeadersPassesResponsesLiteForCodex(t *testing.T) {
 	upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses")
-	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent)
+	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent())
 	upstreamReq.Header.Set("Originator", codexOriginator)
 
 	downstreamHeaders := http.Header{}
@@ -88,7 +88,7 @@ func TestApplyDownstreamPassthroughHeadersPassesResponsesLiteForCodex(t *testing
 	for _, key := range []string{"Session-Id", "X-Downstream-Trace"} {
 		assertNoGatewayHeader(t, upstreamReq, key)
 	}
-	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent())
 	assertGatewayHeader(t, upstreamReq, "Originator", codexOriginator)
 }
 
@@ -121,7 +121,7 @@ func TestApplyDownstreamPassthroughHeadersRejectsInactiveResponsesLiteForCodex(t
 
 func TestApplyDownstreamPassthroughHeadersPassesRemoteCompactionV2HeadersForCodex(t *testing.T) {
 	upstreamReq := gatewayHeaderRequest(t, http.MethodPost, "https://chatgpt.com/backend-api/codex/responses")
-	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent)
+	upstreamReq.Header.Set("User-Agent", codexGatewayUserAgent())
 	upstreamReq.Header.Set("Originator", codexOriginator)
 
 	downstreamHeaders := remoteCompactionV2Headers()
@@ -149,7 +149,7 @@ func TestApplyDownstreamPassthroughHeadersPassesRemoteCompactionV2HeadersForCode
 			t.Fatalf("%s was not passed through", key)
 		}
 	}
-	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent())
 	assertGatewayHeader(t, upstreamReq, "Originator", codexOriginator)
 	for _, key := range []string{"Authorization", "X-Downstream-Trace"} {
 		assertNoGatewayHeader(t, upstreamReq, key)
@@ -240,7 +240,7 @@ func TestApplyGatewayClientImpersonationHeadersOverridesDownstreamHeaders(t *tes
 		ImpersonateClaudeCodeClient: testBool(true),
 	}, anthropicMessagesProtocolAdapter{}, testGatewayRequest("claude-sonnet-4-5"), testRouteCandidate("claude-sonnet-4-5"), "")
 
-	assertGatewayHeader(t, upstreamReq, "User-Agent", claudeCodeGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", claudeCodeGatewayUserAgent())
 	assertGatewayHeader(t, upstreamReq, "Originator", "downstream-client")
 	assertGatewayHeader(t, upstreamReq, "X-Claude-Code-Session-Id", "real-claude-session")
 }
@@ -388,7 +388,7 @@ func TestApplyGatewayClientImpersonationHeadersUsesClaudeCodeForClaudeModelWhenB
 		ImpersonateClaudeCodeClient: testBool(true),
 	}, openAIResponsesProtocolAdapter{}, testGatewayRequest("claude-sonnet-4-5"), testRouteCandidate("claude-sonnet-4-5"), "")
 
-	assertGatewayHeader(t, upstreamReq, "User-Agent", claudeCodeGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", claudeCodeGatewayUserAgent())
 	assertNoGatewayHeader(t, upstreamReq, "Originator")
 }
 
@@ -400,7 +400,7 @@ func TestApplyGatewayClientImpersonationHeadersUsesCodexForGPTModelWhenBothEnabl
 		ImpersonateClaudeCodeClient: testBool(true),
 	}, openAIResponsesProtocolAdapter{}, testGatewayRequest("gpt-5.4"), testRouteCandidate("gpt-5.4"), "")
 
-	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent())
 	assertGatewayHeader(t, upstreamReq, "Originator", codexOriginator)
 	assertNoGatewayHeader(t, upstreamReq, "X-Claude-Code-Session-Id")
 }
@@ -444,7 +444,7 @@ func TestApplyGatewayClientImpersonationHeadersUsesModelBeforeProtocol(t *testin
 		ImpersonateClaudeCodeClient: testBool(true),
 	}, anthropicMessagesProtocolAdapter{}, testGatewayRequest("gpt-5.4"), testRouteCandidate("gpt-5.4"), "")
 
-	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent)
+	assertGatewayHeader(t, upstreamReq, "User-Agent", codexGatewayUserAgent())
 	assertNoGatewayHeader(t, upstreamReq, "X-Claude-Code-Session-Id")
 }
 

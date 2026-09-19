@@ -22,7 +22,7 @@ import (
 
 // DefaultVersion is the seed used until the first successful refresh. It
 // matches the latest stable release at the time this was written.
-const DefaultVersion = "0.153.3"
+const DefaultVersion = "0.155.1"
 
 // registryURL is the npm registry endpoint for the @openai/codex package.
 // The scoped package name must be encoded as @openai%2Fcodex.

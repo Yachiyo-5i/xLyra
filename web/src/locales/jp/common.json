@@ -1,4 +1,7 @@
 {
+  "table": {
+    "resizeColumn": "{{column}} 列の幅を調整"
+  },
   "actions": {
     "save": "保存",
     "cancel": "キャンセル",
@@ -21,6 +24,7 @@
     "clear": "クリア"
   },
   "status": {
+    "error": "エラー",
     "enabled": "有効",
     "disabled": "無効",
     "loading": "読み込み中...",

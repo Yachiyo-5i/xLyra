@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.9.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.8.1...v1.9.0) (2026-09-19)
+
+
+### Features
+
+* 🎸 新增 DeepSeek 账户余额探测 ([8018ad6](https://github.com/Yachiyo-5i/xLyra/commit/8018ad6247244a7577fda241ee0d42dc3b143386), [2ff22ed](https://github.com/Yachiyo-5i/xLyra/commit/2ff22ed93a5e160959c066312f28cdcfb9c5c22a))
+* 🎸 新增 Moonshot 账户余额探测 ([33abd21](https://github.com/Yachiyo-5i/xLyra/commit/33abd210b4c4878124b7132ed0feda1aa876ab3c), [25e8a26](https://github.com/Yachiyo-5i/xLyra/commit/25e8a26146cd94f8cf3b3b824695ff18f2a47afb))
+* 🎸 智谱模型列表改为动态拉取上游 /models ([140222a](https://github.com/Yachiyo-5i/xLyra/commit/140222a1972862bd586a672446899d80c6cf03b6), [25346c9](https://github.com/Yachiyo-5i/xLyra/commit/25346c92d66eaeaf8dc537cb7b77863004151c6b))
+
+
+### Bug Fixes
+
+* 🐛 修复 APIKey 权限变更后可用模型未及时更新的问题 ([dc976f6](https://github.com/Yachiyo-5i/xLyra/commit/dc976f643d9b9e47f5c2c7fb6479035eb71eff6f))
+* 🐛 修复 Claude Code 和 Codex 自动同步版本后后续请求未使用新版本的问题 ([638224b](https://github.com/Yachiyo-5i/xLyra/commit/638224b69be8005539b84d0f2d552ae179e9a07b))
+* 🐛 修复 Codex 账号图像模型协议缺失及权限校验异常导致无法生图的问题 ([2d6e3c8](https://github.com/Yachiyo-5i/xLyra/commit/2d6e3c89d09d527b8ef5341210f40648bd1b0231))
+* 🐛 修复 DeepSeek 零余额和负余额更新异常并完善多币种余额展示 ([99d2298](https://github.com/Yachiyo-5i/xLyra/commit/99d2298c2166dff5370b183d2a5e20424974e973))
+* 🐛 修复 GLM Coding Plan 积分制套餐额度探测失败 ([9730619](https://github.com/Yachiyo-5i/xLyra/commit/973061972c1c638af01702c581144247d9b03cb8), [7398c5c](https://github.com/Yachiyo-5i/xLyra/commit/7398c5c66382957651ffac408d35a4fa34d5c5cd))
+* 🐛 修复 Kimi 兼容适配误改聊天输出上限和自定义站点地址的问题 ([5de8add](https://github.com/Yachiyo-5i/xLyra/commit/5de8add92e8cf172ee518090458cc8bd414e1b21))
+* 🐛 修复 Kimi 开放平台 Anthropic Messages 端点缺少 /anthropic 前缀 ([56e63c9](https://github.com/Yachiyo-5i/xLyra/commit/56e63c93760ef6ae21baca8d7f3de0e901f55b76), [8f3c5b7](https://github.com/Yachiyo-5i/xLyra/commit/8f3c5b7b82b1b98a9aad33f6e14dfdd26889e5a9))
+* 🐛 修复 Moonshot 零余额更新和欠费余额展示的问题 ([1fe6d26](https://github.com/Yachiyo-5i/xLyra/commit/1fe6d267a4595fb52784d547af3ec7d2a7e28824))
+* 🐛 修复同名站点创建失败并统一错误与额度详情提示 ([b3d75aa](https://github.com/Yachiyo-5i/xLyra/commit/b3d75aac0a8477afd120ebc3b9e8d111d792c411))
+* 🐛 修复密钥配置返回流程并支持 Gemini 组倍率 ([8fb0def](https://github.com/Yachiyo-5i/xLyra/commit/8fb0def0ed02292ab7c4b6d869ffe8a27012f5b6))
+* 🐛 修复思考预算与输出上限冲突导致请求失败的问题 ([f66f357](https://github.com/Yachiyo-5i/xLyra/commit/f66f3575eb17b669044e835347f1f989caeded92))
+* 🐛 修复智谱工具额度耗尽误停聊天并补全额度明细展示 ([0bbe10e](https://github.com/Yachiyo-5i/xLyra/commit/0bbe10eef113dacbb8ec050b022bd87ad8c2fa1c))
+* 🐛 修复智谱模型列表与上游返回结果不一致的问题 ([eb3f8a2](https://github.com/Yachiyo-5i/xLyra/commit/eb3f8a2cd0efe3108c9d5174deab7c6ae745baff))
+* 🐛 修复模型测试使用禁用协议并统一错误详情样式 ([d8057e6](https://github.com/Yachiyo-5i/xLyra/commit/d8057e61fd7a62cdd0636381ab5259b75bfe1957))
+* 🐛 修复站点和 OAuth 页面恢复焦点后未自动更新数据的问题 ([7f4929a](https://github.com/Yachiyo-5i/xLyra/commit/7f4929a82b638891d6234fa908fc8040a1abf673))
+* 🐛 支持 APIKey 手动排序并同步各设备和相关页面的显示顺序 ([b5dd58a](https://github.com/Yachiyo-5i/xLyra/commit/b5dd58ae6f761cc3a3be0fa1243c890d42fc0852))
+* 🐛 统一各页面表格的列宽调整与表头吸顶表现 ([5f9f20e](https://github.com/Yachiyo-5i/xLyra/commit/5f9f20e426bc5465192eaab9b88be9a2b20394e7))
+* 🐛 解决余额展示改动的合并冲突 ([acbaed5](https://github.com/Yachiyo-5i/xLyra/commit/acbaed52da06ca1b07ff11910df5f5993d7d8863))
+
+## [1.8.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.8.0...v1.8.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* 🐛 修复 Codex 图片模型下游请求无可用路由的问题 ([f418d1c](https://github.com/Yachiyo-5i/xLyra/commit/f418d1c34800f6a079e5bf4b00b4d61f187be540))
+* 🐛 修复 DeepSeek 工具参数正则导致请求失败 ([bdb2d30](https://github.com/Yachiyo-5i/xLyra/commit/bdb2d30c43c5d89fa304416793d8f2d287b02e41))
+* 🐛 修复 DeepSeek 工具参数正则导致请求失败的问题 ([581bcd0](https://github.com/Yachiyo-5i/xLyra/commit/581bcd08b6669b4b73d93d906bf36c723acc4038))
+* 🐛 修复智谱和 DeepSeek Responses 端点地址 ([d746aa8](https://github.com/Yachiyo-5i/xLyra/commit/d746aa873d67b4c3fb552103c6a56d3f70918b50))
+
 ## [1.8.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.7.2...v1.8.0) (2026-09-14)
 
 

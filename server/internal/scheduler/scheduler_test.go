@@ -63,17 +63,17 @@ func TestNewPreservesCustomOptions(t *testing.T) {
 	}
 }
 
-func TestRegisterDefaultJobsRegistersCodexVersionRefreshWithoutServices(t *testing.T) {
+func TestRegisterDefaultJobsRegistersClientVersionRefreshWithoutServices(t *testing.T) {
 	t.Parallel()
 
 	scheduler := New(slog.Default(), Options{}, nil, nil, nil)
 
 	scheduler.RegisterDefaultJobs()
 
-	// The codex version refresh is the only job that does not depend on a
-	// service, so it is always registered even when all other services are nil.
-	if entries := scheduler.cron.Entries(); len(entries) != 1 {
-		t.Fatalf("expected only the codex version refresh job, got %d", len(entries))
+	// The client version refresh jobs do not depend on a
+	// service, so they are always registered even when all other services are nil.
+	if entries := scheduler.cron.Entries(); len(entries) != 2 {
+		t.Fatalf("expected only the codex and claude code version refresh jobs, got %d", len(entries))
 	}
 }
 
@@ -90,8 +90,8 @@ func TestRegisterDefaultJobsWithCoreServicesRegistersBaseAndConfiguredJobs(t *te
 
 	scheduler.RegisterDefaultJobs()
 
-	if entries := scheduler.cron.Entries(); len(entries) != 6 {
-		t.Fatalf("expected site health, model catalog sync, usage summary, site refresh, newapi checkin, and codex version refresh jobs, got %d", len(entries))
+	if entries := scheduler.cron.Entries(); len(entries) != 7 {
+		t.Fatalf("expected site health, model catalog sync, usage summary, site refresh, newapi checkin, codex version refresh, and claude code version refresh jobs, got %d", len(entries))
 	}
 	if scheduler.siteRefreshID == 0 {
 		t.Fatal("expected configured site refresh job id")

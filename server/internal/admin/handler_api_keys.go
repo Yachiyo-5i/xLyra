@@ -93,14 +93,16 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, "api_key_list_failed", "failed to list api keys")
 		return
 	}
+	keys := make([]store.APIKey, 0, len(items))
 	payloadItems := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		if item.APIKey.KeyKind == store.APIKeyKindAgentInternal && !includeInternal {
 			continue
 		}
+		keys = append(keys, item.APIKey)
 		payloadItems = append(payloadItems, h.apiKeyPayloadWithRateLimit(item.APIKey, item.Models, item.Sites, item.Groups, false, item.RateLimit))
 	}
-	h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems)})
+	h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems), "order_revision": store.APIKeyOrderRevision(keys)})
 }
 
 func (h Handler) GetAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -771,6 +773,7 @@ func (h Handler) apiKeyPayloadWithRateLimit(item store.APIKey, models []store.AP
 	return map[string]any{
 		"id":                     item.ID.String(),
 		"name":                   name,
+		"sort_order":             item.SortOrder,
 		"key":                    plaintext,
 		"key_prefix":             item.KeyPrefix,
 		"masked_key":             item.MaskedKey,

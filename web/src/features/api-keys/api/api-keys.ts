@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/http'
+import { sortAPIKeysForDisplay } from '@/features/api-keys/lib/api-key-order'
 
 type DownstreamAPIKeyStatus = 'active' | 'disabled' | string
 type DownstreamAPIKeyModelPolicy = 'allow_all' | 'allow_list' | string
@@ -60,6 +61,7 @@ export type DownstreamAPIKeySiteGroup = {
 }
 
 export type DownstreamAPIKey = {
+  sort_order?: number
   id: string
   name: string
   key?: string | null
@@ -129,6 +131,13 @@ export const downstreamAPIKeyQueryKeys = {
   detail: (apiKeyId: string) => [...downstreamAPIKeyQueryKeys.all, 'detail', apiKeyId] as const,
 }
 
+export async function reorderDownstreamAPIKeys(ids: string[], revision: string) {
+  return apiFetch<{ success: boolean }>('/api/v1/api-keys/order', {
+    method: 'PUT',
+    body: { ids, revision },
+  })
+}
+
 export async function listDownstreamAPIKeys() {
   return listDownstreamAPIKeysWithOptions()
 }
@@ -141,7 +150,8 @@ async function listDownstreamAPIKeysWithOptions(options?: { includeInternal?: bo
   const params = new URLSearchParams()
   if (options?.includeInternal) params.set('include_internal', 'true')
   const query = params.toString()
-  return apiFetch<{ items: DownstreamAPIKey[]; meta?: { count?: number } }>(`/api/v1/api-keys${query ? `?${query}` : ''}`)
+  const result = await apiFetch<{ items: DownstreamAPIKey[]; meta?: { count?: number; order_revision?: string } }>(`/api/v1/api-keys${query ? `?${query}` : ''}`)
+  return { ...result, items: sortAPIKeysForDisplay(result.items) }
 }
 
 // List/detail responses only carry masked_key; the plaintext is fetched on

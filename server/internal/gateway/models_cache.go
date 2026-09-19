@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/auth"
 	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/store"
 	"xlyra/server/internal/upstream"
@@ -25,18 +28,20 @@ type modelsCache struct {
 	mu       sync.Mutex
 	items    map[uuid.UUID]modelsCacheEntry
 	inflight map[uuid.UUID]*modelsCacheCall
-	version  uint64
 }
 
 type modelsCacheEntry struct {
-	payload map[string]any
-	cached  time.Time
+	revision string
+	payload  map[string]any
+	cached   time.Time
 }
 
 type modelsCacheCall struct {
-	done    chan struct{}
-	payload map[string]any
-	err     error
+	revision string
+	cancel   context.CancelFunc
+	done     chan struct{}
+	payload  map[string]any
+	err      error
 }
 
 func newModelsCache() *modelsCache {
@@ -46,98 +51,53 @@ func newModelsCache() *modelsCache {
 	}
 }
 
-func (c *modelsCache) get(apiKeyID uuid.UUID) (map[string]any, bool) {
+func (c *modelsCache) getOrBuild(ctx context.Context, apiKey store.APIKey, revision string, build func(context.Context, store.APIKey) (map[string]any, error)) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	item, ok := c.items[apiKeyID]
-	if !ok {
-		return nil, false
-	}
-	if time.Since(item.cached) > modelsCacheFreshTTL {
-		return nil, false
-	}
-	return cloneModelsPayload(item.payload), true
-}
-
-func (c *modelsCache) getStale(apiKeyID uuid.UUID) (map[string]any, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	item, ok := c.items[apiKeyID]
-	if !ok {
-		return nil, false
-	}
-	if time.Since(item.cached) > modelsCacheStaleTTL {
-		delete(c.items, apiKeyID)
-		return nil, false
-	}
-	return cloneModelsPayload(item.payload), true
-}
-
-func (c *modelsCache) getOrBuild(ctx context.Context, apiKey store.APIKey, build func(context.Context, store.APIKey) (map[string]any, error)) (map[string]any, error) {
-	if payload, ok := c.get(apiKey.ID); ok {
-		return payload, nil
-	}
-	if payload, ok := c.getStale(apiKey.ID); ok {
-		c.refreshAsync(apiKey, build)
-		return payload, nil
-	}
-
-	c.mu.Lock()
-	if call, ok := c.inflight[apiKey.ID]; ok {
-		c.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-call.done:
-			return cloneModelsPayload(call.payload), call.err
+	item, cached := c.items[apiKey.ID]
+	if cached && item.revision == revision && time.Since(item.cached) <= modelsCacheStaleTTL {
+		if time.Since(item.cached) > modelsCacheFreshTTL {
+			c.startBuildLocked(ctx, apiKey, revision, build)
 		}
+		c.mu.Unlock()
+		return cloneModelsPayload(item.payload), nil
 	}
-	call := &modelsCacheCall{done: make(chan struct{})}
-	c.inflight[apiKey.ID] = call
-	version := c.version
+	delete(c.items, apiKey.ID)
+	call := c.startBuildLocked(ctx, apiKey, revision, build)
 	c.mu.Unlock()
-
-	payload, err := build(ctx, apiKey)
-
-	c.mu.Lock()
-	if err == nil && version == c.version {
-		c.items[apiKey.ID] = modelsCacheEntry{payload: cloneModelsPayload(payload), cached: time.Now()}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-call.done:
+		return cloneModelsPayload(call.payload), call.err
 	}
-	call.payload = payload
-	call.err = err
-	delete(c.inflight, apiKey.ID)
-	close(call.done)
-	c.mu.Unlock()
-
-	return cloneModelsPayload(payload), err
 }
 
-func (c *modelsCache) refreshAsync(apiKey store.APIKey, build func(context.Context, store.APIKey) (map[string]any, error)) {
-	c.mu.Lock()
-	if _, ok := c.inflight[apiKey.ID]; ok {
-		c.mu.Unlock()
-		return
+func (c *modelsCache) startBuildLocked(ctx context.Context, apiKey store.APIKey, revision string, build func(context.Context, store.APIKey) (map[string]any, error)) *modelsCacheCall {
+	if call, ok := c.inflight[apiKey.ID]; ok && call.revision == revision {
+		return call
 	}
-	call := &modelsCacheCall{done: make(chan struct{})}
+	buildCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), modelsCacheRefreshTimeout)
+	call := &modelsCacheCall{done: make(chan struct{}), revision: revision, cancel: cancel}
 	c.inflight[apiKey.ID] = call
-	version := c.version
-	c.mu.Unlock()
-
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), modelsCacheRefreshTimeout)
 		defer cancel()
-		payload, err := build(ctx, apiKey)
-
+		payload, err := build(buildCtx, apiKey)
 		c.mu.Lock()
-		if err == nil && version == c.version {
-			c.items[apiKey.ID] = modelsCacheEntry{payload: cloneModelsPayload(payload), cached: time.Now()}
+		defer c.mu.Unlock()
+		if c.inflight[apiKey.ID] == call {
+			if err == nil {
+				c.items[apiKey.ID] = modelsCacheEntry{payload: cloneModelsPayload(payload), cached: time.Now(), revision: call.revision}
+			}
+			delete(c.inflight, apiKey.ID)
 		}
 		call.payload = payload
 		call.err = err
-		delete(c.inflight, apiKey.ID)
 		close(call.done)
-		c.mu.Unlock()
 	}()
+	return call
 }
 
 func (c *modelsCache) invalidate() {
@@ -146,8 +106,11 @@ func (c *modelsCache) invalidate() {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.version++
+	for _, call := range c.inflight {
+		call.cancel()
+	}
 	c.items = map[uuid.UUID]modelsCacheEntry{}
+	c.inflight = map[uuid.UUID]*modelsCacheCall{}
 }
 
 func (c *modelsCache) invalidateKey(apiKeyID uuid.UUID) {
@@ -156,8 +119,11 @@ func (c *modelsCache) invalidateKey(apiKeyID uuid.UUID) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.version++
+	if call, ok := c.inflight[apiKeyID]; ok {
+		call.cancel()
+	}
 	delete(c.items, apiKeyID)
+	delete(c.inflight, apiKeyID)
 }
 
 func cloneModelsPayload(payload map[string]any) map[string]any {
@@ -211,7 +177,7 @@ func (h Handler) PrewarmModelsCacheForAPIKey(ctx context.Context, apiKey store.A
 	if apiKey.QuotaExceededAt(now, h.recorder.timeZone) {
 		return
 	}
-	if _, err := h.modelsCache.getOrBuild(ctx, apiKey, h.buildModelsPayloadFast); err != nil && h.logger != nil {
+	if _, err := h.modelsPayloadForAPIKey(ctx, apiKey); err != nil && h.logger != nil {
 		h.logger.WarnContext(ctx, "prewarm models cache item failed", "scope", "gateway", "api_key_id", apiKey.ID, "error", err)
 	}
 }
@@ -239,7 +205,7 @@ func (h Handler) PrewarmModelsCache(ctx context.Context) {
 		if apiKey.QuotaExceededAt(now, h.recorder.timeZone) {
 			continue
 		}
-		if _, err := h.modelsCache.getOrBuild(ctx, apiKey, h.buildModelsPayloadFast); err != nil {
+		if _, err := h.modelsPayloadForAPIKey(ctx, apiKey); err != nil {
 			if h.logger != nil {
 				h.logger.WarnContext(ctx, "prewarm models cache item failed", "scope", "gateway", "api_key_id", apiKey.ID, "error", err)
 			}
@@ -252,11 +218,35 @@ func (h Handler) PrewarmModelsCache(ctx context.Context) {
 	}
 }
 
-func (h Handler) buildModelsPayloadFast(ctx context.Context, apiKey store.APIKey) (map[string]any, error) {
-	access, err := h.auth.ResolveAPIKeyAccessSets(ctx, apiKey.ID)
+func modelsAccessRevision(access auth.APIKeyAccessSets) string {
+	payload, _ := json.Marshal(struct {
+		SitePolicy    string
+		ModelPolicy   string
+		ModelMappings string
+		Sites         string
+		Models        string
+	}{
+		SitePolicy:    access.APIKey.SitePolicy,
+		ModelPolicy:   access.APIKey.ModelPolicy,
+		ModelMappings: string(access.APIKey.ModelMappings),
+		Sites:         joinSortedUUIDs(access.AllowedSiteIDs),
+		Models:        joinSortedUUIDs(access.AllowedSiteModelIDs),
+	})
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
+}
+
+func (h Handler) modelsPayloadForAPIKey(ctx context.Context, apiKey store.APIKey) (map[string]any, error) {
+	access, err := h.auth.ResolveAPIKeyModelListAccess(ctx, apiKey)
 	if err != nil {
 		return nil, err
 	}
+	return h.modelsCache.getOrBuild(ctx, access.APIKey, modelsAccessRevision(access), func(ctx context.Context, _ store.APIKey) (map[string]any, error) {
+		return h.buildModelsPayloadForAccess(ctx, access)
+	})
+}
+
+func (h Handler) buildModelsPayloadForAccess(ctx context.Context, access auth.APIKeyAccessSets) (map[string]any, error) {
 	if access.APIKey.SitePolicy == "allow_list" && len(access.AllowedSiteIDs) == 0 {
 		return emptyModelsPayload(), nil
 	}
@@ -379,7 +369,7 @@ func (h Handler) buildModelsPayloadFast(ctx context.Context, apiKey store.APIKey
 		}
 		data = append(data, item)
 	}
-	data = append(data, modelRuleAliasPayloads(apiKey.ModelRules(), itemsByModelKey)...)
+	data = append(data, modelRuleAliasPayloads(access.APIKey.ModelRules(), itemsByModelKey)...)
 	return map[string]any{
 		"object": "list",
 		"data":   data,

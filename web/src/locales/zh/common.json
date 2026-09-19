@@ -1,4 +1,7 @@
 {
+  "table": {
+    "resizeColumn": "调整{{column}}列宽"
+  },
   "actions": {
     "save": "保存",
     "cancel": "取消",
@@ -21,6 +24,7 @@
     "clear": "清空"
   },
   "status": {
+    "error": "错误",
     "enabled": "启用",
     "disabled": "禁用",
     "loading": "加载中...",
