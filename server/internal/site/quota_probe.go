@@ -25,23 +25,26 @@ const (
 )
 
 type QuotaProbeEntry struct {
-	Label     string   `json:"label"`
-	Unit      string   `json:"unit,omitempty"`
-	Remaining *float64 `json:"remaining,omitempty"`
-	Limit     *float64 `json:"limit,omitempty"`
-	Used      *float64 `json:"used,omitempty"`
-	Unlimited bool     `json:"unlimited,omitempty"`
-	ResetAt   *string  `json:"reset_at,omitempty"`
+	GrantedBalance  *float64 `json:"granted_balance,omitempty"`
+	ToppedUpBalance *float64 `json:"topped_up_balance,omitempty"`
+	Label           string   `json:"label"`
+	Unit            string   `json:"unit,omitempty"`
+	Remaining       *float64 `json:"remaining,omitempty"`
+	Limit           *float64 `json:"limit,omitempty"`
+	Used            *float64 `json:"used,omitempty"`
+	Unlimited       bool     `json:"unlimited,omitempty"`
+	ResetAt         *string  `json:"reset_at,omitempty"`
 }
 
 type QuotaProbeResult struct {
-	Status    string            `json:"status"`
-	Error     string            `json:"error,omitempty"`
-	Kind      string            `json:"kind,omitempty"`
-	Plan      string            `json:"plan,omitempty"`
-	ExpiresAt *string           `json:"expires_at,omitempty"`
-	Entries   []QuotaProbeEntry `json:"entries,omitempty"`
-	FetchedAt time.Time         `json:"fetched_at"`
+	IsAvailable *bool             `json:"is_available,omitempty"`
+	Status      string            `json:"status"`
+	Error       string            `json:"error,omitempty"`
+	Kind        string            `json:"kind,omitempty"`
+	Plan        string            `json:"plan,omitempty"`
+	ExpiresAt   *string           `json:"expires_at,omitempty"`
+	Entries     []QuotaProbeEntry `json:"entries,omitempty"`
+	FetchedAt   time.Time         `json:"fetched_at"`
 }
 
 func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Site {
@@ -345,9 +348,10 @@ func quotaProbeCredentialEligible(credentialType string) bool {
 }
 
 // defaultQuotaProbeTypeForSite 给未显式配置 quota_probe 的站点类型提供默认探测。
-// 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）与 GLM Code 官方站
-// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口；指向中转/镜像的站点
-// 不默认探测，避免对未实现额度接口的第三方端点持续报错。
+// 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）、GLM Code 官方站
+// （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口，DeepSeek 官方站
+// （api.deepseek.com）有余额接口；指向中转/镜像的站点不默认探测，避免对未实现
+// 额度接口的第三方端点持续报错。
 func defaultQuotaProbeTypeForSite(item store.Site) string {
 	switch item.SiteType {
 	case "kimi_code":
@@ -357,6 +361,10 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 	case "glm_code":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "open.bigmodel.cn", "api.z.ai") {
 			return QuotaProbeTypeGLM
+		}
+	case "deepseek":
+		if quotaProbeBaseURLOfficial(item.BaseURL, "api.deepseek.com") {
+			return QuotaProbeTypeDeepSeek
 		}
 	}
 	return ""
@@ -546,6 +554,8 @@ func probeQuota(ctx context.Context, client *http.Client, probeType string, base
 		kind, entries, result.Plan, err = probeKimiQuota(ctx, client, baseURL, secret)
 	case QuotaProbeTypeGLM:
 		kind, entries, result.Plan, err = probeGLMQuota(ctx, client, baseURL, secret)
+	case QuotaProbeTypeDeepSeek:
+		kind, entries, result.IsAvailable, err = probeDeepSeekBalance(ctx, client, baseURL, secret)
 	default:
 		err = fmt.Errorf("unsupported quota probe type %q", probeType)
 	}
@@ -1071,6 +1081,48 @@ func glmPlanName(level string) string {
 		return ""
 	}
 	return strings.ToUpper(string(runes[:1])) + strings.ToLower(string(runes[1:]))
+}
+
+func probeDeepSeekBalance(ctx context.Context, client *http.Client, baseURL string, secret string) (string, []QuotaProbeEntry, *bool, error) {
+	payload, err := quotaProbeGetJSON(ctx, client, deepSeekBalanceBaseURL(baseURL)+"/user/balance", secret)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	var available *bool
+	if value, ok := payload["is_available"].(bool); ok {
+		available = &value
+	}
+	entries := make([]QuotaProbeEntry, 0, 2)
+	for _, raw := range anySlice(payload["balance_infos"]) {
+		item, _ := raw.(map[string]any)
+		entry := QuotaProbeEntry{
+			Label:           "balance",
+			Unit:            quotaProbeUnit(anyString(item["currency"]), "cny"),
+			Remaining:       quotaProbeFloat(item["total_balance"]),
+			GrantedBalance:  quotaProbeFloat(item["granted_balance"]),
+			ToppedUpBalance: quotaProbeFloat(item["topped_up_balance"]),
+		}
+		if entry.Remaining != nil {
+			entries = append(entries, entry)
+		}
+	}
+	if len(entries) == 0 {
+		return "", nil, nil, fmt.Errorf("balance endpoint did not contain balance data")
+	}
+	return "balance", entries, available, nil
+}
+
+// deepSeekBalanceBaseURL 返回余额接口的 base：DeepSeek 的 /user/balance 不在
+// /v1 命名空间下，base_url 以 /v1 结尾时剥掉。
+func deepSeekBalanceBaseURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if trimmed == "" {
+		return "https://api.deepseek.com"
+	}
+	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
+		return trimmed[:len(trimmed)-len("/v1")]
+	}
+	return trimmed
 }
 
 func quotaProbeGLMLimitURL(baseURL string) (string, error) {

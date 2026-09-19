@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteQuotaProbeEntry } from '@/features/sites/api/sites'
-import { formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { deepSeekBalanceDetails, formatDeepSeekBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -181,5 +181,44 @@ describe('sub2api key quota formatting', () => {
     }
 
     expect(formatSiteBalance(site)).toBe('$42.00')
+  })
+})
+
+describe('DeepSeek balance formatting', () => {
+  it.each([
+    [47.44, '¥47.44'],
+    [0, '¥0.00'],
+    [-0.5, '-¥0.50'],
+    [-0.0001, '-¥0.0001'],
+  ])('preserves balance %s', (amount, expected) => {
+    const entries = [{ label: 'balance', unit: 'cny', remaining: amount }]
+    const site = { ...siteWithSyncState('unknown'), site_type: 'deepseek',
+      quota_probe: { probe_type: 'deepseek', remaining_min: amount, unit: 'cny', entries },
+    }
+    expect(formatSiteBalance(site)).toBe(expected)
+    expect(siteBalanceDetails(site)).toEqual([{ label: 'accountBalance', value: expected }])
+  })
+
+  it('shows each currency and its balance components without treating them as usage or limits', () => {
+    const entries = [
+      { label: 'balance', unit: 'cny', remaining: -0.5, granted_balance: 0, topped_up_balance: -0.5 },
+      { label: 'balance', unit: 'usd', remaining: 2.5, granted_balance: 1, topped_up_balance: 1.5 },
+    ]
+    expect(formatDeepSeekBalance(entries)).toBe('-¥0.50 / $2.50')
+    const details = deepSeekBalanceDetails(entries)
+    expect(details).toEqual([
+      { label: 'accountBalance', value: '-¥0.50' },
+      { label: 'grantedBalance', value: '¥0.00' },
+      { label: 'toppedUpBalance', value: '-¥0.50' },
+      { label: 'accountBalance', value: '$2.50' },
+      { label: 'grantedBalance', value: '$1.00' },
+      { label: 'toppedUpBalance', value: '$1.50' },
+    ])
+    expect(siteBalanceDetails({ ...siteWithSyncState('unknown'), quota_probe: { probe_type: 'deepseek', entries } })).toEqual(details)
+  })
+
+  it('keeps missing balance data distinct from a zero balance', () => {
+    expect(formatDeepSeekBalance([])).toBeUndefined()
+    expect(deepSeekBalanceDetails([{ label: 'balance', unit: 'usd' }])).toEqual([])
   })
 })

@@ -63,6 +63,8 @@
       "tokenBalance": "Token balance",
       "tokenUsed": "Token used amount",
       "accountBalance": "Account balance",
+      "grantedBalance": "Granted balance",
+      "toppedUpBalance": "Topped-up balance",
       "used": "Used amount",
       "remaining": "Remaining",
       "unlimited": "Unlimited quota",

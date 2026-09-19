@@ -1360,3 +1360,137 @@ func TestSyncCodingPlanQuotaCooldownSkipsFailedProbe(t *testing.T) {
 		t.Fatalf("cooldown writes = %d, want 0 for failed probe", updates)
 	}
 }
+
+// 2026-09 实测 api.deepseek.com/user/balance 响应：金额字段为字符串，CNY 单币种。
+const deepSeekBalanceFixture = `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"47.44","granted_balance":"0.00","topped_up_balance":"47.44"}]}`
+
+func TestProbeDeepSeekBalance(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user/balance" {
+			t.Errorf("balance path = %q, want /user/balance", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer sk-deepseek" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(deepSeekBalanceFixture))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
+	if result.Status != "ok" || result.Kind != "balance" {
+		t.Fatalf("expected ok balance result, got %+v", result)
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 balance entry, got %+v", result.Entries)
+	}
+	entry := result.Entries[0]
+	if entry.Label != "balance" || entry.Unit != "cny" {
+		t.Fatalf("unexpected entry %+v", entry)
+	}
+	if entry.Remaining == nil || *entry.Remaining != 47.44 {
+		t.Fatalf("remaining = %+v, want 47.44 (string amount parsed)", entry.Remaining)
+	}
+	if entry.ToppedUpBalance == nil || *entry.ToppedUpBalance != 47.44 || entry.GrantedBalance == nil || *entry.GrantedBalance != 0 {
+		t.Fatalf("incorrect balance components: %+v", entry)
+	}
+	if entry.Used != nil || entry.Limit != nil || result.IsAvailable == nil || !*result.IsAvailable {
+		t.Fatalf("incorrect balance semantics: %+v", result)
+	}
+}
+
+func TestProbeDeepSeekBalanceStripsV1Suffix(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user/balance" {
+			t.Errorf("balance path = %q, want /user/balance (base_url /v1 suffix must be stripped)", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(deepSeekBalanceFixture))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL+"/v1", "sk-deepseek")
+	if result.Status != "ok" {
+		t.Fatalf("expected ok result when base_url ends with /v1, got %+v", result)
+	}
+}
+
+func TestProbeDeepSeekBalancePreservesSignedAmounts(t *testing.T) {
+	for _, amount := range []float64{47.44, 0, -0.5} {
+		t.Run(fmt.Sprint(amount), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"is_available":false,"balance_infos":[{"currency":"CNY","total_balance":"%.2f","granted_balance":"0.00","topped_up_balance":"%.2f"}]}`, amount, amount)
+			}))
+			defer server.Close()
+			result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
+			if result.Status != "ok" || len(result.Entries) != 1 || result.IsAvailable == nil || *result.IsAvailable {
+				t.Fatalf("balance query must succeed independently of availability: %+v", result)
+			}
+			if result.Entries[0].Remaining == nil || *result.Entries[0].Remaining != amount {
+				t.Fatalf("balance = %+v, want %v", result.Entries[0], amount)
+			}
+			entry, ok := quotaProbeSummaryEntry(QuotaProbeTypeDeepSeek, result)
+			if !ok || entry.Remaining == nil || *entry.Remaining != amount {
+				t.Fatalf("summary balance = %+v, want %v", entry, amount)
+			}
+		})
+	}
+}
+
+func TestProbeDeepSeekBalanceRejectsMissingAmounts(t *testing.T) {
+	for _, payload := range []string{
+		`{"is_available":false,"balance_infos":[]}`,
+		`{"is_available":false,"balance_infos":[{"currency":"CNY","total_balance":"invalid"}]}`,
+	} {
+		t.Run(payload, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(payload))
+			}))
+			defer server.Close()
+			result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
+			if result.Status != "error" || len(result.Entries) != 0 {
+				t.Fatalf("invalid balance must not become zero: %+v", result)
+			}
+		})
+	}
+}
+
+func TestProbeDeepSeekBalanceMultiCurrency(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"10.00","granted_balance":"0.00","topped_up_balance":"10.00"},{"currency":"USD","total_balance":"2.50","granted_balance":"1.00","topped_up_balance":"1.50"}]}`))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeDeepSeek, server.URL, "sk-deepseek")
+	if result.Status != "ok" || len(result.Entries) != 2 {
+		t.Fatalf("expected 2 currency entries, got %+v", result)
+	}
+	if result.Entries[0].Unit != "cny" || result.Entries[1].Unit != "usd" {
+		t.Fatalf("entry units = %q/%q, want cny/usd", result.Entries[0].Unit, result.Entries[1].Unit)
+	}
+}
+
+func TestDefaultQuotaProbeTypeDeepSeek(t *testing.T) {
+	cases := []struct {
+		baseURL string
+		want    string
+	}{
+		{"https://api.deepseek.com", QuotaProbeTypeDeepSeek},
+		{"https://api.deepseek.com/v1", QuotaProbeTypeDeepSeek},
+		{"https://api.deepseek.com/", QuotaProbeTypeDeepSeek},
+		{"", QuotaProbeTypeDeepSeek},
+		{"https://relay.example.com/v1", ""},
+	}
+	for _, tc := range cases {
+		item := store.Site{SiteType: "deepseek", BaseURL: tc.baseURL}
+		if got := defaultQuotaProbeTypeForSite(item); got != tc.want {
+			t.Errorf("defaultQuotaProbeTypeForSite(%q) = %q, want %q", tc.baseURL, got, tc.want)
+		}
+	}
+}
