@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { DataTable } from '@/components/common/data-table'
+import { defaultTableColumnWidths } from '@/lib/table-column-widths'
 import { EmptyState } from '@/components/common/empty-state'
 import { Switch } from '@/components/ui/switch'
 import type { DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
@@ -19,6 +20,12 @@ import {
   isAPIKeyExpired,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
+
+const API_KEYS_COLUMN_SIZING = {
+  storageKey: 'xlyra:api-keys:table-column-widths:v1',
+  defaultWidths: defaultTableColumnWidths([15, 12, 10, 18, 12, 12, 12, 7, 5]),
+  minimumWidths: [6, 6, 6, 8, 6, 6, 6, 4, 3],
+}
 
 export function DownstreamAPIKeysTable({
   apiKeys,
@@ -63,7 +70,6 @@ export function DownstreamAPIKeysTable({
           </div>
         ),
         meta: {
-          className: 'w-[15%]',
           cellClassName: 'min-w-0',
         },
       },
@@ -82,7 +88,6 @@ export function DownstreamAPIKeysTable({
           </div>
         ),
         meta: {
-          className: 'w-[12%]',
           align: 'center',
         },
       },
@@ -93,7 +98,6 @@ export function DownstreamAPIKeysTable({
           <span className="text-muted-soft text-sm">{formatSitePolicy(row.original, t)}</span>
         ),
         meta: {
-          className: 'w-[10%]',
           align: 'center',
         },
       },
@@ -101,9 +105,6 @@ export function DownstreamAPIKeysTable({
         id: 'quota',
         header: t('table.headers.quota'),
         cell: ({ row }) => <APIKeyQuotaCell apiKey={row.original} />,
-        meta: {
-          className: 'w-[18%]',
-        },
       },
       {
         id: 'rate_limit',
@@ -117,7 +118,6 @@ export function DownstreamAPIKeysTable({
           )
         },
         meta: {
-          className: 'w-[12%]',
           align: 'center',
         },
       },
@@ -131,8 +131,8 @@ export function DownstreamAPIKeysTable({
           return <button type="button" className="text-muted-soft hover:text-foreground cursor-pointer text-sm tabular-nums" onClick={onToggleLastUsedMode}>{label}</button>
         },
         meta: {
-          className: 'w-[12%]',
           align: 'center',
+          resizeLabel: t('table.headers.lastUsed'),
         },
       },
       {
@@ -150,7 +150,6 @@ export function DownstreamAPIKeysTable({
           )
         },
         meta: {
-          className: 'w-[12%]',
           align: 'center',
         },
       },
@@ -171,7 +170,6 @@ export function DownstreamAPIKeysTable({
           )
         },
         meta: {
-          className: 'w-[7%]',
           align: 'center',
         },
       },
@@ -193,9 +191,6 @@ export function DownstreamAPIKeysTable({
             />
           )
         },
-        meta: {
-          className: 'w-[5%]',
-        },
       },
     ],
     [t, i18n.language, deletingKeyId, lastUsedMode, now, onDeleteKey, onEditKey, onResetQuota, onRotateKey, onShowModels, onToggleKey, onToggleLastUsedMode, togglingKeyId],
@@ -203,6 +198,8 @@ export function DownstreamAPIKeysTable({
 
   return (
     <DataTable
+      columnSizing={API_KEYS_COLUMN_SIZING}
+      stickyHeader="page"
       columns={columns}
       data={apiKeys}
       getRowId={(row) => row.id}

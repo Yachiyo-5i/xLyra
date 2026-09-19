@@ -24,7 +24,6 @@
       "nonStream": "非ストリーム"
     },
     "cache": "キャッシュ {{tokens}}",
-    "resizeColumn": "{{column}} 列の幅を調整",
     "empty": {
       "title": "リクエストログがありません",
       "description": "表示できる転送リクエスト記録はありません。"

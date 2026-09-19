@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Filter, Hash, LoaderCircle, MapPin, RotateCcw, Search, Shield, UserRound, X } from 'lucide-react'
 import { localeFromLanguage } from '@/lib/locale'
 import { DataTable } from '@/components/common/data-table'
+import { defaultTableColumnWidths } from '@/lib/table-column-widths'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
@@ -27,6 +28,12 @@ import { useMobileLayout } from '@/hooks/use-media-query'
 const PAGE_SIZE_OPTIONS = [50, 100, 200]
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string
+
+const AUDIT_COLUMN_SIZING = {
+  storageKey: 'xlyra:audit:table-column-widths:v1',
+  defaultWidths: defaultTableColumnWidths([18, 13, 29, 10, 13, 17]),
+  minimumWidths: [9, 7, 12, 6, 7, 9],
+}
 
 export function AuditLogsPage() {
   const { t, i18n } = useTranslation('audit')
@@ -67,13 +74,11 @@ export function AuditLogsPage() {
       accessorKey: 'created_at',
       header: t('headers.time'),
       cell: ({ row }) => <span className="tabular-nums">{formatDateTime(row.original.created_at, dateTimeLocale)}</span>,
-      meta: { className: 'w-[18%]' },
     },
     {
       accessorKey: 'actor_type',
       header: t('headers.actor'),
       cell: ({ row }) => <StatusBadge status="idle">{formatActorType(row.original.actor_type)}</StatusBadge>,
-      meta: { className: 'w-[13%]' },
     },
     {
       accessorKey: 'action',
@@ -86,7 +91,7 @@ export function AuditLogsPage() {
           </div>
         )
       },
-      meta: { className: 'w-[29%]', cellClassName: 'min-w-0' },
+      meta: { cellClassName: 'min-w-0' },
     },
     {
       accessorKey: 'success',
@@ -96,13 +101,11 @@ export function AuditLogsPage() {
           {row.original.success ? t('filters.success') : row.original.error_code || t('filters.failure')}
         </StatusBadge>
       ),
-      meta: { className: 'w-[10%]' },
     },
     {
       accessorKey: 'ip_address',
       header: t('headers.ip'),
       cell: ({ row }) => formatIPAddress(row.original.ip_address),
-      meta: { className: 'w-[13%]' },
     },
     {
       accessorKey: 'request_id',
@@ -112,7 +115,7 @@ export function AuditLogsPage() {
           {row.original.request_id || '-'}
         </div>
       ),
-      meta: { className: 'w-[17%]', cellClassName: 'min-w-0' },
+      meta: { cellClassName: 'min-w-0' },
     },
   ], [t, dateTimeLocale])
 
@@ -363,6 +366,8 @@ export function AuditLogsPage() {
       />
 
       <DataTable
+        columnSizing={AUDIT_COLUMN_SIZING}
+        stickyHeader="container"
         columns={columns}
         data={items}
         getRowId={(item) => item.id}
@@ -372,7 +377,7 @@ export function AuditLogsPage() {
             description={t('empty.description')}
           />
         }
-        className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1060px] [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
+        className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1060px]"
       />
 
       {pagination}

@@ -1,4 +1,7 @@
 {
+  "table": {
+    "resizeColumn": "{{column}} 列の幅を調整"
+  },
   "actions": {
     "save": "保存",
     "cancel": "キャンセル",

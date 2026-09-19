@@ -877,7 +877,7 @@ export function SitesWorkspace({
     ) : (
       <SitesTable
         {...tableProps}
-        className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1120px] [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
+        className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1120px]"
       />
     )
   ) : (

@@ -1,4 +1,7 @@
 {
+  "table": {
+    "resizeColumn": "Resize {{column}} column width"
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",
