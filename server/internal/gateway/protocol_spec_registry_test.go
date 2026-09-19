@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -79,9 +80,12 @@ func TestAnthropicMessagesProvidersDeclareMaxTokenDefaults(t *testing.T) {
 		if !usesAnthropicMessages {
 			continue
 		}
-		value, ok := intFromAny(spec.RequestParams.Defaults["max_tokens"])
+		resolved := effectiveProtocolSpec(canonicalProtocolAnthropicMessages, routeengine.Candidate{
+			Site: routeengine.CandidateSite{SiteType: provider},
+		})
+		value, ok := intFromAny(resolved.RequestParams.Defaults["max_tokens"])
 		if !ok || value <= 0 {
-			t.Fatalf("provider %q uses Anthropic Messages but lacks request_params.defaults.max_tokens", provider)
+			t.Fatalf("provider %q uses Anthropic Messages but lacks an effective max_tokens default", provider)
 		}
 	}
 }
@@ -730,5 +734,81 @@ func TestOfficialBaseURLForProviderNormalizesProviderKey(t *testing.T) {
 	}
 	if got := OfficialBaseURLForProvider("missing-provider"); got != "" {
 		t.Fatalf("missing provider official base URL = %q, want empty", got)
+	}
+}
+
+func TestMoonshotChatPreservesOutputLimits(t *testing.T) {
+	for _, siteType := range []string{"moonshot", "newapi"} {
+		for _, limit := range []struct {
+			key   string
+			value int
+		}{{}, {"max_tokens", 16384}, {"max_completion_tokens", 32768}} {
+			t.Run(siteType+"/"+limit.key, func(t *testing.T) {
+				candidate := routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: siteType}, Model: routeengine.CandidateModel{UpstreamName: "kimi-k2.6"}}
+				payload := map[string]any{"model": "kimi-k2.6", "messages": []any{map[string]any{"role": "user", "content": "hello"}}}
+				if limit.key != "" {
+					payload[limit.key] = limit.value
+				}
+				request := gatewayRequest{DownstreamPath: gatewayEndpointChatCompletions, Payload: payload}
+				protocol := newOpenAIChatProtocolAdapter(request, candidate)
+				got, err := protocol.BuildUpstreamPayload(request, candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, key := range []string{"max_tokens", "max_completion_tokens"} {
+					if got[key] != payload[key] {
+						t.Fatalf("%s = %v, want %v", key, got[key], payload[key])
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestMoonshotAnthropicDefaultOutputLimit(t *testing.T) {
+	candidate := routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: "moonshot", BaseURL: "https://api.moonshot.cn"}, Model: routeengine.CandidateModel{UpstreamName: "kimi-k2.6"}}
+	for _, limit := range []int{0, 16384} {
+		payload := map[string]any{"model": "kimi-k2.6", "messages": []any{map[string]any{"role": "user", "content": "hello"}}}
+		if limit > 0 {
+			payload["max_tokens"] = limit
+		}
+		request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload}
+		protocol, err := (openAIProtocolResolver{}).Resolve(context.Background(), request, candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := protocol.BuildUpstreamPayload(request, candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := limit
+		if want == 0 {
+			want = 8192
+		}
+		if value, ok := intFromAny(got["max_tokens"]); !ok || value != want {
+			t.Fatalf("max_tokens = %v, want %d", got["max_tokens"], want)
+		}
+	}
+}
+
+func TestMoonshotMessagesEndpointSelection(t *testing.T) {
+	for _, tc := range []struct{ name, siteType, baseURL, endpointType, wantPath string }{
+		{"official", "moonshot", "https://api.moonshot.cn", "openai", "https://api.moonshot.cn/anthropic/v1/messages"},
+		{"trailing slash", "moonshot", "https://api.moonshot.cn/", "openai", "https://api.moonshot.cn/anthropic/v1/messages"},
+		{"custom messages", "moonshot", "https://relay.example.com", "anthropic-messages", "https://relay.example.com/v1/messages"},
+		{"custom chat", "moonshot", "https://relay.example.com", "openai", "https://relay.example.com/v1/chat/completions"},
+		{"custom path", "moonshot", "https://api.moonshot.cn/anthropic", "anthropic-messages", "https://api.moonshot.cn/anthropic/v1/messages"},
+		{"newapi", "newapi", "https://api.moonshot.cn", "anthropic-messages", "https://api.moonshot.cn/v1/messages"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidate := routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: tc.siteType, BaseURL: tc.baseURL}, Model: routeengine.CandidateModel{UpstreamName: "kimi-k2.6", SupportedEndpointTypes: []string{tc.endpointType}}}
+			protocol, err := (openAIProtocolResolver{}).Resolve(context.Background(), gatewayRequest{DownstreamPath: gatewayEndpointMessages}, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := protocol.UpstreamPath(candidate.Site.BaseURL); got != tc.wantPath {
+				t.Fatalf("endpoint = %q, want %q", got, tc.wantPath)
+			}
+		})
 	}
 }

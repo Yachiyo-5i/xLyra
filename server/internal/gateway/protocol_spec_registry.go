@@ -407,6 +407,9 @@ func alternateProtocolForCandidate(downstream canonicalProtocol, candidate route
 		if siteType == "" || spec.Provider == "" || siteType != normalizeSpecKey(spec.Provider) {
 			return alternateProtocolDefinition{}, false
 		}
+		if siteType == "moonshot" && !strings.EqualFold(strings.TrimRight(strings.TrimSpace(candidate.Site.BaseURL), "/"), strings.TrimRight(spec.OfficialBaseURL, "/")) {
+			return alternateProtocolDefinition{}, false
+		}
 	}
 	return alt, true
 }

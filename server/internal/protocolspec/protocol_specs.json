@@ -929,9 +929,13 @@
           "max_tokens",
           "tools",
           "tool_choice"
-        ],
-        "defaults": {
-          "max_tokens": 8192
+        ]
+      },
+      "protocol_request_params": {
+        "anthropic_messages": {
+          "defaults": {
+            "max_tokens": 8192
+          }
         }
       },
       "reasoning": {
