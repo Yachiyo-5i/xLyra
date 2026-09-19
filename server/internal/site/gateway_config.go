@@ -17,6 +17,7 @@ const (
 	QuotaProbeTypeXLyra    = "xlyra"
 	QuotaProbeTypeKimi     = "kimi"
 	QuotaProbeTypeGLM      = "glm"
+	QuotaProbeTypeDeepSeek = "deepseek"
 	QuotaProbeTypeMoonshot = "moonshot"
 )
 
@@ -55,6 +56,8 @@ func NormalizeQuotaProbeType(value string) (string, error) {
 		return QuotaProbeTypeGLM, nil
 	case QuotaProbeTypeMoonshot:
 		return QuotaProbeTypeMoonshot, nil
+	case QuotaProbeTypeDeepSeek:
+		return QuotaProbeTypeDeepSeek, nil
 	default:
 		return "", fmt.Errorf("unsupported quota_probe type %q", value)
 	}
