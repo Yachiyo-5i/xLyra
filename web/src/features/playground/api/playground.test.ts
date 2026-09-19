@@ -22,11 +22,12 @@ describe('listPlaygroundModels', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: [] }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await listPlaygroundModels('key-id-1')
+    const controller = new AbortController()
+    await listPlaygroundModels('key-id-1', controller.signal)
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/playground/models?api_key_id=key-id-1',
-      expect.objectContaining({ credentials: 'include' }),
+      expect.objectContaining({ credentials: 'include', signal: controller.signal }),
     )
   })
 

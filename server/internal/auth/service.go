@@ -1265,6 +1265,26 @@ func (s *Service) APIKeyRateLimit(ctx context.Context, id uuid.UUID) (RateLimitI
 	return rateLimitInputFromStore(item), nil
 }
 
+func (s *Service) ResolveAPIKeyModelListAccess(ctx context.Context, apiKey store.APIKey) (APIKeyAccessSets, error) {
+	access := APIKeyAccessSets{APIKey: apiKey}
+	if apiKey.ModelPolicy == "allow_list" {
+		ids, err := store.NewAPIKeyAccessRepository(s.db).EnabledSiteModelIDs(ctx, apiKey.ID)
+		if err != nil {
+			return APIKeyAccessSets{}, err
+		}
+		access.AllowedSiteModelIDs = ids
+		if len(ids) == 0 {
+			return access, nil
+		}
+	}
+	siteIDs, err := s.effectiveAllowedSiteIDs(ctx, apiKey)
+	if err != nil {
+		return APIKeyAccessSets{}, err
+	}
+	access.AllowedSiteIDs = siteIDs
+	return access, nil
+}
+
 func (s *Service) ResolveAPIKeyAccessSets(ctx context.Context, apiKeyID uuid.UUID) (APIKeyAccessSets, error) {
 	apiKey, err := s.apiKeys.GetByID(ctx, apiKeyID)
 	if err != nil {

@@ -14,9 +14,9 @@ import {
   downstreamAPIKeyQueryKeys,
   deleteServerConversation,
   listDownstreamAPIKeys,
-  listPlaygroundModels,
   listServerConversations,
 } from '@/features/playground/api/playground'
+import { playgroundModelQueryOptions } from '@/features/playground/api/model-queries'
 import { PlaygroundRail } from '@/features/playground/components/playground-rail'
 import { PlaygroundModeSwitcher } from '@/features/playground/components/playground-mode-switcher'
 import { MobileConversationPicker } from '@/features/playground/components/mobile-conversation-picker'
@@ -136,13 +136,7 @@ export function PlaygroundWorkspace() {
     return apiKeys[0]?.id ?? null
   }, [apiKeys, settings.apiKeyId])
 
-  const modelsQuery = useQuery({
-    queryKey: ['playground', 'models', effectiveApiKeyId],
-    queryFn: () => listPlaygroundModels(effectiveApiKeyId as string),
-    enabled: Boolean(effectiveApiKeyId),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  })
+  const modelsQuery = useQuery(playgroundModelQueryOptions(effectiveApiKeyId))
   const serverConversationsQuery = useQuery({
     queryKey: ['playground', 'conversations'],
     queryFn: () => listServerConversations(),

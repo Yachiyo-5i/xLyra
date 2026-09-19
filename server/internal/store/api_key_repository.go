@@ -657,7 +657,7 @@ func (r APIKeyRepository) IsSiteAllowed(ctx context.Context, apiKeyID uuid.UUID,
 
 func (r APIKeyRepository) AllowedSiteIDs(ctx context.Context, apiKeyID uuid.UUID) ([]uuid.UUID, error) {
 	var items []APIKeySitePermission
-	if err := r.db.WithContext(ctx).Where(&APIKeySitePermission{APIKeyID: apiKeyID, Enabled: true}).Find(&items).Error; err != nil {
+	if err := r.db.WithContext(ctx).Clauses(clause.Select{Columns: []clause.Column{{Name: "site_id"}}}).Where(&APIKeySitePermission{APIKeyID: apiKeyID, Enabled: true}).Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list allowed site ids: %w", err)
 	}
 	ids := make([]uuid.UUID, 0, len(items))

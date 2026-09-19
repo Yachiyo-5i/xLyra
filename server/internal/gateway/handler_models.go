@@ -64,7 +64,7 @@ func (h Handler) Models(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := h.modelsCache.getOrBuild(r.Context(), apiKey, h.buildModelsPayloadFast)
+	payload, err := h.modelsPayloadForAPIKey(r.Context(), apiKey)
 	if err != nil {
 		h.writeGatewayError(w, r, http.StatusInternalServerError, "gateway_models_failed", "failed to list gateway models")
 		return

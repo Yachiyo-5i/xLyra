@@ -46,8 +46,8 @@ function gatewayModelsFromPayload(payload: GatewayModelPayload): GatewayModel[] 
     .sort((left, right) => left.id.localeCompare(right.id, undefined, { sensitivity: 'base' }))
 }
 
-export async function listPlaygroundModels(apiKeyId: string): Promise<GatewayModel[]> {
-  const payload = await apiFetch<GatewayModelPayload>(`/api/v1/playground/models?api_key_id=${encodeURIComponent(apiKeyId)}`)
+export async function listPlaygroundModels(apiKeyId: string, signal?: AbortSignal): Promise<GatewayModel[]> {
+  const payload = await apiFetch<GatewayModelPayload>(`/api/v1/playground/models?api_key_id=${encodeURIComponent(apiKeyId)}`, { signal })
   return gatewayModelsFromPayload(payload)
 }
 
