@@ -6,7 +6,7 @@ import (
 	routeengine "xlyra/server/internal/router"
 )
 
-const codexImageToolHostModel = "gpt-5.4"
+const codexImageToolHostModel = "gpt-5.6-luna"
 
 func codexResponsesHostModel(payload map[string]any, candidate routeengine.Candidate) string {
 	model := strings.TrimSpace(candidate.Model.UpstreamName)

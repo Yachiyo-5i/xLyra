@@ -375,8 +375,8 @@ func TestCodexProtocolBuildsImagesPayloadAsImageGenerationTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
 	}
-	if got := payload["model"]; got != codexImageToolHostModel {
-		t.Fatalf("model = %#v, want %q", got, codexImageToolHostModel)
+	if got := payload["model"]; got != "gpt-5.6-luna" {
+		t.Fatalf("model = %#v, want gpt-5.6-luna", got)
 	}
 	if got := payload["tool_choice"]; got == nil {
 		t.Fatalf("tool_choice should be present")
@@ -431,8 +431,8 @@ func TestCodexProtocolRewritesImageToolResponsesModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
 	}
-	if got := payload["model"]; got != codexImageToolHostModel {
-		t.Fatalf("model = %#v, want %q", got, codexImageToolHostModel)
+	if got := payload["model"]; got != "gpt-5.6-luna" {
+		t.Fatalf("model = %#v, want gpt-5.6-luna", got)
 	}
 	if got := payload["stream"]; got != true {
 		t.Fatalf("stream = %#v, want true", got)
