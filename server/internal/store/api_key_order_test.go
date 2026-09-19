@@ -12,27 +12,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestAPIKeyOrderRevisionIgnoresUsageAndConfiguration(t *testing.T) {
-	a := APIKey{ID: uuid.New(), SortOrder: 1, Status: "active"}
-	b := APIKey{ID: uuid.New(), SortOrder: 2}
-	revision := APIKeyOrderRevision([]APIKey{a, b})
-	a.QuotaUsed = 12
-	a.Status = "disabled"
-	a.Name = "renamed"
-	a.UpdatedAt = time.Now()
-	if revision != APIKeyOrderRevision([]APIKey{b, a}) {
-		t.Fatal("configuration, usage, and query order must not change the revision")
-	}
-	b.SortOrder = 3
-	if revision == APIKeyOrderRevision([]APIKey{a, b}) || revision == APIKeyOrderRevision([]APIKey{a}) {
-		t.Fatal("rank and membership changes must change the revision")
-	}
-}
-
 func TestAPIKeyOrderRejectsDuplicateAndEmptyIDsBeforeDatabase(t *testing.T) {
 	id := uuid.New()
 	for _, ids := range [][]uuid.UUID{{id, id}, {uuid.Nil}} {
-		if err := (APIKeyRepository{}).Reorder(context.Background(), ids, "revision"); !errors.Is(err, ErrInvalidAPIKeyOrder) {
+		if err := (APIKeyRepository{}).Reorder(context.Background(), ids); !errors.Is(err, ErrInvalidAPIKeyOrder) {
 			t.Fatalf("invalid IDs returned %v", err)
 		}
 	}
@@ -83,9 +66,8 @@ func TestAPIKeyOrderPostgres(t *testing.T) {
 	if !reflect.DeepEqual(ids(keys), []uuid.UUID{legacy[0].ID, legacy[2].ID, legacy[1].ID}) {
 		t.Fatalf("legacy ordering = %v", ids(keys))
 	}
-	originalRevision := APIKeyOrderRevision(keys)
 	desired := []uuid.UUID{legacy[1].ID, legacy[2].ID, legacy[0].ID}
-	if err := repo.Reorder(ctx, desired, originalRevision); err != nil {
+	if err := repo.Reorder(ctx, desired); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(ids(read()), desired) {
@@ -101,12 +83,8 @@ func TestAPIKeyOrderPostgres(t *testing.T) {
 	if err != nil || options[0].ID != desired[0] || options[2].ID != desired[2] {
 		t.Fatalf("options do not preserve manual order: %v", err)
 	}
-	if err := repo.Reorder(ctx, desired, originalRevision); !errors.Is(err, ErrAPIKeyOrderConflict) {
-		t.Fatalf("stale save = %v", err)
-	}
-	currentRevision := APIKeyOrderRevision(read())
 	for _, invalid := range [][]uuid.UUID{desired[:2], {uuid.New(), desired[1], desired[2]}} {
-		if err := repo.Reorder(ctx, invalid, currentRevision); !errors.Is(err, ErrInvalidAPIKeyOrder) {
+		if err := repo.Reorder(ctx, invalid); !errors.Is(err, ErrInvalidAPIKeyOrder) {
 			t.Fatalf("invalid membership = %v", err)
 		}
 	}
@@ -119,7 +97,7 @@ func TestAPIKeyOrderPostgres(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Reorder(ctx, []uuid.UUID{desired[2], desired[0], desired[1]}, currentRevision); err == nil {
+	if err := repo.Reorder(ctx, []uuid.UUID{desired[2], desired[0], desired[1]}); err == nil {
 		t.Fatal("expected injected failure")
 	}
 	if err := db.Callback().Update().Remove("test:fail_second_rank"); err != nil {
@@ -133,23 +111,21 @@ func TestAPIKeyOrderPostgres(t *testing.T) {
 	for _, order := range [][]uuid.UUID{{desired[2], desired[0], desired[1]}, {desired[1], desired[2], desired[0]}} {
 		go func(order []uuid.UUID) {
 			<-start
-			errorsOut <- repo.Reorder(ctx, order, currentRevision)
+			errorsOut <- repo.Reorder(ctx, order)
 		}(order)
 	}
 	close(start)
-	successes, conflicts := 0, 0
+	successes := 0
 	for range 2 {
 		err := <-errorsOut
 		if err == nil {
 			successes++
-		} else if errors.Is(err, ErrAPIKeyOrderConflict) {
-			conflicts++
 		} else {
 			t.Fatal(err)
 		}
 	}
-	if successes != 1 || conflicts != 1 {
-		t.Fatalf("concurrent saves: successes=%d conflicts=%d", successes, conflicts)
+	if successes != 2 {
+		t.Fatalf("concurrent saves: successes=%d", successes)
 	}
 	beforeCreate := read()
 	var wg sync.WaitGroup
@@ -179,13 +155,7 @@ func TestAPIKeyOrderPostgres(t *testing.T) {
 			t.Fatal("concurrent creation must assign distinct increasing ranks")
 		}
 	}
-	if err := repo.Reorder(ctx, ids(beforeCreate), APIKeyOrderRevision(beforeCreate)); !errors.Is(err, ErrAPIKeyOrderConflict) {
-		t.Fatalf("creation must invalidate stale snapshots: %v", err)
-	}
 	if err := repo.Delete(ctx, (<-created).ID); err != nil {
 		t.Fatal(err)
-	}
-	if err := repo.Reorder(ctx, ids(afterCreate), APIKeyOrderRevision(afterCreate)); !errors.Is(err, ErrAPIKeyOrderConflict) {
-		t.Fatalf("deletion must invalidate stale snapshots: %v", err)
 	}
 }

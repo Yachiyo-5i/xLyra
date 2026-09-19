@@ -272,7 +272,7 @@ export function DownstreamAPIKeysWorkspace() {
   }
 
   const orderButton = (
-    <Button variant="outline" onClick={() => void openOrder()} disabled={apiKeys.length < 2 || apiKeysQuery.isFetching || !apiKeysQuery.data?.meta?.order_revision} aria-label={t('order.title')}>
+    <Button variant="outline" onClick={() => void openOrder()} disabled={apiKeys.length < 2 || apiKeysQuery.isFetching} aria-label={t('order.title')}>
       <ArrowDownUp className="h-4 w-4" />
       {!isMobile ? t('order.title') : null}
     </Button>

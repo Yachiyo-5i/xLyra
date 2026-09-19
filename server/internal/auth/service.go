@@ -776,8 +776,8 @@ func (s *Service) disableExpiredAPIKeys(ctx context.Context) {
 	_, _ = s.apiKeys.DisableExpiredAPIKeys(ctx, time.Now())
 }
 
-func (s *Service) ReorderAPIKeys(ctx context.Context, ids []uuid.UUID, revision string) error {
-	return s.apiKeys.Reorder(ctx, ids, revision)
+func (s *Service) ReorderAPIKeys(ctx context.Context, ids []uuid.UUID) error {
+	return s.apiKeys.Reorder(ctx, ids)
 }
 
 func (s *Service) ListAPIKeys(ctx context.Context) ([]store.APIKey, error) {

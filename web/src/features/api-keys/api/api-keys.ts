@@ -131,10 +131,10 @@ export const downstreamAPIKeyQueryKeys = {
   detail: (apiKeyId: string) => [...downstreamAPIKeyQueryKeys.all, 'detail', apiKeyId] as const,
 }
 
-export async function reorderDownstreamAPIKeys(ids: string[], revision: string) {
+export async function reorderDownstreamAPIKeys(ids: string[]) {
   return apiFetch<{ success: boolean }>('/api/v1/api-keys/order', {
     method: 'PUT',
-    body: { ids, revision },
+    body: { ids },
   })
 }
 
@@ -150,7 +150,7 @@ async function listDownstreamAPIKeysWithOptions(options?: { includeInternal?: bo
   const params = new URLSearchParams()
   if (options?.includeInternal) params.set('include_internal', 'true')
   const query = params.toString()
-  const result = await apiFetch<{ items: DownstreamAPIKey[]; meta?: { count?: number; order_revision?: string } }>(`/api/v1/api-keys${query ? `?${query}` : ''}`)
+  const result = await apiFetch<{ items: DownstreamAPIKey[]; meta?: { count?: number } }>(`/api/v1/api-keys${query ? `?${query}` : ''}`, { cache: 'no-store' })
   return { ...result, items: sortAPIKeysForDisplay(result.items) }
 }
 

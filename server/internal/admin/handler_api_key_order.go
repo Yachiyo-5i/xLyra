@@ -3,7 +3,6 @@ package admin
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -16,20 +15,17 @@ func (h Handler) ReorderAPIKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload struct {
-		IDs      []uuid.UUID `json:"ids"`
-		Revision string      `json:"revision"`
+		IDs []uuid.UUID `json:"ids"`
 	}
 	if !h.decodeJSON(w, r, &payload) {
 		return
 	}
-	if payload.IDs == nil || strings.TrimSpace(payload.Revision) == "" {
-		h.writeError(w, r, http.StatusBadRequest, "invalid_api_key_order", "ids and revision are required")
+	if len(payload.IDs) == 0 {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_api_key_order", "ids are required")
 		return
 	}
-	if err := h.auth.ReorderAPIKeys(r.Context(), payload.IDs, payload.Revision); err != nil {
+	if err := h.auth.ReorderAPIKeys(r.Context(), payload.IDs); err != nil {
 		switch {
-		case errors.Is(err, store.ErrAPIKeyOrderConflict):
-			h.writeError(w, r, http.StatusConflict, "api_key_order_conflict", err.Error())
 		case errors.Is(err, store.ErrInvalidAPIKeyOrder):
 			h.writeError(w, r, http.StatusBadRequest, "invalid_api_key_order", err.Error())
 		default:
