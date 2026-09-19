@@ -322,6 +322,9 @@ func codingPlanQuotaCooldownDeadline(result QuotaProbeResult, now time.Time) (ti
 	var deadline time.Time
 	windows := []string{}
 	for _, entry := range result.Entries {
+		if entry.Label != "five_hour" && entry.Label != "weekly" {
+			continue
+		}
 		if entry.Remaining == nil || *entry.Remaining > 0 || entry.ResetAt == nil {
 			continue
 		}
@@ -506,6 +509,15 @@ func quotaProbePrimaryEntry(result QuotaProbeResult) (QuotaProbeEntry, bool) {
 }
 
 func quotaProbeSummaryEntry(probeType string, result QuotaProbeResult) (QuotaProbeEntry, bool) {
+	if probeType == QuotaProbeTypeGLM {
+		entries := make([]QuotaProbeEntry, 0, 2)
+		for _, entry := range result.Entries {
+			if entry.Label == "five_hour" || entry.Label == "weekly" {
+				entries = append(entries, entry)
+			}
+		}
+		result.Entries = entries
+	}
 	if probeType == QuotaProbeTypeSub2API {
 		for _, entry := range result.Entries {
 			if entry.Label == "balance" && !entry.Unlimited && entry.Remaining != nil {
@@ -969,7 +981,9 @@ func probeGLMQuota(ctx context.Context, client *http.Client, baseURL string, sec
 			entries = append(entries, entry)
 		}
 	}
-	if len(entries) == 0 {
+	_, hasFiveHour := entryIndex["five_hour"]
+	_, hasWeekly := entryIndex["weekly"]
+	if !hasFiveHour && !hasWeekly {
 		return "", nil, "", fmt.Errorf("quota limit endpoint did not contain token quota data")
 	}
 	return "token_plan", entries, glmPlanName(anyString(data["level"])), nil

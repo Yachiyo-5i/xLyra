@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -1142,6 +1143,69 @@ func TestProbeGLMQuotaDeduplicatesWindowEncodings(t *testing.T) {
 	entry := result.Entries[0]
 	if entry.Label != "five_hour" || entry.Remaining == nil || *entry.Remaining != 60 {
 		t.Fatalf("entry = %+v, want five_hour with tightest remaining 60%%", entry)
+	}
+}
+
+func TestProbeGLMQuotaMCPDoesNotControlChatQuota(t *testing.T) {
+	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name          string
+		fiveHourUsed  int
+		weeklyUsed    int
+		wantWindow    string
+		wantDeadline  time.Time
+		wantRemaining float64
+	}{
+		{name: "chat available", fiveHourUsed: 1200, weeklyUsed: 6000, wantRemaining: 90},
+		{name: "five hour exhausted", fiveHourUsed: 12000, weeklyUsed: 6000, wantWindow: "five_hour", wantDeadline: now.Add(time.Hour)},
+		{name: "weekly exhausted", fiveHourUsed: 1200, weeklyUsed: 60000, wantWindow: "weekly", wantDeadline: now.Add(3 * 24 * time.Hour)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"code":200,"data":{"limits":[
+                    {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":12000,"currentValue":%d,"nextResetTime":%d},
+                    {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":60000,"currentValue":%d,"nextResetTime":%d},
+                    {"type":"TIME_LIMIT","usage":1000,"currentValue":1000,"nextResetTime":%d}
+                ]}}`, tc.fiveHourUsed, now.Add(time.Hour).UnixMilli(), tc.weeklyUsed, now.Add(3*24*time.Hour).UnixMilli(), now.Add(30*24*time.Hour).UnixMilli())
+			}))
+			defer server.Close()
+			result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
+			if result.Status != "ok" || len(result.Entries) != 3 {
+				t.Fatalf("probe result = %+v, want all three quota rows", result)
+			}
+			monthly := result.Entries[2]
+			if monthly.Label != "monthly" || monthly.Remaining == nil || *monthly.Remaining != 0 {
+				t.Fatalf("MCP entry = %+v, want exhausted monthly quota retained for display", monthly)
+			}
+			deadline, windows := codingPlanQuotaCooldownDeadline(result, now)
+			if !deadline.Equal(tc.wantDeadline) {
+				t.Fatalf("deadline = %v, want %v; windows=%v", deadline, tc.wantDeadline, windows)
+			}
+			if tc.wantWindow == "" {
+				if len(windows) != 0 {
+					t.Fatalf("windows = %v, want none", windows)
+				}
+			} else if len(windows) != 1 || windows[0] != tc.wantWindow {
+				t.Fatalf("windows = %v, want [%s]", windows, tc.wantWindow)
+			}
+			summary, ok := quotaProbeSummaryEntry(QuotaProbeTypeGLM, result)
+			if !ok || summary.Label == "monthly" || summary.Remaining == nil || *summary.Remaining != tc.wantRemaining {
+				t.Fatalf("summary = %+v, want chat remaining %v", summary, tc.wantRemaining)
+			}
+		})
+	}
+}
+
+func TestProbeGLMQuotaRejectsMCPOnlyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":200,"data":{"limits":[{"type":"TIME_LIMIT","usage":1000,"currentValue":0}]}}`))
+	}))
+	defer server.Close()
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
+	if result.Status != "error" {
+		t.Fatalf("result = %+v, missing chat quota must not be treated as quota recovery", result)
 	}
 }
 

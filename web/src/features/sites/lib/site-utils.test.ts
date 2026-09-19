@@ -135,7 +135,7 @@ describe('GLM quota formatting', () => {
     expect(siteBalanceDetails(site).map((detail) => ({ label: detail.label, value: detail.value, valuePrefix: detail.valuePrefix }))).toEqual([
       { label: 'fiveHourQuota', value: '99%', valuePrefix: 'remaining' },
       { label: 'weeklyQuota', value: '80%', valuePrefix: 'remaining' },
-      { label: 'monthlyQuota', value: '99.3%', valuePrefix: 'remaining' },
+      { label: 'mcpMonthlyQuota', value: '99.3%', valuePrefix: 'remaining' },
     ])
   })
 })
