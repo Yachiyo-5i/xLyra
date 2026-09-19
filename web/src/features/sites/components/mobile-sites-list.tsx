@@ -21,6 +21,7 @@ import {
   isSub2APIQuotaSite,
   isSiteEnableBlockedByAbnormalState,
   siteAccountEmail,
+  siteBalanceDetails,
   siteDisplayUpdatedAt,
   siteModelsDisplayCount,
   siteTypeIcon,
@@ -289,10 +290,12 @@ function MobileSiteCard({
 }
 
 function MobileSiteBalance({ site, apiKeys }: { site: Site; apiKeys: SiteAPIKey[] }) {
-  const { t } = useTranslation('sites')
+  const { t, i18n } = useTranslation('sites')
   const value = formatSiteBalance(site)
+  const hasDetails = siteBalanceDetails(site, i18n.language).length > 0
+    || (isSub2APIQuotaSite(site) && apiKeys.length > 0)
 
-  if (!isSub2APIQuotaSite(site) || apiKeys.length === 0) {
+  if (!hasDetails) {
     return <MobileMetric label={t('table.headers.balance')} value={value} />
   }
 

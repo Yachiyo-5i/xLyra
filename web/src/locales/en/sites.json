@@ -70,6 +70,7 @@
       "weeklyQuota": "Weekly quota",
       "dailyQuota": "Daily quota",
       "monthlyQuota": "Monthly quota",
+      "mcpMonthlyQuota": "MCP monthly quota",
       "plan": "Plan",
       "expiresAt": "Expires",
       "probeFailed": "Quota probe failed",

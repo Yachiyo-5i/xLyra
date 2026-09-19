@@ -290,6 +290,7 @@ export type SiteBalanceDetailLabel =
   | 'weeklyQuota'
   | 'dailyQuota'
   | 'monthlyQuota'
+  | 'mcpMonthlyQuota'
 
 export type SiteBalanceDetail = {
   /** i18n key 后缀（table.quotaDetails.*）；entry 类行用 labelText 直传 */
@@ -335,11 +336,12 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
   return [{ label: 'accountBalance', value: fallback }]
 }
 
-const WINDOW_QUOTA_ENTRY_ORDER = ['five_hour', 'weekly'] as const
+const WINDOW_QUOTA_ENTRY_ORDER = ['five_hour', 'weekly', 'monthly'] as const
 
 const WINDOW_QUOTA_ENTRY_LABELS: Record<string, SiteBalanceDetailLabel> = {
   five_hour: 'fiveHourQuota',
   weekly: 'weeklyQuota',
+  monthly: 'monthlyQuota',
 }
 
 function fiveHourWeeklyQuotaDetails(probe: SiteQuotaProbeSummary, language?: string): SiteBalanceDetail[] {
@@ -349,7 +351,9 @@ function fiveHourWeeklyQuotaDetails(probe: SiteQuotaProbeSummary, language?: str
     .filter((entry): entry is SiteQuotaProbeEntry => !!entry)
   const rows: SiteBalanceDetail[] = []
   for (const entry of ordered) {
-    const label = WINDOW_QUOTA_ENTRY_LABELS[entry.label]
+    const label = probe.probe_type === 'glm' && entry.label === 'monthly'
+      ? 'mcpMonthlyQuota'
+      : WINDOW_QUOTA_ENTRY_LABELS[entry.label]
     if (!label || typeof entry.remaining !== 'number') continue
     const value = formatProbePercent(entry.remaining)
     let extra: string | undefined

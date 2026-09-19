@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -938,7 +939,7 @@ func TestPreserveQuotaSummaryValuesKeepsEntriesAndPlan(t *testing.T) {
 }
 
 // 与 2026-09 实测 open.bigmodel.cn 响应一致，另混入 TIME_LIMIT（MCP 月度）与
-// 未知日窗口（unit=1×1），断言二者不会出现在 entries 里。
+// 未知日窗口（unit=1×1），断言三者按 label 折算/忽略后不破坏窗口条目。
 const glmQuotaLimitFixture = `{
 	"code": 200,
 	"msg": "操作成功",
@@ -949,6 +950,28 @@ const glmQuotaLimitFixture = `{
 			{"type": "TOKENS_LIMIT", "unit": 6, "number": 1, "percentage": 100, "nextResetTime": 1789005599998},
 			{"type": "TIME_LIMIT", "unit": 5, "number": 1, "usage": 1000, "currentValue": 7, "remaining": 993, "percentage": 1, "nextResetTime": 1790128799997},
 			{"type": "TOKENS_LIMIT", "unit": 1, "number": 1, "percentage": 42}
+		]
+	},
+	"success": true
+}`
+
+// glmQuotaFixtureFloatNear 比较浮点百分比（绝对值折算路径经 currentValue/usage
+// 除法产生，不能用 != 精确比较）。
+func glmQuotaFixtureFloatNear(got float64, want float64) bool {
+	diff := got - want
+	return diff < 1e-9 && diff > -1e-9
+}
+
+// 2026-09 积分制套餐实测响应（CREDIT_LIMIT）：usage 为积分总额度，
+// currentValue 为已用积分，percentage 为服务端取整。
+const glmQuotaCreditFixture = `{
+	"code": 200,
+	"msg": "操作成功",
+	"data": {
+		"level": "pro",
+		"limits": [
+			{"type": "CREDIT_LIMIT", "unit": 3, "number": 5, "usage": 12000, "currentValue": 1711, "remaining": 10288, "percentage": 14, "nextResetTime": 1789717705754},
+			{"type": "CREDIT_LIMIT", "unit": 6, "number": 1, "usage": 60000, "currentValue": 15892, "remaining": 44107, "percentage": 26, "nextResetTime": 1790232772960}
 		]
 	},
 	"success": true
@@ -977,8 +1000,8 @@ func TestProbeGLMQuota(t *testing.T) {
 	if result.Plan != "Pro" {
 		t.Fatalf("plan = %q, want Pro (level pro)", result.Plan)
 	}
-	if len(result.Entries) != 2 {
-		t.Fatalf("expected five_hour + weekly entries only, got %+v", result.Entries)
+	if len(result.Entries) != 3 {
+		t.Fatalf("expected five_hour + weekly + monthly entries, got %+v", result.Entries)
 	}
 
 	fiveHour := result.Entries[0]
@@ -995,6 +1018,14 @@ func TestProbeGLMQuota(t *testing.T) {
 	}
 	if weekly.ResetAt == nil || *weekly.ResetAt != "2026-09-10T01:59:59Z" {
 		t.Fatalf("weekly reset_at = %v, want 2026-09-10T01:59:59Z (fixture nextResetTime ms)", weekly.ResetAt)
+	}
+
+	monthly := result.Entries[2]
+	if monthly.Label != "monthly" || monthly.Unit != "percent" {
+		t.Fatalf("unexpected monthly (MCP TIME_LIMIT) entry %+v", monthly)
+	}
+	if monthly.Used == nil || !glmQuotaFixtureFloatNear(*monthly.Used, 0.7) || monthly.Remaining == nil || !glmQuotaFixtureFloatNear(*monthly.Remaining, 99.3) {
+		t.Fatalf("monthly numbers = %+v, want used 0.7 remaining 99.3 (7/1000 calls)", monthly)
 	}
 
 	// 周额度剩余 0% 最紧张，应成为主 entry 供 summary 展示
@@ -1014,6 +1045,71 @@ func TestProbeGLMQuotaRejectsErrorCode(t *testing.T) {
 	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
 	if result.Status != "error" || result.Error == "" {
 		t.Fatalf("expected error result for non-200 code, got %+v", result)
+	}
+}
+
+// 积分制套餐（2026-07-30 起）：type 变为 CREDIT_LIMIT，按 usage/currentValue
+// 绝对值折算精确百分比，忽略上游取整的 percentage。
+func TestProbeGLMQuotaCreditLimitPlan(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(glmQuotaCreditFixture))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
+	if result.Status != "ok" || result.Kind != "token_plan" {
+		t.Fatalf("expected ok token_plan result for credit plan, got %+v", result)
+	}
+	if result.Plan != "Pro" {
+		t.Fatalf("plan = %q, want Pro", result.Plan)
+	}
+	if len(result.Entries) != 2 {
+		t.Fatalf("expected five_hour + weekly entries, got %+v", result.Entries)
+	}
+
+	fiveHour := result.Entries[0]
+	if fiveHour.Label != "five_hour" || fiveHour.Unit != "percent" {
+		t.Fatalf("unexpected five_hour entry %+v", fiveHour)
+	}
+	wantUsed := 1711.0 / 12000 * 100
+	if fiveHour.Used == nil || !glmQuotaFixtureFloatNear(*fiveHour.Used, wantUsed) {
+		t.Fatalf("five_hour used = %+v, want %v (1711/12000 exact, not upstream-rounded 14)", fiveHour.Used, wantUsed)
+	}
+	if fiveHour.Remaining == nil || !glmQuotaFixtureFloatNear(*fiveHour.Remaining, 100-wantUsed) {
+		t.Fatalf("five_hour remaining = %+v, want %v", fiveHour.Remaining, 100-wantUsed)
+	}
+
+	weekly := result.Entries[1]
+	if weekly.Label != "weekly" || weekly.Used == nil || !glmQuotaFixtureFloatNear(*weekly.Used, 15892.0/60000*100) {
+		t.Fatalf("unexpected weekly entry %+v", weekly)
+	}
+	if weekly.ResetAt == nil || *weekly.ResetAt != "2026-09-24T06:52:52Z" {
+		t.Fatalf("weekly reset_at = %v, want 2026-09-24T06:52:52Z", weekly.ResetAt)
+	}
+}
+
+// 积分制但缺少绝对值时（理论上不应出现），仍用 percentage 兜底，不能解析失败。
+func TestProbeGLMQuotaCreditLimitPercentageFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"code": 200,
+			"data": {"level": "pro", "limits": [
+				{"type": "CREDIT_LIMIT", "unit": 3, "number": 5, "percentage": 14}
+			]},
+			"success": true
+		}`))
+	}))
+	defer server.Close()
+
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
+	if result.Status != "ok" || len(result.Entries) != 1 {
+		t.Fatalf("expected ok with one entry, got %+v", result)
+	}
+	entry := result.Entries[0]
+	if entry.Used == nil || *entry.Used != 14 || entry.Remaining == nil || *entry.Remaining != 86 {
+		t.Fatalf("percentage fallback numbers = %+v, want used 14 remaining 86", entry)
 	}
 }
 
@@ -1047,6 +1143,69 @@ func TestProbeGLMQuotaDeduplicatesWindowEncodings(t *testing.T) {
 	entry := result.Entries[0]
 	if entry.Label != "five_hour" || entry.Remaining == nil || *entry.Remaining != 60 {
 		t.Fatalf("entry = %+v, want five_hour with tightest remaining 60%%", entry)
+	}
+}
+
+func TestProbeGLMQuotaMCPDoesNotControlChatQuota(t *testing.T) {
+	now := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name          string
+		fiveHourUsed  int
+		weeklyUsed    int
+		wantWindow    string
+		wantDeadline  time.Time
+		wantRemaining float64
+	}{
+		{name: "chat available", fiveHourUsed: 1200, weeklyUsed: 6000, wantRemaining: 90},
+		{name: "five hour exhausted", fiveHourUsed: 12000, weeklyUsed: 6000, wantWindow: "five_hour", wantDeadline: now.Add(time.Hour)},
+		{name: "weekly exhausted", fiveHourUsed: 1200, weeklyUsed: 60000, wantWindow: "weekly", wantDeadline: now.Add(3 * 24 * time.Hour)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"code":200,"data":{"limits":[
+                    {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":12000,"currentValue":%d,"nextResetTime":%d},
+                    {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":60000,"currentValue":%d,"nextResetTime":%d},
+                    {"type":"TIME_LIMIT","usage":1000,"currentValue":1000,"nextResetTime":%d}
+                ]}}`, tc.fiveHourUsed, now.Add(time.Hour).UnixMilli(), tc.weeklyUsed, now.Add(3*24*time.Hour).UnixMilli(), now.Add(30*24*time.Hour).UnixMilli())
+			}))
+			defer server.Close()
+			result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
+			if result.Status != "ok" || len(result.Entries) != 3 {
+				t.Fatalf("probe result = %+v, want all three quota rows", result)
+			}
+			monthly := result.Entries[2]
+			if monthly.Label != "monthly" || monthly.Remaining == nil || *monthly.Remaining != 0 {
+				t.Fatalf("MCP entry = %+v, want exhausted monthly quota retained for display", monthly)
+			}
+			deadline, windows := codingPlanQuotaCooldownDeadline(result, now)
+			if !deadline.Equal(tc.wantDeadline) {
+				t.Fatalf("deadline = %v, want %v; windows=%v", deadline, tc.wantDeadline, windows)
+			}
+			if tc.wantWindow == "" {
+				if len(windows) != 0 {
+					t.Fatalf("windows = %v, want none", windows)
+				}
+			} else if len(windows) != 1 || windows[0] != tc.wantWindow {
+				t.Fatalf("windows = %v, want [%s]", windows, tc.wantWindow)
+			}
+			summary, ok := quotaProbeSummaryEntry(QuotaProbeTypeGLM, result)
+			if !ok || summary.Label == "monthly" || summary.Remaining == nil || *summary.Remaining != tc.wantRemaining {
+				t.Fatalf("summary = %+v, want chat remaining %v", summary, tc.wantRemaining)
+			}
+		})
+	}
+}
+
+func TestProbeGLMQuotaRejectsMCPOnlyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":200,"data":{"limits":[{"type":"TIME_LIMIT","usage":1000,"currentValue":0}]}}`))
+	}))
+	defer server.Close()
+	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
+	if result.Status != "error" {
+		t.Fatalf("result = %+v, missing chat quota must not be treated as quota recovery", result)
 	}
 }
 
