@@ -3,6 +3,7 @@ import {
   marketplacePricingRows,
   marketplaceUnpricedCredentialRows,
 } from './models'
+import { availableEndpointTypes } from '../lib/model-helpers'
 
 const site = {
   siteId: 'site-1',
@@ -117,5 +118,19 @@ describe('marketplacePricingRows', () => {
       groupRatio: 1.2,
       available: false,
     })
+  })
+})
+
+describe('availableEndpointTypes', () => {
+  it('expands any text endpoint to all downstream text protocols', () => {
+    expect(availableEndpointTypes(['openai-response'])).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic-messages',
+    ])
+  })
+
+  it('keeps non-text endpoint types unchanged', () => {
+    expect(availableEndpointTypes(['openai-image'])).toEqual(['openai-image'])
   })
 })

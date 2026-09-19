@@ -33,6 +33,7 @@ import {
   inferFallbackBrand,
 } from '@/lib/brands'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
+import { availableEndpointTypes } from '../lib/model-helpers'
 
 export const modelsQueryKeys = {
   all: ['models'] as const,
@@ -208,8 +209,8 @@ export function buildMarketplaceModels(
         supportedSites: [],
       }
 
-      const catalogEndpointTypes = normalizeEndpointTypes(
-        model.capabilities?.supported_endpoint_types,
+      const catalogEndpointTypes = availableEndpointTypes(
+        normalizeEndpointTypes(model.capabilities?.supported_endpoint_types),
       )
       const keyEndpointTypes = effectiveEndpointTypesForSiteModel(
         site.id,
@@ -271,16 +272,32 @@ function effectiveEndpointTypesForSiteModel(
   model: SiteModel,
   apiKeysMap: Record<string, SiteAPIKey[]>,
 ): string[] | null {
-  const names = new Set([model.upstream_model_name, model.display_name].map(normalizeModelName).filter(Boolean))
+  const exact: string[][] = []
   const matched: string[][] = []
   for (const apiKey of apiKeysMap[siteId] ?? []) {
+    if (!apiKey.enabled) continue
     for (const item of apiKey.model_items ?? []) {
-      if (!names.has(normalizeModelName(item.name))) continue
-      matched.push(item.effective_endpoint_types ?? [])
+      if (!item.enabled) continue
+      if (item.site_model_id !== model.id) continue
+      exact.push(item.available_endpoint_types ?? item.effective_endpoint_types ?? [])
+    }
+  }
+  if (exact.length) {
+    const available = availableEndpointTypes(normalizeEndpointTypes(exact.flat()))
+    return available.length ? available : null
+  }
+
+  const names = new Set([model.upstream_model_name, model.display_name].map(normalizeModelName).filter(Boolean))
+  for (const apiKey of apiKeysMap[siteId] ?? []) {
+    if (!apiKey.enabled) continue
+    for (const item of apiKey.model_items ?? []) {
+      if (!item.enabled || item.site_model_id || !names.has(normalizeModelName(item.name))) continue
+      matched.push(item.available_endpoint_types ?? item.effective_endpoint_types ?? [])
     }
   }
   if (!matched.length) return null
-  return normalizeEndpointTypes(matched.flat())
+  const available = availableEndpointTypes(normalizeEndpointTypes(matched.flat()))
+  return available.length ? available : null
 }
 
 export function marketplaceUnpricedCredentialRows(

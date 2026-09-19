@@ -532,22 +532,12 @@ func selectSiteModelTestGatewayCredential(credentials []store.GatewayCredential,
 }
 
 func (h Handler) siteModelTestProtocolAdapter(ctx context.Context, request gatewayRequest, candidate routeengine.Candidate, protocol string) (gatewayProtocolAdapter, error) {
-	var resolved gatewayProtocolAdapter
-	var err error
-	if siteModelTestUsesSiteProtocolResolver(candidate.Site.SiteType) || protocol == "" || protocol == siteModelTestProtocolAuto {
-		resolved, err = (openAIProtocolResolver{db: h.db}).Resolve(ctx, request, candidate)
-	} else {
-		switch protocol {
-		case siteModelTestProtocolChatCompletions:
-			resolved = newOpenAIChatProtocolAdapter(request, candidate)
-		case siteModelTestProtocolResponses:
-			resolved = newOpenAIResponsesProtocolAdapterForCandidate(request, candidate)
-		case siteModelTestProtocolMessages:
-			resolved = anthropicMessagesProtocolForCandidate(request, candidate)
-		default:
-			return nil, siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
-		}
+	switch protocol {
+	case "", siteModelTestProtocolAuto, siteModelTestProtocolChatCompletions, siteModelTestProtocolResponses, siteModelTestProtocolMessages:
+	default:
+		return nil, siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
 	}
+	resolved, err := (openAIProtocolResolver{db: h.db}).Resolve(ctx, request, candidate)
 	if err != nil {
 		return nil, err
 	}
@@ -555,10 +545,6 @@ func (h Handler) siteModelTestProtocolAdapter(ctx context.Context, request gatew
 		return nil, siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", "selected API key does not support the resolved upstream protocol")
 	}
 	return resolved, nil
-}
-
-func siteModelTestUsesSiteProtocolResolver(siteType string) bool {
-	return isCodexSite(siteType) || isAntigravitySite(siteType) || isGoogleSite(siteType) || isGrokSite(siteType)
 }
 
 func applyOpenAISiteModelTestUserAgent(req *http.Request, protocol gatewayProtocolAdapter) {
@@ -697,23 +683,33 @@ func normalizeSiteModelTestProtocol(value string) (string, error) {
 }
 
 func siteModelTestDownstreamPathForProtocol(endpointTypes []string, protocol string) (string, error) {
-	var path, endpointType string
+	var path string
 	switch protocol {
 	case "", siteModelTestProtocolAuto:
 		return siteModelTestDownstreamPath(endpointTypes)
 	case siteModelTestProtocolChatCompletions:
-		path, endpointType = gatewayEndpointChatCompletions, upstreamEndpointTypeOpenAI
+		path = gatewayEndpointChatCompletions
 	case siteModelTestProtocolResponses:
-		path, endpointType = gatewayEndpointResponses, upstreamEndpointTypeOpenAIResponse
+		path = gatewayEndpointResponses
 	case siteModelTestProtocolMessages:
-		path, endpointType = gatewayEndpointMessages, upstreamEndpointTypeAnthropicMessages
+		path = gatewayEndpointMessages
 	default:
 		return "", siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
 	}
-	if !containsEndpointType(endpointTypes, endpointType) {
+	if !endpointTypesAllowTextRequest(endpointTypes) {
 		return "", siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", fmt.Sprintf("protocol %s is not enabled for the selected API key and model", protocol))
 	}
 	return path, nil
+}
+
+func endpointTypesAllowTextRequest(endpointTypes []string) bool {
+	for _, endpointType := range endpointTypes {
+		switch normalizeEndpointType(endpointType) {
+		case upstreamEndpointTypeOpenAI, upstreamEndpointTypeOpenAIResponse, upstreamEndpointTypeAnthropicMessages, upstreamEndpointTypeGoogleGemini:
+			return true
+		}
+	}
+	return false
 }
 
 func siteModelTestGatewayRequest(path string, model string, prompt string, stream bool) (gatewayRequest, error) {

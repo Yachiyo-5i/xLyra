@@ -36,6 +36,10 @@ func (a codexProtocolAdapter) ProtocolName() string {
 	return "codex_responses"
 }
 
+func (codexProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (a codexProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {
 	payload, err := a.buildUpstreamPayload(request, candidate)
 	if err != nil {

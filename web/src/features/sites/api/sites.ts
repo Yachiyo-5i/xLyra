@@ -382,6 +382,7 @@ export type SiteAPIKeyModel = {
   site_model_id?: string | null
   supported_endpoint_types?: string[]
   effective_endpoint_types?: string[]
+  available_endpoint_types?: string[]
   endpoint_override?: {
     mode?: 'inherit' | 'allowlist' | 'disabled'
     endpoint_types?: string[]

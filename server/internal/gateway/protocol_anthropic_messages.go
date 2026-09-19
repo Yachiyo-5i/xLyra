@@ -97,6 +97,10 @@ func (a anthropicMessagesProtocolAdapter) ProtocolName() string {
 	return "anthropic_messages"
 }
 
+func (anthropicMessagesProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {
 	if request.DownstreamPath == gatewayEndpointMessages {
 		payload := clonePayload(request.Payload)
@@ -199,6 +203,10 @@ func (a providerAnthropicMessagesProtocolAdapter) ProtocolName() string {
 		return a.provider + "_anthropic_messages_to_responses"
 	}
 	return a.provider + "_anthropic_messages"
+}
+
+func (providerAnthropicMessagesProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
 }
 
 func (a *providerAnthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {

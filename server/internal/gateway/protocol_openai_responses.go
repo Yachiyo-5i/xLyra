@@ -141,6 +141,10 @@ func (a openAIResponsesProtocolAdapter) ProtocolName() string {
 	return "openai_responses"
 }
 
+func (openAIResponsesProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (a openAIResponsesProtocolAdapter) UpstreamPath(baseURL string) string {
 	if a.baseURL != "" {
 		baseURL = a.baseURL

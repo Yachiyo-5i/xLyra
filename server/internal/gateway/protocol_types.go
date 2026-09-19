@@ -33,6 +33,14 @@ type gatewayProtocolAdapter interface {
 	ProxyStream(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, candidate routeengine.Candidate) (streamCaptureState, bool, error)
 }
 
+type gatewayProtocolCredentialCapabilities interface {
+	CredentialEndpointTypes() []string
+}
+
+func textCredentialEndpointTypes() []string {
+	return []string{upstreamEndpointTypeOpenAI, upstreamEndpointTypeOpenAIResponse, upstreamEndpointTypeAnthropicMessages, upstreamEndpointTypeGoogleGemini}
+}
+
 type gatewayProtocolBodyAdapter interface {
 	BuildUpstreamBody(request gatewayRequest, payload map[string]any) ([]byte, string, error)
 }

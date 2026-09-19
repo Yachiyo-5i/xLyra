@@ -46,6 +46,10 @@ func (a *grokResponsesProtocolAdapter) ProtocolName() string {
 	return a.inner.ProtocolName()
 }
 
+func (*grokResponsesProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (a *grokResponsesProtocolAdapter) UpstreamPath(baseURL string) string {
 	return a.inner.UpstreamPath(adapter.GrokChatBaseURL)
 }
