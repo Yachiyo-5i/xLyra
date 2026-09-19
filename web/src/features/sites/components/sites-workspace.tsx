@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  focusManager,
   useMutation,
   useQueries,
   useQuery,
@@ -152,9 +153,16 @@ export function SitesWorkspace({
   const previousSiteSyncStatuses = useRef<Record<string, string>>({})
   const previousAPIKeySyncStatuses = useRef<Record<string, string>>({})
 
+  useEffect(() => focusManager.subscribe((focused) => {
+    if (!focused) return
+    setValidationSnapshots({})
+    setNow(Date.now())
+  }), [])
+
   const sitesQuery = useQuery({
     queryKey: sitesQueryKeys.list(),
     queryFn: () => listSites(),
+    refetchOnWindowFocus: 'always',
     refetchInterval: (query) =>
       query.state.data?.items.some((site) =>
         syncStatusActive(site.sync_state?.status),
@@ -165,22 +173,27 @@ export function SitesWorkspace({
   const splitSitesQuery = useQuery({
     queryKey: sitesQueryKeys.list('all', 'with_requests'),
     queryFn: () => listSites({ oauth: 'all', deleted: 'with_requests' }),
+    refetchOnWindowFocus: 'always',
   })
   const oauthConnectionsQuery = useQuery({
     queryKey: oauthQueryKeys.connections(),
     queryFn: listOAuthConnections,
+    refetchOnWindowFocus: 'always',
   })
   const siteTypesQuery = useQuery({
     queryKey: [...sitesQueryKeys.all, 'site-types'],
     queryFn: listSiteTypes,
+    refetchOnWindowFocus: 'always',
   })
   const siteGroupsQuery = useQuery({
     queryKey: siteGroupQueryKeys.list(),
     queryFn: listSiteGroups,
+    refetchOnWindowFocus: 'always',
   })
   const systemProxyQuery = useQuery({
     queryKey: ['settings', 'system-proxy'],
     queryFn: fetchSystemProxyConfig,
+    refetchOnWindowFocus: 'always',
   })
   const sites = useMemo(
     () =>
@@ -210,6 +223,7 @@ export function SitesWorkspace({
     queries: sites.map((site) => ({
       queryKey: sitesQueryKeys.models(site.id),
       queryFn: () => listSiteModels(site.id),
+      refetchOnWindowFocus: 'always' as const,
     })),
   })
   const sitesWithAPIKeys = useMemo(
@@ -220,6 +234,7 @@ export function SitesWorkspace({
     queries: sitesWithAPIKeys.map((site) => ({
       queryKey: [...sitesQueryKeys.detail(site.id), 'api-keys'],
       queryFn: () => listSiteAPIKeys(site.id),
+      refetchOnWindowFocus: 'always' as const,
       refetchInterval: (query: {
         state: { data?: { items?: SiteAPIKey[] } }
       }) =>

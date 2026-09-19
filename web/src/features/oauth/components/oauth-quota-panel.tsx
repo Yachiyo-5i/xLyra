@@ -79,6 +79,7 @@ export function QuotaPanel({
     queryFn: () => listOAuthConnectionResetCredits(connectionId ?? ''),
     enabled: isCodex && resetCreditsOpen && Boolean(connectionId),
     staleTime: 30_000,
+    refetchOnWindowFocus: 'always',
   })
   const effectiveResetCredits = resetCreditsQuery.data ?? resetCreditsData
   const resetCredits = effectiveResetCredits?.credits ?? []

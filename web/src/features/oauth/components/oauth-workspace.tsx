@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { focusManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, LoaderCircle, Plus, RotateCcw, Search, Upload } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -111,14 +111,17 @@ export function OAuthWorkspace() {
   const connectionsQuery = useQuery({
     queryKey: oauthQueryKeys.connections(),
     queryFn: listOAuthConnections,
+    refetchOnWindowFocus: 'always',
   })
   const siteGroupsQuery = useQuery({
     queryKey: siteGroupQueryKeys.list(),
     queryFn: listSiteGroups,
+    refetchOnWindowFocus: 'always',
   })
   const sitesQuery = useQuery({
     queryKey: sitesQueryKeys.list('all', 'with_requests'),
     queryFn: () => listSites({ oauth: 'all', deleted: 'with_requests' }),
+    refetchOnWindowFocus: 'always',
   })
 
   const connections = useMemo(
@@ -420,6 +423,10 @@ export function OAuthWorkspace() {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => focusManager.subscribe((focused) => {
+    if (focused) setNow(Date.now())
+  }), [])
 
   useEffect(() => {
     if (!hasPendingSyncConnections) return
