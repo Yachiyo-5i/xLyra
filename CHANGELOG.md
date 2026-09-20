@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.9.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.9.0...v1.9.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* 🐛 修复 API 密钥排序保存失败并简化排序操作 ([a372dd2](https://github.com/Yachiyo-5i/xLyra/commit/a372dd2fb219037360023a766d7bbd28d4a4e886))
+* 🐛 修复 DeepSeek 对话请求的历史消息标识兼容问题 ([beab4ca](https://github.com/Yachiyo-5i/xLyra/commit/beab4ca19325cc121855d2caad291efb61069771))
+* 🐛 修正 GLM 国内站 Responses 请求端点 ([3459a1e](https://github.com/Yachiyo-5i/xLyra/commit/3459a1e6ce81d41dbd65f941e74f3a9205e18e07))
+* 🐛 更新 Codex 图像生成默认宿主模型 ([2f1fb8e](https://github.com/Yachiyo-5i/xLyra/commit/2f1fb8ec542a48372fe0ba09dae3bbf2c3a209fe))
+* 🐛 统一文本协议转换与模型可用协议展示 ([34a27ff](https://github.com/Yachiyo-5i/xLyra/commit/34a27ff4010d34297688884b7ce12464fd50a2b0))
+
 ## [1.9.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.8.1...v1.9.0) (2026-09-19)
 
 
