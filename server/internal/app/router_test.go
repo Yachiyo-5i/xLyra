@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -537,5 +539,64 @@ func testConfig() config.Config {
 		DBUser:             "postgres",
 		DBPassword:         "postgres",
 		DBSSLMode:          "disable",
+	}
+}
+
+func TestSpaHandlerCacheHeaders(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "favicon.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "assets", "index-abc123.js"), []byte("js"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sw.js"), []byte("sw"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "workbox-deadbeef.js"), []byte("wb"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "registerSW.js"), []byte("register"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "version.json"), []byte(`{"build":"1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.webmanifest"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := spaHandler(dir)
+	cases := []struct {
+		path string
+		want string
+	}{
+		{"/assets/index-abc123.js", "public, max-age=31536000, immutable"},
+		{"/favicon.png", "public, max-age=86400"},
+		{"/sw.js", "no-cache"},
+		{"/workbox-deadbeef.js", "no-cache"},
+		{"/registerSW.js", "no-cache"},
+		{"/version.json", "no-cache"},
+		{"/manifest.webmanifest", "no-cache"},
+		{"/settings", "no-cache"},
+		{"/", "no-cache"},
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d", tc.path, rec.Code)
+		}
+		if got := rec.Header().Get("Cache-Control"); got != tc.want {
+			t.Fatalf("%s: Cache-Control = %q, want %q", tc.path, got, tc.want)
+		}
 	}
 }

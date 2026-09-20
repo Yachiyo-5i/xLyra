@@ -459,10 +459,32 @@ func spaHandler(staticDir string) http.Handler {
 	index := filepath.Join(staticDir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(staticDir, filepath.Clean("/"+r.URL.Path))
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		info, err := os.Stat(path)
+		switch {
+		case os.IsNotExist(err):
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, index)
 			return
+		case err == nil && info.IsDir():
+			w.Header().Set("Cache-Control", "no-cache")
+		case mustRevalidateStaticFile(filepath.Base(path)):
+			w.Header().Set("Cache-Control", "no-cache")
+		case strings.HasPrefix(r.URL.Path, "/assets/"):
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		default:
+			w.Header().Set("Cache-Control", "public, max-age=86400")
 		}
 		fs.ServeHTTP(w, r)
 	})
+}
+
+func mustRevalidateStaticFile(name string) bool {
+	switch name {
+	case "index.html", "sw.js", "registerSW.js", "version.json":
+		return true
+	}
+	if strings.HasSuffix(name, ".webmanifest") {
+		return true
+	}
+	return strings.HasPrefix(name, "workbox-") && strings.HasSuffix(name, ".js")
 }
