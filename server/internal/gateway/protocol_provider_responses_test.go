@@ -23,7 +23,7 @@ func TestProviderResponsesEndpoints(t *testing.T) {
 		{"zhipu relay", "newapi", "glm-5.3", "https://relay.example.test/root/", "https://relay.example.test/root/v1/responses"},
 		{"deepseek relay", "newapi", "deepseek-v4-flash", "https://relay.example.test/root/", "https://relay.example.test/root/v1/responses"},
 		{"openai", "openai", "glm-5.3", "https://relay.example.test", "https://relay.example.test/v1/responses"},
-		{"glm coding", "glm_code", "glm-5.3", "https://open.bigmodel.cn/api/coding/paas/v4", "https://open.bigmodel.cn/api/coding/paas/v4/v1/responses"},
+		{"glm coding", "glm_code", "glm-5.3", "https://open.bigmodel.cn/api/coding/paas/v4", "https://open.bigmodel.cn/api/v1/responses"},
 		{"opencode spec base", "opencode_go", "gpt-5.6-luna", "", "https://opencode.ai/zen/go/v1/responses"},
 	}
 	for _, tt := range tests {
