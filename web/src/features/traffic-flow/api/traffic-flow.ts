@@ -4,6 +4,11 @@ export type TrafficFlowNode = {
   id: string
   name: string
   site_type?: string
+  site_policy?: 'allow_all' | 'allow_list'
+  allowed_upstream_ids?: string[]
+  health_status?: string
+  recent_success_rate?: number | null
+  recent_avg_latency_ms?: number | null
 }
 
 export type TrafficFlowTopology = {

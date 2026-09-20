@@ -38,6 +38,7 @@
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.73.0",
     "react-i18next": "^17.0.7",
+    "react-is": "^19.3.0",
     "react-markdown": "^9.1.0",
     "react-router-dom": "6.30.4",
     "recharts": "^3.8.1",

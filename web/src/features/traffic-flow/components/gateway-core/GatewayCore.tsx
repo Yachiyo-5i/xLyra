@@ -1,28 +1,24 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import { useTranslation } from 'react-i18next'
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, LineBasicMaterial, LineSegments, ShaderMaterial } from 'three'
 import { createParticleGeometry } from './particle-geometry'
 import { fieldVertexShader, intersectionStarFragmentShader, intersectionStarVertexShader, particleFragmentShader, particleVertexShader, ringBandFragmentShader } from './gateway-shaders'
 import type { GatewayCoreProps } from './gateway-core.types'
+import { useReducedMotion } from '@/features/traffic-flow/lib/use-reduced-motion'
 import styles from './GatewayCore.module.css'
 
 const minimumParticles = 300
-const maximumParticles = 3000
+const maximumParticles = 1800
 
-export function GatewayCore({ active = false, load = 0, pulseKey, color = '#7fffe0', particleCount = 2200, className, paused = false }: GatewayCoreProps) {
+export function GatewayCoreOverlay({ active = false, pulseKey, paused = false, className }: Pick<GatewayCoreProps, 'active' | 'pulseKey' | 'paused' | 'className'>) {
   const { t } = useTranslation('traffic-flow')
   const reducedMotion = useReducedMotion()
   const motionPaused = paused || reducedMotion
-  const count = Math.min(maximumParticles, Math.max(minimumParticles, particleCount))
-  const loadValue = Math.min(1, Math.max(0, load))
   const pulsing = pulseKey !== undefined && pulseKey !== 0
 
   return (
     <div className={`${styles.core} ${active ? styles.active : ''} ${motionPaused ? styles.paused : ''} ${className ?? ''}`}>
-      <Canvas className={styles.canvas} dpr={[1, 1.5]} frameloop={motionPaused ? 'demand' : 'always'} gl={{ alpha: true, antialias: false, powerPreference: 'high-performance' }} camera={{ position: [0, 0, 5], fov: 45 }} onCreated={({ gl }) => { gl.setClearColor('#000000', 0) }}>
-        <EnergyScene active={active} load={loadValue} color={color} particleCount={count} pulseKey={pulseKey} paused={motionPaused} />
-      </Canvas>
       <div className={styles.overlay} aria-hidden="true">
         <span className={styles.rays} />
         {pulsing ? <span key={`wave-${pulseKey}`} className={styles.pulseWave} /> : null}
@@ -42,12 +38,12 @@ export function GatewayCore({ active = false, load = 0, pulseKey, color = '#7fff
   )
 }
 
-function EnergyScene({ active, load, color, particleCount, pulseKey, paused }: Required<Pick<GatewayCoreProps, 'active' | 'load' | 'color' | 'particleCount' | 'paused'>> & Pick<GatewayCoreProps, 'pulseKey'>) {
-  const canvasHeight = useThree((state) => state.size.height)
-  const visualSize = Math.min(520, Math.max(420, canvasHeight * 0.64))
-  const sceneScale = canvasHeight > 0 ? visualSize / canvasHeight : 1
+export function EnergyScene({ active, load, color, particleCount, pulseKey, paused }: Required<Pick<GatewayCoreProps, 'active' | 'load' | 'color' | 'paused'>> & Pick<GatewayCoreProps, 'pulseKey' | 'particleCount'>) {
+  const { size } = useThree()
+  const sceneScale = Math.min(0.62, Math.max(0.48, size.height / 1080))
+  const count = Math.min(maximumParticles, Math.max(minimumParticles, particleCount ?? Math.round(size.height * 1.45)))
   const colorValue = useMemo(() => new Color(color), [color])
-  const particleGeometry = useMemo(() => createParticleGeometry(particleCount), [particleCount])
+  const particleGeometry = useMemo(() => createParticleGeometry(count), [count])
   const particleMaterial = useMemo(() => new ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -406,16 +402,4 @@ function addStarTrail(vertices: number[], colors: number[], radius: number, star
 function starTrailNoise(systemIndex: number, ringIndex: number, trailIndex: number, salt: number) {
   const value = Math.sin((systemIndex + 1) * 71.83 + (ringIndex + 1) * 37.17 + (trailIndex + 1) * 19.41 + salt * 53.29) * 43758.5453
   return value - Math.floor(value)
-}
-
-function useReducedMotion() {
-  const [reducedMotion, setReducedMotion] = useState(false)
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const sync = () => setReducedMotion(query.matches)
-    sync()
-    query.addEventListener('change', sync)
-    return () => query.removeEventListener('change', sync)
-  }, [])
-  return reducedMotion
 }

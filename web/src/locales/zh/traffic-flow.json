@@ -1,13 +1,17 @@
 {
   "header": {
     "title": "网关实时流量驾驶舱",
-    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT"
+    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT",
+    "brand": "ROUTE COMMAND"
   },
   "status": {
     "live": "实时连接",
     "reconnecting": "正在重连",
     "loading": "正在载入拓扑",
-    "waiting": "等待请求进入网关"
+    "waiting": "等待请求进入网关",
+    "sessionActivity": "本会话请求",
+    "overflow": "+{{count}} 个节点",
+    "collapseOverflow": "收起其余节点"
   },
   "desktopRequired": {
     "eyebrow": "DESKTOP EXPERIENCE",
@@ -20,23 +24,15 @@
     "resume": "继续动画",
     "refresh": "重新载入",
     "fullscreen": "进入全屏",
-    "exitFullscreen": "退出全屏",
-    "close": "关闭详情"
+    "exitFullscreen": "退出全屏"
   },
   "metrics": {
     "label": "实时指标",
     "inFlight": "在途请求",
     "routed": "已路由通道",
-    "returning": "响应返回中",
     "nodes": "拓扑节点",
     "tokens": "窗口 Tokens",
-    "mode": "运行模式"
-  },
-  "tokenDetails": {
-    "title": "窗口 Token 用量",
-    "downstream": "下游密钥",
-    "upstream": "上游站点",
-    "empty": "本窗口暂无 Token 用量"
+    "rpm": "RPM 上限"
   },
   "map": { "label": "实时请求拓扑" },
   "core": {
@@ -56,10 +52,15 @@
     "request": "请求流",
     "response": "响应流"
   },
-  "footer": { "desktopOnly": "桌面实时视图" },
+  "footer": {
+    "desktopOnly": "桌面实时视图",
+    "synced": "节点已同步"
+  },
   "activity": {
-    "label": "实时请求队列",
-    "empty": "当前没有在途请求"
+    "label": "实时请求",
+    "empty": "当前没有在途请求",
+    "stream": "流式",
+    "nodeFilter": "{{name}} · {{related}} 条"
   },
   "phase": {
     "accepted": "已接入",
@@ -70,12 +71,15 @@
     "cancelled": "已取消"
   },
   "inspector": {
-    "request": "请求详情",
     "unknownModel": "未知模型",
-    "downstream": "下游密钥",
-    "upstream": "上游站点",
     "phase": "当前阶段",
     "attempt": "路由尝试",
+    "inflightCount": "在途",
+    "duration": "已持续",
+    "tokens": "窗口 Token",
+    "avgLatency": "平均延迟",
+    "successRate": "成功率",
+    "emptyNode": "该节点当前没有在途请求",
     "waiting": "等待路由"
   }
 }

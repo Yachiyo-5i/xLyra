@@ -1,13 +1,17 @@
 {
   "header": {
     "title": "Gateway Live Traffic Cockpit",
-    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT"
+    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT",
+    "brand": "ROUTE COMMAND"
   },
   "status": {
     "live": "Live connection",
     "reconnecting": "Reconnecting",
     "loading": "Loading topology",
-    "waiting": "Waiting for gateway traffic"
+    "waiting": "Waiting for gateway traffic",
+    "sessionActivity": "Session requests",
+    "overflow": "+{{count}} nodes",
+    "collapseOverflow": "Collapse remaining nodes"
   },
   "desktopRequired": {
     "eyebrow": "DESKTOP EXPERIENCE",
@@ -20,23 +24,15 @@
     "resume": "Resume animation",
     "refresh": "Reload",
     "fullscreen": "Enter fullscreen",
-    "exitFullscreen": "Exit fullscreen",
-    "close": "Close details"
+    "exitFullscreen": "Exit fullscreen"
   },
   "metrics": {
     "label": "Live metrics",
     "inFlight": "In flight",
     "routed": "Routed channels",
-    "returning": "Responses returning",
     "nodes": "Topology nodes",
     "tokens": "Window tokens",
-    "mode": "Run mode"
-  },
-  "tokenDetails": {
-    "title": "Window token usage",
-    "downstream": "Downstream keys",
-    "upstream": "Upstream sites",
-    "empty": "No token usage in this window"
+    "rpm": "RPM limit"
   },
   "map": { "label": "Live request topology" },
   "core": {
@@ -56,10 +52,15 @@
     "request": "Request",
     "response": "Response"
   },
-  "footer": { "desktopOnly": "Desktop live view" },
+  "footer": {
+    "desktopOnly": "Desktop live view",
+    "synced": "Node synced"
+  },
   "activity": {
     "label": "Live request queue",
-    "empty": "No requests in flight"
+    "empty": "No requests in flight",
+    "stream": "Stream",
+    "nodeFilter": "{{name}} · {{related}}"
   },
   "phase": {
     "accepted": "Accepted",
@@ -70,12 +71,15 @@
     "cancelled": "Cancelled"
   },
   "inspector": {
-    "request": "Request details",
     "unknownModel": "Unknown model",
-    "downstream": "Downstream key",
-    "upstream": "Upstream site",
     "phase": "Current phase",
     "attempt": "Route attempt",
+    "inflightCount": "In flight",
+    "duration": "Elapsed",
+    "tokens": "Window tokens",
+    "avgLatency": "Avg latency",
+    "successRate": "Success rate",
+    "emptyNode": "No in-flight requests on this node",
     "waiting": "Waiting for route"
   }
 }

@@ -1,13 +1,17 @@
 {
   "header": {
     "title": "ゲートウェイ リアルタイム管制",
-    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT"
+    "subtitle": "GATEWAY REAL-TIME TRAFFIC COCKPIT",
+    "brand": "ROUTE COMMAND"
   },
   "status": {
     "live": "ライブ接続",
     "reconnecting": "再接続中",
     "loading": "トポロジーを読み込み中",
-    "waiting": "ゲートウェイトラフィックを待機中"
+    "waiting": "ゲートウェイトラフィックを待機中",
+    "sessionActivity": "このセッションのリクエスト",
+    "overflow": "+{{count}} ノード",
+    "collapseOverflow": "残りのノードを閉じる"
   },
   "desktopRequired": {
     "eyebrow": "DESKTOP EXPERIENCE",
@@ -20,23 +24,15 @@
     "resume": "アニメーションを再開",
     "refresh": "再読み込み",
     "fullscreen": "全画面表示",
-    "exitFullscreen": "全画面を終了",
-    "close": "詳細を閉じる"
+    "exitFullscreen": "全画面を終了"
   },
   "metrics": {
     "label": "リアルタイム指標",
     "inFlight": "処理中",
     "routed": "ルーティング済み",
-    "returning": "応答中",
     "nodes": "ノード",
     "tokens": "ウィンドウTokens",
-    "mode": "実行モード"
-  },
-  "tokenDetails": {
-    "title": "ウィンドウToken使用量",
-    "downstream": "ダウンストリームキー",
-    "upstream": "アップストリームサイト",
-    "empty": "このウィンドウのToken使用量はありません"
+    "rpm": "RPM上限"
   },
   "map": { "label": "リアルタイムリクエストトポロジー" },
   "core": {
@@ -56,10 +52,15 @@
     "request": "リクエスト",
     "response": "レスポンス"
   },
-  "footer": { "desktopOnly": "デスクトップライブビュー" },
+  "footer": {
+    "desktopOnly": "デスクトップライブビュー",
+    "synced": "ノード同期済み"
+  },
   "activity": {
     "label": "ライブリクエストキュー",
-    "empty": "処理中のリクエストはありません"
+    "empty": "処理中のリクエストはありません",
+    "stream": "ストリーム",
+    "nodeFilter": "{{name}} · {{related}}"
   },
   "phase": {
     "accepted": "受信済み",
@@ -70,12 +71,15 @@
     "cancelled": "キャンセル"
   },
   "inspector": {
-    "request": "リクエスト詳細",
     "unknownModel": "不明なモデル",
-    "downstream": "ダウンストリームキー",
-    "upstream": "アップストリームサイト",
     "phase": "現在のフェーズ",
     "attempt": "ルート試行",
+    "inflightCount": "処理中",
+    "duration": "経過",
+    "tokens": "ウィンドウToken",
+    "avgLatency": "平均レイテンシ",
+    "successRate": "成功率",
+    "emptyNode": "このノードに処理中のリクエストはありません",
     "waiting": "ルート待機中"
   }
 }
