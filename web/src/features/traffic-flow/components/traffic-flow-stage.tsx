@@ -229,6 +229,7 @@ export function TrafficFlowStage({
           usage={(placement.kind === 'downstream' ? downstreamUsage : upstreamUsage)[placement.id]}
           selected={sameNode(selectedNode, { kind: placement.kind, id: placement.id })
             || requestTouchesEndpoints(placement.kind, placement.id, selectedRequest)}
+          expanded={sameNode(selectedNode, { kind: placement.kind, id: placement.id })}
           hovered={sameNode(hoveredNode, { kind: placement.kind, id: placement.id })}
           related={Boolean(nodeFocus && related.has(placement.id) && placement.kind !== nodeFocus.kind
             && !requestTouchesEndpoints(placement.kind, placement.id, selectedRequest))}

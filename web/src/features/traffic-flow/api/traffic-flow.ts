@@ -41,12 +41,26 @@ export type TrafficFlowSnapshot = {
   total_tokens?: number
   downstream_usage?: TrafficFlowUsageTotal[]
   upstream_usage?: TrafficFlowUsageTotal[]
+  usage_cells?: TrafficFlowUsageCell[]
 }
 
 export type TrafficFlowUsageTotal = {
   id: string
   name: string
   total_tokens: number
+}
+
+export type TrafficFlowUsageCell = {
+  api_key_id: string
+  api_key_name: string
+  site_id: string
+  site_name: string
+  model_key: string
+  model_provider: string
+  total_tokens: number
+  input_tokens?: number
+  output_tokens?: number
+  cached_tokens?: number
 }
 
 export type TrafficFlowEvent = {
@@ -58,6 +72,7 @@ export type TrafficFlowEvent = {
   total_tokens?: number
   downstream_usage?: TrafficFlowUsageTotal
   upstream_usage?: TrafficFlowUsageTotal
+  usage_cell?: TrafficFlowUsageCell
 }
 
 export async function getTrafficFlowTopology() {

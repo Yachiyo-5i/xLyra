@@ -1,4 +1,5 @@
 import { Activity, ArrowLeft, Maximize2, Minimize2, MonitorUp, Pause, Play, RotateCcw } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { ProtectedRoute } from '@/components/auth/auth-guard'
@@ -7,6 +8,7 @@ import { useTrafficFlowSession } from '@/features/traffic-flow/lib/use-traffic-f
 import { TrafficFlowFeed } from './traffic-flow-feed'
 import { TrafficFlowKpis } from './traffic-flow-kpis'
 import { TrafficFlowStage } from './traffic-flow-stage'
+import { TrafficFlowTokensDialog } from './traffic-flow-tokens-dialog'
 import './traffic-flow-page.css'
 
 export function TrafficFlowRoute() {
@@ -40,9 +42,12 @@ function TrafficFlowPage() {
   const { t } = useTranslation('traffic-flow')
   const navigate = useNavigate()
   const session = useTrafficFlowSession()
+  const [tokensOpen, setTokensOpen] = useState(false)
+  const kpisRef = useRef<HTMLElement>(null)
+  const tokensButtonRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <main ref={session.pageRef} className="traffic-flow-page">
+    <main ref={session.pageRef} className={tokensOpen ? 'traffic-flow-page is-tokens-open' : 'traffic-flow-page'}>
       <div className="traffic-flow-background" aria-hidden="true" />
       <div className="traffic-flow-scanline" aria-hidden="true" />
 
@@ -88,7 +93,11 @@ function TrafficFlowPage() {
         nodes={session.nodeCount}
         tokens={session.displayedTokens}
         rpmLimit={session.rpmLimit}
+        tokensOpen={tokensOpen}
+        kpisRef={kpisRef}
+        tokensButtonRef={tokensButtonRef}
         t={t}
+        onTokensClick={() => setTokensOpen((open) => !open)}
       />
 
       <TrafficFlowStage
@@ -131,6 +140,18 @@ function TrafficFlowPage() {
         <time>{session.windowStart.toLocaleTimeString()} — {session.windowEnd.toLocaleTimeString()}</time>
         <span>{t('footer.desktopOnly')}</span>
       </footer>
+
+      <TrafficFlowTokensDialog
+        open={tokensOpen}
+        cells={Object.values(session.usageCells)}
+        selectedNode={session.selectedNode}
+        container={session.pageRef.current}
+        kpisRef={kpisRef}
+        tokensButtonRef={tokensButtonRef}
+        t={t}
+        onOpenChange={setTokensOpen}
+        highlightNode={session.highlightNode}
+      />
     </main>
   )
 }

@@ -34,6 +34,26 @@
     "tokens": "窗口 Tokens",
     "rpm": "RPM 上限"
   },
+  "tokensDialog": {
+    "title": "窗口 Tokens",
+    "description": "本进程窗口内累计，重启网关后清零。",
+    "clear": "清除筛选",
+    "allVendors": "全部厂商",
+    "otherVendors": "其他厂商",
+    "keys": "下游密钥",
+    "sites": "上游站点",
+    "models": "模型",
+    "vendors": "厂商",
+    "empty": "当前窗口还没有 Token 记录",
+    "emptyFilter": "当前筛选没有匹配的 Token",
+    "unknownSite": "未路由站点",
+    "input": "输入",
+    "output": "输出",
+    "cached": "缓存",
+    "keyCaption": "{{sites}} 个上游 · {{models}} 个模型",
+    "siteCaption": "{{keys}} 个密钥 · {{models}} 个模型",
+    "modelCaption": "{{vendor}} · {{keys}} 个密钥 · {{sites}} 个站点"
+  },
   "map": { "label": "实时请求拓扑" },
   "core": {
     "title": "XLYRA GATEWAY",
@@ -79,7 +99,6 @@
     "tokens": "窗口 Token",
     "avgLatency": "平均延迟",
     "successRate": "成功率",
-    "emptyNode": "该节点当前没有在途请求",
     "waiting": "等待路由"
   }
 }
