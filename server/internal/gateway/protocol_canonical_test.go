@@ -511,8 +511,8 @@ func TestCanonicalCodexImageRequestEncoding(t *testing.T) {
 		Model: routeengine.CandidateModel{UpstreamName: "gpt-image-2"},
 	}), routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gpt-image-2"}})
 
-	if payload["model"] != codexImageToolHostModel {
-		t.Fatalf("model = %#v, want %q", payload["model"], codexImageToolHostModel)
+	if payload["model"] != "gpt-5.6-luna" {
+		t.Fatalf("model = %#v, want gpt-5.6-luna", payload["model"])
 	}
 	if payload["stream"] != true {
 		t.Fatalf("stream = %#v, want true", payload["stream"])
