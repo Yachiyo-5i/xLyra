@@ -49,6 +49,72 @@ func TestResponsesProtocolHelperEdgeCases(t *testing.T) {
 	}
 }
 
+func TestOfficialDeepSeekResponsesInputDropsMessageIDs(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"model": "deepseek-v4-pro",
+		"input": []any{
+			map[string]any{
+				"id":   "item_message",
+				"role": "assistant",
+			},
+			map[string]any{
+				"type":    "function_call",
+				"id":      "fc_item",
+				"call_id": "call_1",
+			},
+		},
+	}
+	request := gatewayRequest{DownstreamPath: gatewayEndpointResponses, Payload: payload}
+	protocol := newOpenAIResponsesProtocolAdapterForCandidate(request, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro"},
+	})
+
+	upstream, err := protocol.BuildUpstreamPayload(request, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	items := upstream["input"].([]any)
+	if _, ok := items[0].(map[string]any)["id"]; ok {
+		t.Fatal("official DeepSeek message id should be removed")
+	}
+	functionCall := items[1].(map[string]any)
+	if functionCall["id"] != "fc_item" || functionCall["call_id"] != "call_1" {
+		t.Fatalf("function call identifiers changed: %#v", functionCall)
+	}
+	if payload["input"].([]any)[0].(map[string]any)["id"] != "item_message" {
+		t.Fatal("BuildUpstreamPayload mutated the caller payload")
+	}
+}
+
+func TestNonOfficialDeepSeekResponsesInputPreservesMessageIDs(t *testing.T) {
+	t.Parallel()
+
+	request := gatewayRequest{
+		DownstreamPath: gatewayEndpointResponses,
+		Payload: map[string]any{
+			"model": "deepseek-v4-pro",
+			"input": []any{map[string]any{"type": "message", "id": "item_message", "role": "assistant"}},
+		},
+	}
+	protocol := newOpenAIResponsesProtocolAdapter(request)
+	upstream, err := protocol.BuildUpstreamPayload(request, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "newapi", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro"},
+	})
+	if err != nil {
+		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
+	}
+	if got := upstream["input"].([]any)[0].(map[string]any)["id"]; got != "item_message" {
+		t.Fatalf("non-official DeepSeek message id = %#v, want item_message", got)
+	}
+}
+
 func TestCompletionUsageFromResponsesUsageFallbacksAndDetails(t *testing.T) {
 	t.Parallel()
 
