@@ -72,7 +72,7 @@ import {
   upsertAPIKey,
 } from '@/features/sites/lib/site-cache'
 import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
-import { formatEndpointTypeLabel } from '@/features/models/lib/model-helpers'
+import { availableEndpointTypes, formatEndpointTypeLabel } from '@/features/models/lib/model-helpers'
 import {
   SiteAPIKeyFormFields,
 } from '@/features/sites/components/site-api-key-form'
@@ -1212,12 +1212,14 @@ function buildAPIKeyModelItems(apiKey: SiteAPIKey | null, siteModels: SiteModel[
     const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
     const endpointTypes = (model.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
     const effectiveTypes = model.effective_endpoint_types ?? endpointTypes
-    const protocolTypes = endpointTypes.length ? endpointTypes : effectiveTypes
+    const protocolTypes = model.available_endpoint_types?.length
+      ? model.available_endpoint_types
+      : availableEndpointTypes(endpointTypes.length ? endpointTypes : effectiveTypes.length ? effectiveTypes : siteTypes)
     return {
       id: name,
       displayName: name,
       upstreamName: protocolTypes.join(' '),
-      protocols: protocolTypes.map((endpointType) => ({ label: formatEndpointTypeLabel(endpointType), enabled: effectiveTypes.includes(endpointType) })),
+      protocols: protocolTypes.map((endpointType) => ({ label: formatEndpointTypeLabel(endpointType), enabled: true })),
       enabled: model.enabled,
       icon: modelNameIconInfo(name),
       trailingAction: model.site_model_id ? (

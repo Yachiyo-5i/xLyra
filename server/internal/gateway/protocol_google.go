@@ -33,6 +33,10 @@ func (g *googleProtocolAdapter) ProtocolName() string {
 	return "google_generate_content"
 }
 
+func (*googleProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (g *googleProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {
 	g.upstreamModel = candidate.Model.UpstreamName
 	var canonical canonicalRequest

@@ -81,6 +81,30 @@ func IntersectModelEndpointTypes(base, selected []string) []string {
 	return result
 }
 
+func AvailableModelEndpointTypes(values []string) []string {
+	normalized := NormalizeModelEndpointTypes(values)
+	hasText := false
+	for _, value := range normalized {
+		switch value {
+		case "openai", "openai-response", "anthropic-messages", "google-gemini":
+			hasText = true
+		}
+	}
+	if !hasText {
+		return normalized
+	}
+	result := []string{"openai", "openai-response", "anthropic-messages"}
+	for _, value := range normalized {
+		switch value {
+		case "openai", "openai-response", "anthropic-messages", "google-gemini":
+			continue
+		default:
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
 func (m SiteAPIKeyModel) EffectiveEndpointTypes(siteTypes []string) []string {
 	capabilities := m.Capabilities()
 	switch capabilities.EndpointOverride.Mode {

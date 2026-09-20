@@ -24,6 +24,44 @@ export function formatEndpointTypeLabel(value: string): string {
   }
 }
 
+export function availableEndpointTypes(values: string[]): string[] {
+  const normalized = values
+    .map((value) => normalizeEndpointType(value))
+    .filter(Boolean)
+  const hasText = normalized.some((value) =>
+    ['openai', 'openai-response', 'anthropic-messages', 'google-gemini'].includes(value),
+  )
+  if (!hasText) return [...new Set(normalized)]
+  return [
+    'openai',
+    'openai-response',
+    'anthropic-messages',
+    ...[...new Set(normalized)].filter(
+      (value) => !['openai', 'openai-response', 'anthropic-messages', 'google-gemini'].includes(value),
+    ),
+  ]
+}
+
+function normalizeEndpointType(value: string): string {
+  switch (value.trim().toLowerCase()) {
+    case 'chat':
+    case 'completions':
+    case 'openai-chat':
+    case 'openai-completions':
+      return 'openai'
+    case 'responses':
+    case 'openai-responses':
+      return 'openai-response'
+    case 'messages':
+    case 'anthropic-message':
+      return 'anthropic-messages'
+    case 'gemini':
+      return 'google-gemini'
+    default:
+      return value.trim().toLowerCase()
+  }
+}
+
 export function formatMatchSource(source: string, t?: TFunction): string {
   if (source === 'manual') return t ? t('matchSource.manual') : '手动'
   if (source === 'auto') return t ? t('matchSource.auto') : '自动'

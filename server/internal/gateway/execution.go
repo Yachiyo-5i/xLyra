@@ -547,6 +547,14 @@ func credentialSupportsAdapter(endpointTypes []string, protocol gatewayProtocolA
 	if codex, ok := protocol.(codexProtocolAdapter); ok && codex.downstreamImages {
 		return containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAIImage)
 	}
+	if capabilities, ok := protocol.(gatewayProtocolCredentialCapabilities); ok {
+		for _, endpointType := range capabilities.CredentialEndpointTypes() {
+			if containsEndpointType(endpointTypes, endpointType) {
+				return true
+			}
+		}
+		return false
+	}
 	return credentialSupportsProtocol(endpointTypes, protocol.ProtocolName())
 }
 

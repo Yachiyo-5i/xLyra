@@ -56,6 +56,18 @@ func TestSiteAPIKeyModelBackfillPreservesCredentialDeclarations(t *testing.T) {
 	}
 }
 
+func TestAvailableModelEndpointTypesExpandsTextConversions(t *testing.T) {
+	if got := AvailableModelEndpointTypes([]string{"openai-response"}); !reflect.DeepEqual(got, []string{"openai", "openai-response", "anthropic-messages"}) {
+		t.Fatalf("text endpoint types = %v", got)
+	}
+	if got := AvailableModelEndpointTypes([]string{"openai-image"}); !reflect.DeepEqual(got, []string{"openai-image"}) {
+		t.Fatalf("image endpoint types = %v", got)
+	}
+	if got := AvailableModelEndpointTypes([]string{"google-gemini", "openai-image"}); !reflect.DeepEqual(got, []string{"openai", "openai-response", "anthropic-messages", "openai-image"}) {
+		t.Fatalf("mixed endpoint types = %v", got)
+	}
+}
+
 // BindSiteModel must update only site_model_id, scoped to the site + upstream
 // model name. Credential selection filters api-key models by site_model_id, so
 // a single-key refresh that skips this binding leaves the key invisible to

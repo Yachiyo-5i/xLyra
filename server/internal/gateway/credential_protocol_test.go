@@ -56,3 +56,34 @@ func TestCredentialSupportsProtocolRejectsUnconfiguredEndpoint(t *testing.T) {
 		t.Fatal("chat protocol should not match responses endpoint")
 	}
 }
+
+func TestCredentialSupportsProviderMessagesAdapterWithAnyTextEndpoint(t *testing.T) {
+	protocol := newProviderAnthropicMessagesProtocolAdapter("deepseek", alternateProtocolDefinition{}, canonicalProtocolAnthropicMessages)
+	for _, endpointType := range []string{"openai", "openai-response", "anthropic-messages", "google-gemini"} {
+		if !credentialSupportsAdapter([]string{endpointType}, protocol) {
+			t.Fatalf("provider messages adapter should accept text endpoint %q", endpointType)
+		}
+	}
+	if credentialSupportsAdapter([]string{"openai-image"}, protocol) {
+		t.Fatal("provider messages adapter must not accept image-only endpoint")
+	}
+}
+
+func TestCredentialSupportsDeepSeekMessagesConversionWithOpenAIEndpoint(t *testing.T) {
+	protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), gatewayRequest{
+		DownstreamPath: gatewayEndpointMessages,
+		Payload:        map[string]any{"model": "deepseek-flash", "messages": []any{}},
+	}, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-flash", SupportedEndpointTypes: []string{"openai"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if protocol.ProtocolName() != "deepseek_anthropic_messages" {
+		t.Fatalf("protocol = %q, want deepseek_anthropic_messages", protocol.ProtocolName())
+	}
+	if !credentialSupportsAdapter([]string{"openai"}, protocol) {
+		t.Fatal("OpenAI-only credential should support DeepSeek Messages conversion")
+	}
+}

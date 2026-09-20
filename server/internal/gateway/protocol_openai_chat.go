@@ -29,6 +29,10 @@ func (a openAIChatProtocolAdapter) ProtocolName() string {
 	return "openai_chat_completions"
 }
 
+func (openAIChatProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (a openAIChatProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {
 	if a.mimoTTS && request.Stream {
 		audio, _ := request.Payload["audio"].(map[string]any)

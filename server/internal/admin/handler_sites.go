@@ -1609,12 +1609,14 @@ func (h Handler) siteAPIKeyPayloadFromState(item store.Site, apiKey sitepkg.APIK
 				effectiveEndpointTypes = model.EffectiveEndpointTypes(siteEndpointTypes)
 			}
 		}
+		availableEndpointTypes := store.AvailableModelEndpointTypes(effectiveEndpointTypes)
 		modelItems = append(modelItems, map[string]any{
 			"name":                     model.UpstreamModelName,
 			"site_model_id":            nullableUUIDString(model.SiteModelID),
 			"enabled":                  model.Enabled,
 			"supported_endpoint_types": capabilities.SupportedEndpointTypes,
 			"effective_endpoint_types": effectiveEndpointTypes,
+			"available_endpoint_types": availableEndpointTypes,
 			"endpoint_override":        capabilities.EndpointOverride,
 		})
 	}

@@ -102,21 +102,17 @@ func TestSiteModelTestGatewayRequestBuildsNonStreamResponsesRequest(t *testing.T
 	}
 }
 
-func TestSiteModelTestDownstreamPathRejectsUnsupportedProtocol(t *testing.T) {
+func TestSiteModelTestDownstreamPathAllowsProtocolConversion(t *testing.T) {
 	t.Parallel()
-	for _, tt := range []struct {
-		endpoints []string
-		protocol  string
-		code      string
-	}{
-		{[]string{upstreamEndpointTypeAnthropicMessages}, siteModelTestProtocolResponses, "model_test_protocol_unsupported"},
-		{nil, siteModelTestProtocolAuto, "model_test_protocol_unavailable"},
-		{[]string{}, siteModelTestProtocolAuto, "model_test_protocol_unavailable"},
-	} {
-		_, err := siteModelTestDownstreamPathForProtocol(tt.endpoints, tt.protocol)
+	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeAnthropicMessages}, siteModelTestProtocolResponses)
+	if err != nil || path != gatewayEndpointResponses {
+		t.Fatalf("responses protocol path = %q err=%v", path, err)
+	}
+	for _, endpoints := range [][]string{nil, {}} {
+		_, err := siteModelTestDownstreamPathForProtocol(endpoints, siteModelTestProtocolAuto)
 		var testErr *SiteModelTestError
-		if !errors.As(err, &testErr) || testErr.Code != tt.code || testErr.StatusCode != http.StatusBadRequest {
-			t.Fatalf("error = %v, want 400 %s", err, tt.code)
+		if !errors.As(err, &testErr) || testErr.Code != "model_test_protocol_unavailable" || testErr.StatusCode != http.StatusBadRequest {
+			t.Fatalf("error = %v, want 400 model_test_protocol_unavailable", err)
 		}
 	}
 }
@@ -337,8 +333,8 @@ func TestSiteModelTestSelectsKeyBeforeProtocol(t *testing.T) {
 		{name: "auto uses key messages allowlist", keyPolicy: `{"endpoint_override":{"mode":"allowlist","endpoint_types":["anthropic-messages"]}}`, wantProtocol: "anthropic_messages", wantPath: "/v1/messages", wantKey: "first"},
 		{name: "explicit key uses its own protocols", selected: "second", keyPolicy: `{"supported_endpoint_types":["openai"]}`, wantProtocol: "openai_responses", wantPath: "/v1/responses", wantKey: "second"},
 		{name: "manual supported protocol", protocol: "responses", keyPolicy: `{"supported_endpoint_types":["openai-response"]}`, wantProtocol: "openai_responses", wantPath: "/v1/responses", wantKey: "first"},
-		{name: "manual protocol cannot choose another key", protocol: "responses", keyPolicy: `{"supported_endpoint_types":["openai"]}`, wantCode: "model_test_protocol_unsupported"},
-		{name: "explicit key rejects unsupported protocol", selected: "first", protocol: "messages", keyPolicy: `{"supported_endpoint_types":["openai"]}`, wantCode: "model_test_protocol_unsupported"},
+		{name: "manual protocol converts through another key", protocol: "responses", keyPolicy: `{"supported_endpoint_types":["openai"]}`, wantProtocol: "openai_chat_completions_to_responses", wantPath: "/v1/chat/completions", wantKey: "first"},
+		{name: "explicit key converts unsupported protocol", selected: "first", protocol: "messages", keyPolicy: `{"supported_endpoint_types":["openai"]}`, wantProtocol: "openai_chat_completions_to_messages", wantPath: "/v1/chat/completions", wantKey: "first"},
 		{name: "disabled key model is skipped", keyPolicy: `{"endpoint_override":{"mode":"disabled"}}`, wantProtocol: "openai_responses", wantPath: "/v1/responses", wantKey: "second"},
 		{name: "unavailable key model is skipped", unavailable: true, wantProtocol: "openai_responses", wantPath: "/v1/responses", wantKey: "second"},
 		{name: "explicit disabled key model rejected", selected: "first", keyPolicy: `{"endpoint_override":{"mode":"disabled"}}`, wantCode: "model_test_credential_unavailable"},
@@ -458,7 +454,7 @@ func TestSiteModelTestNativeProtocolResolution(t *testing.T) {
 		{siteType: "google", endpoints: []string{"google-gemini"}, wantProtocol: "google_generate_content"},
 		{siteType: "codex", endpoints: []string{"openai", "openai-response"}, wantProtocol: "codex_responses"},
 		{siteType: "antigravity", endpoints: []string{"openai", "openai-response", "google-gemini"}, wantProtocol: "antigravity_generate_content"},
-		{siteType: "anthropic", endpoints: []string{"openai"}, wantCode: "model_test_protocol_unsupported"},
+		{siteType: "anthropic", endpoints: []string{"openai"}, wantProtocol: "anthropic_messages_to_chat_completions"},
 	} {
 		t.Run(tt.siteType, func(t *testing.T) {
 			candidate := siteModelTestRouteCandidate()

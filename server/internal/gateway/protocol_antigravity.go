@@ -48,6 +48,10 @@ func (a antigravityProtocolAdapter) ProtocolName() string {
 	return "antigravity_generate_content"
 }
 
+func (antigravityProtocolAdapter) CredentialEndpointTypes() []string {
+	return textCredentialEndpointTypes()
+}
+
 func (a antigravityProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {
 	projectID := a.projectID(request, candidate)
 	if projectID == "" {
