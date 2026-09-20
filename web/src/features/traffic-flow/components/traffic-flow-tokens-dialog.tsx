@@ -10,7 +10,7 @@ import {
   type TokenUsageFilter,
   type TokenUsageRank,
 } from '@/features/traffic-flow/lib/token-usage-filter'
-import { OTHER_BRAND_LABEL } from '@/lib/brands'
+import { OTHER_BRAND_LABEL, providerCatalog } from '@/lib/brands'
 import { sameNode, type TrafficFlowNodeRef } from '@/features/traffic-flow/lib/wing-layout'
 
 type Translate = (key: string, options?: Record<string, string | number>) => string
@@ -82,7 +82,7 @@ export function TrafficFlowTokensDialog({
       <DialogContent
         container={container}
         overlayClassName="traffic-flow-tokens-overlay absolute inset-0 bg-black/28 backdrop-blur-[6px]"
-        className="traffic-flow-tokens-dialog absolute left-auto top-auto w-auto max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-white/20 bg-[#080808]/[0.92] p-0 shadow-none"
+        className="traffic-flow-tokens-dialog absolute left-auto top-auto w-auto max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-[var(--flow-radius-lg)] border-white/20 bg-[#080808]/[0.92] p-0 shadow-none"
         style={panelStyle}
       >
         <DialogHeader className="traffic-flow-tokens-header">
@@ -111,19 +111,21 @@ export function TrafficFlowTokensDialog({
               <button type="button" className={filter.vendors.length === 0 ? 'is-active' : undefined} onClick={() => setFilter((current) => ({ ...current, vendors: [] }))}>
                 {t('tokensDialog.allVendors')}
               </button>
-              {breakdown.vendors.map((vendor) => (
-                <button
-                  key={vendor.id || 'other'}
-                  type="button"
-                  className={filter.vendors.includes(vendor.id) ? 'is-active' : undefined}
-                  style={{ '--flow-vendor': vendor.color } as CSSProperties}
-                  aria-pressed={filter.vendors.includes(vendor.id)}
-                  onClick={() => toggle('vendors', vendor.id)}
-                >
-                  <i />
-                  {vendorName(vendor, t)}
-                </button>
-              ))}
+              {breakdown.vendors.map((vendor) => {
+                const iconPath = vendorIconPath(vendor)
+                return (
+                  <button
+                    key={vendor.id || 'other'}
+                    type="button"
+                    className={filter.vendors.includes(vendor.id) ? 'is-active' : undefined}
+                    aria-pressed={filter.vendors.includes(vendor.id)}
+                    onClick={() => toggle('vendors', vendor.id)}
+                  >
+                    {iconPath ? <img src={iconPath} alt="" /> : <b>{vendorGlyph(vendor, t)}</b>}
+                    {vendorName(vendor, t)}
+                  </button>
+                )
+              })}
             </div>
             {active ? (
               <button type="button" className="traffic-flow-tokens-clear" onClick={() => { setFilter(emptyTokenUsageFilter()); setLastNodeClick(null) }}>
@@ -257,6 +259,16 @@ function highlightTarget(filter: TokenUsageFilter, lastNodeClick: { kind: 'key' 
 function vendorName(vendor: Pick<TokenUsageRank, 'id' | 'name' | 'vendor'>, t: Translate) {
   const id = vendor.vendor || vendor.id
   return id === OTHER_BRAND_LABEL || !id ? t('tokensDialog.otherVendors') : vendor.vendor || vendor.name
+}
+
+function vendorIconPath(vendor: Pick<TokenUsageRank, 'id' | 'vendor'>) {
+  const name = (vendor.vendor || vendor.id).trim().toLowerCase()
+  if (!name || name === OTHER_BRAND_LABEL.toLowerCase()) return undefined
+  return providerCatalog.find((entry) => entry.name.toLowerCase() === name)?.iconPath
+}
+
+function vendorGlyph(vendor: Pick<TokenUsageRank, 'id' | 'name' | 'vendor'>, t: Translate) {
+  return vendorName(vendor, t).trim().slice(0, 1).toUpperCase()
 }
 
 function emptyLabel(cellCount: number, t: Translate) {
