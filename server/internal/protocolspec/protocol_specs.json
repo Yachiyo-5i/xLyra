@@ -842,6 +842,12 @@
       "official_base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
       "path": "/chat/completions",
       "alternate_protocols": {
+        "openai_responses": {
+          "protocol": "openai_responses",
+          "base_url": "https://open.bigmodel.cn/api/v1",
+          "path": "/responses",
+          "official_only": true
+        },
         "anthropic_messages": {
           "protocol": "anthropic_messages",
           "base_url": "https://open.bigmodel.cn/api/anthropic",
