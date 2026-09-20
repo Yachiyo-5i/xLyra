@@ -160,6 +160,9 @@ func (a openAIResponsesProtocolAdapter) BuildUpstreamPayload(request gatewayRequ
 	if a.downstreamProtocol == canonicalProtocolOpenAIResponses || request.DownstreamPath == gatewayEndpointResponses {
 		payload := clonePayload(request.Payload)
 		payload["model"] = candidate.Model.UpstreamName
+		if isOfficialDeepSeekResponsesCandidate(candidate) {
+			normalizeDeepSeekResponsesInput(payload)
+		}
 		return applyRequestPolicyForCandidate(payload, canonicalProtocolOpenAIResponses, candidate), nil
 	}
 	if request.Canonical != nil {
@@ -170,6 +173,37 @@ func (a openAIResponsesProtocolAdapter) BuildUpstreamPayload(request gatewayRequ
 		return applyRequestPolicyForCandidate(payload, canonicalProtocolOpenAIResponses, candidate), nil
 	}
 	return convertRequestBetweenProtocols(canonicalProtocolOpenAIChat, canonicalProtocolOpenAIResponses, request.Payload, stringFromPayloadModel(request.Payload), candidate)
+}
+
+func isOfficialDeepSeekResponsesCandidate(candidate routeengine.Candidate) bool {
+	if !strings.EqualFold(strings.TrimSpace(candidate.Site.SiteType), "deepseek") {
+		return false
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(candidate.Site.BaseURL), "/")
+	return baseURL == "" || strings.EqualFold(baseURL, "https://api.deepseek.com")
+}
+
+func normalizeDeepSeekResponsesInput(payload map[string]any) {
+	input, ok := payload["input"].([]any)
+	if !ok {
+		return
+	}
+
+	normalized := make([]any, len(input))
+	for index, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			normalized[index] = rawItem
+			continue
+		}
+		cloned := clonePayload(item)
+		itemType := strings.TrimSpace(anyString(cloned["type"]))
+		if strings.EqualFold(itemType, "message") || (itemType == "" && strings.TrimSpace(anyString(cloned["role"])) != "") {
+			delete(cloned, "id")
+		}
+		normalized[index] = cloned
+	}
+	payload["input"] = normalized
 }
 
 func (a openAIResponsesProtocolAdapter) TransformBufferedResponse(statusCode int, headers http.Header, body []byte) (gatewayBufferedResponse, error) {
