@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.10.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.9.1...v1.10.0) (2026-09-20)
+
+
+### Features
+
+* ✨ 为窗口 Tokens 增加多维明细，并展开节点卡片查看在途数据 ([12f92f1](https://github.com/Yachiyo-5i/xLyra/commit/12f92f11e28a7313d943b24bcea1adad807f17b2))
+* ✨ 将流量驾驶舱改为 2.5D 拓扑并按厂商着色 ([d61bab3](https://github.com/Yachiyo-5i/xLyra/commit/d61bab3903bb3aa08eb741171dddd3e27fbafeaf))
+* ✨ 按单条请求高亮拓扑，并以穿越网关的粒子表现请求往返 ([9cf0256](https://github.com/Yachiyo-5i/xLyra/commit/9cf0256b4110d582dc1f7e6e57c561a7a890eaa0))
+* ✨ 统一驾驶舱圆角与间距，并精简窗口 Tokens 弹窗层次 ([5232aee](https://github.com/Yachiyo-5i/xLyra/commit/5232aeed501a417c593a2d3ac5c9b9fe5eeb3193))
+* ✨ 让拓扑节点 hover 时浮起靠近网关，并避免座位跳动 ([e12139a](https://github.com/Yachiyo-5i/xLyra/commit/e12139a1a5f0ca19448dc77117208f4c9b9c15ba))
+
+
+### Bug Fixes
+
+* 🐛 修复流量驾驶舱合入后无法通过代码检查的问题 ([31ca646](https://github.com/Yachiyo-5i/xLyra/commit/31ca64666bbb56a3ec07d475f81a9361e0a38191))
+* 🐛 修复路由页通道列表漏行，并按开启状态与优先级排序 ([c2a83df](https://github.com/Yachiyo-5i/xLyra/commit/c2a83dff480f2183fd1be17edd4247e4438edc11))
+* 🐛 加快前端发版检测并避免旧 Service Worker 挡住更新 ([0af9b69](https://github.com/Yachiyo-5i/xLyra/commit/0af9b69371b8c34d12dba8ac24865a83c45314c3))
+
 ## [1.9.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.9.0...v1.9.1) (2026-09-20)
 
 
