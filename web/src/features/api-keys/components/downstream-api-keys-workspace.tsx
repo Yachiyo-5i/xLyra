@@ -266,13 +266,8 @@ export function DownstreamAPIKeysWorkspace() {
     onToggleLastUsedMode: () => setLastUsedMode((current) => (current === 'absolute' ? 'relative' : 'absolute')),
   }
 
-  async function openOrder() {
-    const result = await apiKeysQuery.refetch()
-    if (result.data) setOrderOpen(true)
-  }
-
   const orderButton = (
-    <Button variant="outline" onClick={() => void openOrder()} disabled={apiKeys.length < 2 || apiKeysQuery.isFetching} aria-label={t('order.title')}>
+    <Button variant="outline" onClick={() => setOrderOpen(true)} aria-label={t('order.title')}>
       <ArrowDownUp className="h-4 w-4" />
       {!isMobile ? t('order.title') : null}
     </Button>
