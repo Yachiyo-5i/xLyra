@@ -134,19 +134,15 @@
 .traffic-flow-link.is-active { stroke: rgba(255, 255, 255, .5); stroke-width: 1.8; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .28)); }
 .traffic-flow-link.is-hot { stroke: #f1f1f1; stroke-width: 2.2; filter: drop-shadow(0 0 8px rgba(255, 255, 255, .45)); }
 .traffic-flow-link.is-dim { stroke: rgba(255, 255, 255, .06); }
-.traffic-flow-packet {
-  fill: none;
-  stroke-width: 2.1;
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 6px currentColor);
-  animation: traffic-flow-along 1.35s linear infinite;
+.traffic-flow-pulse { pointer-events: none; }
+.traffic-flow-pulse-head {
+  filter: drop-shadow(0 0 7px currentColor);
 }
-.traffic-flow-packet.is-request { stroke-dasharray: 7 16; opacity: .95; }
-.traffic-flow-packet.is-response { stroke-dasharray: 3 14; stroke-width: 1.7; opacity: .82; animation-duration: 1.7s; }
-.traffic-flow-packet.is-reverse { animation-name: traffic-flow-reverse; }
-.traffic-flow-packet.is-paused { animation-play-state: paused; }
-@keyframes traffic-flow-along { to { stroke-dashoffset: -46; } }
-@keyframes traffic-flow-reverse { to { stroke-dashoffset: 46; } }
+.traffic-flow-pulse.is-response .traffic-flow-pulse-head { opacity: .88; }
+.traffic-flow-pulse-trail { opacity: .28; }
+.traffic-flow-pulse-trail.is-2 { opacity: .12; }
+.traffic-flow-pulse.is-dim { opacity: .18; }
+.traffic-flow-pulse.is-dim .traffic-flow-pulse-head { filter: none; }
 .traffic-flow-map-corner { position: absolute; z-index: 6; width: 22px; height: 22px; border-color: rgba(255, 255, 255, .72); border-style: solid; }
 .traffic-flow-map-corner-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
 .traffic-flow-map-corner-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
@@ -357,5 +353,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .traffic-flow-node, .traffic-flow-node-card, .traffic-flow-status-dot.is-live { box-shadow: none; transition: none; }
-  .traffic-flow-packet { animation: none; stroke-dasharray: none; }
+  .traffic-flow-pulse { display: none; }
 }

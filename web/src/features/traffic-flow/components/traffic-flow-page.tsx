@@ -95,6 +95,7 @@ function TrafficFlowPage() {
         topology={session.topology}
         requests={session.visibleRequests}
         retiringRequestIDs={session.retiringRequestIDs}
+        selectedRequest={session.selectedRequest}
         selectedNode={session.selectedNode}
         hoveredNode={session.hoveredNode}
         paused={session.paused}
@@ -107,6 +108,7 @@ function TrafficFlowPage() {
         onHoverNode={session.setHoveredNode}
         onSelectNode={session.selectNode}
         onClearSelection={session.clearSelection}
+        onRequestDrained={session.finalizeRetirement}
       />
 
       <TrafficFlowFeed

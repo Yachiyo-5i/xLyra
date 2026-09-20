@@ -47,7 +47,7 @@ export function FlowNodeCard({
   const className = [
     'traffic-flow-node',
     placement.kind === 'downstream' ? 'is-downstream' : 'is-upstream',
-    placement.inflight > 0 ? 'is-hot' : 'is-idle',
+    placement.lit ? 'is-hot' : 'is-idle',
     selected ? 'is-selected' : '',
     hovered ? 'is-hovered' : '',
     related ? 'is-related' : '',
@@ -83,7 +83,7 @@ export function FlowNodeCard({
           <i>{request?.model_key ?? nodeCaption(placement.node, placement.kind, t)}</i>
         </span>
       </button>
-      {placement.inflight > 0 ? (
+      {placement.lit && placement.inflight > 0 ? (
         <span className="traffic-flow-node-card-count">{formatPaddedCount(placement.inflight)}</span>
       ) : null}
       {selected ? (

@@ -46,13 +46,14 @@ export function TrafficFlowFeed({
       <div className="traffic-flow-feed-list">
         {requests.map((request) => {
           const related = selectedNode ? requestTouchesNode(request, selectedNode.kind, selectedNode.id, false) : false
+          const selected = selectedRequest?.request_id === request.request_id
           return (
             <FlowActivity
               key={request.request_id}
               request={request}
-              selected={selectedRequest?.request_id === request.request_id}
+              selected={selected}
               related={related}
-              dimmed={Boolean(selectedNode) && !related}
+              dimmed={selectedRequest ? !selected : Boolean(selectedNode) && !related}
               now={now}
               onSelect={() => onSelectRequest(request.request_id)}
               t={t}

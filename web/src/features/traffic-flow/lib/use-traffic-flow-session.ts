@@ -9,11 +9,12 @@ import {
   type TrafficFlowUsageTotal,
 } from '@/features/traffic-flow/api/traffic-flow'
 import { bumpActivityBucket, emptyActivityBuckets, syncActivityBuckets, type ActivityBucket } from '@/features/traffic-flow/lib/activity-buckets'
+import { packetTravelMs } from '@/features/traffic-flow/lib/flow-packets'
 import { modelVisual } from '@/features/traffic-flow/lib/model-visual'
 import { fetchRateLimitSettings } from '@/features/settings/api/settings'
 import { sameNode, type TrafficFlowNodeRef } from '@/features/traffic-flow/lib/wing-layout'
 
-const flowDrainFallbackDuration = 5200
+const flowDrainFallbackDuration = packetTravelMs * 4 + 1600
 
 export function useTrafficFlowSession() {
   const queryClient = useQueryClient()
@@ -288,8 +289,9 @@ export function useTrafficFlowSession() {
         const payload = JSON.parse(event.data) as TrafficFlowEvent
         if (isStaleEvent(payload.sequence)) return
         if (!payload.request_id) return
-        setWindowEnd(new Date())
         const requestID = payload.request_id
+        if (!requestsRef.current[requestID]) return
+        setWindowEnd(new Date())
         knownRequestIDsRef.current.delete(requestID)
         setRetiringRequestIDs((current) => new Set(current).add(requestID))
         scheduleRetirementFallback(requestID)
@@ -370,12 +372,8 @@ export function useTrafficFlowSession() {
       setSelectedRequestID(null)
       return
     }
-    const request = requestsRef.current[requestID]
-    setSelectedRequestID(requestID)
-    if (!request) return
-    setSelectedNode(request.upstream_site_id
-      ? { kind: 'upstream', id: request.upstream_site_id }
-      : { kind: 'downstream', id: request.api_key_id })
+    setSelectedNode(null)
+    setSelectedRequestID((current) => (current === requestID ? null : requestID))
   }, [])
 
   const nodeCount = (topology?.downstream.length ?? 0) + (topology?.gateway ? 1 : 0) + (topology?.upstream.length ?? 0)
