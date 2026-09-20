@@ -4,6 +4,8 @@ import { bumpActivityBucket, emptyActivityBuckets, syncActivityBuckets } from '@
 import {
   layoutWing,
   relatedNodeIDs,
+  requestEndpointIDs,
+  requestTouchesEndpoints,
   requestTouchesNode,
   wingCapacity,
 } from '@/features/traffic-flow/lib/wing-layout'
@@ -126,6 +128,51 @@ describe('layoutWing', () => {
     const routed = request({ request_id: 'r1', api_key_id: 'key-a', upstream_site_id: 'site-1', phase: 'routed' })
     expect([...relatedNodeIDs('downstream', 'key-a', [routed], new Set())]).toEqual(['site-1'])
     expect([...relatedNodeIDs('upstream', 'site-1', [routed], new Set())]).toEqual(['key-a'])
+  })
+
+  it('does not lift a logically inflight node until litKeys say it has arrived', () => {
+    const nodes = [node('site-1'), node('site-2')]
+    const requests = [request({ request_id: 'r1', upstream_site_id: 'site-1', phase: 'routed' })]
+    const dark = layoutWing('upstream', nodes, requests, new Set(), {
+      capacity: 8,
+      expanded: false,
+      litKeys: new Set(),
+    })
+    const lit = layoutWing('upstream', nodes, requests, new Set(), {
+      capacity: 8,
+      expanded: false,
+      litKeys: new Set(['upstream:site-1']),
+    })
+    expect(dark.find((item) => item.id === 'site-1')?.lit).toBe(false)
+    expect(dark.find((item) => item.id === 'site-1')?.lift).toBe(0)
+    expect(lit.find((item) => item.id === 'site-1')?.lit).toBe(true)
+    expect(lit.find((item) => item.id === 'site-1')?.lift).toBe(1)
+  })
+
+  it('collects only the request endpoints, not allow-list peers', () => {
+    const routed = request({ request_id: 'r1', api_key_id: 'key-a', upstream_site_id: 'site-1', phase: 'routed' })
+    expect([...requestEndpointIDs(routed)].sort()).toEqual(['key-a', 'site-1'])
+    expect(requestTouchesEndpoints('downstream', 'key-a', routed)).toBe(true)
+    expect(requestTouchesEndpoints('upstream', 'site-1', routed)).toBe(true)
+    expect(requestTouchesEndpoints('upstream', 'site-2', routed)).toBe(false)
+    expect([...requestEndpointIDs(request({ request_id: 'r2', phase: 'accepted' }))]).toEqual(['key-a'])
+  })
+
+  it('lifts both request endpoints when selectedKeys are provided', () => {
+    const downstream = layoutWing('downstream', [node('key-a'), node('key-b')], [], new Set(), {
+      capacity: 8,
+      expanded: false,
+      selectedKeys: new Set(['downstream:key-a']),
+    })
+    const upstream = layoutWing('upstream', [node('site-1'), node('site-2')], [], new Set(), {
+      capacity: 8,
+      expanded: false,
+      selectedKeys: new Set(['upstream:site-1']),
+    })
+    expect(downstream.find((item) => item.id === 'key-a')?.lift).toBe(1)
+    expect(downstream.find((item) => item.id === 'key-b')?.lift).toBe(0)
+    expect(upstream.find((item) => item.id === 'site-1')?.lift).toBe(1)
+    expect(upstream.find((item) => item.id === 'site-2')?.lift).toBe(0)
   })
 
   it('highlights allowed upstream sites for a downstream key without inflight traffic', () => {

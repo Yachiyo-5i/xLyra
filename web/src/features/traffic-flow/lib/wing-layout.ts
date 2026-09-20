@@ -22,6 +22,7 @@ export type WingPlacement = {
   zIndex: number
   opacity: number
   lift: number
+  lit: boolean
 }
 
 const terminalPhases = new Set(['completed', 'failed', 'cancelled'])
@@ -70,6 +71,20 @@ export function allowedUpstreamIDs(node: TrafficFlowNode | undefined, upstream: 
   return upstream.map((item) => item.id)
 }
 
+export function requestEndpointIDs(request: TrafficFlowRequest | null | undefined) {
+  const ids = new Set<string>()
+  if (!request) return ids
+  ids.add(request.api_key_id)
+  if (request.upstream_site_id) ids.add(request.upstream_site_id)
+  return ids
+}
+
+export function requestTouchesEndpoints(kind: LaneKind, id: string, request: TrafficFlowRequest | null | undefined) {
+  if (!request) return false
+  if (kind === 'downstream') return request.api_key_id === id
+  return Boolean(request.upstream_site_id && request.upstream_site_id === id)
+}
+
 export function relatedNodeIDs(
   kind: LaneKind,
   id: string,
@@ -110,6 +125,8 @@ export function layoutWings(
     expanded: { downstream: boolean; upstream: boolean }
     hovered?: TrafficFlowNodeRef | null
     selected?: TrafficFlowNodeRef | null
+    selectedKeys?: Set<string>
+    litKeys?: Set<string>
     reducedMotion?: boolean
   },
 ) {
@@ -129,6 +146,8 @@ export function layoutWing(
     expanded: boolean
     hovered?: TrafficFlowNodeRef | null
     selected?: TrafficFlowNodeRef | null
+    selectedKeys?: Set<string>
+    litKeys?: Set<string>
     reducedMotion?: boolean
   },
 ) {
@@ -147,7 +166,9 @@ export function layoutWing(
   const draft: WingPlacement[] = homes.map(({ item, home }) => {
     const hovered = sameNode(options.hovered, { kind, id: item.node.id })
     const selected = sameNode(options.selected, { kind, id: item.node.id })
-    const lift = (item.inflight > 0 ? 1 : 0) + (hovered ? 1 : 0) + (selected ? 1 : 0)
+      || Boolean(options.selectedKeys?.has(nodeKey(kind, item.node.id)))
+    const lit = options.litKeys ? options.litKeys.has(nodeKey(kind, item.node.id)) : item.inflight > 0
+    const lift = (lit ? 1 : 0) + (hovered ? 1 : 0) + (selected ? 1 : 0)
     if (lift > 0) lifted.add(item.node.id)
     const inward = options.reducedMotion ? 0 : lift * (kind === 'downstream' ? 1.5 : -1.5)
     return {
@@ -165,6 +186,7 @@ export function layoutWing(
       zIndex: 20 + lift * 12 + item.inflight,
       opacity: lift > 0 ? 1 : 0.78,
       lift,
+      lit,
     }
   })
 
@@ -187,6 +209,7 @@ export function layoutWing(
       zIndex: 8,
       opacity: 0.7,
       lift: 0,
+      lit: false,
     }))
 
   return [...nudged, ...clustered]
