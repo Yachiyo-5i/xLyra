@@ -168,9 +168,11 @@ export function layoutWing(
     const selected = sameNode(options.selected, { kind, id: item.node.id })
       || Boolean(options.selectedKeys?.has(nodeKey(kind, item.node.id)))
     const lit = options.litKeys ? options.litKeys.has(nodeKey(kind, item.node.id)) : item.inflight > 0
-    const lift = (lit ? 1 : 0) + (hovered ? 1 : 0) + (selected ? 1 : 0)
-    if (lift > 0) lifted.add(item.node.id)
-    const inward = options.reducedMotion ? 0 : lift * (kind === 'downstream' ? 1.5 : -1.5)
+    const emphasis = (hovered ? 1 : 0) + (selected ? 1 : 0)
+    const lift = (lit ? 1 : 0) + emphasis
+    const motionLift = options.reducedMotion || !lit ? 0 : 1
+    if (motionLift > 0) lifted.add(item.node.id)
+    const inward = motionLift * (kind === 'downstream' ? 1.5 : -1.5)
     return {
       id: item.node.id,
       kind,
@@ -182,7 +184,7 @@ export function layoutWing(
       home,
       x: home.x + inward,
       y: home.y,
-      scale: 1 + lift * 0.045,
+      scale: 1 + motionLift * 0.045,
       zIndex: 20 + lift * 12 + item.inflight,
       opacity: lift > 0 ? 1 : 0.78,
       lift,

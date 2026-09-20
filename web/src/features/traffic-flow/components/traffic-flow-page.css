@@ -181,7 +181,9 @@
   z-index: 5;
   width: 176px;
   height: 40px;
+  overflow: visible;
   transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
   transition: left 220ms ease, top 220ms ease, transform 220ms ease, opacity 180ms ease;
 }
 .traffic-flow-node.is-downstream { width: 176px; }
@@ -202,6 +204,8 @@
   color: #f0f0f0;
   cursor: pointer;
   text-align: left;
+  transform: translate(0, 0);
+  transition: transform 220ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 .traffic-flow-node-card-head {
   display: flex;
@@ -219,6 +223,16 @@
 .traffic-flow-node.is-selected .traffic-flow-node-card {
   border-color: color-mix(in srgb, var(--node-color, var(--flow-accent)) 70%, rgba(255, 255, 255, .2));
   box-shadow: 0 14px 28px rgba(0, 0, 0, .32), 0 0 22px color-mix(in srgb, var(--node-color, var(--flow-accent)) 28%, transparent);
+}
+.traffic-flow-node.is-downstream:hover .traffic-flow-node-card,
+.traffic-flow-node.is-downstream.is-hovered .traffic-flow-node-card {
+  transform: translate(10px, -6px) scale(1.04);
+  box-shadow: 8px 18px 28px rgba(0, 0, 0, .42), 0 0 22px color-mix(in srgb, var(--node-color, var(--flow-accent)) 28%, transparent);
+}
+.traffic-flow-node.is-upstream:hover .traffic-flow-node-card,
+.traffic-flow-node.is-upstream.is-hovered .traffic-flow-node-card {
+  transform: translate(-10px, -6px) scale(1.04);
+  box-shadow: -8px 18px 28px rgba(0, 0, 0, .42), 0 0 22px color-mix(in srgb, var(--node-color, var(--flow-accent)) 28%, transparent);
 }
 .traffic-flow-node.is-related .traffic-flow-node-card {
   opacity: 1;
@@ -616,6 +630,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .traffic-flow-node, .traffic-flow-node-card, .traffic-flow-status-dot.is-live { box-shadow: none; transition: none; }
+  .traffic-flow-node.is-downstream:hover .traffic-flow-node-card,
+  .traffic-flow-node.is-downstream.is-hovered .traffic-flow-node-card,
+  .traffic-flow-node.is-upstream:hover .traffic-flow-node-card,
+  .traffic-flow-node.is-upstream.is-hovered .traffic-flow-node-card { transform: none; }
   .traffic-flow-pulse { display: none; }
   .traffic-flow-tokens-dialog[data-state="open"],
   .traffic-flow-tokens-overlay[data-state="open"] { animation: none; }
