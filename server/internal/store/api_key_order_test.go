@@ -210,7 +210,13 @@ func TestAPIKeyOrderPostgres(t *testing.T) {
 			t.Fatal("concurrent creation must assign distinct increasing ranks")
 		}
 	}
+	if err := repo.Reorder(ctx, ids(beforeCreate)); !errors.Is(err, ErrInvalidAPIKeyOrder) {
+		t.Fatalf("order missing newly created keys returned %v", err)
+	}
 	if err := repo.Delete(ctx, (<-created).ID); err != nil {
 		t.Fatal(err)
+	}
+	if err := repo.Reorder(ctx, ids(afterCreate)); !errors.Is(err, ErrInvalidAPIKeyOrder) {
+		t.Fatalf("order containing a deleted key returned %v", err)
 	}
 }

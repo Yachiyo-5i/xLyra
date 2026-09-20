@@ -43,11 +43,12 @@ function TrafficFlowPage() {
   const navigate = useNavigate()
   const session = useTrafficFlowSession()
   const [tokensOpen, setTokensOpen] = useState(false)
+  const [pageEl, setPageEl] = useState<HTMLElement | null>(null)
   const kpisRef = useRef<HTMLElement>(null)
   const tokensButtonRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <main ref={session.pageRef} className={tokensOpen ? 'traffic-flow-page is-tokens-open' : 'traffic-flow-page'}>
+    <main ref={setPageEl} className={tokensOpen ? 'traffic-flow-page is-tokens-open' : 'traffic-flow-page'}>
       <div className="traffic-flow-background" aria-hidden="true" />
       <div className="traffic-flow-scanline" aria-hidden="true" />
 
@@ -79,7 +80,7 @@ function TrafficFlowPage() {
           <button
             type="button"
             className="traffic-flow-icon-button"
-            onClick={() => void session.togglePageFullscreen()}
+            onClick={() => void session.togglePageFullscreen(pageEl)}
             aria-label={session.fullscreen ? t('actions.exitFullscreen') : t('actions.fullscreen')}
           >
             {session.fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
@@ -145,7 +146,7 @@ function TrafficFlowPage() {
         open={tokensOpen}
         cells={Object.values(session.usageCells)}
         selectedNode={session.selectedNode}
-        container={session.pageRef.current}
+        container={pageEl}
         kpisRef={kpisRef}
         tokensButtonRef={tokensButtonRef}
         t={t}

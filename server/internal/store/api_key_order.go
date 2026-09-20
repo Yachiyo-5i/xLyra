@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var ErrInvalidAPIKeyOrder = errors.New("api key order must contain every key exactly once")
+var ErrInvalidAPIKeyOrder = errors.New("api key order must contain every visible key exactly once")
 
 func apiKeyOrderOption(key APIKey) APIKeyListOption {
 	return APIKeyListOption{ID: key.ID, SortOrder: key.SortOrder, Status: key.Status, CreatedAt: key.CreatedAt}
