@@ -41,6 +41,14 @@ export function TrafficFlowTokensDialog({
   const [filter, setFilter] = useState<TokenUsageFilter>(emptyTokenUsageFilter)
   const [lastNodeClick, setLastNodeClick] = useState<{ kind: 'key' | 'site'; id: string } | null>(null)
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({})
+  const [openSnapshot, setOpenSnapshot] = useState(open)
+  if (open !== openSnapshot) {
+    setOpenSnapshot(open)
+    if (!open) {
+      setFilter(emptyTokenUsageFilter())
+      setLastNodeClick(null)
+    }
+  }
   const breakdown = useMemo(() => deriveTokenUsage(cells, filter), [cells, filter])
   const active = isTokenUsageFilterActive(filter)
 
@@ -51,12 +59,6 @@ export function TrafficFlowTokensDialog({
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [container, kpisRef, open, tokensButtonRef])
-
-  useLayoutEffect(() => {
-    if (open) return
-    setFilter(emptyTokenUsageFilter())
-    setLastNodeClick(null)
-  }, [open])
 
   useLayoutEffect(() => {
     if (!open) return

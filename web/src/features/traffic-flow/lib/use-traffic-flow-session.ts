@@ -39,7 +39,6 @@ export function useTrafficFlowSession() {
   const [usageCells, setUsageCells] = useState<Record<string, TrafficFlowUsageCell>>({})
   const [windowStart] = useState(() => new Date())
   const [windowEnd, setWindowEnd] = useState(() => new Date())
-  const pageRef = useRef<HTMLElement>(null)
   const retirementTimersRef = useRef<Map<string, number>>(new Map())
   const knownRequestIDsRef = useRef<Set<string>>(new Set())
   const knownNodeIDsRef = useRef<Set<string> | null>(null)
@@ -56,10 +55,13 @@ export function useTrafficFlowSession() {
   const demoTokensSeededRef = useRef(false)
   const tokenDisplayRef = useRef(0)
   const requestsRef = useRef(requests)
-  requestsRef.current = requests
   const topologyQuery = useQuery({ queryKey: ['traffic-flow', 'topology'], queryFn: getTrafficFlowTopology, refetchOnWindowFocus: 'always', staleTime: 30_000, refetchInterval: 60_000 })
   const rateLimitQuery = useQuery({ queryKey: ['settings', 'rate-limits'], queryFn: fetchRateLimitSettings, staleTime: 60_000 })
   const topology = topologyQuery.data ?? null
+
+  useEffect(() => {
+    requestsRef.current = requests
+  }, [requests])
 
   useEffect(() => {
     pausedRef.current = paused
@@ -79,25 +81,28 @@ export function useTrafficFlowSession() {
   useEffect(() => {
     if (!import.meta.env.DEV || !topology || demoTokensSeededRef.current) return
     const seeded = seedDemoWindowTokens(topology)
-    if (!seeded) return
     demoTokensSeededRef.current = true
-    setUsageCells(seeded.cells)
-    setDownstreamTokenUsage(seeded.downstream)
-    setUpstreamTokenUsage(seeded.upstream)
-    setTokenTarget(seeded.total)
-    setDisplayedTokens(seeded.total)
-    tokenDisplayRef.current = seeded.total
-    lastServerTokenTotalRef.current = seeded.total
-    for (const cell of Object.values(seeded.cells)) {
-      lastUsageCellRef.current[usageCellKey(cell)] = {
-        total: cell.total_tokens,
-        input: cell.input_tokens ?? 0,
-        output: cell.output_tokens ?? 0,
-        cached: cell.cached_tokens ?? 0,
+    if (!seeded) return
+    const timer = window.setTimeout(() => {
+      setUsageCells(seeded.cells)
+      setDownstreamTokenUsage(seeded.downstream)
+      setUpstreamTokenUsage(seeded.upstream)
+      setTokenTarget(seeded.total)
+      setDisplayedTokens(seeded.total)
+      tokenDisplayRef.current = seeded.total
+      lastServerTokenTotalRef.current = seeded.total
+      for (const cell of Object.values(seeded.cells)) {
+        lastUsageCellRef.current[usageCellKey(cell)] = {
+          total: cell.total_tokens,
+          input: cell.input_tokens ?? 0,
+          output: cell.output_tokens ?? 0,
+          cached: cell.cached_tokens ?? 0,
+        }
       }
-    }
-    for (const item of Object.values(seeded.downstream)) lastDownstreamUsageRef.current[item.id] = item.total_tokens
-    for (const item of Object.values(seeded.upstream)) lastUpstreamUsageRef.current[item.id] = item.total_tokens
+      for (const item of Object.values(seeded.downstream)) lastDownstreamUsageRef.current[item.id] = item.total_tokens
+      for (const item of Object.values(seeded.upstream)) lastUpstreamUsageRef.current[item.id] = item.total_tokens
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [topology])
 
   const applyServerTokenTotal = useCallback((serverTotal: number | undefined) => {
@@ -490,8 +495,9 @@ export function useTrafficFlowSession() {
     nodeCount,
     rpmLimit,
     finalizeRetirement,
-    pageRef,
-    togglePageFullscreen: () => toggleFullscreen(pageRef.current, setFullscreen),
+    togglePageFullscreen: (element: HTMLElement | null) => {
+      void toggleFullscreen(element, setFullscreen)
+    },
   }
 }
 

@@ -68,7 +68,6 @@ export function TrafficFlowStage({
   const seatsRef = useRef(new Map<string, { x: number; y: number; kind: 'downstream' | 'upstream' }>())
   const [size, setSize] = useState({ width: 1, height: 640 })
   const sizeRef = useRef(size)
-  sizeRef.current = size
   const [expanded, setExpanded] = useState({ downstream: false, upstream: false })
   const [now, setNow] = useState(() => Date.now())
   const nodeFocus = hoveredNode ?? selectedNode
@@ -89,6 +88,10 @@ export function TrafficFlowStage({
     reducedMotion,
     onDrained: onRequestDrained,
   })
+
+  useEffect(() => {
+    sizeRef.current = size
+  }, [size])
 
   useEffect(() => {
     const element = stageRef.current
@@ -125,9 +128,9 @@ export function TrafficFlowStage({
     if (nodeFocus) return relatedNodeIDs(nodeFocus.kind, nodeFocus.id, requests, retiringRequestIDs, topology)
     return requestEndpointIDs(selectedRequest)
   }, [nodeFocus, requests, retiringRequestIDs, selectedRequest, topology])
-  useEffect(() => {
-    if (!topology) return
+  const expandKinds = useMemo(() => {
     const expand: Array<'downstream' | 'upstream'> = []
+    if (!topology) return expand
     if (selectedRequest) {
       if (placements.some((item) => item.kind === 'downstream' && item.clustered && item.id === selectedRequest.api_key_id)) {
         expand.push('downstream')
@@ -140,22 +143,26 @@ export function TrafficFlowStage({
       const opposite = selectedNode.kind === 'downstream' ? 'upstream' : 'downstream'
       if (placements.some((item) => item.kind === opposite && item.clustered && peers.has(item.id))) expand.push(opposite)
     }
-    if (expand.length === 0) return
+    return expand
+  }, [placements, requests, retiringRequestIDs, selectedNode, selectedRequest, topology])
+  if (expandKinds.some((kind) => !expanded[kind])) {
     setExpanded((current) => {
       let next = current
-      for (const kind of expand) {
+      for (const kind of expandKinds) {
         if (!next[kind]) next = { ...next, [kind]: true }
       }
       return next
     })
-  }, [placements, requests, retiringRequestIDs, selectedNode, selectedRequest, topology])
+  }
   const visible = placements.filter((item) => !item.clustered)
   const clustered = {
     downstream: placements.filter((item) => item.kind === 'downstream' && item.clustered),
     upstream: placements.filter((item) => item.kind === 'upstream' && item.clustered),
   }
   const seats = useMemo(() => new Map(visible.map((item) => [nodeKey(item.kind, item.id), item])), [visible])
-  seatsRef.current = seats
+  useEffect(() => {
+    seatsRef.current = seats
+  }, [seats])
 
   return (
     <section ref={stageRef} className={`traffic-flow-stage${stageFocused ? ' is-focused' : ''}`} aria-label={t('map.label')} onClick={onClearSelection}>
