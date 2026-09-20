@@ -101,13 +101,18 @@ func (r APIKeyRepository) Reorder(ctx context.Context, ids []uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		if len(ids) != len(keys) {
-			return ErrInvalidAPIKeyOrder
-		}
+		visibleCount := 0
 		for _, key := range keys {
+			if key.KeyKind == APIKeyKindAgentInternal {
+				continue
+			}
+			visibleCount++
 			if !seen[key.ID] {
 				return ErrInvalidAPIKeyOrder
 			}
+		}
+		if len(ids) != visibleCount {
+			return ErrInvalidAPIKeyOrder
 		}
 		for index, id := range ids {
 			if err := tx.Model(&APIKey{ID: id}).UpdateColumn("sort_order", int64(index+1)).Error; err != nil {

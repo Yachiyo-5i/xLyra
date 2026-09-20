@@ -21,6 +21,61 @@ func TestAPIKeyOrderRejectsDuplicateAndEmptyIDsBeforeDatabase(t *testing.T) {
 	}
 }
 
+func TestAPIKeyOrderWithInternalKeyPostgres(t *testing.T) {
+	db, _, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	if err := db.Migrator().CreateTable(&schemaUpgradeMarker{}, &APIKey{}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	repo := NewAPIKeyRepository(db)
+	keys := []APIKey{
+		{ID: uuid.New(), Name: "first", KeyKind: "generated", SortOrder: 1, Status: "active"},
+		{ID: uuid.New(), Name: "internal", KeyKind: APIKeyKindAgentInternal, SortOrder: 2, Status: "active"},
+		{ID: uuid.New(), Name: "second", KeyKind: "imported", SortOrder: 3, Status: "disabled"},
+	}
+	if err := db.Create(&keys).Error; err != nil {
+		t.Fatal(err)
+	}
+	desired := []uuid.UUID{keys[2].ID, keys[0].ID}
+	if err := repo.Reorder(ctx, desired); err != nil {
+		t.Fatalf("save visible key order with an internal key present: %v", err)
+	}
+	assertOrder := func() {
+		t.Helper()
+		stored, err := repo.List(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var visibleIDs []uuid.UUID
+		for _, key := range stored {
+			if key.KeyKind == APIKeyKindAgentInternal {
+				if key.SortOrder != keys[1].SortOrder {
+					t.Fatal("sorting visible keys changed the internal key rank")
+				}
+				continue
+			}
+			visibleIDs = append(visibleIDs, key.ID)
+		}
+		if !reflect.DeepEqual(visibleIDs, desired) {
+			t.Fatalf("reloaded order = %v, want %v", visibleIDs, desired)
+		}
+	}
+	assertOrder()
+	for _, invalid := range [][]uuid.UUID{
+		{keys[0].ID},
+		{keys[0].ID, keys[1].ID},
+		{keys[0].ID, keys[1].ID, keys[2].ID},
+		{keys[0].ID, uuid.New()},
+		{keys[0].ID, keys[0].ID},
+	} {
+		if err := repo.Reorder(ctx, invalid); !errors.Is(err, ErrInvalidAPIKeyOrder) {
+			t.Fatalf("invalid membership %v returned %v", invalid, err)
+		}
+		assertOrder()
+	}
+}
+
 func TestAPIKeyOrderPostgres(t *testing.T) {
 	db, _, cleanup := openTemporaryMigrationStore(t)
 	defer cleanup()
