@@ -85,7 +85,7 @@ describe('layoutWing', () => {
     expect(clustered).toHaveLength(4)
   })
 
-  it('nudges neighbors away from a hovered node without overlapping name boxes', () => {
+  it('keeps hovered and selected cards on their home seats so the hit target does not jump', () => {
     const nodes = Array.from({ length: 8 }, (_, index) => node(`n${index}`))
     const idle = layoutWing('downstream', nodes, [], new Set(), { capacity: 8, expanded: false })
     const hovered = layoutWing('downstream', nodes, [], new Set(), {
@@ -93,22 +93,26 @@ describe('layoutWing', () => {
       expanded: false,
       hovered: { kind: 'downstream', id: 'n3' },
     })
-    const target = hovered.find((item) => item.id === 'n3')
-    expect(target?.lift).toBeGreaterThan(0)
-    const neighbors = hovered.filter((item) => item.id !== 'n3' && !item.clustered)
-    const moved = neighbors.filter((item) => {
-      const home = idle.find((candidate) => candidate.id === item.id)
-      return home && (Math.abs(item.x - home.x) > 0.05 || Math.abs(item.y - home.y) > 0.05)
+    const selected = layoutWing('downstream', nodes, [], new Set(), {
+      capacity: 8,
+      expanded: false,
+      hovered: { kind: 'downstream', id: 'n3' },
+      selected: { kind: 'downstream', id: 'n3' },
     })
-    expect(moved.length).toBeGreaterThan(0)
-    for (let index = 0; index < hovered.length; index += 1) {
-      const left = hovered[index]
-      if (left.clustered) continue
-      for (const right of hovered.slice(index + 1)) {
-        if (right.clustered) continue
-        expect(Math.hypot(left.x - right.x, left.y - right.y)).toBeGreaterThan(2)
-      }
-    }
+    const target = hovered.find((item) => item.id === 'n3')
+    const home = idle.find((item) => item.id === 'n3')
+    expect(target?.lift).toBeGreaterThan(0)
+    expect(target?.x).toBe(home?.x)
+    expect(target?.y).toBe(home?.y)
+    expect(target?.scale).toBe(1)
+    expect(hovered.filter((item) => item.id !== 'n3' && !item.clustered).every((item) => {
+      const seat = idle.find((candidate) => candidate.id === item.id)
+      return seat && item.x === seat.x && item.y === seat.y
+    })).toBe(true)
+    const clicked = selected.find((item) => item.id === 'n3')
+    expect(clicked?.x).toBe(home?.x)
+    expect(clicked?.y).toBe(home?.y)
+    expect(clicked?.scale).toBe(1)
   })
 
   it('skips positional nudge when reduced motion is requested', () => {

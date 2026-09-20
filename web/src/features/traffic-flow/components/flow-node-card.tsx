@@ -64,7 +64,7 @@ export function FlowNodeCard({
         top: `${placement.y}%`,
         zIndex: placement.zIndex + (expanded ? 24 : 0),
         opacity: placement.opacity,
-        transform: `translate(-50%, -50%) scale(${scale})`,
+        transform: `translate(-50%, -50%)${scale === 1 ? '' : ` scale(${scale})`}`,
         '--node-color': color,
       } as CSSProperties}
       onMouseEnter={() => onHover(node)}
