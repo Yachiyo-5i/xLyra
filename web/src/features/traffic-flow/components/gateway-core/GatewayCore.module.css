@@ -1,17 +1,9 @@
 .core {
-  --gateway-visual-size: clamp(420px, 64vh, 520px);
-  position: fixed;
-  z-index: 5;
+  --gateway-visual-size: min(280px, 46%);
+  position: absolute;
+  z-index: 3;
   inset: 0;
-  width: 100vw;
-  height: 100dvh;
   pointer-events: none;
-}
-
-.canvas {
-  position: absolute !important;
-  inset: 0;
-  background: transparent;
 }
 
 .overlay {
@@ -29,7 +21,7 @@
   position: absolute;
   inset: 0;
   background: repeating-conic-gradient(
-    rgba(127, 255, 224, .07) 0deg 6deg,
+    rgba(255, 255, 255, .07) 0deg 6deg,
     transparent 6deg 30deg
   );
   mask-image: radial-gradient(circle at center, transparent 0% 6%, rgba(0, 0, 0, .8) 14%, rgba(0, 0, 0, .5) 50%, transparent 76%);
@@ -43,24 +35,24 @@
   position: absolute;
   width: 23%;
   height: 23%;
-  border: 1px solid rgba(217, 255, 246, .94);
+  border: 1px solid rgba(245, 245, 245, .94);
   border-radius: 50%;
-  box-shadow: 0 0 20px rgba(127, 255, 224, .34);
+  box-shadow: 0 0 20px rgba(255, 255, 255, .28);
   animation: gateway-pulse-wave .9s cubic-bezier(.15, .68, .24, 1) forwards;
 }
 
 .coreBox {
   position: relative;
   display: grid;
-  width: clamp(88px, 12.5vh, 102px);
+  width: clamp(58px, 7.4vh, 74px);
   aspect-ratio: 1;
   place-items: center;
-  border: 2px solid rgba(100, 255, 218, .95);
+  border: 2px solid rgba(229, 229, 229, .95);
   border-radius: 10px;
-  outline: 1px solid rgba(127, 255, 224, .22);
+  outline: 1px solid rgba(255, 255, 255, .22);
   outline-offset: 5px;
-  background: rgba(2, 8, 7, .96);
-  box-shadow: 0 0 14px rgba(100, 255, 218, .88), 0 0 42px rgba(0, 230, 190, .55), 0 0 90px rgba(0, 200, 165, .20), 0 0 140px rgba(0, 180, 148, .09), inset 0 0 30px rgba(100, 255, 218, .14);
+  background: rgba(4, 4, 4, .96);
+  box-shadow: 0 0 14px rgba(255, 255, 255, .55), 0 0 42px rgba(255, 255, 255, .18), 0 0 90px rgba(255, 255, 255, .08), inset 0 0 30px rgba(255, 255, 255, .08);
   animation: gateway-core-breathe 2.9s ease-in-out infinite;
 }
 
@@ -69,7 +61,7 @@
   position: absolute;
   width: 14px;
   height: 14px;
-  border-color: rgba(100, 255, 218, .72);
+  border-color: rgba(229, 229, 229, .72);
   border-style: solid;
   border-radius: 1px;
   content: '';
@@ -88,7 +80,7 @@
 }
 
 .active .coreBox {
-  box-shadow: 0 0 18px rgba(100, 255, 218, .96), 0 0 58px rgba(0, 230, 190, .72), 0 0 115px rgba(0, 200, 165, .28), 0 0 180px rgba(0, 180, 148, .12), inset 0 0 34px rgba(100, 255, 218, .20);
+  box-shadow: 0 0 18px rgba(255, 255, 255, .72), 0 0 58px rgba(255, 255, 255, .22), 0 0 115px rgba(255, 255, 255, .1), inset 0 0 34px rgba(255, 255, 255, .12);
 }
 
 .coreBoxPulse {
@@ -96,12 +88,12 @@
 }
 
 .logoMark {
-  color: #e9fff9;
+  color: #f4f4f4;
   font-family: inherit;
-  font-size: 36px;
+  font-size: 26px;
   font-weight: 300;
   line-height: 1;
-  text-shadow: 0 0 8px rgba(223, 255, 248, .62), 0 0 18px rgba(127, 255, 224, .26);
+  text-shadow: 0 0 8px rgba(255, 255, 255, .5), 0 0 18px rgba(255, 255, 255, .18);
 }
 
 .copy {
@@ -110,21 +102,21 @@
   display: grid;
   gap: 4px;
   width: 240px;
-  color: #9daba8;
+  color: #9a9a9a;
   font-size: 7px;
   letter-spacing: .17em;
   text-align: center;
 }
 
 .copy strong {
-  color: #e8fff8;
+  color: #f1f1f1;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: .11em;
 }
 
 .copySub {
-  color: #c8d8d4;
+  color: #c8c8c8;
   font-size: 9px;
   font-weight: 400;
   letter-spacing: .08em;
@@ -132,7 +124,7 @@
 }
 
 .copyStatus {
-  color: rgba(100, 255, 218, .85);
+  color: rgba(229, 229, 229, .85);
   font-size: 7px;
   letter-spacing: .18em;
   text-transform: uppercase;
@@ -149,12 +141,12 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: rgba(100, 255, 218, .25);
+  background: rgba(229, 229, 229, .25);
 }
 
 .copyDot.isActive {
-  background: rgba(100, 255, 218, .90);
-  box-shadow: 0 0 6px rgba(100, 255, 218, .72);
+  background: rgba(229, 229, 229, .9);
+  box-shadow: 0 0 6px rgba(255, 255, 255, .55);
 }
 
 @keyframes gateway-core-breathe {
@@ -170,7 +162,7 @@
 
 @keyframes gateway-core-hit {
   0% { transform: scale(1); }
-  18% { box-shadow: 0 0 14px rgba(232, 255, 249, .94), 0 0 42px rgba(127, 255, 224, .62), 0 0 92px rgba(62, 240, 197, .22), inset 0 0 31px rgba(127, 255, 224, .24); transform: scale(1.055); }
+  18% { box-shadow: 0 0 14px rgba(255, 255, 255, .9), 0 0 42px rgba(255, 255, 255, .4), 0 0 92px rgba(255, 255, 255, .14), inset 0 0 31px rgba(255, 255, 255, .16); transform: scale(1.055); }
   100% { transform: scale(1); }
 }
 

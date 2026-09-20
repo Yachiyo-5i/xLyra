@@ -101,6 +101,9 @@ export default defineConfig(({ command, mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    optimizeDeps: {
+      include: ['react-is', 'recharts'],
+    },
     server: {
       host: '0.0.0.0',
       port: 5173,

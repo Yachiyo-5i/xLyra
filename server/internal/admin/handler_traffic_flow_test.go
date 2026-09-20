@@ -86,4 +86,29 @@ func TestBuildTrafficFlowTopologyMatchesManagementOrdering(t *testing.T) {
 	if topology.Upstream[0].SiteType != "codex" || topology.Upstream[2].SiteType != "antigravity" {
 		t.Fatalf("oauth site types = %q, %q", topology.Upstream[0].SiteType, topology.Upstream[2].SiteType)
 	}
+	if topology.Downstream[0].SitePolicy != "allow_all" {
+		t.Fatalf("default site policy = %q, want allow_all", topology.Downstream[0].SitePolicy)
+	}
+}
+
+func TestResolveAllowedUpstreamIDsUnionsDirectAndGroupAllowLists(t *testing.T) {
+	siteA := uuid.MustParse("20000000-0000-0000-0000-000000000001")
+	siteB := uuid.MustParse("20000000-0000-0000-0000-000000000002")
+	siteC := uuid.MustParse("20000000-0000-0000-0000-000000000003")
+	allEnabled := []string{siteA.String(), siteB.String(), siteC.String()}
+
+	allowAll := resolveAllowedUpstreamIDs("allow_all", allEnabled, []uuid.UUID{siteA}, nil)
+	if len(allowAll) != 3 || allowAll[0] != siteA.String() {
+		t.Fatalf("allow_all ids = %#v", allowAll)
+	}
+
+	allowList := resolveAllowedUpstreamIDs("allow_list", allEnabled, []uuid.UUID{siteC, siteA}, []uuid.UUID{siteA, siteB})
+	if len(allowList) != 3 || allowList[0] != siteA.String() || allowList[1] != siteB.String() || allowList[2] != siteC.String() {
+		t.Fatalf("allow_list ids = %#v", allowList)
+	}
+
+	empty := resolveAllowedUpstreamIDs("allow_list", allEnabled, nil, nil)
+	if len(empty) != 0 {
+		t.Fatalf("empty allow_list ids = %#v", empty)
+	}
 }

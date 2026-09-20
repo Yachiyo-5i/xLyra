@@ -1,32 +1,45 @@
 import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
+import { OTHER_BRAND_LABEL, inferFallbackBrand } from '@/lib/brands'
 
 export type ModelVisual = {
   color: string
-  glow: string
+  brand: string
   iconPath?: string
   fallback: string
   label: string
 }
 
-const providerVisuals: Array<{ match: string[]; color: string; glow: string }> = [
-  { match: ['openai', 'gpt', 'o1', 'o3', 'o4'], color: '#62e7bd', glow: 'rgba(98, 231, 189, 0.56)' },
-  { match: ['anthropic', 'claude'], color: '#f4b86a', glow: 'rgba(244, 184, 106, 0.56)' },
-  { match: ['google', 'gemini'], color: '#7bb7ff', glow: 'rgba(123, 183, 255, 0.56)' },
-  { match: ['deepseek'], color: '#5de0df', glow: 'rgba(93, 224, 223, 0.56)' },
-  { match: ['xai', 'grok'], color: '#f08aa5', glow: 'rgba(240, 138, 165, 0.56)' },
-  { match: ['qwen'], color: '#c9a7ff', glow: 'rgba(201, 167, 255, 0.56)' },
-  { match: ['moonshot', 'kimi'], color: '#f38bca', glow: 'rgba(243, 139, 202, 0.56)' },
-]
+/** Lifted cockpit hues. Identity is vendor, not site or API key. */
+export const VENDOR_FLOW_COLORS: Record<string, string> = {
+  OpenAI: '#62e7bd',
+  Anthropic: '#f4b86a',
+  Google: '#7bb7ff',
+  DeepSeek: '#5de0df',
+  xAI: '#f08aa5',
+  Qwen: '#c9a7ff',
+  Moonshot: '#f38bca',
+  MiniMax: '#ff9d4a',
+}
+
+export const FALLBACK_FLOW_COLOR = '#a5b8c8'
+
+export function flowVendorBrand(provider: string, modelKey: string): string {
+  const fromModel = inferFallbackBrand([modelKey])
+  if (fromModel !== OTHER_BRAND_LABEL) return fromModel
+  return inferFallbackBrand([provider])
+}
+
+export function flowVendorColor(brand: string): string {
+  return VENDOR_FLOW_COLORS[brand] ?? FALLBACK_FLOW_COLOR
+}
 
 export function modelVisual(provider: string, modelKey: string): ModelVisual {
-  const tokens = `${provider} ${modelKey}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
-  const visual = providerVisuals.find((item) => item.match.some((candidate) => tokens.some((token) => token.startsWith(candidate)))) ?? {
-    color: '#a5b8c8',
-    glow: 'rgba(165, 184, 200, 0.48)',
-  }
+  const brand = flowVendorBrand(provider, modelKey)
+  const color = flowVendorColor(brand)
   const icon = modelNameIconInfo([provider, modelKey], modelKey)
   return {
-    ...visual,
+    color,
+    brand,
     iconPath: icon.iconPath,
     fallback: icon.fallbackText ?? icon.fallback.slice(0, 2).toUpperCase(),
     label: icon.label,
