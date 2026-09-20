@@ -37,6 +37,9 @@ func TestListAPIKeysOfflineDefaultAndSyncViews(t *testing.T) {
 				Meta  map[string]any   `json:"meta"`
 			}
 			adminAssertStatus(t, rec, http.StatusOK)
+			if rec.Header().Get("Cache-Control") != "no-store" {
+				t.Fatalf("Cache-Control = %q", rec.Header().Get("Cache-Control"))
+			}
 			body = adminDecodeJSON[struct {
 				Items []map[string]any `json:"items"`
 				Meta  map[string]any   `json:"meta"`
@@ -48,6 +51,23 @@ func TestListAPIKeysOfflineDefaultAndSyncViews(t *testing.T) {
 				t.Fatalf("meta = %#v, want count=1 view=%#v", body.Meta, tc.wantView)
 			}
 		})
+	}
+}
+
+func TestListAPIKeysExcludesInternalKeys(t *testing.T) {
+	apiKey := offlineAPIKeyPermissionFixture()
+	apiKey.KeyKind = store.APIKeyKindAgentInternal
+	handler := offlineAPIKeyPermissionHandler(t, apiKey)
+	for _, target := range []string{"/api/v1/api-keys", "/api/v1/api-keys?view=sync"} {
+		rec := adminPerform(handler.ListAPIKeys, adminTestRequest(http.MethodGet, target, ""))
+		adminAssertStatus(t, rec, http.StatusOK)
+		body := adminDecodeJSON[struct {
+			Items []map[string]any `json:"items"`
+			Meta  map[string]any   `json:"meta"`
+		}](t, rec)
+		if len(body.Items) != 0 || body.Meta["count"] != float64(0) {
+			t.Fatalf("%s returned internal keys: %#v", target, body)
+		}
 	}
 }
 

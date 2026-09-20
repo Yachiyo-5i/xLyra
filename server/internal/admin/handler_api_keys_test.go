@@ -642,7 +642,7 @@ func TestReorderAPIKeysRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 	handler := adminHandlerWithAuthService()
 	id := uuid.NewString()
-	for _, body := range []string{`{}`, `{"ids":[],"revision":""}`, `{"revision":"saved"}`, `{"ids":["` + id + `","` + id + `"],"revision":"saved"}`} {
+	for _, body := range []string{`{}`, `{"ids":[]}`, `{"ids":null}`, `{"ids":["` + id + `","` + id + `"]}`} {
 		rec := adminPerform(handler.ReorderAPIKeys, adminTestRequest(http.MethodPut, "/api/v1/api-keys/order", body))
 		assertAdminErrorCode(t, rec, http.StatusBadRequest, "invalid_api_key_order")
 	}

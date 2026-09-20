@@ -154,7 +154,7 @@ export function DownstreamAPIKeysWorkspace() {
           return { ...current, items, meta: { ...current.meta, count: items.length } }
         },
       )
-      void queryClient.invalidateQueries({ queryKey: downstreamAPIKeyQueryKeys.list() })
+      await queryClient.invalidateQueries({ queryKey: downstreamAPIKeyQueryKeys.list() })
       await invalidatePlaygroundModels(queryClient, result.id)
       setFormOpen(false)
       setEditingKey(null)
@@ -267,7 +267,7 @@ export function DownstreamAPIKeysWorkspace() {
   }
 
   const orderButton = (
-    <Button variant="outline" onClick={() => setOrderOpen(true)} disabled={apiKeys.length < 2 || !apiKeysQuery.data?.meta?.order_revision} aria-label={t('order.title')}>
+    <Button variant="outline" onClick={() => setOrderOpen(true)} aria-label={t('order.title')}>
       <ArrowDownUp className="h-4 w-4" />
       {!isMobile ? t('order.title') : null}
     </Button>

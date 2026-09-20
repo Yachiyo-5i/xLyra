@@ -68,6 +68,7 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusServiceUnavailable, "auth_unavailable", "auth service is not available")
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 
 	syncView := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("view")), "sync")
 	if syncView {
@@ -78,6 +79,9 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		}
 		payloadItems := make([]map[string]any, 0, len(items))
 		for _, item := range items {
+			if item.KeyKind == store.APIKeyKindAgentInternal {
+				continue
+			}
 			payloadItems = append(payloadItems, h.apiKeySyncPayload(item))
 		}
 		h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems), "view": "sync"})
@@ -89,13 +93,14 @@ func (h Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusInternalServerError, "api_key_list_failed", "failed to list api keys")
 		return
 	}
-	keys := make([]store.APIKey, 0, len(items))
 	payloadItems := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		keys = append(keys, item.APIKey)
+		if item.APIKey.KeyKind == store.APIKeyKindAgentInternal {
+			continue
+		}
 		payloadItems = append(payloadItems, h.apiKeyPayloadWithRateLimit(item.APIKey, item.Models, item.Sites, item.Groups, false, item.RateLimit))
 	}
-	h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems), "order_revision": store.APIKeyOrderRevision(keys)})
+	h.writeItems(w, http.StatusOK, payloadItems, map[string]any{"count": len(payloadItems)})
 }
 
 func (h Handler) GetAPIKey(w http.ResponseWriter, r *http.Request) {

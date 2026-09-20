@@ -2,9 +2,7 @@ package store
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -13,8 +11,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var ErrAPIKeyOrderConflict = errors.New("api key order changed; reload before saving")
-var ErrInvalidAPIKeyOrder = errors.New("api key order must contain every key exactly once")
+const APIKeyKindAgentInternal = "agent_internal"
+
+var ErrInvalidAPIKeyOrder = errors.New("api key order must contain every visible key exactly once")
 
 func apiKeyOrderOption(key APIKey) APIKeyListOption {
 	return APIKeyListOption{ID: key.ID, SortOrder: key.SortOrder, Status: key.Status, CreatedAt: key.CreatedAt}
@@ -43,16 +42,6 @@ func SortAPIKeyOptions(keys []APIKeyListOption) {
 	sort.SliceStable(keys, func(i, j int) bool {
 		return apiKeyOrderLess(keys[i], keys[j])
 	})
-}
-
-func APIKeyOrderRevision(keys []APIKey) string {
-	ordered := append([]APIKey(nil), keys...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID.String() < ordered[j].ID.String() })
-	hash := sha256.New()
-	for _, key := range ordered {
-		fmt.Fprintf(hash, "%s:%d\n", key.ID, key.SortOrder)
-	}
-	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 func (r APIKeyRepository) withOrderLock(ctx context.Context, fn func(*gorm.DB) error) error {
@@ -101,7 +90,7 @@ func (r APIKeyRepository) InitializeOrder(ctx context.Context) error {
 	})
 }
 
-func (r APIKeyRepository) Reorder(ctx context.Context, ids []uuid.UUID, revision string) error {
+func (r APIKeyRepository) Reorder(ctx context.Context, ids []uuid.UUID) error {
 	seen := make(map[uuid.UUID]bool, len(ids))
 	for _, id := range ids {
 		if id == uuid.Nil || seen[id] {
@@ -114,16 +103,18 @@ func (r APIKeyRepository) Reorder(ctx context.Context, ids []uuid.UUID, revision
 		if err != nil {
 			return err
 		}
-		if revision != APIKeyOrderRevision(keys) {
-			return ErrAPIKeyOrderConflict
-		}
-		if len(ids) != len(keys) {
-			return ErrInvalidAPIKeyOrder
-		}
+		visibleCount := 0
 		for _, key := range keys {
+			if key.KeyKind == APIKeyKindAgentInternal {
+				continue
+			}
+			visibleCount++
 			if !seen[key.ID] {
 				return ErrInvalidAPIKeyOrder
 			}
+		}
+		if len(ids) != visibleCount {
+			return ErrInvalidAPIKeyOrder
 		}
 		for index, id := range ids {
 			if err := tx.Model(&APIKey{ID: id}).UpdateColumn("sort_order", int64(index+1)).Error; err != nil {
