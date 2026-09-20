@@ -626,7 +626,8 @@ func spaHandler(staticDir string) http.Handler {
 		case err == nil && info.IsDir():
 			// 目录请求（如 /）由 FileServer 落到 index.html，同样不缓存
 			w.Header().Set("Cache-Control", "no-cache")
-		case filepath.Base(path) == "index.html":
+		case mustRevalidateStaticFile(filepath.Base(path)):
+			// index.html、Service Worker 与构建号必须每次再验证，否则发版检测会被 HTTP 缓存拖住
 			w.Header().Set("Cache-Control", "no-cache")
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			// Vite 构建产物文件名带内容哈希，可安全长缓存
@@ -638,4 +639,15 @@ func spaHandler(staticDir string) http.Handler {
 		}
 		fs.ServeHTTP(w, r)
 	})
+}
+
+func mustRevalidateStaticFile(name string) bool {
+	switch name {
+	case "index.html", "sw.js", "registerSW.js", "version.json":
+		return true
+	}
+	if strings.HasSuffix(name, ".webmanifest") {
+		return true
+	}
+	return strings.HasPrefix(name, "workbox-") && strings.HasSuffix(name, ".js")
 }

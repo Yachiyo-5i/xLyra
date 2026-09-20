@@ -58,6 +58,7 @@ export default defineConfig(({ command, mode }) => {
         },
         workbox: {
           cleanupOutdatedCaches: true,
+          globIgnores: ['**/node_modules/**/*', '**/version.json'],
           manifestTransforms: [
             async (entries) => ({
               manifest: entries.map((entry) =>
@@ -77,10 +78,24 @@ export default defineConfig(({ command, mode }) => {
             /^\/healthz(?:\/|$)/,
             /^\/readyz(?:\/|$)/,
             /^\/debug(?:\/|$)/,
+            /^\/version\.json$/,
           ],
         },
       }),
+      {
+        name: 'xlyra-build-id',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'version.json',
+            source: JSON.stringify({ build: buildTimestamp }),
+          })
+        },
+      },
     ],
+    define: {
+      'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildTimestamp),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

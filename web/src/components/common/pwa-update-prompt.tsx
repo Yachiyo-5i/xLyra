@@ -3,8 +3,14 @@ import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { registerSW } from 'virtual:pwa-register'
 import { Button } from '@/components/ui/button'
+import {
+  UPDATE_CHECK_INTERVAL_MS,
+  fetchRemoteBuild,
+  hasRemoteFrontendUpdate,
+  readClientBuildId,
+} from '@/lib/frontend-update'
 
-const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000
+const CLIENT_BUILD_ID = readClientBuildId()
 
 export function PwaUpdatePrompt() {
   const { t } = useTranslation('common')
@@ -15,29 +21,19 @@ export function PwaUpdatePrompt() {
   const updateCheckRef = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
-    registerSW({
-      immediate: true,
-      onNeedRefresh: () => {
-        void navigator.serviceWorker.getRegistration().then((currentRegistration) => {
-          const registration = registrationRef.current ?? currentRegistration
-          if (!registration?.waiting || updateAvailableRef.current) {
-            return
-          }
-
-          registrationRef.current = registration
-          updateAvailableRef.current = true
-          setNeedsRefresh(true)
-        })
-      },
-      onRegisteredSW: (_swUrl, currentRegistration) => {
-        registrationRef.current = currentRegistration
-      },
-    })
+    const markUpdateAvailable = (registration?: ServiceWorkerRegistration) => {
+      if (updateAvailableRef.current) {
+        return
+      }
+      if (registration) {
+        registrationRef.current = registration
+      }
+      updateAvailableRef.current = true
+      setNeedsRefresh(true)
+    }
 
     const checkForUpdate = () => {
-      const registration = registrationRef.current
       if (
-        !registration ||
         updateAvailableRef.current ||
         updateCheckRef.current ||
         document.visibilityState !== 'visible' ||
@@ -46,22 +42,51 @@ export function PwaUpdatePrompt() {
         return
       }
 
-      updateCheckRef.current = registration
-        .update()
-        .then(() => undefined)
+      updateCheckRef.current = Promise.all([
+        fetchRemoteBuild(),
+        registrationRef.current?.update().catch(() => undefined) ?? Promise.resolve(),
+      ])
+        .then(([remoteBuild]) => {
+          if (updateAvailableRef.current) {
+            return
+          }
+
+          const registration = registrationRef.current
+          if (registration?.waiting || registration?.installing || hasRemoteFrontendUpdate(remoteBuild, CLIENT_BUILD_ID)) {
+            markUpdateAvailable(registration)
+          }
+        })
         .catch(() => undefined)
         .finally(() => {
           updateCheckRef.current = null
         })
     }
+
+    registerSW({
+      immediate: true,
+      onNeedRefresh: () => {
+        void navigator.serviceWorker.getRegistration().then((currentRegistration) => {
+          markUpdateAvailable(registrationRef.current ?? currentRegistration)
+        })
+      },
+      onRegisteredSW: (_swUrl, currentRegistration) => {
+        registrationRef.current = currentRegistration
+        checkForUpdate()
+      },
+    })
+
     const intervalId = window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS)
 
     window.addEventListener('focus', checkForUpdate)
+    window.addEventListener('online', checkForUpdate)
+    window.addEventListener('pageshow', checkForUpdate)
     document.addEventListener('visibilitychange', checkForUpdate)
 
     return () => {
       window.clearInterval(intervalId)
       window.removeEventListener('focus', checkForUpdate)
+      window.removeEventListener('online', checkForUpdate)
+      window.removeEventListener('pageshow', checkForUpdate)
       document.removeEventListener('visibilitychange', checkForUpdate)
     }
   }, [])
@@ -69,29 +94,42 @@ export function PwaUpdatePrompt() {
   const handleReload = () => {
     setIsReloading(true)
 
-    const waitingWorker = registrationRef.current?.waiting
-    if (!waitingWorker) {
-      window.location.reload()
-      return
+    const reloadPage = (() => {
+      let reloadStarted = false
+      return () => {
+        if (reloadStarted) {
+          return
+        }
+        reloadStarted = true
+        window.location.reload()
+      }
+    })()
+
+    const activateWaitingWorker = (worker: ServiceWorker) => {
+      navigator.serviceWorker.addEventListener('controllerchange', reloadPage, { once: true })
+      window.setTimeout(reloadPage, 8000)
+      try {
+        worker.postMessage({ type: 'SKIP_WAITING' })
+      } catch {
+        reloadPage()
+      }
     }
 
-    let reloadStarted = false
-    const reloadPage = () => {
-      if (reloadStarted) {
+    void (async () => {
+      const registration = registrationRef.current ?? (await navigator.serviceWorker.getRegistration())
+      const waitingWorker = registration?.waiting ?? registration?.installing
+      if (waitingWorker) {
+        activateWaitingWorker(waitingWorker)
         return
       }
-      reloadStarted = true
-      window.location.reload()
-    }
 
-    navigator.serviceWorker.addEventListener('controllerchange', reloadPage, { once: true })
-    window.setTimeout(reloadPage, 5000)
-
-    try {
-      waitingWorker.postMessage({ type: 'SKIP_WAITING' })
-    } catch {
+      try {
+        await registration?.unregister()
+      } catch {
+        // Old SW would keep serving the precached shell; ignore unregister failures and reload anyway.
+      }
       reloadPage()
-    }
+    })()
   }
 
   if (!needsRefresh) {

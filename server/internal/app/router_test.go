@@ -595,6 +595,21 @@ func TestSpaHandlerCacheHeaders(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "assets", "index-abc123.js"), []byte("js"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "sw.js"), []byte("sw"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "workbox-deadbeef.js"), []byte("wb"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "registerSW.js"), []byte("register"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "version.json"), []byte(`{"build":"1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.webmanifest"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := spaHandler(dir)
 	cases := []struct {
@@ -603,6 +618,11 @@ func TestSpaHandlerCacheHeaders(t *testing.T) {
 	}{
 		{"/assets/index-abc123.js", "public, max-age=31536000, immutable"},
 		{"/agent-backdrop.png", "public, max-age=86400"},
+		{"/sw.js", "no-cache"},
+		{"/workbox-deadbeef.js", "no-cache"},
+		{"/registerSW.js", "no-cache"},
+		{"/version.json", "no-cache"},
+		{"/manifest.webmanifest", "no-cache"},
 		{"/agent", "no-cache"}, // SPA fallback → index.html
 		{"/", "no-cache"},      // 目录请求 → FileServer 落 index.html
 	}
