@@ -25,6 +25,7 @@ export type RouteChannelRow = {
   apiKeyName?: string
   apiKeyEnabled?: boolean
   apiKeyRoutingPriority?: number
+  siteRoutingPriority?: number
   apiKeyUpstreamCostMultiplier?: number
   apiKeySecretMissing?: boolean
   apiKeyModelName?: string

@@ -193,6 +193,7 @@ function UpstreamCoverageSection({
   return (
     <div className="space-y-3">
       <SectionTitle>{t('details.coverage.title')}</SectionTitle>
+      <p className="text-xs text-muted-soft">{t('details.coverage.hint')}</p>
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-14 w-full" />

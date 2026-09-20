@@ -114,8 +114,12 @@ function MobileRouteCard({
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-1.5 text-xs">
-          <MobileMetric label={t('card.routable')} value={String(item.candidate_summary.eligible_count)} priority />
-          <MobileMetric label={t('card.configured')} value={String(item.candidate_summary.site_model_count)} priority />
+          <MobileMetric
+            label={t('card.channels')}
+            value={t('card.channelsValue', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
+            hint={t('card.channelsHint', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
+            priority
+          />
           <MobileMetric label={t('card.siteCount')} value={String(item.candidate_summary.site_count)} priority />
           <MobileMetric label={t('card.request')} value={hasTraffic ? String(item.traffic_24h.request_count) : t('card.noRequest')} />
           <MobileMetric
@@ -131,9 +135,9 @@ function MobileRouteCard({
   )
 }
 
-function MobileMetric({ label, value }: { label: string; value: string; accent?: boolean; priority?: boolean }) {
+function MobileMetric({ label, value, hint }: { label: string; value: string; accent?: boolean; priority?: boolean; hint?: string }) {
   return (
-    <div className="min-w-0 px-2 py-2">
+    <div className="min-w-0 px-2 py-2" title={hint}>
       <span className="block truncate text-[11px] text-muted-soft">{label}</span>
       <span className="mt-1 block truncate text-sm font-semibold text-foreground tabular-nums" title={value}>
         {value}

@@ -2,7 +2,10 @@
   "card": {
     "routable": "Routable",
     "routableRank": "Routable #{{rank}}",
-    "configured": "Configured",
+    "configured": "Channels",
+    "channels": "Channels",
+    "channelsValue": "{{routable}}/{{configured}}",
+    "channelsHint": "{{routable}} currently selectable, {{configured}} bound in total (including disabled or cooling)",
     "request": "Requests",
     "noRequest": "No requests",
     "successRate": "Success rate",
@@ -31,7 +34,7 @@
     "loadFailed": "Failed to load route data",
     "eyebrow": "Operations",
     "title": "Routes",
-    "description": "Manage model routing candidates, upstream availability and recent route records.",
+    "description": "See which upstream channels are bound to each model, which one would be selected now, plus recent requests and cooldowns.",
     "search": "Search models",
     "refresh": "Refresh",
     "brand": "Brand",
@@ -53,14 +56,15 @@
     "currentRoute": {
       "title": "Current route",
       "noAvailableRoute": "No available route",
-      "fallbackHint": "Showing configured site models below",
+      "fallbackHint": "Showing configured channels below",
       "current": "Current",
       "routable": "Routable #{{rank}}"
     },
     "coverage": {
-      "title": "Site models",
-      "loadFailed": "Failed to load site models",
-      "noConfig": "No site model configuration",
+      "title": "Channels",
+      "hint": "Each row is one upstream channel (site → model, split by API key when a site has multiple keys). This is the same unit as the channel count on the card.",
+      "loadFailed": "Failed to load channels",
+      "noConfig": "No channels",
       "group": "Group {{name}}",
       "switchLabel": "Toggle {{site}} {{apiKey}} {{model}}"
     },

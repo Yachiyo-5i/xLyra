@@ -57,8 +57,11 @@ export function RouteModelCard({
               {modelName}
             </div>
             <div className="mt-1.5 flex flex-wrap gap-2">
-              <SmallMetric label={t('card.routable')} value={String(routable)} />
-              <SmallMetric label={t('card.configured')} value={String(configured)} />
+              <SmallMetric
+                label={t('card.channels')}
+                value={t('card.channelsValue', { routable, configured })}
+                hint={t('card.channelsHint', { routable, configured })}
+              />
               <SmallMetric label={t('card.request')} value={item.traffic_24h.request_count > 0 ? String(item.traffic_24h.request_count) : t('card.noRequest')} />
               <SmallMetric
                 label={t('card.successRate')}
@@ -80,14 +83,17 @@ export function RouteModelCard({
   )
 }
 
-function SmallMetric({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'accent' }) {
+function SmallMetric({ label, value, tone = 'neutral', hint }: { label: string; value: string; tone?: 'neutral' | 'accent'; hint?: string }) {
   return (
-    <div className={cn(
-      'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
-      tone === 'accent'
-        ? 'bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]'
-        : 'bg-[hsl(var(--surface-subtle))] text-muted-soft',
-    )}>
+    <div
+      title={hint}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
+        tone === 'accent'
+          ? 'bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]'
+          : 'bg-[hsl(var(--surface-subtle))] text-muted-soft',
+      )}
+    >
       <span>{label}</span>
       <span className="font-semibold text-foreground">{value}</span>
     </div>

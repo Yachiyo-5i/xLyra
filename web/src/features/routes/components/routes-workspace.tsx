@@ -116,7 +116,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
     queryFn: async () => {
       const entries = await Promise.all(
         sites.map(async (site) => {
-          if (!isNewAPISite(site.site_type)) return [site.id, []] as const
+          if (!site.supports_multiple_api_keys && !isNewAPISite(site.site_type)) return [site.id, []] as const
           const result = await listSiteAPIKeys(site.id)
           return [site.id, result.items] as const
         }),

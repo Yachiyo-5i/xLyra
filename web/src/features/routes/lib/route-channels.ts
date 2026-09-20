@@ -1,6 +1,6 @@
 import type { RouteCandidateItem, RouteCooldown } from '@/features/routes/api/routes'
 import type { CanonicalModelMatrixRow, Site, SiteAPIKey, SiteAPIKeyModel } from '@/features/sites/api/sites'
-import { isNewAPISite } from '@/features/routes/lib/route-format'
+import { siteUsesAPIKeyChannels } from '@/features/routes/lib/route-format'
 import type { PendingChannelState, RouteChannelRow } from '@/features/routes/lib/types'
 
 const routeChannelNameCollator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
@@ -39,10 +39,23 @@ export function routeChannelRowsFromMatrix(
     }))
   }
 
+  for (const candidate of uniqueCandidates(selected, candidates)) {
+    if (rows.some((row) => rowCoversCandidate(row, candidate))) continue
+    rows.push(channelRowFromCandidate(candidate, cooldowns, selected))
+  }
+
   return rows.sort(compareRouteChannelRows)
 }
 
 function compareRouteChannelRows(a: RouteChannelRow, b: RouteChannelRow) {
+  if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
+
+  const sitePriorityDiff = (b.siteRoutingPriority ?? 0) - (a.siteRoutingPriority ?? 0)
+  if (sitePriorityDiff !== 0) return sitePriorityDiff
+
+  const keyPriorityDiff = (b.apiKeyRoutingPriority ?? 0) - (a.apiKeyRoutingPriority ?? 0)
+  if (keyPriorityDiff !== 0) return keyPriorityDiff
+
   const siteDiff = routeChannelNameCollator.compare(a.siteName, b.siteName)
   if (siteDiff !== 0) return siteDiff
 
@@ -74,9 +87,9 @@ function buildRouteChannelRows(input: {
   const siteModelEnabled = isRouteModelEnabled(input.siteModelStatus)
   if (input.siteModelStatus === 'unavailable') return []
 
-  if (!input.site.supports_multiple_api_keys && !isNewAPISite(input.site.site_type)) {
+  const siteModelRow = (): RouteChannelRow => {
     const enabled = input.site.enabled && siteModelEnabled
-    return [{
+    return {
       id: `site-model:${input.site.id}:${input.siteModelId}`,
       kind: 'site_model' as const,
       siteId: input.site.id,
@@ -85,6 +98,7 @@ function buildRouteChannelRows(input: {
       siteEnabled: input.site.enabled,
       siteModelId: input.siteModelId,
       siteModelEnabled,
+      siteRoutingPriority: input.site.routing_priority ?? 0,
       upstreamName: input.upstreamName,
       current: input.current,
       cooling: input.cooling,
@@ -93,7 +107,11 @@ function buildRouteChannelRows(input: {
       enabled,
       routable: enabled && !input.cooling,
       toggleDisabled: !input.site.enabled,
-    }]
+    }
+  }
+
+  if (!siteUsesAPIKeyChannels(input.site)) {
+    return [siteModelRow()]
   }
 
   const names = buildModelNameSet(input.upstreamName, input.displayName)
@@ -102,7 +120,7 @@ function buildRouteChannelRows(input: {
     input.site.supports_api_key_cost_multiplier === true
 
   for (const apiKey of input.apiKeys) {
-    const apiKeyModel = findAPIKeyModel(apiKey, names)
+    const apiKeyModel = findAPIKeyModel(apiKey, names, input.siteModelId)
     if (!apiKeyModel) continue
 
     const apiKeyEnabled = apiKey.enabled && apiKey.status !== 'disabled'
@@ -120,6 +138,7 @@ function buildRouteChannelRows(input: {
       siteEnabled: input.site.enabled,
       siteModelId: input.siteModelId,
       siteModelEnabled,
+      siteRoutingPriority: input.site.routing_priority ?? 0,
       upstreamName: input.upstreamName,
       apiKeyId: apiKey.id,
       apiKeyName: apiKey.name,
@@ -151,7 +170,7 @@ function buildRouteChannelRows(input: {
     })
   }
 
-  return rows
+  return rows.length > 0 ? rows : [siteModelRow()]
 }
 
 function matrixRowSite(row: CanonicalModelMatrixRow): Site {
@@ -182,8 +201,75 @@ function normalizeGroupName(groupName?: string | null) {
   return groupName?.trim() || ''
 }
 
-function findAPIKeyModel(apiKey: SiteAPIKey, names: Set<string>) {
-  return apiKeyModels(apiKey).find((model) => names.has(normalizeModelName(model.name)))
+function findAPIKeyModel(apiKey: SiteAPIKey, names: Set<string>, siteModelId: string) {
+  const items = apiKeyModels(apiKey)
+  const bySiteModel = items.find((model) => model.site_model_id === siteModelId)
+  if (bySiteModel) return bySiteModel
+  return items.find((model) => names.has(normalizeModelName(model.name)))
+}
+
+function uniqueCandidates(selected: RouteCandidateItem | undefined, candidates: RouteCandidateItem[]) {
+  const items: RouteCandidateItem[] = []
+  const seen = new Set<string>()
+  for (const candidate of [selected, ...candidates]) {
+    if (!candidate) continue
+    const key = `${candidate.site.id}:${candidate.model.site_model_id}:${candidate.credential.id ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push(candidate)
+  }
+  return items
+}
+
+function rowCoversCandidate(row: RouteChannelRow, candidate: RouteCandidateItem) {
+  if (row.siteId !== candidate.site.id || row.siteModelId !== candidate.model.site_model_id) {
+    return false
+  }
+  if (row.kind === 'site_model') return true
+  return !candidate.credential.id || row.apiKeyId === candidate.credential.id
+}
+
+function channelRowFromCandidate(
+  candidate: RouteCandidateItem,
+  cooldowns: RouteCooldown[],
+  selected?: RouteCandidateItem,
+): RouteChannelRow {
+  const cooling = routeModelCooling(cooldowns, candidate.site.id, candidate.model.site_model_id)
+  const apiKeyId = candidate.credential.id ?? undefined
+  const current = selected?.model.site_model_id === candidate.model.site_model_id
+    && (!selected.credential.id || selected.credential.id === apiKeyId)
+
+  return {
+    id: apiKeyId
+      ? `api-key:${candidate.site.id}:${candidate.model.site_model_id}:${apiKeyId}:${candidate.model.upstream_model_name}`
+      : `site-model:${candidate.site.id}:${candidate.model.site_model_id}`,
+    kind: apiKeyId ? 'api_key' : 'site_model',
+    siteId: candidate.site.id,
+    siteName: candidate.site.name,
+    siteType: candidate.site.site_type,
+    siteEnabled: true,
+    siteModelId: candidate.model.site_model_id,
+    siteModelEnabled: true,
+    siteRoutingPriority: candidate.site.routing_priority ?? 0,
+    upstreamName: candidate.model.upstream_model_name || candidate.model.display_name,
+    apiKeyId,
+    apiKeyName: candidate.credential.name ?? undefined,
+    apiKeyEnabled: true,
+    apiKeyRoutingPriority: candidate.credential.routing_priority,
+    apiKeyUpstreamCostMultiplier: candidate.site.supports_api_key_cost_multiplier
+      ? candidate.credential.upstream_cost_multiplier
+      : undefined,
+    apiKeyModelName: candidate.model.upstream_model_name,
+    apiKeyModelEnabled: true,
+    groupName: candidate.pricing.group_name ?? candidate.credential.group_name ?? undefined,
+    current,
+    cooling,
+    candidate,
+    pricing: candidate.pricing,
+    enabled: !cooling,
+    routable: !cooling,
+    toggleDisabled: false,
+  }
 }
 
 function apiKeyModels(apiKey: SiteAPIKey): SiteAPIKeyModel[] {
