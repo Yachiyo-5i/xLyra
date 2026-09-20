@@ -7,6 +7,10 @@ export function isNewAPISite(siteType: string) {
   return siteType === 'newapi' || siteType === 'new_api'
 }
 
+export function siteUsesAPIKeyChannels(site: { site_type: string; supports_multiple_api_keys?: boolean }) {
+  return site.supports_multiple_api_keys === true || isNewAPISite(site.site_type)
+}
+
 export function buildSiteGlyph(name: string) {
   const trimmed = name.trim()
   if (!trimmed) return '?'

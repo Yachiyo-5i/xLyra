@@ -1,8 +1,11 @@
 {
   "card": {
-    "routable": "ルーティング可能",
-    "routableRank": "ルーティング可能 #{{rank}}",
-    "configured": "設定済み",
+    "routable": "利用可",
+    "routableRank": "利用可 #{{rank}}",
+    "configured": "チャネル",
+    "channels": "チャネル",
+    "channelsValue": "{{routable}}/{{configured}}",
+    "channelsHint": "現在選べるチャネル {{routable}} 本 / 紐づき合計 {{configured}} 本（停止・クールダウン含む）",
     "request": "リクエスト",
     "noRequest": "リクエストなし",
     "successRate": "成功率",
@@ -31,7 +34,7 @@
     "loadFailed": "ルートデータの読み込みに失敗しました",
     "eyebrow": "操作",
     "title": "ルート",
-    "description": "モデルのルーティング候補、上流可用性、最近のルート記録を管理します。",
+    "description": "各モデルに紐づく上流チャネル、現在選ばれる経路、最近のリクエストとクールダウンを確認します。",
     "search": "モデルを検索",
     "refresh": "更新",
     "brand": "ブランド",
@@ -53,14 +56,15 @@
     "currentRoute": {
       "title": "現在のルート",
       "noAvailableRoute": "利用可能なルートがありません",
-      "fallbackHint": "設定済みサイトモデルを下に表示しています",
+      "fallbackHint": "設定済みチャネルを下に表示しています",
       "current": "現在",
-      "routable": "ルーティング可能 #{{rank}}"
+      "routable": "利用可 #{{rank}}"
     },
     "coverage": {
-      "title": "サイトモデル",
-      "loadFailed": "サイトモデルの読み込みに失敗しました",
-      "noConfig": "サイトモデル設定がありません",
+      "title": "チャネル一覧",
+      "hint": "1行が1本の上流チャネルです（サイト → モデル。複数 Key のサイトは Key ごとに分割）。カード上のチャネル数と同じ単位です。",
+      "loadFailed": "チャネルの読み込みに失敗しました",
+      "noConfig": "チャネルがありません",
       "group": "グループ {{name}}",
       "switchLabel": "{{site}} {{apiKey}} {{model}} を切り替え"
     },

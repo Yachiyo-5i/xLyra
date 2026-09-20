@@ -1,8 +1,11 @@
 {
   "card": {
-    "routable": "可路由",
-    "routableRank": "可路由 #{{rank}}",
-    "configured": "已配置",
+    "routable": "可走",
+    "routableRank": "可走 #{{rank}}",
+    "configured": "通道",
+    "channels": "通道",
+    "channelsValue": "{{routable}}/{{configured}}",
+    "channelsHint": "{{routable}} 条当前可被路由器选中，共 {{configured}} 条已绑定通道（含停用或冷却）",
     "request": "请求",
     "noRequest": "未请求",
     "successRate": "成功率",
@@ -31,7 +34,7 @@
     "loadFailed": "路径数据读取失败",
     "eyebrow": "运维",
     "title": "路由",
-    "description": "管理模型路由候选、上游可用性和最近路由记录。",
+    "description": "查看每个模型绑定了哪些上游通道、此刻会走哪一条，以及最近请求和冷却。",
     "search": "搜索模型",
     "refresh": "刷新",
     "brand": "品牌",
@@ -53,14 +56,15 @@
     "currentRoute": {
       "title": "当前使用",
       "noAvailableRoute": "当前无可用路径",
-      "fallbackHint": "下面继续展示已配置的站点模型",
+      "fallbackHint": "下面继续展示已配置的通道",
       "current": "当前使用",
-      "routable": "可路由 #{{rank}}"
+      "routable": "可走 #{{rank}}"
     },
     "coverage": {
-      "title": "站点模型",
-      "loadFailed": "站点模型读取失败",
-      "noConfig": "暂无站点模型配置",
+      "title": "通道列表",
+      "hint": "每一行是一条上游通道（站点 → 模型，多 Key 站还会按 Key 拆开），对应上方的「通道」计数。",
+      "loadFailed": "通道列表读取失败",
+      "noConfig": "暂无通道",
       "group": "分组 {{name}}",
       "switchLabel": "切换 {{site}} {{apiKey}} {{model}}"
     },
@@ -80,8 +84,8 @@
     }
   },
   "channels": {
-    "routable": "可路由",
-    "routableRank": "可路由 #{{rank}}",
+    "routable": "可走",
+    "routableRank": "可走 #{{rank}}",
     "cooling": "冷却中",
     "siteDisabled": "站点停用",
     "modelDisabled": "模型停用",
