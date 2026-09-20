@@ -6,11 +6,14 @@ import {
   type TrafficFlowEvent,
   type TrafficFlowRequest,
   type TrafficFlowSnapshot,
+  type TrafficFlowUsageCell,
   type TrafficFlowUsageTotal,
 } from '@/features/traffic-flow/api/traffic-flow'
 import { bumpActivityBucket, emptyActivityBuckets, syncActivityBuckets, type ActivityBucket } from '@/features/traffic-flow/lib/activity-buckets'
 import { packetTravelMs } from '@/features/traffic-flow/lib/flow-packets'
 import { modelVisual } from '@/features/traffic-flow/lib/model-visual'
+import { usageCellKey } from '@/features/traffic-flow/lib/token-usage-filter'
+import { seedDemoWindowTokens } from '@/features/traffic-flow/lib/demo-window-tokens'
 import { fetchRateLimitSettings } from '@/features/settings/api/settings'
 import { sameNode, type TrafficFlowNodeRef } from '@/features/traffic-flow/lib/wing-layout'
 
@@ -33,6 +36,7 @@ export function useTrafficFlowSession() {
   const [displayedTokens, setDisplayedTokens] = useState(0)
   const [downstreamTokenUsage, setDownstreamTokenUsage] = useState<Record<string, TrafficFlowUsageTotal>>({})
   const [upstreamTokenUsage, setUpstreamTokenUsage] = useState<Record<string, TrafficFlowUsageTotal>>({})
+  const [usageCells, setUsageCells] = useState<Record<string, TrafficFlowUsageCell>>({})
   const [windowStart] = useState(() => new Date())
   const [windowEnd, setWindowEnd] = useState(() => new Date())
   const pageRef = useRef<HTMLElement>(null)
@@ -47,7 +51,9 @@ export function useTrafficFlowSession() {
   const lastServerTokenTotalRef = useRef<number | null>(null)
   const lastDownstreamUsageRef = useRef<Record<string, number>>({})
   const lastUpstreamUsageRef = useRef<Record<string, number>>({})
-  const usageBaselineReadyRef = useRef({ downstream: false, upstream: false })
+  const lastUsageCellRef = useRef<Record<string, { total: number; input: number; output: number; cached: number }>>({})
+  const usageBaselineReadyRef = useRef({ downstream: false, upstream: false, cells: false })
+  const demoTokensSeededRef = useRef(false)
   const tokenDisplayRef = useRef(0)
   const requestsRef = useRef(requests)
   requestsRef.current = requests
@@ -68,6 +74,30 @@ export function useTrafficFlowSession() {
     refetchedNodeIDsRef.current.forEach((key) => {
       if (ids.has(key)) refetchedNodeIDsRef.current.delete(key)
     })
+  }, [topology])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !topology || demoTokensSeededRef.current) return
+    const seeded = seedDemoWindowTokens(topology)
+    if (!seeded) return
+    demoTokensSeededRef.current = true
+    setUsageCells(seeded.cells)
+    setDownstreamTokenUsage(seeded.downstream)
+    setUpstreamTokenUsage(seeded.upstream)
+    setTokenTarget(seeded.total)
+    setDisplayedTokens(seeded.total)
+    tokenDisplayRef.current = seeded.total
+    lastServerTokenTotalRef.current = seeded.total
+    for (const cell of Object.values(seeded.cells)) {
+      lastUsageCellRef.current[usageCellKey(cell)] = {
+        total: cell.total_tokens,
+        input: cell.input_tokens ?? 0,
+        output: cell.output_tokens ?? 0,
+        cached: cell.cached_tokens ?? 0,
+      }
+    }
+    for (const item of Object.values(seeded.downstream)) lastDownstreamUsageRef.current[item.id] = item.total_tokens
+    for (const item of Object.values(seeded.upstream)) lastUpstreamUsageRef.current[item.id] = item.total_tokens
   }, [topology])
 
   const applyServerTokenTotal = useCallback((serverTotal: number | undefined) => {
@@ -105,6 +135,43 @@ export function useTrafficFlowSession() {
       }
       return next
     })
+  }, [])
+
+  const applyUsageCells = useCallback((cells: TrafficFlowUsageCell[] | undefined, initialize = false) => {
+    if (!cells) return
+    const previousTotals = lastUsageCellRef.current
+    const establishBaseline = initialize && !usageBaselineReadyRef.current.cells
+    const increments: TrafficFlowUsageCell[] = []
+    for (const cell of cells) {
+      if (!cell.api_key_id || !Number.isFinite(cell.total_tokens)) continue
+      const key = usageCellKey(cell)
+      const nextCursor = usageCursor(cell)
+      const previous = previousTotals[key]
+      previousTotals[key] = nextCursor
+      if (establishBaseline || (previous !== undefined && nextCursor.total <= previous.total)) continue
+      const delta = previous === undefined ? nextCursor : cursorDelta(previous, nextCursor)
+      if (delta.total <= 0) continue
+      increments.push({ ...cell, ...deltaParts(delta) })
+    }
+    if (initialize) usageBaselineReadyRef.current.cells = true
+    if (increments.length === 0) return
+    setUsageCells((current) => mergeUsageCells(current, increments))
+  }, [])
+
+  const applyUsageCellEvent = useCallback((cell: TrafficFlowUsageCell | undefined, tokens: number | undefined) => {
+    if (!cell?.api_key_id || !Number.isFinite(cell.total_tokens)) return
+    const key = usageCellKey(cell)
+    const previousTotals = lastUsageCellRef.current
+    const nextCursor = usageCursor(cell)
+    const previous = previousTotals[key]
+    previousTotals[key] = nextCursor
+    if (previous !== undefined && nextCursor.total <= previous.total) return
+    const eventTokens = typeof tokens === 'number' && Number.isFinite(tokens) ? Math.max(0, Math.floor(tokens)) : nextCursor.total
+    const delta = previous === undefined
+      ? { ...nextCursor, total: eventTokens || nextCursor.total }
+      : cursorDelta(previous, nextCursor)
+    if (delta.total <= 0) return
+    setUsageCells((current) => mergeUsageCells(current, [{ ...cell, ...deltaParts(delta) }]))
   }, [])
 
   const applyUsageEvent = useCallback((usage: TrafficFlowUsageTotal | undefined, tokens: number | undefined, kind: 'downstream' | 'upstream') => {
@@ -213,6 +280,7 @@ export function useTrafficFlowSession() {
         applyServerTokenTotal(snapshot.total_tokens)
         applyUsageTotals(snapshot.downstream_usage, 'downstream', true)
         applyUsageTotals(snapshot.upstream_usage, 'upstream', true)
+        applyUsageCells(snapshot.usage_cells, true)
         const items = snapshot.requests ?? []
         const snapshotIDs = new Set(items.map((item) => item.request_id))
         const startRetiring: string[] = []
@@ -305,6 +373,7 @@ export function useTrafficFlowSession() {
         applyServerTokenTotal(payload.total_tokens)
         applyUsageEvent(payload.downstream_usage, payload.tokens, 'downstream')
         applyUsageEvent(payload.upstream_usage, payload.tokens, 'upstream')
+        applyUsageCellEvent(payload.usage_cell, payload.tokens)
       } catch { /* 忽略无法解析的载荷 */ }
     }
     const closeStream = () => {
@@ -319,7 +388,7 @@ export function useTrafficFlowSession() {
     stream.addEventListener('remove', parseRemove)
     stream.addEventListener('usage', parseUsage)
     return closeStream
-  }, [applyServerTokenTotal, applyUsageEvent, applyUsageTotals, queryClient, scheduleRetirementFallback])
+  }, [applyServerTokenTotal, applyUsageCellEvent, applyUsageCells, applyUsageEvent, applyUsageTotals, queryClient, scheduleRetirementFallback])
 
   const visibleRequests = useMemo(() => Object.values(requests), [requests])
   const activeRequests = useMemo(() => visibleRequests.filter((request) => !retiringRequestIDs.has(request.request_id)), [retiringRequestIDs, visibleRequests])
@@ -367,6 +436,15 @@ export function useTrafficFlowSession() {
     })
   }, [clearSelection])
 
+  const highlightNode = useCallback((node: TrafficFlowNodeRef | null) => {
+    if (!node) {
+      setSelectedNode(null)
+      return
+    }
+    setSelectedRequestID(null)
+    setSelectedNode(node)
+  }, [])
+
   const selectRequest = useCallback((requestID: string | null) => {
     if (!requestID) {
       setSelectedRequestID(null)
@@ -392,6 +470,7 @@ export function useTrafficFlowSession() {
     hoveredNode,
     setHoveredNode,
     selectNode,
+    highlightNode,
     selectRequest,
     clearSelection,
     activityBuckets,
@@ -404,6 +483,7 @@ export function useTrafficFlowSession() {
     displayedTokens,
     downstreamTokenUsage,
     upstreamTokenUsage,
+    usageCells,
     windowStart,
     windowEnd,
     routedCount: activeRequests.filter((request) => request.upstream_site_id).length,
@@ -424,4 +504,55 @@ export async function toggleFullscreen(element: HTMLElement | null, setFullscree
   }
   await element.requestFullscreen()
   setFullscreen(true)
+}
+
+type UsageCursor = { total: number; input: number; output: number; cached: number }
+
+function usageCursor(cell: TrafficFlowUsageCell): UsageCursor {
+  return {
+    total: floorToken(cell.total_tokens),
+    input: floorToken(cell.input_tokens),
+    output: floorToken(cell.output_tokens),
+    cached: floorToken(cell.cached_tokens),
+  }
+}
+
+function cursorDelta(previous: UsageCursor, next: UsageCursor): UsageCursor {
+  return {
+    total: Math.max(0, next.total - previous.total),
+    input: Math.max(0, next.input - previous.input),
+    output: Math.max(0, next.output - previous.output),
+    cached: Math.max(0, next.cached - previous.cached),
+  }
+}
+
+function deltaParts(delta: UsageCursor): Pick<TrafficFlowUsageCell, 'total_tokens' | 'input_tokens' | 'output_tokens' | 'cached_tokens'> {
+  return {
+    total_tokens: delta.total,
+    input_tokens: delta.input,
+    output_tokens: delta.output,
+    cached_tokens: delta.cached,
+  }
+}
+
+function mergeUsageCells(current: Record<string, TrafficFlowUsageCell>, increments: TrafficFlowUsageCell[]) {
+  const next = { ...current }
+  for (const cell of increments) {
+    const key = usageCellKey(cell)
+    const existing = next[key]
+    next[key] = {
+      ...cell,
+      api_key_name: cell.api_key_name || existing?.api_key_name || cell.api_key_id,
+      site_name: cell.site_name || existing?.site_name || cell.site_id,
+      total_tokens: (existing?.total_tokens ?? 0) + cell.total_tokens,
+      input_tokens: (existing?.input_tokens ?? 0) + (cell.input_tokens ?? 0),
+      output_tokens: (existing?.output_tokens ?? 0) + (cell.output_tokens ?? 0),
+      cached_tokens: (existing?.cached_tokens ?? 0) + (cell.cached_tokens ?? 0),
+    }
+  }
+  return next
+}
+
+function floorToken(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 }

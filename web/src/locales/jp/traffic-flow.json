@@ -34,6 +34,26 @@
     "tokens": "ウィンドウTokens",
     "rpm": "RPM上限"
   },
+  "tokensDialog": {
+    "title": "ウィンドウTokens",
+    "description": "このプロセスウィンドウで累積します。ゲートウェイ再起動でクリアされます。",
+    "clear": "フィルタをクリア",
+    "allVendors": "すべてのベンダー",
+    "otherVendors": "その他のベンダー",
+    "keys": "ダウンストリームキー",
+    "sites": "アップストリームサイト",
+    "models": "モデル",
+    "vendors": "ベンダー",
+    "empty": "このウィンドウにはまだTokenがありません",
+    "emptyFilter": "現在のフィルタに一致するTokenはありません",
+    "unknownSite": "未ルーティング",
+    "input": "入力",
+    "output": "出力",
+    "cached": "キャッシュ",
+    "keyCaption": "上流 {{sites}} · モデル {{models}}",
+    "siteCaption": "キー {{keys}} · モデル {{models}}",
+    "modelCaption": "{{vendor}} · キー {{keys}} · 上流 {{sites}}"
+  },
   "map": { "label": "リアルタイムリクエストトポロジー" },
   "core": {
     "title": "XLYRA GATEWAY",
@@ -79,7 +99,6 @@
     "tokens": "ウィンドウToken",
     "avgLatency": "平均レイテンシ",
     "successRate": "成功率",
-    "emptyNode": "このノードに処理中のリクエストはありません",
     "waiting": "ルート待機中"
   }
 }

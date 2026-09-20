@@ -49,6 +49,15 @@ func rateLimitTokenCount(result gatewayAttemptResult) int64 {
 	return int64(result.promptTokens) + int64(result.completionTokens) + int64(result.audioOutputTokens)
 }
 
+func inflightTokenAmount(result gatewayAttemptResult) inflight.TokenAmount {
+	return inflight.TokenAmount{
+		Total:  rateLimitTokenCount(result),
+		Input:  int64(result.promptTokens),
+		Output: int64(result.completionTokens),
+		Cached: int64(result.cachedPromptTokens),
+	}
+}
+
 func (h Handler) serveEndpoint(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -269,7 +278,7 @@ func (h Handler) serveEndpoint(
 					result := h.forwardBridgedResponses(ctx, w, requestID, index+1, apiKey.ID, plan.CanonicalModel.ID, candidate, request, reservation, resolver, bridge)
 					if result.success {
 						actualRateLimitTokens = rateLimitTokenCount(result)
-						inflight.AddTokens(requestID, actualRateLimitTokens)
+						inflight.AddTokens(requestID, inflightTokenAmount(result))
 						h.clearCooldownAfterRecovery(ctx, candidate)
 						flowPhase = inflight.PhaseCompleted
 						return
@@ -320,7 +329,7 @@ func (h Handler) serveEndpoint(
 				// Settle only the attempt actually served to the client; tokens from
 				// failed attempts retried via failover must not be added on top.
 				actualRateLimitTokens = rateLimitTokenCount(result)
-				inflight.AddTokens(requestID, actualRateLimitTokens)
+				inflight.AddTokens(requestID, inflightTokenAmount(result))
 				h.clearCooldownAfterRecovery(ctx, candidate)
 				if !request.Stream {
 					copyUpstreamResponse(w, result, candidate.Site.Name, h.exposeRouteSite)
@@ -338,7 +347,7 @@ func (h Handler) serveEndpoint(
 				result = h.forwardBridgedResponses(ctx, w, requestID, index+1, apiKey.ID, plan.CanonicalModel.ID, candidate, request, reservation, resolver, bridge)
 				if result.success {
 					actualRateLimitTokens = rateLimitTokenCount(result)
-					inflight.AddTokens(requestID, actualRateLimitTokens)
+					inflight.AddTokens(requestID, inflightTokenAmount(result))
 					h.clearCooldownAfterRecovery(ctx, candidate)
 					flowPhase = inflight.PhaseCompleted
 					return

@@ -34,6 +34,26 @@
     "tokens": "Window tokens",
     "rpm": "RPM limit"
   },
+  "tokensDialog": {
+    "title": "Window tokens",
+    "description": "Accumulated in this process window. The total resets when the gateway restarts.",
+    "clear": "Clear filters",
+    "allVendors": "All vendors",
+    "otherVendors": "Other vendors",
+    "keys": "Downstream keys",
+    "sites": "Upstream sites",
+    "models": "Models",
+    "vendors": "Vendors",
+    "empty": "No tokens in this window yet",
+    "emptyFilter": "No tokens match the current filters",
+    "unknownSite": "Unrouted site",
+    "input": "Input",
+    "output": "Output",
+    "cached": "Cached",
+    "keyCaption": "{{sites}} sites · {{models}} models",
+    "siteCaption": "{{keys}} keys · {{models}} models",
+    "modelCaption": "{{vendor}} · {{keys}} keys · {{sites}} sites"
+  },
   "map": { "label": "Live request topology" },
   "core": {
     "title": "XLYRA GATEWAY",
@@ -79,7 +99,6 @@
     "tokens": "Window tokens",
     "avgLatency": "Avg latency",
     "successRate": "Success rate",
-    "emptyNode": "No in-flight requests on this node",
     "waiting": "Waiting for route"
   }
 }

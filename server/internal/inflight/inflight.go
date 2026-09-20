@@ -43,10 +43,52 @@ type Route struct {
 	Attempt  int
 }
 
+type TokenAmount struct {
+	Total  int64
+	Input  int64
+	Output int64
+	Cached int64
+}
+
+func (amount TokenAmount) normalized() TokenAmount {
+	if amount.Input < 0 {
+		amount.Input = 0
+	}
+	if amount.Output < 0 {
+		amount.Output = 0
+	}
+	if amount.Cached < 0 {
+		amount.Cached = 0
+	}
+	if amount.Total <= 0 {
+		amount.Total = amount.Input + amount.Output
+	}
+	return amount
+}
+
 type UsageTotal struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	TotalTokens int64  `json:"total_tokens"`
+}
+
+type UsageCell struct {
+	APIKeyID      string `json:"api_key_id"`
+	APIKeyName    string `json:"api_key_name"`
+	SiteID        string `json:"site_id"`
+	SiteName      string `json:"site_name"`
+	ModelKey      string `json:"model_key"`
+	ModelProvider string `json:"model_provider"`
+	TotalTokens   int64  `json:"total_tokens"`
+	InputTokens   int64  `json:"input_tokens"`
+	OutputTokens  int64  `json:"output_tokens"`
+	CachedTokens  int64  `json:"cached_tokens"`
+}
+
+type usageCellKey struct {
+	APIKeyID string
+	SiteID   string
+	ModelKey string
 }
 
 type Event struct {
@@ -58,6 +100,7 @@ type Event struct {
 	TotalTokens     int64       `json:"total_tokens,omitempty"`
 	DownstreamUsage *UsageTotal `json:"downstream_usage,omitempty"`
 	UpstreamUsage   *UsageTotal `json:"upstream_usage,omitempty"`
+	UsageCell       *UsageCell  `json:"usage_cell,omitempty"`
 }
 
 type Snapshot struct {
@@ -66,6 +109,7 @@ type Snapshot struct {
 	TotalTokens     int64        `json:"total_tokens"`
 	DownstreamUsage []UsageTotal `json:"downstream_usage"`
 	UpstreamUsage   []UsageTotal `json:"upstream_usage"`
+	UsageCells      []UsageCell  `json:"usage_cells"`
 }
 
 type Registry struct {
@@ -77,6 +121,7 @@ type Registry struct {
 	totalTokens       int64
 	downstreamUsage   map[string]UsageTotal
 	upstreamUsage     map[string]UsageTotal
+	usageCells        map[usageCellKey]UsageCell
 	terminalRetention time.Duration
 }
 
@@ -86,6 +131,7 @@ func NewRegistry() *Registry {
 		subscribers:       map[uint64]chan Event{},
 		downstreamUsage:   map[string]UsageTotal{},
 		upstreamUsage:     map[string]UsageTotal{},
+		usageCells:        map[usageCellKey]UsageCell{},
 		terminalRetention: defaultTerminalRetention,
 	}
 }
@@ -165,15 +211,20 @@ func (r *Registry) Finish(requestID string, phase Phase) {
 	})
 }
 
-func (r *Registry) AddTokens(requestID string, tokens int64) {
-	if r == nil || tokens <= 0 {
+func (r *Registry) AddTokens(requestID string, amount TokenAmount) {
+	if r == nil {
+		return
+	}
+	amount = amount.normalized()
+	if amount.Total <= 0 {
 		return
 	}
 	r.mu.Lock()
-	r.totalTokens += tokens
+	r.totalTokens += amount.Total
 	request, ok := r.requests[requestID]
 	var downstreamUsage *UsageTotal
 	var upstreamUsage *UsageTotal
+	var usageCell *UsageCell
 	if ok && request.APIKeyID != "" {
 		if r.downstreamUsage == nil {
 			r.downstreamUsage = map[string]UsageTotal{}
@@ -181,10 +232,29 @@ func (r *Registry) AddTokens(requestID string, tokens int64) {
 		usage := r.downstreamUsage[request.APIKeyID]
 		usage.ID = request.APIKeyID
 		usage.Name = request.APIKeyName
-		usage.TotalTokens += tokens
+		usage.TotalTokens += amount.Total
 		r.downstreamUsage[request.APIKeyID] = usage
 		current := usage
 		downstreamUsage = &current
+
+		if r.usageCells == nil {
+			r.usageCells = map[usageCellKey]UsageCell{}
+		}
+		key := usageCellKey{APIKeyID: request.APIKeyID, SiteID: request.SiteID, ModelKey: request.ModelKey}
+		cell := r.usageCells[key]
+		cell.APIKeyID = request.APIKeyID
+		cell.APIKeyName = request.APIKeyName
+		cell.SiteID = request.SiteID
+		cell.SiteName = request.SiteName
+		cell.ModelKey = request.ModelKey
+		cell.ModelProvider = request.ModelProvider
+		cell.TotalTokens += amount.Total
+		cell.InputTokens += amount.Input
+		cell.OutputTokens += amount.Output
+		cell.CachedTokens += amount.Cached
+		r.usageCells[key] = cell
+		currentCell := cell
+		usageCell = &currentCell
 	}
 	if ok && request.SiteID != "" {
 		if r.upstreamUsage == nil {
@@ -193,16 +263,17 @@ func (r *Registry) AddTokens(requestID string, tokens int64) {
 		usage := r.upstreamUsage[request.SiteID]
 		usage.ID = request.SiteID
 		usage.Name = request.SiteName
-		usage.TotalTokens += tokens
+		usage.TotalTokens += amount.Total
 		r.upstreamUsage[request.SiteID] = usage
 		current := usage
 		upstreamUsage = &current
 	}
 	event := r.newEventLocked("usage", nil, requestID)
-	event.Tokens = tokens
+	event.Tokens = amount.Total
 	event.TotalTokens = r.totalTokens
 	event.DownstreamUsage = downstreamUsage
 	event.UpstreamUsage = upstreamUsage
+	event.UsageCell = usageCell
 	r.mu.Unlock()
 	r.publish(event)
 }
@@ -220,6 +291,7 @@ func (r *Registry) Snapshot() Snapshot {
 	totalTokens := r.totalTokens
 	downstreamUsage := usageTotals(r.downstreamUsage)
 	upstreamUsage := usageTotals(r.upstreamUsage)
+	usageCells := usageCells(r.usageCells)
 	r.mu.RUnlock()
 
 	sort.Slice(requests, func(i, j int) bool {
@@ -228,7 +300,7 @@ func (r *Registry) Snapshot() Snapshot {
 		}
 		return requests[i].StartedAt.Before(requests[j].StartedAt)
 	})
-	return Snapshot{Sequence: sequence, Requests: requests, TotalTokens: totalTokens, DownstreamUsage: downstreamUsage, UpstreamUsage: upstreamUsage}
+	return Snapshot{Sequence: sequence, Requests: requests, TotalTokens: totalTokens, DownstreamUsage: downstreamUsage, UpstreamUsage: upstreamUsage, UsageCells: usageCells}
 }
 
 func usageTotals(items map[string]UsageTotal) []UsageTotal {
@@ -243,6 +315,26 @@ func usageTotals(items map[string]UsageTotal) []UsageTotal {
 		return totals[i].Name < totals[j].Name
 	})
 	return totals
+}
+
+func usageCells(items map[usageCellKey]UsageCell) []UsageCell {
+	cells := make([]UsageCell, 0, len(items))
+	for _, item := range items {
+		cells = append(cells, item)
+	}
+	sort.Slice(cells, func(i, j int) bool {
+		if cells[i].TotalTokens != cells[j].TotalTokens {
+			return cells[i].TotalTokens > cells[j].TotalTokens
+		}
+		if cells[i].APIKeyName != cells[j].APIKeyName {
+			return cells[i].APIKeyName < cells[j].APIKeyName
+		}
+		if cells[i].SiteName != cells[j].SiteName {
+			return cells[i].SiteName < cells[j].SiteName
+		}
+		return cells[i].ModelKey < cells[j].ModelKey
+	})
+	return cells
 }
 
 func (r *Registry) Subscribe() (<-chan Event, func()) {
@@ -362,8 +454,8 @@ func Finish(requestID string, phase Phase) {
 	defaultRegistry.Finish(requestID, phase)
 }
 
-func AddTokens(requestID string, tokens int64) {
-	defaultRegistry.AddTokens(requestID, tokens)
+func AddTokens(requestID string, amount TokenAmount) {
+	defaultRegistry.AddTokens(requestID, amount)
 }
 
 func CurrentSnapshot() Snapshot {

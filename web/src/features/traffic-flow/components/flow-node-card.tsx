@@ -11,6 +11,7 @@ type FlowNodeCardProps = {
   retiringRequestIDs: Set<string>
   usage?: TrafficFlowUsageTotal
   selected: boolean
+  expanded: boolean
   hovered: boolean
   related: boolean
   now: number
@@ -26,6 +27,7 @@ export function FlowNodeCard({
   retiringRequestIDs,
   usage,
   selected,
+  expanded,
   hovered,
   related,
   now,
@@ -49,6 +51,7 @@ export function FlowNodeCard({
     placement.kind === 'downstream' ? 'is-downstream' : 'is-upstream',
     placement.lit ? 'is-hot' : 'is-idle',
     selected ? 'is-selected' : '',
+    expanded ? 'is-expanded' : '',
     hovered ? 'is-hovered' : '',
     related ? 'is-related' : '',
   ].filter(Boolean).join(' ')
@@ -59,7 +62,7 @@ export function FlowNodeCard({
       style={{
         left: `${placement.x}%`,
         top: `${placement.y}%`,
-        zIndex: placement.zIndex,
+        zIndex: placement.zIndex + (expanded ? 24 : 0),
         opacity: placement.opacity,
         transform: `translate(-50%, -50%) scale(${scale})`,
         '--node-color': color,
@@ -75,34 +78,36 @@ export function FlowNodeCard({
           onSelect(node)
         }}
       >
-        <span className="traffic-flow-node-card-orb">
-          {iconPath ? <img src={iconPath} alt="" /> : <b>{fallback}</b>}
+        <span className="traffic-flow-node-card-head">
+          <span className="traffic-flow-node-card-orb">
+            {iconPath ? <img src={iconPath} alt="" /> : <b>{fallback}</b>}
+          </span>
+          <span className="traffic-flow-node-card-copy">
+            <strong>{placement.name}</strong>
+            <i>{request?.model_key ?? nodeCaption(placement.node, placement.kind, t)}</i>
+          </span>
         </span>
-        <span className="traffic-flow-node-card-copy">
-          <strong>{placement.name}</strong>
-          <i>{request?.model_key ?? nodeCaption(placement.node, placement.kind, t)}</i>
-        </span>
+        {expanded ? (
+          <span className="traffic-flow-node-card-body">
+            <span><span>{t('inspector.inflightCount')}</span><strong>{placement.inflight}</strong></span>
+            <span><span>{t('inspector.tokens')}</span><strong>{formatCompactTokens(usage?.total_tokens ?? 0)}</strong></span>
+            {placement.node.recent_avg_latency_ms != null ? (
+              <span><span>{t('inspector.avgLatency')}</span><strong>{formatLatency(placement.node.recent_avg_latency_ms)}</strong></span>
+            ) : null}
+            {placement.node.recent_success_rate != null ? (
+              <span><span>{t('inspector.successRate')}</span><strong>{formatPercent(placement.node.recent_success_rate)}</strong></span>
+            ) : null}
+            {request ? (
+              <>
+                <span><span>{t('inspector.phase')}</span><strong>{t(`phase.${request.phase}`)}</strong></span>
+                <span><span>{t('inspector.duration')}</span><strong>{formatDuration(now - Date.parse(request.started_at))}</strong></span>
+              </>
+            ) : null}
+          </span>
+        ) : null}
       </button>
       {placement.lit && placement.inflight > 0 ? (
         <span className="traffic-flow-node-card-count">{formatPaddedCount(placement.inflight)}</span>
-      ) : null}
-      {selected ? (
-        <aside className={`traffic-flow-node-detail is-${placement.kind}`}>
-          <p><span>{t('inspector.inflightCount')}</span><strong>{formatPaddedCount(placement.inflight)}</strong></p>
-          <p><span>{t('inspector.tokens')}</span><strong>{formatCompactTokens(usage?.total_tokens ?? 0)}</strong></p>
-          {placement.node.recent_avg_latency_ms != null ? (
-            <p><span>{t('inspector.avgLatency')}</span><strong>{formatLatency(placement.node.recent_avg_latency_ms)}</strong></p>
-          ) : null}
-          {placement.node.recent_success_rate != null ? (
-            <p><span>{t('inspector.successRate')}</span><strong>{formatPercent(placement.node.recent_success_rate)}</strong></p>
-          ) : null}
-          {request ? (
-            <>
-              <p><span>{t('inspector.phase')}</span><strong>{t(`phase.${request.phase}`)}</strong></p>
-              <p><span>{t('inspector.duration')}</span><strong>{formatDuration(now - Date.parse(request.started_at))}</strong></p>
-            </>
-          ) : <p><span>{t('inspector.emptyNode')}</span></p>}
-        </aside>
       ) : null}
     </div>
   )
