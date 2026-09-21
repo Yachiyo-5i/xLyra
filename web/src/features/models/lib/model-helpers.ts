@@ -1,3 +1,5 @@
+import type { SiteAPIKeyModel } from '@/features/sites/api/sites'
+
 type TFunction = (key: string, options?: Record<string, unknown>) => string
 
 export function formatEndpointTypeLabel(value: string): string {
@@ -24,22 +26,38 @@ export function formatEndpointTypeLabel(value: string): string {
   }
 }
 
-export function availableEndpointTypes(values: string[]): string[] {
-  const normalized = values
-    .map((value) => normalizeEndpointType(value))
-    .filter(Boolean)
-  const hasText = normalized.some((value) =>
-    ['openai', 'openai-response', 'anthropic-messages', 'google-gemini'].includes(value),
-  )
-  if (!hasText) return [...new Set(normalized)]
-  return [
-    'openai',
-    'openai-response',
-    'anthropic-messages',
-    ...[...new Set(normalized)].filter(
-      (value) => !['openai', 'openai-response', 'anthropic-messages', 'google-gemini'].includes(value),
-    ),
-  ]
+export function upstreamEndpointTypes(model: SiteAPIKeyModel, fallback: string[] = []): string[] {
+  const normalize = (values: string[]) => [...new Set(values.map(normalizeEndpointType).filter(Boolean))]
+  if (Array.isArray(model.effective_endpoint_types)) return normalize(model.effective_endpoint_types)
+  if (model.endpoint_override?.mode === 'disabled') return []
+  const declared = model.supported_endpoint_types ?? fallback
+  const selected = model.endpoint_override?.mode === 'allowlist'
+    ? model.endpoint_override.endpoint_types ?? []
+    : declared
+  const fallbackTypes = normalize(fallback)
+  return normalize(selected).filter((value) => {
+    if (fallbackTypes.length === 0 || fallbackTypes.includes(value)) return true
+    const family = endpointTypeFamily(value)
+    return family !== '' && fallbackTypes.some((item) => endpointTypeFamily(item) === family)
+  })
+}
+
+function endpointTypeFamily(value: string): string {
+  switch (normalizeEndpointType(value)) {
+    case 'openai':
+    case 'openai-response':
+    case 'anthropic-messages':
+    case 'google-gemini':
+      return 'text'
+    case 'openai-image':
+      return 'image'
+    case 'openai-embedding':
+      return 'embedding'
+    case 'openai-audio-speech':
+      return 'audio-speech'
+    default:
+      return ''
+  }
 }
 
 function normalizeEndpointType(value: string): string {

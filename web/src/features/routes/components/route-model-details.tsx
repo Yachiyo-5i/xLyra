@@ -20,6 +20,7 @@ import {
 } from '@/features/routes/api/routes'
 import { getCanonicalModelMatrix, sitesQueryKeys, type Site, type SiteAPIKey, type SiteModel } from '@/features/sites/api/sites'
 import { findCurrentRouteChannel, routeChannelRowsFromMatrix, routeChannelStatus, routeChannelSwitchDisabledReason } from '@/features/routes/lib/route-channels'
+import { formatEndpointTypeLabel } from '@/features/models/lib/model-helpers'
 import {
   formatCooldownScope,
   formatDateTime,
@@ -258,6 +259,7 @@ function RouteChannelLine({
         row.groupName ? (t ? t('details.coverage.group', { name: row.groupName }) : `分组 ${row.groupName}`) : '',
         formatModelHealth(row.candidate, t),
         formatRoutePricing(row.pricing, t),
+        formatSupportedEndpointTypes(row.candidate),
       ].filter(Boolean)}
       action={
         onToggle ? (
@@ -310,9 +312,14 @@ function CandidateRouteLine({ candidate, current, t }: { candidate: RouteCandida
           : `P${candidate.credential.routing_priority}`,
         formatModelHealth(candidate, t),
         formatRoutePricing(candidate.pricing, t),
-      ]}
+        formatSupportedEndpointTypes(candidate),
+      ].filter(Boolean)}
     />
   )
+}
+
+function formatSupportedEndpointTypes(candidate?: RouteCandidateItem): string {
+  return (candidate?.model.supported_endpoint_types ?? []).map(formatEndpointTypeLabel).join(' / ')
 }
 
 function RouteInfoLine({ badges, primary, meta, action }: { badges?: ReactNode; primary: string; meta?: string[]; action?: ReactNode }) {

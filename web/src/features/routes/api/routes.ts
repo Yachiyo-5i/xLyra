@@ -53,6 +53,7 @@ type RouteCandidateModel = {
   display_name: string
   canonical_match_source: string
   canonical_match_confidence: number
+  supported_endpoint_types?: string[]
 }
 
 type RouteCandidateHealth = {

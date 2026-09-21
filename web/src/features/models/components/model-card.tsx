@@ -167,10 +167,10 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                       </td>
                       <td className="px-4 py-3 text-muted-soft">
                         <div className="space-y-1">
-                          {site.supportedEndpointTypes.length || (site.disabledEndpointTypes?.length ?? 0)
-                            ? [...site.supportedEndpointTypes.map((endpointType) => ({ endpointType, enabled: true })), ...(site.disabledEndpointTypes ?? []).map((endpointType) => ({ endpointType, enabled: false }))].map(
-                                ({ endpointType, enabled }, index, protocols) => (
-                                  <span key={`${site.modelId}-${endpointType}`} className={enabled ? undefined : 'line-through opacity-60'}>
+                          {(pricing.supportedEndpointTypes ?? site.supportedEndpointTypes).length
+                            ? (pricing.supportedEndpointTypes ?? site.supportedEndpointTypes).map(
+                                (endpointType, index, protocols) => (
+                                  <span key={`${site.modelId}-${endpointType}`}>
                                     {formatEndpointTypeLabel(endpointType)}{index < protocols.length - 1 ? ' / ' : ''}
                                   </span>
                                 ),

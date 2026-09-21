@@ -87,3 +87,35 @@ func TestCredentialSupportsDeepSeekMessagesConversionWithOpenAIEndpoint(t *testi
 		t.Fatal("OpenAI-only credential should support DeepSeek Messages conversion")
 	}
 }
+
+func TestOpenAIRelayAllowsEveryTextProtocolConversion(t *testing.T) {
+	paths := []string{gatewayEndpointChatCompletions, gatewayEndpointResponses, gatewayEndpointMessages}
+	upstreams := []struct {
+		endpoint string
+		path     string
+	}{
+		{"openai", gatewayEndpointChatCompletions},
+		{"openai-response", gatewayEndpointResponses},
+		{"anthropic-messages", gatewayEndpointMessages},
+	}
+	for _, upstream := range upstreams {
+		for _, downstream := range paths {
+			t.Run(upstream.endpoint+downstream, func(t *testing.T) {
+				candidate := routeengine.Candidate{
+					Site:  routeengine.CandidateSite{SiteType: "openai", BaseURL: "https://relay.example.test"},
+					Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4.1-flash", SupportedEndpointTypes: []string{upstream.endpoint}},
+				}
+				protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), gatewayRequest{DownstreamPath: downstream}, candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := protocol.UpstreamPath(candidate.Site.BaseURL); got != candidate.Site.BaseURL+upstream.path {
+					t.Fatalf("upstream path = %q, want %q", got, candidate.Site.BaseURL+upstream.path)
+				}
+				if !credentialSupportsAdapter([]string{upstream.endpoint}, protocol) {
+					t.Fatalf("conversion adapter %q rejected by credential", protocol.ProtocolName())
+				}
+			})
+		}
+	}
+}

@@ -34,9 +34,6 @@ func (s capabilitySource) Lookup(ctx context.Context, input modelcapabilities.In
 	if err != nil {
 		return nil, false, err
 	}
-	if model.PricingSource != store.CanonicalPricingSourceCatalog {
-		return nil, false, nil
-	}
 	values := map[string]any{}
 	if err := json.Unmarshal(model.Capabilities, &values); err != nil {
 		return nil, false, err

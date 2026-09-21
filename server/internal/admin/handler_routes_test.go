@@ -3,6 +3,7 @@ package admin
 import (
 	"database/sql"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -276,11 +277,12 @@ func TestRouteCandidatePayloadIncludesDebugBreakdown(t *testing.T) {
 			RoutingPriority: 1.5,
 		},
 		Model: routeengine.CandidateModel{
-			SiteModelID:     siteModelID,
-			UpstreamName:    "gpt-5",
-			DisplayName:     "GPT-5",
-			MatchSource:     "alias",
-			MatchConfidence: 95,
+			SiteModelID:            siteModelID,
+			UpstreamName:           "gpt-5",
+			DisplayName:            "GPT-5",
+			MatchSource:            "alias",
+			MatchConfidence:        95,
+			SupportedEndpointTypes: []string{"openai-response"},
 		},
 		Health: routeengine.CandidateHealth{
 			Status:             "healthy",
@@ -308,6 +310,9 @@ func TestRouteCandidatePayloadIncludesDebugBreakdown(t *testing.T) {
 		t.Fatalf("unexpected site payload: %#v", site)
 	}
 	model, _ := payload["model"].(map[string]any)
+	if got := model["supported_endpoint_types"]; !reflect.DeepEqual(got, []string{"openai", "openai-response", "anthropic-messages"}) {
+		t.Fatalf("unexpected downstream endpoint types: %#v", got)
+	}
 	if model["site_model_id"] != siteModelID.String() || model["canonical_match_confidence"] != 95 {
 		t.Fatalf("unexpected model payload: %#v", model)
 	}
