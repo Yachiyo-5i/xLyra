@@ -505,3 +505,14 @@ func TestRouteMin(t *testing.T) {
 		t.Fatalf("min(7, 3) = %d, want 3", got)
 	}
 }
+
+func TestEveryTextEndpointCanRouteToEveryTextUpstream(t *testing.T) {
+	endpoints := []string{"openai", "openai-response", "anthropic-messages"}
+	for _, upstream := range endpoints {
+		for _, downstream := range endpoints {
+			if !routeCandidateSupportsEndpoint(store.RouteCandidateRow{SupportedEndpointTypes: []string{upstream}}, downstream) {
+				t.Errorf("downstream %q cannot route to upstream %q", downstream, upstream)
+			}
+		}
+	}
+}

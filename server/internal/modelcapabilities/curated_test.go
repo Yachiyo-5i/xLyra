@@ -90,6 +90,7 @@ func TestInferEndpointTypesForSiteModelHonorsAnthropicBasePath(t *testing.T) {
 		{"kimi-k2", "openai", "https://relay.example.com/Anthropic/", []string{"anthropic-messages"}},
 		{"gpt-5.6", "openai", "https://relay.example.com/anthropic", []string{"anthropic-messages"}},
 		{"deepseek-chat", "openai", "https://relay.example.com/v1", []string{"openai", "anthropic-messages"}},
+		{"deepseek-v4.1-flash", "openai", "", []string{"openai", "anthropic-messages"}},
 		{"deepseek-chat", "openai", "https://anthropic.example.com", []string{"openai", "anthropic-messages"}},
 		{"deepseek-chat", "openai", "https://relay.example.com/anthropic/v1", []string{"openai", "anthropic-messages"}},
 		{"qwen3-coder", "openai", "", []string{"openai", "anthropic-messages"}},

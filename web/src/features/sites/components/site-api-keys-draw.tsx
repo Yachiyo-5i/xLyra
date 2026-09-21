@@ -72,7 +72,7 @@ import {
   upsertAPIKey,
 } from '@/features/sites/lib/site-cache'
 import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
-import { availableEndpointTypes, formatEndpointTypeLabel } from '@/features/models/lib/model-helpers'
+import { formatEndpointTypeLabel, upstreamEndpointTypes } from '@/features/models/lib/model-helpers'
 import {
   SiteAPIKeyFormFields,
 } from '@/features/sites/components/site-api-key-form'
@@ -1210,11 +1210,7 @@ function buildAPIKeyModelItems(apiKey: SiteAPIKey | null, siteModels: SiteModel[
     const name = model.name.trim()
     const siteModel = siteModels.find((item) => item.id === model.site_model_id)
     const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
-    const endpointTypes = (model.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
-    const effectiveTypes = model.effective_endpoint_types ?? endpointTypes
-    const protocolTypes = model.available_endpoint_types?.length
-      ? model.available_endpoint_types
-      : availableEndpointTypes(endpointTypes.length ? endpointTypes : effectiveTypes.length ? effectiveTypes : siteTypes)
+    const protocolTypes = upstreamEndpointTypes(model, siteTypes)
     return {
       id: name,
       displayName: name,
@@ -1234,7 +1230,7 @@ function buildAPIKeyModelItems(apiKey: SiteAPIKey | null, siteModels: SiteModel[
 function endpointTypesForAPIKeyModel(model: SiteAPIKeyModel, siteModels: SiteModel[]): string[] {
   const siteModel = siteModels.find((item) => item.id === model.site_model_id)
   const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
-  return (model.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
+  return upstreamEndpointTypes(model, siteTypes)
 }
 
 function endpointTypesFromCapabilities(capabilities?: Record<string, unknown>): string[] {

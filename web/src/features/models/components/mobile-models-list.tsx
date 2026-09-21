@@ -194,10 +194,8 @@ function MobilePricingBlock({
   pricing: PricingRow
 }) {
   const { t } = useTranslation('models')
-        const endpointTypes = [
-          ...site.supportedEndpointTypes.map((endpointType) => ({ endpointType, enabled: true })),
-          ...(site.disabledEndpointTypes ?? []).map((endpointType) => ({ endpointType, enabled: false })),
-        ]
+  const endpointTypes = (pricing.supportedEndpointTypes ?? site.supportedEndpointTypes)
+    .map((endpointType) => ({ endpointType, enabled: true }))
 
   return (
     <div className="rounded-lg bg-[hsl(var(--surface-subtle)/0.58)] px-3 py-3">

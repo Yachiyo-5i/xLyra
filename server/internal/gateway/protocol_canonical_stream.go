@@ -2069,7 +2069,7 @@ func (e *anthropicMessagesStreamEncoder) sendFinish(stopReason string, stopSeque
 	if err := e.writeEvent("message_delta", map[string]any{
 		"type":  "message_delta",
 		"delta": map[string]any{"stop_reason": stopReason, "stop_sequence": emptyToNil(stopSequence)},
-		"usage": map[string]any{"output_tokens": e.capture.usage.CompletionTokens},
+		"usage": anthropicUsagePayload(e.capture.usage),
 	}); err != nil {
 		return err
 	}

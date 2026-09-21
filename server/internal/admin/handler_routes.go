@@ -473,6 +473,7 @@ func routeCandidatePayload(item routeengine.Candidate, debug bool) map[string]an
 			"display_name":               item.Model.DisplayName,
 			"canonical_match_source":     item.Model.MatchSource,
 			"canonical_match_confidence": item.Model.MatchConfidence,
+			"supported_endpoint_types":   store.AvailableModelEndpointTypes(item.Model.SupportedEndpointTypes),
 		},
 		"health": map[string]any{
 			"status":                item.Health.Status,

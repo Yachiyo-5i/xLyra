@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  effectiveEndpointTypesForSiteModel,
   marketplacePricingRows,
   marketplaceUnpricedCredentialRows,
 } from './models'
-import { availableEndpointTypes } from '../lib/model-helpers'
+import { upstreamEndpointTypes } from '../lib/model-helpers'
 
 const site = {
   siteId: 'site-1',
@@ -121,16 +122,54 @@ describe('marketplacePricingRows', () => {
   })
 })
 
-describe('availableEndpointTypes', () => {
-  it('expands any text endpoint to all downstream text protocols', () => {
-    expect(availableEndpointTypes(['openai-response'])).toEqual([
-      'openai',
-      'openai-response',
-      'anthropic-messages',
-    ])
+describe('upstream endpoint types', () => {
+  it.each(['openai', 'openai-response', 'anthropic-messages'])('does not expand upstream protocol %s', (endpoint) => {
+    expect(upstreamEndpointTypes({
+      name: 'deepseek-v4.1-flash', enabled: true,
+      effective_endpoint_types: [endpoint],
+      available_endpoint_types: ['openai', 'openai-response', 'anthropic-messages'],
+    })).toEqual([endpoint])
+  })
+
+  it('does not restore disabled or explicitly empty protocols', () => {
+    expect(upstreamEndpointTypes({ name: 'test', enabled: true, effective_endpoint_types: [] }, ['openai'])).toEqual([])
+    expect(upstreamEndpointTypes({ name: 'test', enabled: true, endpoint_override: { mode: 'disabled' } }, ['openai'])).toEqual([])
+  })
+
+  it('preserves an explicitly empty effective key capability', () => {
+    expect(effectiveEndpointTypesForSiteModel('site-1', {
+      id: 'model-1',
+      site_id: 'site-1',
+      upstream_model_name: 'deepseek-v4.1-flash',
+      display_name: 'DeepSeek V4.1 Flash',
+      capabilities: { supported_endpoint_types: ['openai', 'openai-response', 'anthropic-messages'] },
+      status: 'active',
+      created_at: '',
+      updated_at: '',
+    }, {
+      'site-1': [{
+        id: 'key-1',
+        name: 'Primary',
+        routing_priority: 1,
+        upstream_cost_multiplier: 1,
+        group: null,
+        key: 'sk-***',
+        status: 'active',
+        enabled: true,
+        models: ['deepseek-v4.1-flash'],
+        model_items: [{
+          name: 'deepseek-v4.1-flash',
+          enabled: true,
+          site_model_id: 'model-1',
+          supported_endpoint_types: ['openai', 'openai-response', 'anthropic-messages'],
+          effective_endpoint_types: [],
+          available_endpoint_types: [],
+        }],
+      }],
+    })).toEqual([])
   })
 
   it('keeps non-text endpoint types unchanged', () => {
-    expect(availableEndpointTypes(['openai-image'])).toEqual(['openai-image'])
+    expect(upstreamEndpointTypes({ name: 'image', enabled: true, effective_endpoint_types: ['openai-image'] })).toEqual(['openai-image'])
   })
 })

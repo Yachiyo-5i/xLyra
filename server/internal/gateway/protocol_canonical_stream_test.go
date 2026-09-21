@@ -951,6 +951,54 @@ func TestProxyCanonicalStreamChatToResponsesUsageInFinishChunk(t *testing.T) {
 	}
 }
 
+func TestProxyCanonicalStreamChatToMessagesEmitsLateInputUsage(t *testing.T) {
+	t.Parallel()
+
+	rec, capture, started, err := proxyCanonicalStreamTest(t,
+		"data: {\"id\":\"chatcmpl_messages\",\"created\":1710000000,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hi\"}}]}\n\n"+
+			"data: {\"id\":\"chatcmpl_messages\",\"created\":1710000000,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"+
+			"data: {\"id\":\"chatcmpl_messages\",\"created\":1710000000,\"model\":\"deepseek-v4.1-flash\",\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":11,\"total_tokens\":18}}\n\n"+
+			"data: [DONE]\n\n",
+		canonicalProtocolOpenAIChat, canonicalProtocolAnthropicMessages, canonicalStreamOptions{})
+	if err != nil {
+		t.Fatalf("proxyCanonicalStream returned error: %v", err)
+	}
+	if !started || !capture.streamCompleted || capture.usage.TotalTokens != 18 {
+		t.Fatalf("unexpected capture: started=%v capture=%+v", started, capture)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"type":"message_delta"`) {
+		t.Fatalf("message_delta event not found, body=%q", body)
+	}
+	for _, want := range []string{`"input_tokens":7`, `"output_tokens":11`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("messages stream missing %s, body=%q", want, body)
+		}
+	}
+}
+
+func TestProxyCanonicalStreamResponsesToMessagesEmitsLateInputUsage(t *testing.T) {
+	t.Parallel()
+
+	rec, capture, started, err := proxyCanonicalStreamTest(t,
+		"data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_messages\",\"created_at\":1710000000,\"model\":\"deepseek-v4.1-flash\"}}\n\n"+
+			"data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hi\"}\n\n"+
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_messages\",\"created_at\":1710000000,\"model\":\"deepseek-v4.1-flash\",\"usage\":{\"input_tokens\":7,\"output_tokens\":11,\"total_tokens\":18}}}\n\n",
+		canonicalProtocolOpenAIResponses, canonicalProtocolAnthropicMessages, canonicalStreamOptions{})
+	if err != nil {
+		t.Fatalf("proxyCanonicalStream returned error: %v", err)
+	}
+	if !started || !capture.streamCompleted || capture.usage.TotalTokens != 18 {
+		t.Fatalf("unexpected capture: started=%v capture=%+v", started, capture)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`"input_tokens":7`, `"output_tokens":11`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("messages stream missing %s, body=%q", want, body)
+		}
+	}
+}
+
 // When the upstream sends finish_reason but no [DONE] before EOF, the decoder's
 // Flush() must still drive a terminal event so the downstream sees response.completed.
 func TestProxyCanonicalStreamChatToResponsesFlushesPendingTerminalOnEOF(t *testing.T) {
