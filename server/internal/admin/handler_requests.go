@@ -304,6 +304,7 @@ func requestLogPayload(item store.RequestLogDetail, includeMetadata bool) map[st
 		"protocol_conversion":         metadata["protocol_conversion"],
 		"stage":                       metadataString(metadata, "stage"),
 		"requested_model":             metadataString(metadata, "requested_model"),
+		"upstream_response_model":     metadataString(metadata, "upstream_response_model"),
 		"original_model":              metadataString(metadata, "original_model"),
 		"mapped_model":                metadataString(metadata, "mapped_model"),
 		"mapping_mode":                metadataString(metadata, "mapping_mode"),

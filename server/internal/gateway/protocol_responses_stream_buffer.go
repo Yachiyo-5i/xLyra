@@ -34,6 +34,10 @@ type responsesAPIError struct {
 }
 
 func readBufferedResponsesStreamBody(reader io.Reader) ([]byte, error) {
+	return readBufferedResponsesStreamBodyObserved(reader, &streamCaptureState{})
+}
+
+func readBufferedResponsesStreamBodyObserved(reader io.Reader, capture *streamCaptureState) ([]byte, error) {
 	if reader == nil {
 		return nil, fmt.Errorf("upstream stream body is not available")
 	}
@@ -49,6 +53,7 @@ func readBufferedResponsesStreamBody(reader io.Reader) ([]byte, error) {
 	for {
 		line, err := buffered.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, capture)
 			text := strings.TrimSpace(string(line))
 			if strings.HasPrefix(text, "data:") {
 				data := strings.TrimSpace(strings.TrimPrefix(text, "data:"))

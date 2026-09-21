@@ -70,6 +70,7 @@
     "request": "请求",
     "downstreamModel": "下游模型",
     "upstreamModel": "上游模型",
+    "responseModel": "响应模型",
     "transport": "传输",
     "status": "状态",
     "success": "成功",
@@ -171,6 +172,8 @@
     "longContextApplied": "已按长上下文档计价"
   },
   "modelMapping": {
+    "responseNamespace": "上游响应模型仅厂商前缀不同：{{model}}",
+    "responseMismatch": "上游响应模型与请求及路由模型均不一致，可能已换模型：{{model}}",
     "downstreamRequest": "下游请求",
     "actualUpstream": "实际上游",
     "mappedModel": "，映射模型：{{model}}",

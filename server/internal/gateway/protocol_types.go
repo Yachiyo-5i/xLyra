@@ -12,6 +12,7 @@ type gatewayRequest struct {
 	DownstreamPath    string
 	DownstreamHeaders http.Header
 	RequestedModel    string
+	OriginalModel     string
 	Stream            bool
 	Diagnostic        bool
 	Payload           map[string]any

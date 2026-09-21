@@ -176,6 +176,7 @@ func proxyCodexResponsesImageStream(
 
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			data, done, ok := sseDataFromLine(line)
 			if ok && done {
 				capture.sawDone = true

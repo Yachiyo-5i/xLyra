@@ -70,6 +70,7 @@
     "request": "Request",
     "downstreamModel": "Downstream model",
     "upstreamModel": "Upstream model",
+    "responseModel": "Response model",
     "transport": "Transport",
     "status": "Status",
     "success": "Success",
@@ -171,6 +172,8 @@
     "longContextApplied": "Long-context tier applied"
   },
   "modelMapping": {
+    "responseNamespace": "Upstream response model differs only by provider namespace: {{model}}",
+    "responseMismatch": "Upstream response model differs from both request and routed models; a model change may have occurred: {{model}}",
     "downstreamRequest": "Downstream request",
     "actualUpstream": "Actual upstream",
     "mappedModel": ", mapped model: {{model}}",

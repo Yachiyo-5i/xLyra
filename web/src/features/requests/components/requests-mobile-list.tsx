@@ -14,7 +14,6 @@ import {
   formatDateTime,
   formatInteger,
   formatTokenCompact,
-  requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
   requestHasFailover,
@@ -55,7 +54,6 @@ export function RequestsMobileList({
         const hasCacheRead = typeof cacheTokens === 'number' && cacheTokens > 0
         const hasCacheWrite = typeof cacheWriteTokens === 'number' && cacheWriteTokens > 0
         const statusCode = item.upstream_status_code ?? item.status_code ?? '-'
-        const reasoningEffort = requestReasoningEffort(item)
 
         return (
           <Card key={item.id} className="overflow-hidden rounded-lg p-0">
@@ -68,16 +66,9 @@ export function RequestsMobileList({
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <RequestModelMapping item={item} inline className="text-sm font-semibold text-foreground" />
-                    {reasoningEffort ? (
-                      <div className="flex min-w-0 items-center gap-2 text-xs">
-                        <span className="truncate text-foreground" title={reasoningEffort}>{reasoningEffort}</span>
-                        <span className="shrink-0 text-muted-soft">{formatDateTime(item.created_at, i18n.language)}</span>
-                      </div>
-                    ) : (
-                      <div className="text-muted-soft text-xs">
-                        {formatDateTime(item.created_at, i18n.language)}
-                      </div>
-                    )}
+                    <div className="text-muted-soft text-xs">
+                      {formatDateTime(item.created_at, i18n.language)}
+                    </div>
                   </div>
                   <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
                     {requestHasFailover(item) ? (

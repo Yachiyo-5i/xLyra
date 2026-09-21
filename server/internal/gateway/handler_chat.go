@@ -100,7 +100,9 @@ func (h Handler) serveEndpoint(
 		return
 	}
 
-	ctx := withReasoningEffort(r.Context(), reasoningEffortFromPayload(request.Payload))
+	request.OriginalModel = request.RequestedModel
+	ctx := withRequestedModel(r.Context(), request.OriginalModel)
+	ctx = withReasoningEffort(ctx, reasoningEffortFromPayload(request.Payload))
 	r = r.WithContext(ctx)
 	originalModel := request.RequestedModel
 	mappingRule, hasMapping := h.resolveModelMapping(apiKey, request.RequestedModel)

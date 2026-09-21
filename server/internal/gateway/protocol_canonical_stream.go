@@ -229,6 +229,7 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 			line, err = reader.ReadBytes('\n')
 		}
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			if options.UpstreamLineInspect != nil {
 				options.UpstreamLineInspect(line, &capture)
 			}

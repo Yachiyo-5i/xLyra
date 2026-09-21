@@ -68,6 +68,7 @@
     "request": "リクエスト",
     "downstreamModel": "下流モデル",
     "upstreamModel": "上流モデル",
+    "responseModel": "応答モデル",
     "transport": "トランスポート",
     "status": "ステータス",
     "success": "成功",
@@ -169,6 +170,8 @@
     "longContextApplied": "長文脈レートを適用"
   },
   "modelMapping": {
+    "responseNamespace": "上流の応答モデルはプロバイダーの接頭辞のみ異なります：{{model}}",
+    "responseMismatch": "上流の応答モデルがリクエストとルーティングモデルの両方と異なります。モデルが変更された可能性があります：{{model}}",
     "downstreamRequest": "下流リクエスト",
     "actualUpstream": "実際の上流",
     "mappedModel": "、マッピングモデル: {{model}}",

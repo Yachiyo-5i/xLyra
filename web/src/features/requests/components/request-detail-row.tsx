@@ -5,6 +5,7 @@ import { LoaderCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/common/status-badge'
 import { getRequestLog, requestQueryKeys, type RequestLogItem } from '@/features/requests/api/requests'
+import { RequestResponseModelBadge } from './request-response-model-badge'
 import {
   compactJoin,
   formatCurrency,
@@ -102,6 +103,11 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
       <DetailRow label={t('detail.request')}>
         <InlineItem label={t('detail.downstreamModel')} value={requestModelName(detail)} tone="badge" />
         <InlineItem label={t('detail.upstreamModel')} value={mappedModel} tone="badge" />
+        {detail.upstream_response_model?.trim() ? (
+          <InlineItem label={t('detail.responseModel')}>
+            <RequestResponseModelBadge item={detail} showMatching />
+          </InlineItem>
+        ) : null}
         <InlineItem label={t('detail.transport')}>
           <Badge variant={downstreamTransport === 'WS' ? 'accent' : 'neutral'} className="rounded-md px-2 py-0.5 text-xs tracking-normal">
             {downstreamTransport}
