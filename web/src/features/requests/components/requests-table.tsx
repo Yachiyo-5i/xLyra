@@ -18,7 +18,6 @@ import {
   formatDateTime,
   formatInteger,
   formatTokenCompact,
-  requestReasoningEffort,
   requestCacheTokens,
   requestCacheWriteTokens,
   requestHasFailover,
@@ -99,7 +98,6 @@ export function RequestsTable({
             const expanded = expandedId === item.id
             const cacheTokens = requestCacheTokens(item)
             const cacheWriteTokens = requestCacheWriteTokens(item)
-            const reasoningEffort = requestReasoningEffort(item)
             const hasCacheRead = typeof cacheTokens === 'number' && cacheTokens > 0
             const hasCacheWrite = typeof cacheWriteTokens === 'number' && cacheWriteTokens > 0
 
@@ -120,14 +118,7 @@ export function RequestsTable({
                         {formatDateTime(item.created_at, i18n.language)}
                       </td>
                       <td className="px-4 py-4 align-middle">
-                        <div className="min-w-0 space-y-1">
-                          <RequestModelMapping item={item} className="text-sm font-medium text-foreground" />
-                          {reasoningEffort ? (
-                            <div className="min-w-0 text-xs text-foreground">
-                              <span className="block truncate" title={reasoningEffort}>{reasoningEffort}</span>
-                            </div>
-                          ) : null}
-                        </div>
+                        <RequestModelMapping item={item} className="text-sm font-medium text-foreground" />
                       </td>
                       <td className="px-4 py-4 align-middle">
                         <div className="flex min-w-0 items-center gap-2">

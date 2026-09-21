@@ -777,6 +777,7 @@ func proxyGrokResponsesStreamBridged(ctx context.Context, w http.ResponseWriter,
 		}
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			if !headersWritten {
 				capture.firstByteLatency = time.Since(startedAt).Milliseconds()
 				writeHeaders()

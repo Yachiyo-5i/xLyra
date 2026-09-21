@@ -15,6 +15,29 @@ import (
 	"xlyra/server/internal/usage"
 )
 
+func TestRequestLogPayloadProjectsResponseModelWithoutFullMetadata(t *testing.T) {
+	t.Parallel()
+	item := store.RequestLogDetail{RequestLog: store.RequestLog{
+		Metadata: store.JSON(`{"requested_model":"client-model","upstream_response_model":"returned-model","upstream_model":"route-model"}`),
+	}}
+	for _, detail := range []bool{false, true} {
+		payload := requestLogPayload(item, detail)
+		if payload["requested_model"] != "client-model" || payload["upstream_response_model"] != "returned-model" {
+			t.Fatalf("missing model observations: %#v", payload)
+		}
+		if payload["model"].(map[string]any)["upstream_model"] != "route-model" {
+			t.Fatal("response model replaced route model")
+		}
+		if _, exists := payload["metadata"]; exists != detail {
+			t.Fatalf("metadata presence = %v, want %v", exists, detail)
+		}
+	}
+	legacy := requestLogPayload(store.RequestLogDetail{}, false)
+	if legacy["upstream_response_model"] != nil {
+		t.Fatalf("legacy response model = %#v, want nil", legacy["upstream_response_model"])
+	}
+}
+
 func TestRequestLogFiltersParseValidQuery(t *testing.T) {
 	t.Parallel()
 

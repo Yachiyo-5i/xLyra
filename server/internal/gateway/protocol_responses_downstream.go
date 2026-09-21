@@ -133,6 +133,7 @@ func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter,
 			}
 		}
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			if normalizedLine, changed := normalizeResponsesStreamDataLine(line); changed {
 				line = normalizedLine
 			}

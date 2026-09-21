@@ -12,6 +12,42 @@ export function requestModelName(item: RequestLogItem) {
   return requestDownstreamModelName(item)
 }
 
+export function requestResponseModelMismatch(item: RequestLogItem): string | null {
+  const requested = item.original_model?.trim() || item.requested_model?.trim()
+  const upstream = requestActualModelName(item)
+  const response = item.upstream_response_model?.trim()
+  if (!requested || !response) return null
+  // A response matching either side of the route is expected. This covers
+  // both API-key mappings and route-level model aliases.
+  if ([requested, upstream].some((model) => model && model !== '-' && model === response)) return null
+  return requested || upstream ? response : null
+}
+
+export function requestResponseModelDifference(item: RequestLogItem): 'namespace' | 'model' | null {
+  const response = requestResponseModelMismatch(item)
+  if (!response) return null
+  const requested = item.original_model?.trim() || item.requested_model?.trim() || ''
+  const upstream = requestActualModelName(item)
+  const responseName = response.split('/').at(-1) || ''
+  const equivalent = [requested, upstream]
+    .filter((model) => model && model !== '-')
+    .some((model) => model?.split('/').at(-1) === responseName)
+  const canonical = item.model.canonical_model?.trim()
+  const canonicalEquivalent = canonical
+    ? comparableRequestModelName(canonical) === comparableRequestModelName(response)
+    : false
+  return equivalent || canonicalEquivalent ? 'namespace' : 'model'
+}
+
+function comparableRequestModelName(model: string) {
+  // Canonical catalog keys omit provider namespaces and commonly-used model
+  // version suffixes such as `-0731` or `-20260921`.
+  return model
+    .split('/')
+    .at(-1)
+    ?.replace(/-(?:\d{4}|\d{6}|\d{8})$/, '') || ''
+}
+
 function requestDownstreamModelName(item: RequestLogItem) {
   return item.original_model || item.requested_model || item.model.canonical_model || item.mapped_model || item.model.upstream_model || '-'
 }

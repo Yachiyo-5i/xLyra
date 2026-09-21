@@ -144,6 +144,7 @@ export type RequestLogItem = {
   scope?: string | null
   is_test?: boolean | null
   requested_model?: string | null
+  upstream_response_model?: string | null
   original_model?: string | null
   mapped_model?: string | null
   mapping_mode?: string | null

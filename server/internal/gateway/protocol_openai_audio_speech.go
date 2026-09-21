@@ -178,6 +178,7 @@ func (a openAIAudioSpeechProtocolAdapter) proxySSEAsAudio(ctx context.Context, w
 		}
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			chunk, usage, done, ok := parseAudioSpeechSSELine(line)
 			if ok {
 				if usage != nil {

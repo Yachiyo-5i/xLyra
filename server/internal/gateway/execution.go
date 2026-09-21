@@ -28,6 +28,7 @@ import (
 )
 
 type gatewayAttemptResult struct {
+	upstreamResponseModel      string
 	attempt                    int
 	statusCode                 int
 	upstreamStatusCode         int
@@ -119,6 +120,7 @@ func (h Handler) forwardGatewayRequest(
 	rateLimit *ratelimit.Reservation,
 	protocol gatewayProtocolAdapter,
 ) gatewayAttemptResult {
+	ctx = withRequestedModel(ctx, nonEmptyString(request.OriginalModel, request.RequestedModel))
 	inflight.RouteRequest(requestID, inflight.Route{
 		SiteID:   candidate.Site.ID.String(),
 		SiteName: candidate.Site.Name,
@@ -649,9 +651,10 @@ func (h Handler) handleBufferedResponse(
 	result.contentType = contentType
 	var responseBody []byte
 	var readErr error
+	modelCapture := streamCaptureState{}
 	bufferedBody := bufio.NewReaderSize(resp.Body, 64*1024)
 	if !protocolUsesRawBufferedResponse(protocol) && shouldBufferAsResponsesStream(contentType, bufferedBody) {
-		responseBody, readErr = readBufferedResponsesStreamBody(bufferedBody)
+		responseBody, readErr = readBufferedResponsesStreamBodyObserved(bufferedBody, &modelCapture)
 	} else {
 		readLimit := int64(16 << 20)
 		if protocolUsesRawBufferedResponse(protocol) {
@@ -659,6 +662,7 @@ func (h Handler) handleBufferedResponse(
 		}
 		responseBody, readErr = readResponseBodyWithLimit(bufferedBody, readLimit)
 	}
+	result.upstreamResponseModel = nonEmptyString(upstreamResponseModel(responseBody), modelCapture.responseModel)
 	if readErr != nil {
 		var semanticFailure *upstreamSemanticFailure
 		if errors.As(readErr, &semanticFailure) {
@@ -777,6 +781,7 @@ func (h Handler) handleStreamResponse(
 			return result
 		}
 		result.body = responseBody
+		result.upstreamResponseModel = upstreamResponseModel(responseBody)
 		result.errorType = "upstream_http_error"
 		result.errorMessage = fmt.Sprintf("upstream returned HTTP %d", resp.StatusCode)
 		result = applyRetryAfterHeader(result, resp.Header)
@@ -796,6 +801,7 @@ func (h Handler) handleStreamResponse(
 		setRouteSiteHeader(w.Header(), candidate.Site.Name)
 	}
 	capture, responseStarted, proxyErr := protocol.ProxyStream(ctx, w, resp, startedAt, candidate)
+	result.upstreamResponseModel = capture.responseModel
 	if proxyErr != nil && streamCompletedAfterReadError(capture, proxyErr) {
 		proxyErr = nil
 		capture.endReason = "done"

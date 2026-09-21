@@ -12,6 +12,7 @@ import (
 )
 
 type streamCaptureState struct {
+	responseModel            string
 	usage                    completionUsage
 	sawDone                  bool
 	streamCompleted          bool
@@ -71,6 +72,7 @@ func proxyUpstreamStreamWithInspector(
 
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			if !headersWritten {
 				capture.firstByteLatency = time.Since(startedAt).Milliseconds()
 				writeHeaders()

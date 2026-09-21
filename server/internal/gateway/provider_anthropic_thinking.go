@@ -457,6 +457,7 @@ func proxyProviderAnthropicMessagesStream(ctx context.Context, w http.ResponseWr
 
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			if !headersWritten {
 				capture.firstByteLatency = time.Since(startedAt).Milliseconds()
 				writeHeaders()

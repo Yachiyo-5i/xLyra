@@ -190,6 +190,7 @@ func (a mimoAudioSpeechProtocolAdapter) ProxyStream(ctx context.Context, w http.
 		}
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
+			observeUpstreamStreamModel(line, &capture)
 			chunk, consumeErr := decoder.ConsumeLine(line)
 			if consumeErr != nil {
 				capture.endReason = "upstream_stream_error"
