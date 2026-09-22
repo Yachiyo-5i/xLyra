@@ -25,6 +25,9 @@ func TestProviderResponsesEndpoints(t *testing.T) {
 		{"openai", "openai", "glm-5.3", "https://relay.example.test", "https://relay.example.test/v1/responses"},
 		{"glm coding", "glm_code", "glm-5.3", "https://open.bigmodel.cn/api/coding/paas/v4", "https://open.bigmodel.cn/api/v1/responses"},
 		{"opencode spec base", "opencode_go", "gpt-5.6-luna", "", "https://opencode.ai/zen/go/v1/responses"},
+		{"mimo default", "xiaomi_mimo", "mimo-v2.6-pro", "", "https://token-plan-cn.xiaomimimo.com/v1/responses"},
+		{"mimo custom region", "xiaomi_mimo", "mimo-v2.6-pro", "https://token-plan-sgp.xiaomimimo.com", "https://token-plan-sgp.xiaomimimo.com/v1/responses"},
+		{"mimo custom base", "xiaomi_mimo", "mimo-v2.6-pro", "https://mimo.example.test/custom", "https://mimo.example.test/custom/v1/responses"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

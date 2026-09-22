@@ -1030,6 +1030,12 @@
       "protocol": "openai_chat",
       "official_base_url": "https://token-plan-cn.xiaomimimo.com",
       "alternate_protocols": {
+        "openai_responses": {
+          "protocol": "openai_responses",
+          "base_path": "/v1",
+          "path": "/responses",
+          "official_only": true
+        },
         "anthropic_messages": {
           "protocol": "anthropic_messages",
           "base_path": "/anthropic",
