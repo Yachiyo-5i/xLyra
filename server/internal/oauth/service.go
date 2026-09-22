@@ -426,7 +426,17 @@ func (s *Service) HandleCodexCallback(ctx context.Context, state string, code st
 	if time.Now().After(session.ExpiresAt) {
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("oauth session has expired")
 	}
-	tokenResp, err := s.exchangeCodexCode(ctx, strings.TrimSpace(code), session.RedirectURI, session.PKCEVerifier)
+	var pendingSite PendingSite
+	if len(session.SitePayload) > 0 {
+		if err := json.Unmarshal(session.SitePayload, &pendingSite); err != nil {
+			return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("decode codex oauth site: %w", err)
+		}
+	}
+	httpClient, err := s.httpClientForPendingSite(ctx, pendingSite)
+	if err != nil {
+		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, err
+	}
+	tokenResp, err := s.exchangeCodexCode(ctx, strings.TrimSpace(code), session.RedirectURI, session.PKCEVerifier, httpClient)
 	if err != nil {
 		_, _ = sessionRepo.Complete(ctx, session.ID, "failed", session.Metadata)
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, err

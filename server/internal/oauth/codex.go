@@ -112,7 +112,7 @@ func codexAuthorizeLink(state string, verifier string, redirectURI string) strin
 	return codexAuthorizeURL + "?" + query.Encode()
 }
 
-func (s *Service) exchangeCodexCode(ctx context.Context, code string, redirectURI string, verifier string) (codexTokenResponse, error) {
+func (s *Service) exchangeCodexCode(ctx context.Context, code string, redirectURI string, verifier string, httpClient *http.Client) (codexTokenResponse, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
@@ -125,7 +125,10 @@ func (s *Service) exchangeCodexCode(ctx context.Context, code string, redirectUR
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	resp, err := s.httpClient.Do(req)
+	if httpClient == nil {
+		httpClient = s.httpClient
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return codexTokenResponse{}, fmt.Errorf("exchange codex code: %w", err)
 	}

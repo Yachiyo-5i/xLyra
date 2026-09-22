@@ -202,7 +202,7 @@ func TestExchangeCodexCodeEncodesFormAndDecodesToken(t *testing.T) {
 		return oauthHTTPResponse(http.StatusOK, `{"access_token":"access","refresh_token":"refresh","id_token":"id","token_type":"Bearer","scope":"openid","expires_in":3600}`), nil
 	})}
 
-	token, err := service.exchangeCodexCode(context.Background(), "auth-code", "http://localhost/callback", "verifier")
+	token, err := service.exchangeCodexCode(context.Background(), "auth-code", "http://localhost/callback", "verifier", nil)
 
 	if err != nil {
 		t.Fatalf("exchangeCodexCode: %v", err)

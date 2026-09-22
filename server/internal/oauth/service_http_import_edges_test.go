@@ -21,7 +21,7 @@ func TestOAuthHTTPHelpersCoverExchangeDecodeAndTransportErrors(t *testing.T) {
 		{
 			name: "codex_exchange_bad_json",
 			call: func(service *Service) error {
-				_, err := service.exchangeCodexCode(context.Background(), "code", "http://localhost/callback", "verifier")
+				_, err := service.exchangeCodexCode(context.Background(), "code", "http://localhost/callback", "verifier", nil)
 				return err
 			},
 			transport: func(req *http.Request) (*http.Response, error) {
@@ -35,7 +35,7 @@ func TestOAuthHTTPHelpersCoverExchangeDecodeAndTransportErrors(t *testing.T) {
 		{
 			name: "codex_exchange_transport_error",
 			call: func(service *Service) error {
-				_, err := service.exchangeCodexCode(context.Background(), "code", "http://localhost/callback", "verifier")
+				_, err := service.exchangeCodexCode(context.Background(), "code", "http://localhost/callback", "verifier", nil)
 				return err
 			},
 			transport: func(req *http.Request) (*http.Response, error) {
