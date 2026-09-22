@@ -80,7 +80,13 @@ func (a antigravityProtocolAdapter) BuildUpstreamPayload(request gatewayRequest,
 		}
 		canonical = decoded
 	}
+	if err := validateGoogleGeminiConversion(canonical, canonicalProtocolGoogleGemini); err != nil {
+		return nil, err
+	}
 	inner := encodeCanonicalRequestToAntigravityGemini(canonical, candidate.Model.UpstreamName)
+	if canonical.SourceProtocol == canonicalProtocolGoogleGemini {
+		inner = clonePayload(request.Payload)
+	}
 	return map[string]any{
 		"project":            projectID,
 		"requestId":          antigravityRequestID(),
@@ -122,6 +128,7 @@ func (a antigravityProtocolAdapter) TransformBufferedResponse(statusCode int, he
 	if a.downstreamImages {
 		body, convertedUsage, err := convertResponseBetweenProtocols(canonicalProtocolAntigravity, canonicalProtocolOpenAIImages, body, responseConversionOptions{
 			ImageResponseFormat: a.imageResponseFormat,
+			RequireUsage:        true,
 		})
 		if err != nil {
 			return gatewayBufferedResponse{}, err
@@ -137,7 +144,7 @@ func (a antigravityProtocolAdapter) TransformBufferedResponse(statusCode int, he
 	if target == "" || target == canonicalProtocolOpenAIImages {
 		target = canonicalProtocolOpenAIChat
 	}
-	body, convertedUsage, err := convertResponseBetweenProtocols(canonicalProtocolAntigravity, target, body, responseConversionOptions{})
+	body, convertedUsage, err := convertResponseBetweenProtocols(canonicalProtocolAntigravity, target, body, responseConversionOptions{RequireUsage: true})
 	if err != nil {
 		return gatewayBufferedResponse{}, err
 	}
@@ -175,7 +182,7 @@ func (a antigravityProtocolAdapter) projectID(_ gatewayRequest, candidate routee
 func encodeCanonicalRequestToAntigravityGemini(request canonicalRequest, upstreamModel string) map[string]any {
 	out := map[string]any{
 		"model":    upstreamModel,
-		"contents": antigravityCanonicalMessagesToContents(request.Messages),
+		"contents": antigravityCanonicalMessagesToContents(request.Messages, preserveCanonicalToolCalls(request.SourceProtocol)),
 	}
 	if system := antigravityCanonicalSystemInstruction(request); len(system) > 0 {
 		out["systemInstruction"] = map[string]any{
@@ -188,11 +195,39 @@ func encodeCanonicalRequestToAntigravityGemini(request canonicalRequest, upstrea
 	}
 	if tools := antigravityCanonicalTools(request.Tools); len(tools) > 0 {
 		out["tools"] = tools
-		out["toolConfig"] = map[string]any{
-			"functionCallingConfig": map[string]any{"mode": "AUTO"},
-		}
+		out["toolConfig"] = antigravityCanonicalToolConfig(request.ToolChoice)
 	}
 	return out
+}
+
+func antigravityCanonicalToolConfig(choice any) map[string]any {
+	mode := "AUTO"
+	calling := map[string]any{}
+	switch value := choice.(type) {
+	case string:
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "none":
+			mode = "NONE"
+		case "required":
+			mode = "ANY"
+		}
+	case map[string]any:
+		if name := canonicalToolChoiceFunctionName(value); name != "" {
+			mode = "ANY"
+			calling["allowedFunctionNames"] = []any{name}
+		} else {
+			switch strings.ToLower(strings.TrimSpace(anyString(value["mode"]))) {
+			case "none":
+				mode = "NONE"
+			case "any", "required":
+				mode = "ANY"
+			case "auto":
+				mode = "AUTO"
+			}
+		}
+	}
+	calling["mode"] = mode
+	return map[string]any{"functionCallingConfig": calling}
 }
 
 func antigravityCanonicalImagePayload(request canonicalRequest, upstreamModel string, projectID string) map[string]any {
@@ -386,7 +421,7 @@ func antigravitySafetySettings() []any {
 	}
 }
 
-func antigravityCanonicalMessagesToContents(messages []canonicalMessage) []any {
+func antigravityCanonicalMessagesToContents(messages []canonicalMessage, preserveUnsignedToolCalls bool) []any {
 	contents := make([]any, 0, len(messages))
 	pendingToolCalls := map[string]canonicalToolCall{}
 	for i := 0; i < len(messages); {
@@ -410,7 +445,7 @@ func antigravityCanonicalMessagesToContents(messages []canonicalMessage) []any {
 				i++
 			}
 			if len(calls) > 0 {
-				structuredCalls, degradedParts := antigravitySplitFunctionCallsBySignature(calls)
+				structuredCalls, degradedParts := antigravitySplitFunctionCallsBySignature(calls, preserveUnsignedToolCalls)
 				parts := append([]any{}, degradedParts...)
 				parts = append(parts, antigravityFunctionCallParts(structuredCalls)...)
 				contents = append(contents, map[string]any{"role": "model", "parts": parts})
@@ -436,13 +471,20 @@ func antigravityCanonicalMessagesToContents(messages []canonicalMessage) []any {
 			continue
 		}
 		var parts []any
-		if len(message.ToolCalls) > 0 && len(message.Content) == 0 {
+		for _, thinking := range message.Thinking {
+			part := map[string]any{"text": thinking.Thinking, "thought": true}
+			if signature := strings.TrimSpace(thinking.Signature); signature != "" {
+				part["thoughtSignature"] = signature
+			}
+			parts = append(parts, part)
+		}
+		if len(message.ToolCalls) > 0 && len(message.Content) == 0 && len(message.Thinking) == 0 {
 			parts = nil
 		} else {
-			parts = antigravityCanonicalContentParts(message.Content, message.RawContent)
+			parts = append(parts, antigravityCanonicalContentParts(message.Content, message.RawContent)...)
 		}
 		if len(message.ToolCalls) > 0 {
-			structuredCalls, degradedParts := antigravitySplitFunctionCallsBySignature(message.ToolCalls)
+			structuredCalls, degradedParts := antigravitySplitFunctionCallsBySignature(message.ToolCalls, preserveUnsignedToolCalls)
 			parts = append(parts, degradedParts...)
 			parts = append(parts, antigravityFunctionCallParts(structuredCalls)...)
 		}
@@ -454,7 +496,7 @@ func antigravityCanonicalMessagesToContents(messages []canonicalMessage) []any {
 			"parts": parts,
 		})
 		if len(message.ToolCalls) > 0 {
-			structuredCalls, _ := antigravitySplitFunctionCallsBySignature(message.ToolCalls)
+			structuredCalls, _ := antigravitySplitFunctionCallsBySignature(message.ToolCalls, preserveUnsignedToolCalls)
 			pendingToolCalls = antigravityPendingToolCalls(structuredCalls)
 		} else {
 			pendingToolCalls = map[string]canonicalToolCall{}
@@ -470,11 +512,15 @@ func antigravityCanonicalMessagesToContents(messages []canonicalMessage) []any {
 	return contents
 }
 
-func antigravitySplitFunctionCallsBySignature(calls []canonicalToolCall) ([]canonicalToolCall, []any) {
+func preserveCanonicalToolCalls(protocol canonicalProtocol) bool {
+	return protocol != "" && protocol != canonicalProtocolAntigravity && protocol != canonicalProtocolGoogleGemini
+}
+
+func antigravitySplitFunctionCallsBySignature(calls []canonicalToolCall, preserveUnsigned bool) ([]canonicalToolCall, []any) {
 	structured := make([]canonicalToolCall, 0, len(calls))
 	degraded := make([]any, 0)
 	for _, call := range calls {
-		if antigravityToolCallThoughtSignature(call.Metadata) != "" {
+		if preserveUnsigned || antigravityToolCallThoughtSignature(call.Metadata) != "" {
 			structured = append(structured, call)
 			continue
 		}
@@ -597,7 +643,7 @@ func antigravityCanonicalContentParts(parts []canonicalContentPart, raw any) []a
 				out = append(out, imagePart)
 			}
 		case "input_file":
-			if filePart := antigravityInlineDataPart(part.FileData, part.MimeType); filePart != nil {
+			if filePart := antigravityMediaPart(part.FileData, part.MimeType, "fileData"); filePart != nil {
 				out = append(out, filePart)
 			}
 		default:
@@ -614,7 +660,25 @@ func antigravityImagePartFromCanonical(part canonicalContentPart) map[string]any
 	if imageURL == "" && part.Raw != nil {
 		imageURL = normalizeImageURLString(part.Raw)
 	}
-	return antigravityInlineDataPart(imageURL, part.MimeType)
+	return antigravityMediaPart(imageURL, part.MimeType, "fileData")
+}
+
+func antigravityMediaPart(value string, mimeType string, uriKey string) map[string]any {
+	if inline := antigravityInlineDataPart(value, mimeType); inline != nil {
+		return inline
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if strings.HasPrefix(value, "data:") {
+		return nil
+	}
+	media := map[string]any{uriKey: value}
+	if mimeType = strings.TrimSpace(mimeType); mimeType != "" {
+		media["mimeType"] = mimeType
+	}
+	return map[string]any{"fileData": media}
 }
 
 func antigravityInlineDataPart(dataURL string, fallbackMimeType string) map[string]any {
@@ -678,6 +742,11 @@ func antigravityGeminiRole(role string) string {
 
 func antigravityCanonicalGenerationConfig(request canonicalRequest) map[string]any {
 	config := map[string]any{}
+	if raw, ok := request.Params["gemini_generation_config"].(map[string]any); ok {
+		for key, value := range raw {
+			config[key] = value
+		}
+	}
 	if value, ok := request.Params["temperature"]; ok {
 		config["temperature"] = value
 	}
@@ -699,11 +768,79 @@ func antigravityCanonicalGenerationConfig(request canonicalRequest) map[string]a
 	if stop, ok := request.Params["stop"]; ok {
 		config["stopSequences"] = stop
 	}
+	if stop, ok := request.Params["stop_sequences"]; ok {
+		config["stopSequences"] = stop
+	}
+	if value, ok := request.Params["seed"]; ok {
+		config["seed"] = value
+	}
+	if value, ok := request.Params["presence_penalty"]; ok {
+		config["presencePenalty"] = value
+	}
+	if value, ok := request.Params["frequency_penalty"]; ok {
+		config["frequencyPenalty"] = value
+	}
+	if value, ok := request.Params["n"]; ok {
+		config["candidateCount"] = value
+	}
+	if value, ok := request.Params["modalities"]; ok {
+		config["responseModalities"] = value
+	}
+	if thinking, ok := request.Params["thinking"].(map[string]any); ok {
+		thinkingConfig := map[string]any{}
+		switch strings.ToLower(strings.TrimSpace(anyString(thinking["type"]))) {
+		case "enabled":
+			thinkingConfig["includeThoughts"] = true
+		case "disabled":
+			thinkingConfig["includeThoughts"] = false
+		}
+		if budget, ok := thinking["budget_tokens"]; ok {
+			thinkingConfig["budgetTokens"] = budget
+		}
+		if len(thinkingConfig) > 0 {
+			config["thinkingConfig"] = thinkingConfig
+		}
+	}
 	if responseFormat, ok := request.Params["response_format"].(map[string]any); ok {
 		switch stringFromMapAny(responseFormat, "type") {
 		case "json_object":
 			config["responseMimeType"] = "application/json"
+		case "json_schema":
+			config["responseMimeType"] = "application/json"
+			if schema, ok := responseFormat["json_schema"].(map[string]any); ok && schema["schema"] != nil {
+				config["responseSchema"] = schema["schema"]
+			}
 		}
+	}
+	if text, ok := request.TextFormat.(map[string]any); ok {
+		if textType := strings.TrimSpace(anyString(text["type"])); textType == "json_object" {
+			config["responseMimeType"] = "application/json"
+		} else if textType == "json_schema" {
+			config["responseMimeType"] = "application/json"
+			if schema, ok := text["schema"]; ok {
+				config["responseSchema"] = schema
+			} else if schema, ok := text["json_schema"].(map[string]any); ok && schema["schema"] != nil {
+				config["responseSchema"] = schema["schema"]
+			}
+		}
+	}
+	if value, ok := request.Params["candidate_count"]; ok {
+		config["candidateCount"] = value
+	}
+	if value, ok := request.Params["response_modalities"]; ok {
+		config["responseModalities"] = value
+	}
+	if value, ok := request.Params["thinking_config"]; ok {
+		config["thinkingConfig"] = value
+	}
+	if value, ok := request.Params["image_config"]; ok {
+		config["imageConfig"] = value
+	}
+	if value, ok := request.Params["response_mime_type"]; ok {
+		config["responseMimeType"] = value
+	}
+	if value, ok := request.Params["response_schema"]; ok {
+		config["responseSchema"] = value
 	}
 	return config
 }
@@ -832,12 +969,13 @@ func canonicalResponseFromAntigravityGemini(gemini map[string]any) canonicalResp
 	}
 	if text != "" || len(toolCalls) == 0 {
 		response.Output = append(response.Output, canonicalOutputItem{
-			ID:      "msg_" + uuid.NewString(),
-			Type:    "message",
-			Status:  "completed",
-			Role:    "assistant",
-			Text:    text,
-			Content: []canonicalContentPart{{Type: "output_text", Text: text}},
+			ID:       "msg_" + uuid.NewString(),
+			Type:     "message",
+			Status:   "completed",
+			Role:     "assistant",
+			Text:     text,
+			Thinking: antigravityGeminiThinking(gemini),
+			Content:  []canonicalContentPart{{Type: "output_text", Text: text}},
 		})
 	}
 	for _, toolCall := range toolCalls {
@@ -852,6 +990,7 @@ func canonicalResponseFromAntigravityGemini(gemini map[string]any) canonicalResp
 			Metadata:  toolCallMetadataFromGatewayMap(toolCall),
 		})
 	}
+	response.Output = append(response.Output, canonicalImageOutputFromAntigravityGemini(gemini)...)
 	return response
 }
 
@@ -891,6 +1030,9 @@ func antigravityGeminiOutput(gemini map[string]any) (string, []map[string]any) {
 		if !ok {
 			continue
 		}
+		if boolFromMap(part, "thought") {
+			continue
+		}
 		if value := stringFromMapAny(part, "text"); value != "" {
 			text.WriteString(value)
 		}
@@ -922,6 +1064,34 @@ func antigravityGeminiOutput(gemini map[string]any) (string, []map[string]any) {
 		}
 	}
 	return text.String(), toolCalls
+}
+
+func antigravityGeminiThinking(gemini map[string]any) []canonicalThinkingBlock {
+	candidates, _ := gemini["candidates"].([]any)
+	if len(candidates) == 0 {
+		return nil
+	}
+	candidate, _ := candidates[0].(map[string]any)
+	content, _ := candidate["content"].(map[string]any)
+	parts, _ := content["parts"].([]any)
+	thinking := make([]canonicalThinkingBlock, 0)
+	for _, rawPart := range parts {
+		part, _ := rawPart.(map[string]any)
+		if !boolFromMap(part, "thought") {
+			continue
+		}
+		text := anyString(part["text"])
+		if text == "" {
+			continue
+		}
+		thinking = append(thinking, canonicalThinkingBlock{
+			Type:      "thinking",
+			Thinking:  text,
+			Signature: firstNonEmptyGatewayString(anyString(part["thoughtSignature"]), anyString(part["thought_signature"])),
+			Raw:       clonePayload(part),
+		})
+	}
+	return thinking
 }
 
 func antigravityToolCallsFromText(text string) []map[string]any {
@@ -998,6 +1168,7 @@ func antigravityUsage(gemini map[string]any) gatewayUsage {
 		CompletionTokens:   intFromAnyGateway(usage["candidatesTokenCount"]),
 		TotalTokens:        intFromAnyGateway(usage["totalTokenCount"]),
 		CachedPromptTokens: intFromAnyGateway(usage["cachedContentTokenCount"]),
+		ReasoningTokens:    intFromAnyGateway(usage["thoughtsTokenCount"]),
 	}.normalized()
 }
 
@@ -1028,7 +1199,7 @@ func antigravityRawFinishReason(gemini map[string]any) string {
 }
 
 func (a antigravityProtocolAdapter) proxyStreamAs(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, target canonicalProtocol, candidate routeengine.Candidate) (streamCaptureState, bool, error) {
-	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAntigravity, target, canonicalStreamOptions{IncludeUsage: a.includeUsage, Candidate: candidate})
+	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAntigravity, target, canonicalStreamOptions{IncludeUsage: true, RequireUsage: true, Candidate: candidate})
 }
 
 func antigravityRequestID() string {

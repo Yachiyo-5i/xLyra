@@ -45,6 +45,12 @@ func (h Handler) AudioSpeech(w http.ResponseWriter, r *http.Request) {
 	h.serveEndpoint(w, r, audioSpeechEndpointAdapter{}, openAIProtocolResolver{db: h.db})
 }
 
+func (h Handler) GeminiGenerateContent(stream bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		h.serveEndpoint(w, r, geminiGenerateContentEndpointAdapter{stream: stream}, openAIProtocolResolver{db: h.db})
+	}
+}
+
 func rateLimitTokenCount(result gatewayAttemptResult) int64 {
 	return int64(result.promptTokens) + int64(result.completionTokens) + int64(result.audioOutputTokens)
 }
@@ -527,9 +533,13 @@ func (h Handler) setupRoute(
 		}}
 	}
 
+	endpointType := endpoint.RouteEndpointType()
+	if request.Canonical != nil && request.Canonical.Image != nil {
+		endpointType = "gemini-image"
+	}
 	plan, err := h.router.Plan(ctx, routeengine.CandidateQuery{
 		ModelKey:            access.ModelKey,
-		EndpointType:        endpoint.RouteEndpointType(),
+		EndpointType:        endpointType,
 		ImageGeneration:     imageIntent == codexImageIntentExplicit && !bridged,
 		AllowedSiteIDs:      access.AllowedSiteIDs,
 		AllowedSiteModelIDs: access.AllowedSiteModelIDs,

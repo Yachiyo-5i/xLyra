@@ -471,6 +471,15 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		})
 	})
 
+	r.Route("/v1beta", func(v1beta chi.Router) {
+		v1beta.Group(func(protected chi.Router) {
+			protected.Use(requireAPIKey(authService))
+			limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
+			protected.With(limitBody).Post("/models/{model}:generateContent", gatewayHandler.GeminiGenerateContent(false))
+			protected.With(limitBody).Post("/models/{model}:streamGenerateContent", gatewayHandler.GeminiGenerateContent(true))
+		})
+	})
+
 	r.Route("/internal/agent-llm", func(internal chi.Router) {
 		limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
 		// /credential is unauthenticated: admission is anchored on the run being
@@ -595,7 +604,8 @@ func routeAwareTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 				return
 			}
 			gatewayPath := strings.TrimPrefix(r.URL.Path, "/api/playground")
-			if r.Method == http.MethodPost && (gatewayPath == "/v1/chat/completions" || gatewayPath == "/v1/responses" || gatewayPath == "/v1/images/generations" || gatewayPath == "/v1/images/edits" || gatewayPath == "/v1/messages" || gatewayPath == "/v1/audio/speech") {
+			geminiGatewayPath := strings.HasPrefix(gatewayPath, "/v1beta/models/") && (strings.HasSuffix(gatewayPath, ":generateContent") || strings.HasSuffix(gatewayPath, ":streamGenerateContent"))
+			if r.Method == http.MethodPost && (gatewayPath == "/v1/chat/completions" || gatewayPath == "/v1/responses" || gatewayPath == "/v1/images/generations" || gatewayPath == "/v1/images/edits" || gatewayPath == "/v1/messages" || gatewayPath == "/v1/audio/speech" || geminiGatewayPath) {
 				next.ServeHTTP(w, r)
 				return
 			}

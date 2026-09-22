@@ -61,7 +61,7 @@ func (h Handler) settleRateLimit(ctx context.Context, reservation *ratelimit.Res
 
 func endpointUsesTPM(endpoint string) bool {
 	switch endpoint {
-	case gatewayEndpointChatCompletions, gatewayEndpointResponses, gatewayEndpointMessages, gatewayEndpointAudioSpeech:
+	case gatewayEndpointChatCompletions, gatewayEndpointResponses, gatewayEndpointMessages, gatewayEndpointAudioSpeech, gatewayEndpointGeminiGenerate:
 		return true
 	default:
 		return false

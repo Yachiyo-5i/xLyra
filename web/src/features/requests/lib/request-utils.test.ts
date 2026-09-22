@@ -4,6 +4,7 @@ import {
   formatLatency,
   requestCostFormula,
   requestCredentialMultiplier,
+  requestDisplayPath,
   requestDownstreamTransportLabel,
   requestFailoverFailureReason,
   requestFailoverCredentialAttempt,
@@ -32,6 +33,19 @@ describe('requestDownstreamTransportLabel', () => {
 })
 
 describe('request log display helpers', () => {
+  it('fills the Gemini model in stored downstream paths', () => {
+    const buffered = requestDetail()
+    buffered.original_model = 'gemini-3.8-flash'
+    buffered.downstream_path = '/v1beta/models/{model}:generateContent'
+    expect(requestDisplayPath(buffered, buffered.downstream_path)).toBe('/v1beta/models/gemini-3.8-flash:generateContent')
+
+    const stream = requestDetail()
+    stream.requested_model = 'gemini-3.8-flash'
+    stream.stream = true
+    stream.downstream_path = '/v1beta/models/{model}:generateContent'
+    expect(requestDisplayPath(stream, stream.downstream_path)).toBe('/v1beta/models/gemini-3.8-flash:streamGenerateContent')
+  })
+
   it('projects route and credential failover details', () => {
     const item = requestDetail()
     item.failover = true

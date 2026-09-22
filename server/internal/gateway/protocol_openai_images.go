@@ -55,27 +55,39 @@ func newOpenAIImagesProtocolAdapter(request gatewayRequest, candidates ...routee
 	}
 	spec := effectiveProtocolSpec(canonicalProtocolOpenAIImages, candidate)
 	return openAIImagesProtocolAdapter{
-		baseURL:        spec.OfficialBaseURL,
-		basePath:       spec.BasePath,
-		path:           spec.Path,
-		downstreamPath: request.DownstreamPath,
+		baseURL:            spec.OfficialBaseURL,
+		basePath:           spec.BasePath,
+		path:               spec.Path,
+		downstreamPath:     request.DownstreamPath,
+		downstreamProtocol: downstreamCanonicalProtocol(request.DownstreamPath),
 	}
 }
 
 type openAIImagesProtocolAdapter struct {
-	baseURL        string
-	basePath       string
-	path           string
-	downstreamPath string
+	baseURL            string
+	basePath           string
+	path               string
+	downstreamPath     string
+	downstreamProtocol canonicalProtocol
 }
 
 func (a openAIImagesProtocolAdapter) ProtocolName() string {
+	if a.downstreamProtocol == canonicalProtocolGoogleGemini {
+		return "openai_images_to_gemini"
+	}
 	return "openai_images_generations"
 }
 
 func (openAIImagesProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, candidate routeengine.Candidate) (map[string]any, error) {
 	if request.Canonical != nil {
-		return applyRequestPolicyForCandidate(encodeCanonicalRequestToOpenAIImages(*request.Canonical, candidate), canonicalProtocolOpenAIImages, candidate), nil
+		if err := validateGoogleGeminiConversion(*request.Canonical, canonicalProtocolOpenAIImages); err != nil {
+			return nil, err
+		}
+		payload := encodeCanonicalRequestToOpenAIImages(*request.Canonical, candidate)
+		if request.Stream {
+			payload["stream"] = true
+		}
+		return applyRequestPolicyForCandidate(payload, canonicalProtocolOpenAIImages, candidate), nil
 	}
 	payload := clonePayload(request.Payload)
 	payload["model"] = candidate.Model.UpstreamName
@@ -106,7 +118,7 @@ func (a openAIImagesProtocolAdapter) UpstreamPath(baseURL string) string {
 	}, fallbackPath)
 }
 
-func (openAIImagesProtocolAdapter) TransformBufferedResponse(statusCode int, headers http.Header, body []byte) (gatewayBufferedResponse, error) {
+func (a openAIImagesProtocolAdapter) TransformBufferedResponse(statusCode int, headers http.Header, body []byte) (gatewayBufferedResponse, error) {
 	contentType := strings.TrimSpace(headers.Get("Content-Type"))
 	if statusCode < 200 || statusCode >= 300 {
 		return gatewayBufferedResponse{
@@ -116,6 +128,13 @@ func (openAIImagesProtocolAdapter) TransformBufferedResponse(statusCode int, hea
 		}, nil
 	}
 
+	if a.downstreamProtocol == canonicalProtocolGoogleGemini {
+		convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolOpenAIImages, canonicalProtocolGoogleGemini, body, responseConversionOptions{RequireUsage: true})
+		if err != nil {
+			return gatewayBufferedResponse{}, err
+		}
+		return gatewayBufferedResponse{StatusCode: statusCode, ContentType: "application/json", Body: convertedBody, Usage: usage}, nil
+	}
 	return gatewayBufferedResponse{
 		StatusCode:  statusCode,
 		ContentType: stringValue(&contentType, "application/json"),
@@ -124,8 +143,91 @@ func (openAIImagesProtocolAdapter) TransformBufferedResponse(statusCode int, hea
 	}, nil
 }
 
-func (openAIImagesProtocolAdapter) ProxyStream(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, candidate routeengine.Candidate) (streamCaptureState, bool, error) {
+func (a openAIImagesProtocolAdapter) ProxyStream(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, candidate routeengine.Candidate) (streamCaptureState, bool, error) {
+	if a.downstreamProtocol == canonicalProtocolGoogleGemini {
+		return proxyOpenAIImagesStreamAsGemini(ctx, w, resp, startedAt)
+	}
 	return proxyOpenAIImagesStream(ctx, w, resp, startedAt)
+}
+
+func proxyOpenAIImagesStreamAsGemini(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time) (streamCaptureState, bool, error) {
+	capture := streamCaptureState{}
+	if resp == nil || resp.Body == nil {
+		capture.endReason = "upstream_stream_missing_body"
+		return capture, false, fmt.Errorf("upstream stream body is not available")
+	}
+	if err := ctx.Err(); err != nil {
+		capture.endReason = "downstream_client_cancelled"
+		return capture, false, err
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		capture.endReason = "upstream_stream_read_failed"
+		return capture, false, err
+	}
+	images := make([]map[string]any, 0)
+	for _, line := range strings.Split(string(body), "\n") {
+		data, done, ok := sseDataFromLine([]byte(line))
+		if !ok || done || strings.TrimSpace(data) == "" {
+			continue
+		}
+		var event openAIImagesStreamEvent
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+		if event.Usage != nil {
+			capture.usage = usageFromOpenAIImagesUsage(event.Usage, capture.usage.ImageCount)
+		}
+		if event.Response != nil {
+			if event.Response.Usage != nil {
+				capture.usage = usageFromOpenAIImagesUsage(event.Response.Usage, capture.usage.ImageCount)
+			}
+			images = append(images, event.Response.Data...)
+		}
+		images = append(images, event.Data...)
+		if strings.TrimSpace(event.B64JSON) != "" {
+			images = append(images, map[string]any{"b64_json": event.B64JSON})
+		}
+	}
+	if len(images) == 0 {
+		var envelope openAIImagesResponse
+		if json.Unmarshal(body, &envelope) == nil {
+			images = append(images, envelope.Data...)
+			capture.usage = parseOpenAIImagesUsageFromEnvelope(envelope)
+		}
+	}
+	if len(images) == 0 {
+		capture.endReason = "upstream_stream_no_image"
+		return capture, false, fmt.Errorf("OpenAI Images stream did not contain image data")
+	}
+	if !gatewayUsageAvailable(capture.usage) {
+		capture.endReason = "usage_missing"
+		return capture, false, fmt.Errorf("OpenAI Images stream completed without usage metadata")
+	}
+	if capture.usage.ImageCount == 0 {
+		capture.usage.ImageCount = len(images)
+	}
+	writeGeminiSSEHeaders(w)
+	partList := make([]any, 0, len(images))
+	for _, image := range images {
+		encoded := strings.TrimSpace(anyString(image["b64_json"]))
+		if encoded == "" {
+			continue
+		}
+		partList = append(partList, map[string]any{"inlineData": map[string]any{"mimeType": "image/png", "data": encoded}})
+	}
+	payload := map[string]any{
+		"candidates":    []any{map[string]any{"content": map[string]any{"role": "model", "parts": partList}, "finishReason": "STOP"}},
+		"usageMetadata": geminiUsageMetadata(capture.usage),
+	}
+	if err := writeGeminiSSEPayload(w, payload); err != nil {
+		capture.endReason = "downstream_stream_write_failed"
+		return capture, true, err
+	}
+	capture.streamCompleted = true
+	capture.sawDone = true
+	capture.endReason = "done"
+	return capture, true, nil
 }
 
 func proxyOpenAIImagesStream(
@@ -269,6 +371,36 @@ func parseOpenAIImagesUsage(body []byte) gatewayUsage {
 	_ = json.Unmarshal(body, &envelope)
 
 	return parseOpenAIImagesUsageFromEnvelope(envelope)
+}
+
+func canonicalResponseFromOpenAIImagesBody(body []byte) (canonicalResponse, error) {
+	var envelope openAIImagesResponse
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return canonicalResponse{}, fmt.Errorf("decode OpenAI Images response: %w", err)
+	}
+	response := canonicalResponse{CreatedAt: envelope.Created, Usage: parseOpenAIImagesUsageFromEnvelope(envelope)}
+	for _, image := range envelope.Data {
+		data := strings.TrimSpace(anyString(image["b64_json"]))
+		format := strings.TrimSpace(anyString(image["output_format"]))
+		if data == "" {
+			if url := strings.TrimSpace(anyString(image["url"])); strings.HasPrefix(url, "data:") {
+				if comma := strings.Index(url, ","); comma > 0 {
+					data = url[comma+1:]
+				}
+				if semi := strings.Index(url, ";"); strings.HasPrefix(url, "data:image/") && semi > 5 {
+					format = strings.TrimPrefix(url[5:semi], "image/")
+				}
+			}
+		}
+		if data == "" {
+			continue
+		}
+		response.Output = append(response.Output, canonicalOutputItem{Type: "image_generation_call", Status: "completed", Result: data, OutputFormat: format})
+	}
+	if len(response.Output) == 0 {
+		return response, fmt.Errorf("OpenAI Images response did not contain image data")
+	}
+	return response, nil
 }
 
 func parseOpenAIImagesUsageFromEnvelope(envelope openAIImagesResponse) gatewayUsage {

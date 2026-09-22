@@ -12,6 +12,16 @@ export function requestModelName(item: RequestLogItem) {
   return requestDownstreamModelName(item)
 }
 
+export function requestDisplayPath(item: RequestLogItem, path?: string | null) {
+  let displayPath = path?.trim() || ''
+  const model = requestDownstreamModelName(item).trim()
+  if (!displayPath || !model) return displayPath || null
+  if ((item.stream === true || item.response_mode === 'stream') && displayPath === '/v1beta/models/{model}:generateContent') {
+    displayPath = '/v1beta/models/{model}:streamGenerateContent'
+  }
+  return displayPath.replace('{model}', encodeURIComponent(model))
+}
+
 export function requestResponseModelMismatch(item: RequestLogItem): string | null {
   const requested = item.original_model?.trim() || item.requested_model?.trim()
   const upstream = requestActualModelName(item)

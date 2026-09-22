@@ -59,6 +59,7 @@ type canonicalStreamEvent struct {
 
 type canonicalStreamOptions struct {
 	IncludeUsage        bool
+	RequireUsage        bool
 	Candidate           routeengine.Candidate
 	UpstreamLineInspect func([]byte, *streamCaptureState)
 	CustomTools         map[string]struct{}
@@ -115,6 +116,9 @@ func buildStreamProtocolSpecs() map[canonicalProtocol]streamProtocolSpec {
 		},
 		canonicalProtocolGoogleGemini: {
 			NewDecoder: func() canonicalStreamDecoder { return &antigravityStreamDecoder{} },
+			NewEncoder: func(options canonicalStreamOptions, w http.ResponseWriter, capture *streamCaptureState) canonicalStreamEncoder {
+				return newGoogleGeminiStreamEncoder(options, w, capture)
+			},
 		},
 		canonicalProtocolAnthropicMessages: {
 			NewDecoder: func() canonicalStreamDecoder { return &anthropicMessagesStreamDecoder{} },
@@ -308,6 +312,10 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 				}
 			}
 			if capture.streamCompleted {
+				if options.RequireUsage && !gatewayUsageAvailable(capture.usage) {
+					capture.endReason = "usage_missing"
+					return capture, headersWritten, fmt.Errorf("stream completed without usage metadata")
+				}
 				capture.endReason = "done"
 			} else if capture.sawDone && capture.endReason == "" {
 				capture.streamCompleted = true
@@ -705,6 +713,13 @@ func (d *antigravityStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEve
 			ID:        d.responseID,
 			CreatedAt: d.createdAt,
 			Delta:     text,
+		})
+	}
+	for _, thinking := range antigravityGeminiThinking(root) {
+		events = append(events, canonicalStreamEvent{
+			Type:  canonicalStreamEventReasoningDelta,
+			ID:    d.responseID,
+			Delta: thinking.Thinking,
 		})
 	}
 	if flushBufferedText != "" {
@@ -1130,6 +1145,10 @@ func (e *openAIChatStreamEncoder) sendTerminal(defaultFinishReason string, compl
 	if e.stopSent {
 		return nil
 	}
+	if e.options.RequireUsage && !gatewayUsageAvailable(e.capture.usage) {
+		e.capture.endReason = "usage_missing"
+		return fmt.Errorf("stream completed without usage metadata")
+	}
 	if err := e.sendStartIfNeeded(); err != nil {
 		return err
 	}
@@ -1541,6 +1560,10 @@ func (e *openAIResponsesStreamEncoder) sendIncomplete(event canonicalStreamEvent
 func (e *openAIResponsesStreamEncoder) sendTerminalResponse(status string, completed bool, endReason string) error {
 	if e.completed {
 		return nil
+	}
+	if e.options.RequireUsage && !gatewayUsageAvailable(e.capture.usage) {
+		e.capture.endReason = "usage_missing"
+		return fmt.Errorf("stream completed without usage metadata")
 	}
 	if err := e.sendResponseStartIfNeeded(); err != nil {
 		return err
@@ -2037,6 +2060,10 @@ func (e *anthropicMessagesStreamEncoder) sendToolCallDelta(event canonicalStream
 func (e *anthropicMessagesStreamEncoder) sendFinish(stopReason string, stopSequence string, completed bool, endReason string) error {
 	if e.completed {
 		return nil
+	}
+	if e.options.RequireUsage && !gatewayUsageAvailable(e.capture.usage) {
+		e.capture.endReason = "usage_missing"
+		return fmt.Errorf("stream completed without usage metadata")
 	}
 	if err := e.validateToolCallArguments(); err != nil {
 		return err

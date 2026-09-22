@@ -525,6 +525,8 @@ func TestRouteAwareTimeoutLeavesStreamingRoutesWithoutDeadline(t *testing.T) {
 		{method: http.MethodPost, path: "/v1/images/generations"},
 		{method: http.MethodPost, path: "/v1/images/edits"},
 		{method: http.MethodPost, path: "/v1/messages"},
+		{method: http.MethodPost, path: "/v1beta/models/gemini-3.1-flash-image:generateContent"},
+		{method: http.MethodPost, path: "/v1beta/models/gemini-3.1-flash-image:streamGenerateContent"},
 		{method: http.MethodPost, path: "/api/playground/v1/chat/completions"},
 		{method: http.MethodPost, path: "/api/playground/v1/responses"},
 		{method: http.MethodPost, path: "/api/playground/v1/images/generations"},

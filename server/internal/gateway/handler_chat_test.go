@@ -119,6 +119,24 @@ func TestWriteChatFailureIncludesUnsupportedReasoningEffortValue(t *testing.T) {
 	}
 }
 
+func TestGeminiGatewayErrorUsesGeminiEnvelope(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(nil, nil, nil, nil, "")
+	req := gatewayRequestWithID(http.MethodPost, "/v1beta/models/gemini-2.5-pro:generateContent", "", "req-gemini")
+	rec := httptest.NewRecorder()
+	handler.writeChatFailure(rec, req, gatewayEndpointGeminiGenerate, "req-gemini", uuid.Nil, time.Now(), chatFailure{
+		status:  http.StatusBadRequest,
+		code:    "invalid_gemini_request",
+		message: "contents must be a non-empty array",
+		stage:   "validate",
+	})
+
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), `"status":"INVALID_GEMINI_REQUEST"`) || !strings.Contains(rec.Body.String(), `"request_id":"req-gemini"`) {
+		t.Fatalf("Gemini error response = %s", rec.Body.String())
+	}
+}
+
 func TestResolveModelMappingNormalizesDownstreamModel(t *testing.T) {
 	t.Parallel()
 

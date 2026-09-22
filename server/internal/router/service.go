@@ -349,6 +349,15 @@ func routeCandidateSupportsEndpoint(row store.RouteCandidateRow, endpointType st
 	if endpointType == "" {
 		return true
 	}
+	if endpointType == "gemini-image" {
+		for _, item := range row.SupportedEndpointTypes {
+			supported := strings.TrimSpace(strings.ToLower(item))
+			if supported == "google-gemini" || supported == "openai-image" {
+				return true
+			}
+		}
+		return false
+	}
 	if isMiMoV25TTSRouteModel(row.UpstreamModelName) {
 		return endpointType == "openai" || endpointType == "openai-audio-speech"
 	}

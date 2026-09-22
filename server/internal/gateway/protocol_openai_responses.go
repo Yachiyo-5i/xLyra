@@ -137,6 +137,8 @@ func (a openAIResponsesProtocolAdapter) ProtocolName() string {
 		return "openai_responses"
 	case canonicalProtocolAnthropicMessages:
 		return "openai_responses_to_messages"
+	case canonicalProtocolGoogleGemini:
+		return "openai_responses_to_gemini"
 	}
 	return "openai_responses"
 }
@@ -166,6 +168,9 @@ func (a openAIResponsesProtocolAdapter) BuildUpstreamPayload(request gatewayRequ
 		return applyRequestPolicyForCandidate(payload, canonicalProtocolOpenAIResponses, candidate), nil
 	}
 	if request.Canonical != nil {
+		if err := validateGoogleGeminiConversion(*request.Canonical, canonicalProtocolOpenAIResponses); err != nil {
+			return nil, err
+		}
 		payload, err := encodeCanonicalRequestToOpenAIResponses(*request.Canonical, candidate)
 		if err != nil {
 			return nil, err
@@ -237,7 +242,7 @@ func (a openAIResponsesProtocolAdapter) TransformBufferedResponse(statusCode int
 	if target == "" {
 		target = canonicalProtocolOpenAIChat
 	}
-	convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolOpenAIResponses, target, body, responseConversionOptions{})
+	convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolOpenAIResponses, target, body, responseConversionOptions{RequireUsage: true})
 	if err != nil {
 		return gatewayBufferedResponse{}, err
 	}
@@ -257,7 +262,7 @@ func (a openAIResponsesProtocolAdapter) ProxyStream(ctx context.Context, w http.
 	if target == "" {
 		target = canonicalProtocolOpenAIChat
 	}
-	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIResponses, target, canonicalStreamOptions{IncludeUsage: a.includeUsage, Candidate: candidate})
+	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIResponses, target, canonicalStreamOptions{IncludeUsage: true, RequireUsage: true, Candidate: candidate})
 }
 
 func chatStreamUsageEnabled(payload map[string]any) bool {

@@ -156,6 +156,7 @@ type responseConversionOptions struct {
 	ImageResponseFormat string
 	CustomTools         map[string]struct{}
 	ResponseTools       map[string]responsesToolIdentity
+	RequireUsage        bool
 }
 
 // protocolSpecsRegistry is built once; the specs are read-only lookups, so
@@ -205,6 +206,7 @@ func buildProtocolSpecs() map[canonicalProtocol]protocolSpec {
 			EncodeResponse: func(response canonicalResponse, options responseConversionOptions) ([]byte, gatewayUsage, error) {
 				return encodeCanonicalResponseAsImagesWithFormat(response, options.ImageResponseFormat)
 			},
+			DecodeResponse: canonicalResponseFromOpenAIImagesBody,
 		},
 		canonicalProtocolAnthropicMessages: {
 			Name:           canonicalProtocolAnthropicMessages,
@@ -242,14 +244,15 @@ func buildProtocolSpecs() map[canonicalProtocol]protocolSpec {
 			DecodeResponse: decodeCanonicalResponseFromAntigravityBody,
 		},
 		canonicalProtocolGoogleGemini: {
-			Name: canonicalProtocolGoogleGemini,
-			Path: "/v1beta/models/{model}:generateContent",
-			EncodeRequest: func(request canonicalRequest, candidate routeengine.Candidate) (map[string]any, error) {
-				payload := encodeCanonicalRequestToAntigravityGemini(request, candidate.Model.UpstreamName)
-				delete(payload, "model")
-				return payload, nil
+			Name:         canonicalProtocolGoogleGemini,
+			EndpointType: upstreamEndpointTypeGoogleGemini,
+			Path:         gatewayEndpointGeminiGenerate,
+			DecodeRequest: func(payload map[string]any, requestedModel string) (canonicalRequest, error) {
+				return canonicalRequestFromGoogleGeminiPayload(payload, requestedModel, boolFromMap(payload, "stream"))
 			},
+			EncodeRequest:  encodeCanonicalRequestToGoogleGemini,
 			DecodeResponse: decodeCanonicalResponseFromAntigravityBody,
+			EncodeResponse: encodeCanonicalResponseAsGoogleGemini,
 		},
 	}
 }
@@ -266,6 +269,9 @@ func convertRequestBetweenProtocols(from canonicalProtocol, to canonicalProtocol
 	}
 	canonical, err := source.DecodeRequest(payload, requestedModel)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateGoogleGeminiConversion(canonical, to); err != nil {
 		return nil, err
 	}
 	encoded, err := target.EncodeRequest(canonical, candidate)
@@ -288,6 +294,9 @@ func convertResponseBetweenProtocols(from canonicalProtocol, to canonicalProtoco
 	canonical, err := source.DecodeResponse(body)
 	if err != nil {
 		return nil, gatewayUsage{}, err
+	}
+	if options.RequireUsage && !gatewayUsageAvailable(canonical.Usage) {
+		return nil, gatewayUsage{}, fmt.Errorf("response usage is unavailable for protocol conversion")
 	}
 	return target.EncodeResponse(canonical, options)
 }
@@ -908,6 +917,12 @@ func encodeCanonicalRequestToOpenAIResponses(request canonicalRequest, candidate
 	} else if maxTokens, ok := intFromAny(request.Params["max_tokens"]); ok && maxTokens > 0 {
 		out["max_output_tokens"] = maxTokens
 	}
+	if stop, ok := request.Params["stop"]; ok {
+		out["stop"] = stop
+	}
+	if stop, ok := request.Params["stop_sequences"]; ok {
+		out["stop"] = stop
+	}
 	if reasoningEffort, ok := request.Params["reasoning_effort"].(string); ok && strings.TrimSpace(reasoningEffort) != "" && modelCapability(canonicalProtocolOpenAIResponses, candidate, "reasoning_summary") {
 		out["reasoning"] = map[string]any{
 			"effort":  strings.TrimSpace(reasoningEffort),
@@ -930,6 +945,12 @@ func encodeCanonicalRequestToOpenAIChat(request canonicalRequest, candidate rout
 	if maxOutputTokens, ok := intFromAny(request.Params["max_output_tokens"]); ok && maxOutputTokens > 0 {
 		out["max_tokens"] = maxOutputTokens
 	}
+	if candidateCount, ok := intFromAny(request.Params["candidate_count"]); ok && candidateCount > 0 {
+		out["n"] = candidateCount
+	}
+	if stop, ok := request.Params["stop"]; ok {
+		out["stop"] = stop
+	}
 	if reasoning, ok := request.Params["reasoning"].(map[string]any); ok {
 		if effort := strings.TrimSpace(anyString(reasoning["effort"])); effort != "" {
 			out["reasoning_effort"] = effort
@@ -937,6 +958,9 @@ func encodeCanonicalRequestToOpenAIChat(request canonicalRequest, candidate rout
 	}
 	if request.TextFormat != nil {
 		out["response_format"] = encodeCanonicalTextFormatAsChatResponseFormat(request.TextFormat)
+	}
+	if modalities, ok := request.Params["response_modalities"]; ok {
+		out["modalities"] = modalities
 	}
 	if len(request.Tools) > 0 {
 		if converted := encodeCanonicalToolsAsChat(request.Tools); converted != nil {
@@ -958,7 +982,10 @@ func encodeCanonicalRequestToOpenAIChat(request canonicalRequest, candidate rout
 }
 
 func encodeCanonicalRequestToOpenAIImages(request canonicalRequest, candidate routeengine.Candidate) map[string]any {
-	out := clonePayload(request.Raw)
+	out := map[string]any{}
+	if request.SourceProtocol == "" || request.SourceProtocol == canonicalProtocolOpenAIImages {
+		out = clonePayload(request.Raw)
+	}
 	out["model"] = candidate.Model.UpstreamName
 	if request.Image != nil {
 		if request.Image.Prompt != "" {
@@ -969,6 +996,12 @@ func encodeCanonicalRequestToOpenAIImages(request canonicalRequest, candidate ro
 		}
 		if request.Image.Mask != nil && strings.TrimSpace(request.Image.Mask.ImageURL) != "" {
 			out["mask"] = map[string]any{"image_url": request.Image.Mask.ImageURL}
+		}
+		if request.Image.N > 0 {
+			out["n"] = request.Image.N
+		}
+		if value, ok := request.Image.Params["response_format"]; ok {
+			out["response_format"] = value
 		}
 	}
 	return out
