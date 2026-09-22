@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.10.0...v1.11.0) (2026-09-22)
+
+
+### Features
+
+* track upstream response models in request logs ([30dba61](https://github.com/Yachiyo-5i/xLyra/commit/30dba61bbacb32045d7626abf53a31c90b2a306a))
+
+
+### Bug Fixes
+
+* 🐛 修复站点同步丢失模型协议能力的问题 ([428e258](https://github.com/Yachiyo-5i/xLyra/commit/428e2581e20b5df1c47cbe52b39c1fc5be40f1a7))
+
 ## [1.10.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.9.1...v1.10.0) (2026-09-20)
 
 
