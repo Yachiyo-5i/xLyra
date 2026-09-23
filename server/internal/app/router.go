@@ -650,17 +650,17 @@ func newSPAHandler(staticDir string, authService *auth.Service) http.Handler {
 		path := filepath.Join(staticDir, filepath.Clean("/"+r.URL.Path))
 		info, err := os.Stat(path)
 		if r.URL.Path == "/" || r.URL.Path == "/index.html" || os.IsNotExist(err) {
-			// SPA 回退到 index.html：不缓存，保证发版后立刻生效
+			// SPA 回退到 index.html：不进缓存，刷新必须拿到这次发版的页面
 			serveAppIndex(w, r, index, authService)
 			return
 		}
 		switch {
 		case err == nil && info.IsDir():
-			// 其余目录请求由 FileServer 处理，同样不缓存
-			w.Header().Set("Cache-Control", "no-cache")
+			// 其余目录请求由 FileServer 处理，同样不进缓存
+			w.Header().Set("Cache-Control", "no-store")
 		case mustRevalidateStaticFile(filepath.Base(path)):
-			// index.html、Service Worker 与构建号必须每次再验证，否则发版检测会被 HTTP 缓存拖住
-			w.Header().Set("Cache-Control", "no-cache")
+			// Service Worker 与构建号不能被浏览器或中间缓存留住，否则刷新后仍是旧脚本
+			w.Header().Set("Cache-Control", "no-store")
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			// Vite 构建产物文件名带内容哈希，可安全长缓存
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -674,7 +674,7 @@ func newSPAHandler(staticDir string, authService *auth.Service) http.Handler {
 }
 
 func serveAppIndex(w http.ResponseWriter, r *http.Request, indexPath string, authService *auth.Service) {
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "no-store")
 	body, err := os.ReadFile(indexPath)
 	if err != nil {
 		http.NotFound(w, r)

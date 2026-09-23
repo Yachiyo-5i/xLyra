@@ -58,6 +58,7 @@ export default defineConfig(({ command, mode }) => {
         },
         workbox: {
           cleanupOutdatedCaches: true,
+          clientsClaim: true,
           globIgnores: ['**/node_modules/**/*', '**/version.json', '**/index.html'],
           manifestTransforms: [
             async (entries) => ({
@@ -70,17 +71,6 @@ export default defineConfig(({ command, mode }) => {
                   : entry,
               ),
             }),
-          ],
-          runtimeCaching: [
-            {
-              urlPattern: ({ request }) => request.mode === 'navigate',
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'xlyra-documents',
-                networkTimeoutSeconds: 4,
-                expiration: { maxEntries: 8 },
-              },
-            },
           ],
         },
       }),

@@ -5,8 +5,11 @@ import { registerSW } from 'virtual:pwa-register'
 import { Button } from '@/components/ui/button'
 import {
   UPDATE_CHECK_INTERVAL_MS,
+  applyFrontendUpdate,
+  clearFrontendCaches,
   fetchRemoteBuild,
   hasRemoteFrontendUpdate,
+  hrefWithoutReloadParam,
   readClientBuildId,
 } from '@/lib/frontend-update'
 
@@ -62,6 +65,11 @@ export function PwaUpdatePrompt() {
         })
     }
 
+    const cleanHref = hrefWithoutReloadParam(window.location.href)
+    if (cleanHref) {
+      window.history.replaceState(window.history.state, '', cleanHref)
+    }
+
     registerSW({
       immediate: true,
       onNeedRefresh: () => {
@@ -94,41 +102,27 @@ export function PwaUpdatePrompt() {
   const handleReload = () => {
     setIsReloading(true)
 
-    const reloadPage = (() => {
-      let reloadStarted = false
-      return () => {
-        if (reloadStarted) {
-          return
-        }
-        reloadStarted = true
-        window.location.reload()
-      }
-    })()
-
-    const activateWaitingWorker = (worker: ServiceWorker) => {
-      navigator.serviceWorker.addEventListener('controllerchange', reloadPage, { once: true })
-      window.setTimeout(reloadPage, 8000)
-      try {
-        worker.postMessage({ type: 'SKIP_WAITING' })
-      } catch {
-        reloadPage()
-      }
-    }
-
     void (async () => {
-      const registration = registrationRef.current ?? (await navigator.serviceWorker.getRegistration())
-      const waitingWorker = registration?.waiting ?? registration?.installing
-      if (waitingWorker) {
-        activateWaitingWorker(waitingWorker)
-        return
-      }
-
-      try {
-        await registration?.unregister()
-      } catch {
-        // Old SW would keep serving the precached shell; ignore unregister failures and reload anyway.
-      }
-      reloadPage()
+      const registration = registrationRef.current ?? (await navigator.serviceWorker.getRegistration()) ?? null
+      await applyFrontendUpdate({
+        registration,
+        href: window.location.href,
+        now: Date.now(),
+        reload: (href) => {
+          window.location.replace(href)
+        },
+        waitForControllerChange: (timeoutMs) => new Promise((resolve) => {
+          const timer = window.setTimeout(resolve, timeoutMs)
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.clearTimeout(timer)
+            resolve()
+          }, { once: true })
+        }),
+        clearCaches: () => clearFrontendCaches(window.caches),
+        unregister: async (currentRegistration) => {
+          await currentRegistration.unregister?.()
+        },
+      })
     })()
   }
 

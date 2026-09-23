@@ -645,13 +645,13 @@ func TestSpaHandlerCacheHeaders(t *testing.T) {
 	}{
 		{"/assets/index-abc123.js", "public, max-age=31536000, immutable"},
 		{"/agent-backdrop.png", "public, max-age=86400"},
-		{"/sw.js", "no-cache"},
-		{"/workbox-deadbeef.js", "no-cache"},
-		{"/registerSW.js", "no-cache"},
-		{"/version.json", "no-cache"},
-		{"/manifest.webmanifest", "no-cache"},
-		{"/agent", "no-cache"}, // SPA fallback → index.html
-		{"/", "no-cache"},      // 目录请求 → FileServer 落 index.html
+		{"/sw.js", "no-store"},
+		{"/workbox-deadbeef.js", "no-store"},
+		{"/registerSW.js", "no-store"},
+		{"/version.json", "no-store"},
+		{"/manifest.webmanifest", "no-store"},
+		{"/agent", "no-store"},
+		{"/", "no-store"},
 	}
 	for _, tc := range cases {
 		rec := httptest.NewRecorder()
