@@ -166,7 +166,6 @@ export function SiteAPIKeysDraw({
       )
       setAddingAPIKey(false)
       setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
-      onOpenChange(false)
       if (site) {
         await queryClient.invalidateQueries({
           queryKey: sitesQueryKeys.models(site.id),

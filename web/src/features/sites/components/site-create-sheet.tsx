@@ -35,6 +35,7 @@ import {
 import type { SiteGroup } from '@/features/settings/api/site-groups'
 import { type ProxyConfig } from '@/features/settings/api/settings'
 import { siteTypeIconClassName } from '@/features/sites/lib/site-utils'
+import { editSiteFormResetKey } from '@/features/sites/lib/site-cache'
 import {
   SiteAPIKeyFormFields,
 } from '@/features/sites/components/site-api-key-form'
@@ -594,18 +595,12 @@ export function SiteCreateSheet({
     }
 
     if (mode === 'edit' && initialSite) {
-      const resetKey = [
-        mode,
-        initialSite.id ?? 'new',
-        initialSite.auth_config?.newapi?.access_token ?? '',
-        initialSite.auth_config?.newapi?.user_id ?? '',
-        initialSite.auth_config?.xlyra?.auth_mode ?? '',
-        initialSite.auth_config?.xlyra?.access_token ?? '',
-      ].join(':')
+      const groupIds = siteGroupIdsForSite(initialSite, siteGroups)
+      const resetKey = editSiteFormResetKey(initialSite, groupIds)
       if (lastFormResetKeyRef.current !== resetKey) {
         reset({
           ...formValuesFromSite(initialSite),
-          siteGroupIds: siteGroupIdsForSite(initialSite, siteGroups),
+          siteGroupIds: groupIds,
         })
         lastFormResetKeyRef.current = resetKey
       }

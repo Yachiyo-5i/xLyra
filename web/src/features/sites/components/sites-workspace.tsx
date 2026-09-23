@@ -51,6 +51,7 @@ import {
 } from '@/features/oauth/api/oauth'
 import { downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
 import {
+  applySiteGroupMembership,
   listSiteGroups,
   siteGroupQueryKeys,
   updateSiteGroupMembershipForSite,
@@ -71,8 +72,10 @@ import { MobileSitesList } from '@/features/sites/components/mobile-sites-list'
 import { SitesTable } from '@/features/sites/components/sites-table'
 import {
   mergeListSite,
+  mergeSavedSiteDetail,
   removeListSite,
   sanitizeSiteList,
+  selectEditingSite,
   siteModelItems,
 } from '@/features/sites/lib/site-cache'
 import {
@@ -253,7 +256,7 @@ export function SitesWorkspace({
     queryFn: () => getSite(editingSite!.id),
     enabled: createOpen && Boolean(editingSite),
   })
-  const editingInitialSite = editingSiteDetailQuery.data?.site ?? editingSite
+  const editingInitialSite = selectEditingSite(editingSiteDetailQuery.data?.site, editingSite)
   const siteModelsMap = useMemo(
     () =>
       Object.fromEntries(
@@ -426,6 +429,7 @@ export function SitesWorkspace({
   const createMutation = useMutation({
     mutationFn: (input: SiteCreateSubmitInput) => createSite(input),
     onSuccess: async (result, input) => {
+      rememberSavedSite(result.site, input)
       queryClient.setQueryData(
         sitesQueryKeys.list(),
         (current: { items: Site[]; meta: { count: number } } | undefined) =>
@@ -456,6 +460,7 @@ export function SitesWorkspace({
           result.site.id,
           input.siteGroupIds ?? [],
         )
+        rememberSiteGroups(result.site.id, input.siteGroupIds ?? [])
       } catch (error) {
         toast.error(t('page.toast.saveFailed'), {
           description: error instanceof Error ? error.message : String(error),
@@ -483,7 +488,9 @@ export function SitesWorkspace({
       )
       return result
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, { input }) => {
+      rememberSavedSite(result.site, input)
+      rememberSiteGroups(result.site.id, input.siteGroupIds ?? [])
       queryClient.setQueryData(
         sitesQueryKeys.list(),
         (current: { items: Site[]; meta: { count: number } } | undefined) =>
@@ -693,6 +700,23 @@ export function SitesWorkspace({
       toast.error(t('page.toast.statusFailed'), { description: error.message })
     },
   })
+
+  function rememberSavedSite(site: Site, input: SiteCreateSubmitInput) {
+    queryClient.setQueryData(
+      sitesQueryKeys.detail(site.id),
+      (current: { site: Site } | undefined) => ({
+        site: mergeSavedSiteDetail(current?.site, site, input),
+      }),
+    )
+  }
+
+  function rememberSiteGroups(siteId: string, groupIds: string[]) {
+    queryClient.setQueryData(
+      siteGroupQueryKeys.list(),
+      (current: { items: SiteGroup[]; meta?: { count?: number } } | undefined) =>
+        applySiteGroupMembership(current, siteId, groupIds),
+    )
+  }
 
   function invalidateSiteLists() {
     return Promise.all([

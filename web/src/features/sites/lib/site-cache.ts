@@ -20,6 +20,68 @@ export function sanitizeSiteList(items: Site[]) {
   return items.filter(isValidSite)
 }
 
+export type SavedSiteAuthInput = {
+  newapi?: {
+    accessToken: string
+    userId: number
+  }
+  xlyra?: {
+    authMode: 'access_token' | 'api_key'
+    accessToken?: string
+  }
+}
+
+// The update response carries the saved site row, but not NewAPI or xLyra
+// credentials. Those stay on the detail snapshot the edit form already loaded,
+// unless this submit replaced them.
+export function mergeSavedSiteDetail(previous: Site | undefined, saved: Site, input: SavedSiteAuthInput = {}): Site {
+  const auth: NonNullable<Site['auth_config']> = {
+    ...(previous?.auth_config ?? {}),
+    ...(saved.auth_config ?? {}),
+  }
+  if (input.newapi) {
+    auth.newapi = {
+      access_token: input.newapi.accessToken,
+      user_id: input.newapi.userId,
+    }
+  }
+  if (input.xlyra) {
+    auth.xlyra = input.xlyra.authMode === 'access_token'
+      ? { auth_mode: 'access_token', access_token: input.xlyra.accessToken ?? '' }
+      : { auth_mode: 'api_key' }
+  }
+
+  return {
+    ...(previous ?? {}),
+    ...saved,
+    auth_config: Object.keys(auth).length > 0 ? auth : undefined,
+  }
+}
+
+export function selectEditingSite(detail: Site | undefined, listed: Site | null): Site | null {
+  if (!listed) return detail ?? null
+  if (!detail) return listed
+  if (siteUpdatedAt(detail) >= siteUpdatedAt(listed)) return detail
+  return mergeSavedSiteDetail(detail, listed)
+}
+
+export function editSiteFormResetKey(site: Site, groupIds: string[]) {
+  return [
+    site.id,
+    site.updated_at,
+    site.auth_config?.newapi?.access_token ?? '',
+    String(site.auth_config?.newapi?.user_id ?? ''),
+    site.auth_config?.xlyra?.auth_mode ?? '',
+    site.auth_config?.xlyra?.access_token ?? '',
+    [...groupIds].sort().join(','),
+  ].join('\n')
+}
+
+function siteUpdatedAt(site: Site) {
+  const time = Date.parse(site.updated_at)
+  return Number.isFinite(time) ? time : 0
+}
+
 export function siteModelItems(current: { items?: SiteModel[] } | undefined) {
   return current?.items ?? []
 }
