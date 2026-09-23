@@ -6,6 +6,16 @@ import (
 )
 
 func TestGeminiDownstreamAPIKeyAliases(t *testing.T) {
+	list := httptest.NewRequest("GET", "/v1beta/models?key=list-key", nil)
+	if got := apiKeyFromRequest(list); got != "list-key" {
+		t.Fatalf("Gemini models query key = %q, want list-key", got)
+	}
+
+	list.Header.Set("x-goog-api-key", " list-header-key ")
+	if got := apiKeyFromRequest(list); got != "list-header-key" {
+		t.Fatalf("Gemini models x-goog-api-key = %q, want list-header-key", got)
+	}
+
 	req := httptest.NewRequest("POST", "/v1beta/models/gemini-2.5-pro:generateContent", nil)
 	req.Header.Set("x-goog-api-key", " goog-key ")
 	if got := apiKeyFromRequest(req); got != "goog-key" {

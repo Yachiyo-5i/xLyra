@@ -542,6 +542,30 @@ func TestGatewayModelEndpointTypesOverrideStaleCategory(t *testing.T) {
 	}
 }
 
+func TestGatewayModelCapabilitiesMetadataPreservesGeminiDetails(t *testing.T) {
+	t.Parallel()
+
+	item := canonicalModelPayload(store.CanonicalModel{ModelKey: "gemini-2.5-pro"})
+	applyModelCapabilitiesMetadata(item, store.JSON(`{
+		"description":"reasoning model",
+		"version":"2.5",
+		"input_token_limit":1048576,
+		"output_token_limit":65536,
+		"supported_generation_methods":["generateContent"]
+	}`))
+
+	metadata := item["metadata"].(map[string]any)
+	if metadata["description"] != "reasoning model" || metadata["version"] != "2.5" {
+		t.Fatalf("metadata description/version = %#v", metadata)
+	}
+	if metadata["input_token_limit"] != float64(1048576) || metadata["output_token_limit"] != float64(65536) {
+		t.Fatalf("metadata token limits = %#v", metadata)
+	}
+	if _, ok := metadata["supported_generation_methods"].([]any); !ok {
+		t.Fatalf("metadata generation methods = %#v", metadata["supported_generation_methods"])
+	}
+}
+
 func (c *modelsCache) get(apiKeyID uuid.UUID) (map[string]any, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

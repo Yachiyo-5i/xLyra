@@ -475,6 +475,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		v1beta.Group(func(protected chi.Router) {
 			protected.Use(requireAPIKey(authService))
 			limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
+			protected.Get("/models", gatewayHandler.GeminiModels)
 			protected.With(limitBody).Post("/models/{model}:generateContent", gatewayHandler.GeminiGenerateContent(false))
 			protected.With(limitBody).Post("/models/{model}:streamGenerateContent", gatewayHandler.GeminiGenerateContent(true))
 		})

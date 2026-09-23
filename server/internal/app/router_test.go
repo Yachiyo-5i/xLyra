@@ -201,6 +201,7 @@ func TestGatewayRoutesAreRegisteredAndProtected(t *testing.T) {
 		{name: "image edits", method: http.MethodPost, path: "/v1/images/edits"},
 		{name: "embeddings", method: http.MethodPost, path: "/v1/embeddings"},
 		{name: "models", method: http.MethodGet, path: "/v1/models"},
+		{name: "gemini models", method: http.MethodGet, path: "/v1beta/models"},
 		{name: "user balance", method: http.MethodGet, path: "/v1/user/balance"},
 	} {
 		tc := tc

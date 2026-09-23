@@ -69,7 +69,7 @@ func (h Handler) writeGatewayError(w http.ResponseWriter, r *http.Request, statu
 
 func isGeminiGatewayPath(path string) bool {
 	path = strings.TrimSpace(path)
-	return strings.HasPrefix(path, "/v1beta/models/") && (strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent"))
+	return path == gatewayEndpointGeminiModels || (strings.HasPrefix(path, "/v1beta/models/") && (strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent")))
 }
 
 func writeGeminiError(w http.ResponseWriter, r *http.Request, status int, code string, message string) {

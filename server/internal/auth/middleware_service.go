@@ -106,7 +106,7 @@ func apiKeyFromRequest(r *http.Request) string {
 
 func isGeminiDownstreamPath(path string) bool {
 	path = strings.TrimSpace(path)
-	return strings.HasPrefix(path, "/v1beta/models/") && (strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent"))
+	return path == "/v1beta/models" || (strings.HasPrefix(path, "/v1beta/models/") && (strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent")))
 }
 
 func bearerToken(value string) string {

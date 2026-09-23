@@ -65,11 +65,12 @@ postgres  # PostgreSQL database
 
 ## Gateway Endpoints
 
-The inference endpoints below are under `/v1` and require a downstream API key via `Authorization: Bearer <key>`.
+The inference endpoints below require a downstream API key via `Authorization: Bearer <key>`.
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/v1/models` | Lists downstream-visible models |
+| `GET` | `/v1beta/models` | Lists downstream-visible Gemini models in native Gemini format |
 | `POST` | `/v1/chat/completions` | OpenAI Chat Completions (streaming and non-streaming) |
 | `POST` | `/v1/responses` | OpenAI Responses API |
 | `GET` | `/v1/responses` | OpenAI Responses API over WebSocket (`Upgrade: websocket`) |
