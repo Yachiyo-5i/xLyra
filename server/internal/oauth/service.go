@@ -411,6 +411,12 @@ func (s *Service) SessionByState(ctx context.Context, state string) (store.OAuth
 }
 
 func (s *Service) HandleCodexCallback(ctx context.Context, state string, code string) (store.OAuthSession, store.OAuthConnection, PendingSite, error) {
+	return s.HandleCodexCallbackWithProxy(ctx, state, code, nil)
+}
+
+// HandleCodexCallbackWithProxy applies a proxy selected at callback submission
+// before exchanging the authorization code for tokens.
+func (s *Service) HandleCodexCallbackWithProxy(ctx context.Context, state string, code string, proxyID *string) (store.OAuthSession, store.OAuthConnection, PendingSite, error) {
 	if strings.TrimSpace(state) == "" || strings.TrimSpace(code) == "" {
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("state and code are required")
 	}
@@ -426,7 +432,21 @@ func (s *Service) HandleCodexCallback(ctx context.Context, state string, code st
 	if time.Now().After(session.ExpiresAt) {
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("oauth session has expired")
 	}
-	tokenResp, err := s.exchangeCodexCode(ctx, strings.TrimSpace(code), session.RedirectURI, session.PKCEVerifier)
+	var pendingSite PendingSite
+	if len(session.SitePayload) > 0 {
+		if err := json.Unmarshal(session.SitePayload, &pendingSite); err != nil {
+			return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("decode codex oauth site: %w", err)
+		}
+	}
+	if proxyID != nil {
+		value := strings.TrimSpace(*proxyID)
+		pendingSite.ProxyID = &value
+	}
+	httpClient, err := s.httpClientForPendingSite(ctx, pendingSite)
+	if err != nil {
+		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, err
+	}
+	tokenResp, err := s.exchangeCodexCode(ctx, strings.TrimSpace(code), session.RedirectURI, session.PKCEVerifier, httpClient)
 	if err != nil {
 		_, _ = sessionRepo.Complete(ctx, session.ID, "failed", session.Metadata)
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, err
@@ -458,10 +478,6 @@ func (s *Service) HandleCodexCallback(ctx context.Context, state string, code st
 	connectionMetaJSON, err := json.Marshal(connectionMeta)
 	if err != nil {
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("marshal codex connection meta: %w", err)
-	}
-	var pendingSite PendingSite
-	if len(session.SitePayload) > 0 {
-		_ = json.Unmarshal(session.SitePayload, &pendingSite)
 	}
 	connection, err := connectionRepo.UpsertByProviderEmail(ctx, store.UpsertOAuthConnectionParams{
 		Provider:              codexProvider,

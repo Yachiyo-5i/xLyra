@@ -88,7 +88,7 @@ export async function resolveUpdatedWorker(registration: FrontendUpdateRegistrat
   try {
     await registration.update()
   } catch {
-    // A failed update check still leaves any worker discovered during the call.
+    return discovered ?? registration.waiting ?? registration.installing
   } finally {
     registration.removeEventListener('updatefound', onFound)
   }

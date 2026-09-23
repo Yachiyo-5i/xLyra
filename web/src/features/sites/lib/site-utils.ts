@@ -116,7 +116,6 @@ export function siteTypeIconClassName(siteType: string): string | undefined {
 
 export function normalizedSiteTypeFilter(siteType: string): string {
   const t = siteType.trim().toLowerCase()
-  // openai_compatible shares the OpenAI tab; every other type keeps its own tab.
   if (t === 'openai' || t === 'openai_compatible') return 'openai'
   return t
 }

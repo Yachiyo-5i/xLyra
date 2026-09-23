@@ -31,9 +31,6 @@ export type SavedSiteAuthInput = {
   }
 }
 
-// The update response carries the saved site row, but not NewAPI or xLyra
-// credentials. Those stay on the detail snapshot the edit form already loaded,
-// unless this submit replaced them.
 export function mergeSavedSiteDetail(previous: Site | undefined, saved: Site, input: SavedSiteAuthInput = {}): Site {
   const auth: NonNullable<Site['auth_config']> = {
     ...(previous?.auth_config ?? {}),

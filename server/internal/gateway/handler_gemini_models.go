@@ -14,8 +14,6 @@ import (
 	"xlyra/server/internal/ratelimit"
 )
 
-// GeminiModels exposes the native Gemini ListModels response while reusing
-// the same API-key visibility and route availability rules as /v1/models.
 func (h Handler) GeminiModels(w http.ResponseWriter, r *http.Request) {
 	if h.db == nil {
 		h.writeGatewayError(w, r, http.StatusServiceUnavailable, "gateway_unavailable", "gateway service is not available")
