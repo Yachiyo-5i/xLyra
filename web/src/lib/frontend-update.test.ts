@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { hasRemoteFrontendUpdate, parseRemoteBuild, readClientBuildId, fetchRemoteBuild, VERSION_URL } from './frontend-update'
+import {
+  applyFrontendUpdate,
+  cacheBustedHref,
+  fetchRemoteBuild,
+  hasRemoteFrontendUpdate,
+  hrefWithoutReloadParam,
+  parseRemoteBuild,
+  readClientBuildId,
+  VERSION_URL,
+} from './frontend-update'
 
 describe('readClientBuildId', () => {
   it('falls back to development when the build id is missing', () => {
@@ -52,3 +61,75 @@ describe('fetchRemoteBuild', () => {
     await expect(fetchRemoteBuild(fetcher)).resolves.toBeUndefined()
   })
 })
+
+describe('frontend reload', () => {
+  it('cache-busts the document url and can strip that param again', () => {
+    const busted = cacheBustedHref('https://xlyra.example/dashboard?tab=usage#top', 42)
+    expect(busted).toBe('https://xlyra.example/dashboard?tab=usage&__xlyra_reload=42#top')
+    expect(hrefWithoutReloadParam(busted)).toBe('https://xlyra.example/dashboard?tab=usage#top')
+    expect(hrefWithoutReloadParam('https://xlyra.example/dashboard')).toBeNull()
+  })
+
+  it('activates a waiting worker before reloading', async () => {
+    const worker = fakeWorker('installed')
+    let controllerListener: (() => void) | undefined
+    const reloads: string[] = []
+    worker.postMessage = () => {
+      controllerListener?.()
+    }
+
+    await applyFrontendUpdate({
+      registration: fakeRegistration(worker),
+      href: 'https://xlyra.example/dashboard',
+      now: 7,
+      reload: (href) => reloads.push(href),
+      waitForControllerChange: () => new Promise((resolve) => {
+        controllerListener = () => resolve()
+      }),
+      clearCaches: vi.fn(),
+      unregister: vi.fn(),
+    })
+
+    expect(reloads).toEqual(['https://xlyra.example/dashboard?__xlyra_reload=7'])
+  })
+
+  it('drops cached shells when no replacement worker exists', async () => {
+    const cleared = vi.fn(async () => undefined)
+    const unregister = vi.fn(async () => undefined)
+    const registration = fakeRegistration(null)
+    registration.update = vi.fn(async () => undefined)
+
+    await applyFrontendUpdate({
+      registration,
+      href: 'https://xlyra.example/',
+      now: 9,
+      reload: (href) => {
+        expect(cleared).toHaveBeenCalledOnce()
+        expect(unregister).toHaveBeenCalledWith(registration)
+        expect(href).toBe('https://xlyra.example/?__xlyra_reload=9')
+      },
+      waitForControllerChange: () => Promise.resolve(),
+      clearCaches: cleared,
+      unregister,
+    })
+  })
+})
+
+function fakeWorker(state: string) {
+  return {
+    state,
+    postMessage: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }
+}
+
+function fakeRegistration(worker: ReturnType<typeof fakeWorker> | null) {
+  return {
+    waiting: worker,
+    installing: null,
+    update: vi.fn(async () => undefined),
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }
+}
