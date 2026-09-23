@@ -479,10 +479,6 @@ func (s *Service) HandleCodexCallbackWithProxy(ctx context.Context, state string
 	if err != nil {
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("marshal codex connection meta: %w", err)
 	}
-	var pendingSite PendingSite
-	if len(session.SitePayload) > 0 {
-		_ = json.Unmarshal(session.SitePayload, &pendingSite)
-	}
 	connection, err := connectionRepo.UpsertByProviderEmail(ctx, store.UpsertOAuthConnectionParams{
 		Provider:              codexProvider,
 		SiteID:                pendingSite.SiteID,
