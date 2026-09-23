@@ -411,6 +411,12 @@ func (s *Service) SessionByState(ctx context.Context, state string) (store.OAuth
 }
 
 func (s *Service) HandleCodexCallback(ctx context.Context, state string, code string) (store.OAuthSession, store.OAuthConnection, PendingSite, error) {
+	return s.HandleCodexCallbackWithProxy(ctx, state, code, nil)
+}
+
+// HandleCodexCallbackWithProxy applies a proxy selected at callback submission
+// before exchanging the authorization code for tokens.
+func (s *Service) HandleCodexCallbackWithProxy(ctx context.Context, state string, code string, proxyID *string) (store.OAuthSession, store.OAuthConnection, PendingSite, error) {
 	if strings.TrimSpace(state) == "" || strings.TrimSpace(code) == "" {
 		return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("state and code are required")
 	}
@@ -431,6 +437,10 @@ func (s *Service) HandleCodexCallback(ctx context.Context, state string, code st
 		if err := json.Unmarshal(session.SitePayload, &pendingSite); err != nil {
 			return store.OAuthSession{}, store.OAuthConnection{}, PendingSite{}, fmt.Errorf("decode codex oauth site: %w", err)
 		}
+	}
+	if proxyID != nil {
+		value := strings.TrimSpace(*proxyID)
+		pendingSite.ProxyID = &value
 	}
 	httpClient, err := s.httpClientForPendingSite(ctx, pendingSite)
 	if err != nil {
