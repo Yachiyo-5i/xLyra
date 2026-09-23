@@ -26,6 +26,7 @@ import {
   type SiteModelTestResult,
 } from '@/features/sites/api/sites'
 import { siteModelIconInfo } from '@/features/sites/lib/model-icon'
+import { filterSiteModelTestModels } from '@/features/sites/lib/site-model-test-filters'
 
 const EMPTY_MODELS: SiteModel[] = []
 const EMPTY_API_KEYS: SiteAPIKey[] = []
@@ -135,17 +136,27 @@ export function SiteModelTestSheet({
       .sort((a, b) => a.upstream_model_name.localeCompare(b.upstream_model_name)),
     [modelsQuery.data?.items],
   )
+  const testableModels = useMemo(
+    () => filterSiteModelTestModels({
+      models: availableModels,
+      apiKeys: availableAPIKeys,
+      protocol,
+      credentialId: selectedCredentialId,
+      supportsMultipleAPIKeys: site?.supports_multiple_api_keys === true && !apiKeysQuery.isLoading,
+    }),
+    [apiKeysQuery.isLoading, availableAPIKeys, availableModels, protocol, selectedCredentialId, site?.supports_multiple_api_keys],
+  )
   const keyword = search.trim().toLowerCase()
   const filteredModels = useMemo(
     () => {
-      if (!keyword) return availableModels
-      return availableModels.filter((model) => [
+      if (!keyword) return testableModels
+      return testableModels.filter((model) => [
         model.upstream_model_name,
         model.display_name ?? '',
         model.id,
       ].some((value) => value.toLowerCase().includes(keyword)))
     },
-    [availableModels, keyword],
+    [keyword, testableModels],
   )
   const canonicalMap = useMemo<ReadonlyMap<string, CanonicalModelItem>>(
     () => new Map((canonicalModelsQuery.data?.items ?? []).map((model) => [model.id, model])),
