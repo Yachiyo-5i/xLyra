@@ -60,7 +60,7 @@ type chatToolCall struct {
 }
 
 func proxyChatCompletionsStreamAsResponses(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time) (streamCaptureState, bool, error) {
-	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIChat, canonicalProtocolOpenAIResponses, canonicalStreamOptions{})
+	return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIChat, canonicalProtocolOpenAIResponses, canonicalStreamOptions{IncludeUsage: true, RequireUsage: true})
 }
 
 func proxyResponsesStreamPassthrough(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time) (streamCaptureState, bool, error) {

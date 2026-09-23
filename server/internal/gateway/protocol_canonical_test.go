@@ -18,6 +18,7 @@ func TestProtocolSpecsRegisterCurrentProtocols(t *testing.T) {
 		canonicalProtocolOpenAIImages:      upstreamEndpointTypeOpenAIImage,
 		canonicalProtocolCodexResponses:    upstreamEndpointTypeOpenAIResponse,
 		canonicalProtocolAnthropicMessages: "anthropic-messages",
+		canonicalProtocolGoogleGemini:      upstreamEndpointTypeGoogleGemini,
 	}
 	for protocol, endpointType := range tests {
 		spec, ok := specs[protocol]
@@ -37,6 +38,7 @@ func TestProtocolSpecsRegisterCurrentProtocols(t *testing.T) {
 		canonicalProtocolCodexResponses,
 		canonicalProtocolAntigravity,
 		canonicalProtocolAnthropicMessages,
+		canonicalProtocolGoogleGemini,
 	} {
 		if specs[protocol].DecodeResponse == nil {
 			t.Fatalf("%s must register a response decoder", protocol)
@@ -48,6 +50,7 @@ func TestProtocolSpecsRegisterCurrentProtocols(t *testing.T) {
 		canonicalProtocolOpenAIImages,
 		canonicalProtocolCodexResponses,
 		canonicalProtocolAnthropicMessages,
+		canonicalProtocolGoogleGemini,
 	} {
 		if specs[protocol].EncodeResponse == nil {
 			t.Fatalf("%s must register a response encoder", protocol)

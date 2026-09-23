@@ -25,6 +25,8 @@ func (a openAIChatProtocolAdapter) ProtocolName() string {
 		return "openai_chat_completions_to_responses"
 	case canonicalProtocolAnthropicMessages:
 		return "openai_chat_completions_to_messages"
+	case canonicalProtocolGoogleGemini:
+		return "openai_chat_completions_to_gemini"
 	}
 	return "openai_chat_completions"
 }
@@ -41,6 +43,9 @@ func (a openAIChatProtocolAdapter) BuildUpstreamPayload(request gatewayRequest, 
 		}
 	}
 	if request.Canonical != nil && request.DownstreamPath != gatewayEndpointChatCompletions {
+		if err := validateGoogleGeminiConversion(*request.Canonical, canonicalProtocolOpenAIChat); err != nil {
+			return nil, err
+		}
 		return a.applyUpstreamPolicy(encodeCanonicalRequestToOpenAIChat(*request.Canonical, candidate), candidate), nil
 	}
 	if a.downstreamProtocol == canonicalProtocolOpenAIResponses || request.DownstreamPath == gatewayEndpointResponses {
@@ -111,7 +116,7 @@ func (a openAIChatProtocolAdapter) TransformBufferedResponse(statusCode int, hea
 		}, nil
 	}
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolOpenAIChat && statusCode >= 200 && statusCode < 300 {
-		convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolOpenAIChat, a.downstreamProtocol, body, responseConversionOptions{})
+		convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolOpenAIChat, a.downstreamProtocol, body, responseConversionOptions{RequireUsage: true})
 		if err != nil {
 			return gatewayBufferedResponse{}, err
 		}
@@ -139,7 +144,9 @@ func (a openAIChatProtocolAdapter) ProxyStream(ctx context.Context, w http.Respo
 	case canonicalProtocolOpenAIResponses:
 		return proxyChatCompletionsStreamAsResponses(ctx, w, resp, startedAt)
 	case canonicalProtocolAnthropicMessages:
-		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIChat, canonicalProtocolAnthropicMessages, canonicalStreamOptions{Candidate: candidate})
+		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIChat, canonicalProtocolAnthropicMessages, canonicalStreamOptions{IncludeUsage: true, RequireUsage: true, Candidate: candidate})
+	case canonicalProtocolGoogleGemini:
+		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolOpenAIChat, canonicalProtocolGoogleGemini, canonicalStreamOptions{IncludeUsage: true, RequireUsage: true, Candidate: candidate})
 	}
 	return proxyUpstreamStream(ctx, w, resp, startedAt)
 }

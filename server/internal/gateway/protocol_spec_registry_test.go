@@ -345,6 +345,28 @@ func TestAlternateProtocolForOfficialMiMoAnthropicMessages(t *testing.T) {
 	}
 }
 
+func TestAlternateProtocolForOfficialMiMoOpenAIResponses(t *testing.T) {
+	t.Parallel()
+
+	alt, ok := alternateProtocolForCandidate(canonicalProtocolOpenAIResponses, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "xiaomi_mimo", BaseURL: "https://token-plan-sgp.xiaomimimo.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "mimo-v2.6-pro"},
+	})
+	if !ok {
+		t.Fatal("expected official MiMo OpenAI Responses alternate protocol")
+	}
+	if alt.BaseURL != "" || alt.BasePath != "/v1" || alt.Path != "/responses" || !alt.OfficialOnly {
+		t.Fatalf("unexpected alternate protocol: %#v", alt)
+	}
+
+	if _, ok := alternateProtocolForCandidate(canonicalProtocolOpenAIResponses, routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "newapi", BaseURL: "https://token-plan-sgp.xiaomimimo.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "mimo-v2.6-pro"},
+	}); ok {
+		t.Fatal("third-party proxy site must not use official MiMo OpenAI Responses alternate protocol")
+	}
+}
+
 func TestAlternateProtocolForOfficialMoonshotAnthropicMessages(t *testing.T) {
 	t.Parallel()
 

@@ -24,6 +24,9 @@ const (
 )
 
 func codexImageIntentForRequest(request gatewayRequest) codexImageGenerationIntent {
+	if request.Canonical != nil && request.Canonical.Image != nil {
+		return codexImageIntentModelEndpoint
+	}
 	if request.DownstreamPath == gatewayEndpointImagesGenerations || request.DownstreamPath == gatewayEndpointImagesEdits {
 		return codexImageIntentModelEndpoint
 	}

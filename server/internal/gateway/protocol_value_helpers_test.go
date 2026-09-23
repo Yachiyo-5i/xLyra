@@ -125,8 +125,12 @@ func TestAntigravityImagePartFromCanonicalDataURLBranches(t *testing.T) {
 		t.Fatalf("raw fallback image part = %#v, want %#v", got, want)
 	}
 
+	if got := antigravityImagePartFromCanonical(canonicalContentPart{ImageURL: "https://example.com/image.png"}); !reflect.DeepEqual(got, map[string]any{
+		"fileData": map[string]any{"fileData": "https://example.com/image.png"},
+	}) {
+		t.Fatalf("remote image part = %#v", got)
+	}
 	for _, part := range []canonicalContentPart{
-		{ImageURL: "https://example.com/image.png"},
 		{ImageURL: "data:image/png"},
 		{ImageURL: "data:,abc"},
 	} {

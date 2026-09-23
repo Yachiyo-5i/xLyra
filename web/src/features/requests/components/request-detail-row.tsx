@@ -23,6 +23,7 @@ import {
   requestAPIKeyBillingMultiplier,
   requestCredentialName,
   requestCostFormula,
+  requestDisplayPath,
   requestFailoverFailureReason,
   requestFailoverTrace,
   type RequestFailoverChannel,
@@ -175,7 +176,7 @@ export function RequestDetailContent({ item }: { item: RequestLogItem }) {
 
       <DetailRow label={t('detail.path')}>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <PathLine label={t('detail.downstream')} value={detail.downstream_path} />
+          <PathLine label={t('detail.downstream')} value={requestDisplayPath(detail, detail.downstream_path)} />
           <PathLine label={t('detail.upstream')} value={detail.upstream_path} />
         </div>
       </DetailRow>

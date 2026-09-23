@@ -39,6 +39,12 @@ func TestEndpointAdapters_RouteEndpointType(t *testing.T) {
 			wantType: upstreamEndpointTypeOpenAIEmbedding,
 			wantPath: "/v1/embeddings",
 		},
+		{
+			name:     "GeminiGenerateContent",
+			adapter:  geminiGenerateContentEndpointAdapter{},
+			wantType: upstreamEndpointTypeGoogleGemini,
+			wantPath: gatewayEndpointGeminiGenerate,
+		},
 	}
 
 	for _, tt := range tests {

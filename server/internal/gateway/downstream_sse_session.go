@@ -81,7 +81,7 @@ func requestUsesDownstreamSSE(request gatewayRequest) bool {
 	}
 	switch request.DownstreamPath {
 	case gatewayEndpointChatCompletions, gatewayEndpointResponses, gatewayEndpointMessages,
-		gatewayEndpointImagesGenerations, gatewayEndpointImagesEdits:
+		gatewayEndpointImagesGenerations, gatewayEndpointImagesEdits, gatewayEndpointGeminiGenerate:
 		return true
 	case gatewayEndpointAudioSpeech:
 		return strings.EqualFold(strings.TrimSpace(stringFromMapAny(request.Payload, "stream_format")), "sse")
@@ -324,6 +324,20 @@ func downstreamSSEFailureBody(path string, failure downstreamSSEFailure) []byte 
 		}) + "\n\n"
 	case gatewayEndpointImagesGenerations, gatewayEndpointImagesEdits, gatewayEndpointAudioSpeech:
 		event = "event: error\ndata: " + marshalSSEPayload(map[string]any{"type": "error", "error": errorPayload}) + "\n\n"
+	case gatewayEndpointGeminiGenerate:
+		statusCode := failure.StatusCode
+		if statusCode <= 0 {
+			statusCode = http.StatusInternalServerError
+		}
+		statusName := strings.ToUpper(strings.ReplaceAll(failure.Code, "-", "_"))
+		if statusName == "" {
+			statusName = strings.ToUpper(strings.ReplaceAll(http.StatusText(statusCode), " ", "_"))
+		}
+		event = "data: " + marshalSSEPayload(map[string]any{"error": map[string]any{
+			"code":    statusCode,
+			"message": failure.Message,
+			"status":  statusName,
+		}}) + "\n\n"
 	default:
 		event = "data: " + marshalSSEPayload(map[string]any{"error": errorPayload}) + "\n\ndata: [DONE]\n\n"
 	}
@@ -338,6 +352,7 @@ func marshalSSEPayload(payload map[string]any) string {
 type downstreamSSEFailure struct {
 	Code              string
 	Message           string
+	StatusCode        int
 	RequestID         string
 	RetryAfterSeconds int64
 }

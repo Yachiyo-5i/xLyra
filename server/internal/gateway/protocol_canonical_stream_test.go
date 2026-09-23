@@ -21,6 +21,7 @@ func TestStreamProtocolSpecsRegisterCurrentProtocols(t *testing.T) {
 		canonicalProtocolCodexResponses,
 		canonicalProtocolAntigravity,
 		canonicalProtocolAnthropicMessages,
+		canonicalProtocolGoogleGemini,
 	} {
 		spec, ok := specs[protocol]
 		if !ok {
@@ -35,6 +36,7 @@ func TestStreamProtocolSpecsRegisterCurrentProtocols(t *testing.T) {
 		canonicalProtocolOpenAIResponses,
 		canonicalProtocolCodexResponses,
 		canonicalProtocolAnthropicMessages,
+		canonicalProtocolGoogleGemini,
 	} {
 		if specs[protocol].NewEncoder == nil {
 			t.Fatalf("%s must register stream encoder", protocol)

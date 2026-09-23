@@ -3,6 +3,7 @@ package gateway
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -52,13 +53,41 @@ type chatFailure struct {
 
 func (h Handler) writeGatewayError(w http.ResponseWriter, r *http.Request, status int, code string, message string) {
 	if writer, ok := w.(downstreamSSEFailureWriter); ok && writer.WriteSSEFailure(downstreamSSEFailure{
-		Code:      code,
-		Message:   message,
-		RequestID: middleware.GetReqID(r.Context()),
+		Code:       code,
+		Message:    message,
+		StatusCode: status,
+		RequestID:  middleware.GetReqID(r.Context()),
 	}) {
 		return
 	}
+	if isGeminiGatewayPath(r.URL.Path) {
+		writeGeminiError(w, r, status, code, message)
+		return
+	}
 	httpx.Error(w, r, status, code, message)
+}
+
+func isGeminiGatewayPath(path string) bool {
+	path = strings.TrimSpace(path)
+	return path == gatewayEndpointGeminiModels || (strings.HasPrefix(path, "/v1beta/models/") && (strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent")))
+}
+
+func writeGeminiError(w http.ResponseWriter, r *http.Request, status int, code string, message string) {
+	statusName := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(code), "-", "_"))
+	if statusName == "" {
+		statusName = strings.ToUpper(strings.ReplaceAll(http.StatusText(status), " ", "_"))
+	}
+	payload := map[string]any{
+		"error": map[string]any{
+			"code":    status,
+			"message": message,
+			"status":  statusName,
+		},
+	}
+	if requestID := middleware.GetReqID(r.Context()); requestID != "" {
+		payload["error"].(map[string]any)["details"] = []any{map[string]any{"request_id": requestID}}
+	}
+	httpx.JSON(w, status, payload)
 }
 
 func (h Handler) writeChatFailure(
@@ -94,9 +123,14 @@ func (h Handler) writeChatFailure(
 		if writer, ok := w.(downstreamSSEFailureWriter); ok && writer.WriteSSEFailure(downstreamSSEFailure{
 			Code:              failure.code,
 			Message:           failure.message,
+			StatusCode:        failure.status,
 			RequestID:         requestID,
 			RetryAfterSeconds: failure.retryAfter,
 		}) {
+			return
+		}
+		if isGeminiGatewayPath(r.URL.Path) {
+			writeGeminiError(w, r, failure.status, failure.code, failure.message)
 			return
 		}
 		httpx.JSON(w, failure.status, map[string]any{

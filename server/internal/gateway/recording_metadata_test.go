@@ -11,6 +11,70 @@ import (
 	routeengine "xlyra/server/internal/router"
 )
 
+func TestDownstreamRequestPathMaterializesGeminiModel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		stream bool
+		want   string
+	}{
+		{name: "buffered", want: "/v1beta/models/gemini-3.8-flash:generateContent"},
+		{name: "stream", stream: true, want: "/v1beta/models/gemini-3.8-flash:streamGenerateContent"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := downstreamRequestPath(gatewayEndpointGeminiGenerate, "gemini-3.8-flash", tt.stream)
+			if got != tt.want {
+				t.Fatalf("downstreamRequestPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAttemptMetadataUsesMaterializedGeminiDownstreamPath(t *testing.T) {
+	t.Parallel()
+
+	metadata := attemptMetadata(
+		withRequestedModel(context.Background(), "gemini-3.8-flash"),
+		"req-attempt",
+		"req-parent",
+		uuid.Nil,
+		uuid.Nil,
+		routeengine.Candidate{},
+		gatewayAttemptResult{
+			stream:         true,
+			downstreamPath: gatewayEndpointGeminiGenerate,
+		},
+	)
+	if got := metadata["downstream_path"]; got != "/v1beta/models/gemini-3.8-flash:streamGenerateContent" {
+		t.Fatalf("downstream_path = %#v", got)
+	}
+}
+
+func TestRequestFailureMetadataUsesMaterializedGeminiDownstreamPath(t *testing.T) {
+	t.Parallel()
+
+	metadata := requestFailureMetadata(
+		withRequestedModel(context.Background(), "gemini-3.8-flash"),
+		"req-failure",
+		uuid.Nil,
+		400,
+		"invalid_gemini_request",
+		"bad request",
+		"gemini-3.8-flash",
+		false,
+		"validate",
+		gatewayEndpointGeminiGenerate,
+	)
+	if got := metadata["downstream_path"]; got != "/v1beta/models/gemini-3.8-flash:generateContent" {
+		t.Fatalf("downstream_path = %#v", got)
+	}
+}
+
 func TestAttemptMetadataIncludesNormalizedGatewayFields(t *testing.T) {
 	t.Parallel()
 

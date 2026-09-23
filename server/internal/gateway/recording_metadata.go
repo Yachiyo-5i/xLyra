@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -89,7 +90,21 @@ const (
 	gatewayEndpointImagesEdits       = "/v1/images/edits"
 	gatewayEndpointEmbeddings        = "/v1/embeddings"
 	gatewayEndpointAudioSpeech       = "/v1/audio/speech"
+	gatewayEndpointGeminiModels      = "/v1beta/models"
+	gatewayEndpointGeminiGenerate    = "/v1beta/models/{model}:generateContent"
 )
+
+func downstreamRequestPath(path string, requestedModel string, stream bool) string {
+	path = strings.TrimSpace(path)
+	model := strings.TrimSpace(requestedModel)
+	if path == "" || model == "" {
+		return path
+	}
+	if stream && path == gatewayEndpointGeminiGenerate {
+		path = strings.TrimSuffix(path, ":generateContent") + ":streamGenerateContent"
+	}
+	return strings.Replace(path, "{model}", url.PathEscape(model), 1)
+}
 
 func attemptMetadata(
 	ctx context.Context,
@@ -138,6 +153,7 @@ func attemptMetadata(
 		apiKeyBillingMultiplier = 1
 	}
 	costCalculation["api_key_billing_multiplier"] = apiKeyBillingMultiplier
+	requestedModel := requestedModelFromContext(ctx, "")
 	meta := map[string]any{
 		"scope":                               scope,
 		"endpoint":                            emptyToNil(result.downstreamPath),
@@ -158,7 +174,7 @@ func attemptMetadata(
 		"site_type":                           candidate.Site.SiteType,
 		"site_base_url":                       candidate.Site.BaseURL,
 		"upstream_model":                      candidate.Model.UpstreamName,
-		"requested_model":                     emptyToNil(requestedModelFromContext(ctx, "")),
+		"requested_model":                     emptyToNil(requestedModel),
 		"upstream_response_model":             emptyToNil(result.upstreamResponseModel),
 		"site_model_display_name":             candidate.Model.DisplayName,
 		"canonical_model":                     candidate.Model.DisplayName,
@@ -197,7 +213,7 @@ func attemptMetadata(
 			"group_name":               emptyToNil(result.pricingGroup),
 			"upstream_cost_multiplier": credentialMultiplier,
 		},
-		"downstream_path":              emptyToNil(result.downstreamPath),
+		"downstream_path":              emptyToNil(downstreamRequestPath(result.downstreamPath, requestedModel, result.stream)),
 		"upstream_path":                emptyToNil(result.upstreamPath),
 		"upstream_protocol":            emptyToNil(result.upstreamProtocol),
 		"upstream_url":                 emptyToNil(result.upstreamURL),
@@ -277,6 +293,8 @@ func downstreamProtocolFromPath(path string) string {
 		return string(canonicalProtocolOpenAIResponses)
 	case gatewayEndpointMessages:
 		return string(canonicalProtocolAnthropicMessages)
+	case gatewayEndpointGeminiGenerate:
+		return string(canonicalProtocolGoogleGemini)
 	case gatewayEndpointImagesGenerations, gatewayEndpointImagesEdits:
 		return string(canonicalProtocolOpenAIImages)
 	default:
@@ -309,6 +327,7 @@ func requestFailureMetadata(
 	if strings.TrimSpace(endpoint) == "" {
 		endpoint = gatewayEndpointChatCompletions
 	}
+	requestedModel = requestedModelFromContext(ctx, requestedModel)
 	meta := map[string]any{
 		"scope":                "gateway",
 		"failure_scope":        "gateway",
@@ -318,12 +337,12 @@ func requestFailureMetadata(
 		"api_key_id":           nullableCredentialID(apiKeyID),
 		"attempt":              0,
 		"stage":                emptyToNil(stage),
-		"requested_model":      emptyToNil(requestedModelFromContext(ctx, requestedModel)),
+		"requested_model":      emptyToNil(requestedModel),
 		"stream":               stream,
 		"response_mode":        responseModeLabel(stream),
 		"downstream_transport": "http",
 		"upstream_transport":   nil,
-		"downstream_path":      endpoint,
+		"downstream_path":      downstreamRequestPath(endpoint, requestedModel, stream),
 		"status_code":          statusCode,
 		"error_code":           emptyToNil(errorType),
 		"error_type":           emptyToNil(errorType),

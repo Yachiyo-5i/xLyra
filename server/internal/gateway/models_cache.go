@@ -351,10 +351,12 @@ func (h Handler) buildModelsPayloadForAccess(ctx context.Context, access auth.AP
 		for _, endpointType := range gatewayModelEndpointTypes(siteModel) {
 			endpointSet[endpointType] = struct{}{}
 		}
-		if _, ok := itemsByModelKey[canonical.ModelKey]; ok {
-			continue
+		item, ok := itemsByModelKey[canonical.ModelKey]
+		if !ok {
+			item = canonicalModelPayload(canonical)
+			itemsByModelKey[canonical.ModelKey] = item
 		}
-		itemsByModelKey[canonical.ModelKey] = canonicalModelPayload(canonical)
+		applyModelCapabilitiesMetadata(item, siteModel.Capabilities)
 	}
 
 	for modelKey, item := range itemsByModelKey {
@@ -487,6 +489,29 @@ func applyModelEndpointTypes(item map[string]any, endpointSet map[string]struct{
 	}
 }
 
+func applyModelCapabilitiesMetadata(item map[string]any, capabilities store.JSON) {
+	if len(capabilities) == 0 {
+		return
+	}
+	values := map[string]any{}
+	if err := json.Unmarshal(capabilities, &values); err != nil {
+		return
+	}
+	metadata, ok := item["metadata"].(map[string]any)
+	if !ok {
+		metadata = map[string]any{}
+		item["metadata"] = metadata
+	}
+	for _, key := range []string{"description", "version", "input_token_limit", "output_token_limit", "supported_generation_methods"} {
+		if _, exists := metadata[key]; exists {
+			continue
+		}
+		if value, exists := values[key]; exists && value != nil {
+			metadata[key] = value
+		}
+	}
+}
+
 func canonicalModelPayload(model store.CanonicalModel) map[string]any {
 	metadata := map[string]any{
 		"canonical_model_id": model.ID.String(),
@@ -496,13 +521,21 @@ func canonicalModelPayload(model store.CanonicalModel) map[string]any {
 	if effort := ReasoningEffortSpecForModel(model.ModelKey); effort != nil {
 		metadata["reasoning_effort"] = effort
 	}
-	return map[string]any{
+	item := map[string]any{
 		"id":       model.ModelKey,
 		"object":   "model",
 		"created":  model.CreatedAt.Unix(),
 		"owned_by": defaultString(model.Provider, "xlyra"),
 		"metadata": metadata,
 	}
+	applyModelCapabilitiesMetadata(item, model.Capabilities)
+	if model.ContextWindow.Valid {
+		metadata["input_token_limit"] = model.ContextWindow.Int32
+	}
+	if model.MaxOutputTokens.Valid {
+		metadata["output_token_limit"] = model.MaxOutputTokens.Int32
+	}
+	return item
 }
 
 func gatewayUUIDSet(items []uuid.UUID) map[uuid.UUID]struct{} {

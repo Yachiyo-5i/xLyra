@@ -201,6 +201,7 @@ func TestGatewayRoutesAreRegisteredAndProtected(t *testing.T) {
 		{name: "image edits", method: http.MethodPost, path: "/v1/images/edits"},
 		{name: "embeddings", method: http.MethodPost, path: "/v1/embeddings"},
 		{name: "models", method: http.MethodGet, path: "/v1/models"},
+		{name: "gemini models", method: http.MethodGet, path: "/v1beta/models"},
 		{name: "user balance", method: http.MethodGet, path: "/v1/user/balance"},
 	} {
 		tc := tc
@@ -488,6 +489,8 @@ func TestRouteAwareTimeoutLeavesStreamingRoutesWithoutDeadline(t *testing.T) {
 		{method: http.MethodPost, path: "/v1/images/generations"},
 		{method: http.MethodPost, path: "/v1/images/edits"},
 		{method: http.MethodPost, path: "/v1/messages"},
+		{method: http.MethodPost, path: "/v1beta/models/gemini-3.1-flash-image:generateContent"},
+		{method: http.MethodPost, path: "/v1beta/models/gemini-3.1-flash-image:streamGenerateContent"},
 		{method: http.MethodPost, path: "/api/playground/v1/chat/completions"},
 		{method: http.MethodPost, path: "/api/playground/v1/responses"},
 		{method: http.MethodPost, path: "/api/playground/v1/images/generations"},
@@ -542,6 +545,30 @@ func testConfig() config.Config {
 	}
 }
 
+func TestSpaHandlerInjectsCachedBootstrapState(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html><head><title>xLyra</title></head><body></body></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := auth.NewService(nil, "test-master-key")
+	service.MarkBootstrapInitialized()
+	handler := newSPAHandler(dir, service)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "window.__XLYRA_BOOTSTRAP__={initialized:true}") {
+		t.Fatalf("body = %s, want injected bootstrap state", rec.Body.String())
+	}
+	if cookie := rec.Header().Get("Set-Cookie"); !strings.Contains(cookie, "xlyra_admin_initialized=1") {
+		t.Fatalf("Set-Cookie = %q, want bootstrap initialized cookie", cookie)
+	}
+}
+
 func TestSpaHandlerCacheHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -581,13 +608,13 @@ func TestSpaHandlerCacheHeaders(t *testing.T) {
 	}{
 		{"/assets/index-abc123.js", "public, max-age=31536000, immutable"},
 		{"/favicon.png", "public, max-age=86400"},
-		{"/sw.js", "no-cache"},
-		{"/workbox-deadbeef.js", "no-cache"},
-		{"/registerSW.js", "no-cache"},
-		{"/version.json", "no-cache"},
-		{"/manifest.webmanifest", "no-cache"},
-		{"/settings", "no-cache"},
-		{"/", "no-cache"},
+		{"/sw.js", "no-store"},
+		{"/workbox-deadbeef.js", "no-store"},
+		{"/registerSW.js", "no-store"},
+		{"/version.json", "no-store"},
+		{"/manifest.webmanifest", "no-store"},
+		{"/settings", "no-store"},
+		{"/", "no-store"},
 	}
 	for _, tc := range cases {
 		rec := httptest.NewRecorder()

@@ -92,7 +92,21 @@ func apiKeyFromRequest(r *http.Request) string {
 		return token
 	}
 
-	return strings.TrimSpace(r.Header.Get("X-API-Key"))
+	if key := strings.TrimSpace(r.Header.Get("X-API-Key")); key != "" {
+		return key
+	}
+	if isGeminiDownstreamPath(r.URL.Path) {
+		if key := strings.TrimSpace(r.Header.Get("x-goog-api-key")); key != "" {
+			return key
+		}
+		return strings.TrimSpace(r.URL.Query().Get("key"))
+	}
+	return ""
+}
+
+func isGeminiDownstreamPath(path string) bool {
+	path = strings.TrimSpace(path)
+	return path == "/v1beta/models" || (strings.HasPrefix(path, "/v1beta/models/") && (strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent")))
 }
 
 func bearerToken(value string) string {

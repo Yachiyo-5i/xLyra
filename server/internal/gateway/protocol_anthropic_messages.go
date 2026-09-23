@@ -110,6 +110,9 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 		return payload, nil
 	}
 	if request.Canonical != nil {
+		if err := validateGoogleGeminiConversion(*request.Canonical, canonicalProtocolAnthropicMessages); err != nil {
+			return nil, err
+		}
 		canonical, responseTools, err := prepareResponsesNamespaceToolsForAnthropic(*request.Canonical)
 		if err != nil {
 			return nil, err
@@ -143,7 +146,7 @@ func (a anthropicMessagesProtocolAdapter) TransformBufferedResponse(statusCode i
 		return gatewayBufferedResponse{StatusCode: statusCode, ContentType: contentType, Body: body}, nil
 	}
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolAnthropicMessages {
-		convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolAnthropicMessages, a.downstreamProtocol, body, responseConversionOptions{ResponseTools: a.responseTools()})
+		convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolAnthropicMessages, a.downstreamProtocol, body, responseConversionOptions{ResponseTools: a.responseTools(), RequireUsage: true})
 		if err != nil {
 			return gatewayBufferedResponse{}, err
 		}
@@ -154,7 +157,7 @@ func (a anthropicMessagesProtocolAdapter) TransformBufferedResponse(statusCode i
 
 func (a anthropicMessagesProtocolAdapter) ProxyStream(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, candidate routeengine.Candidate) (streamCaptureState, bool, error) {
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolAnthropicMessages {
-		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAnthropicMessages, a.downstreamProtocol, canonicalStreamOptions{IncludeUsage: a.includeUsage, Candidate: candidate, ResponseTools: a.responseTools()})
+		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAnthropicMessages, a.downstreamProtocol, canonicalStreamOptions{IncludeUsage: true, RequireUsage: true, Candidate: candidate, ResponseTools: a.responseTools()})
 	}
 	return proxyUpstreamStreamWithInspector(ctx, w, resp, startedAt, inspectAnthropicMessagesStreamLine)
 }
@@ -250,7 +253,7 @@ func (a providerAnthropicMessagesProtocolAdapter) TransformBufferedResponse(stat
 	if statusCode < 200 || statusCode >= 300 || a.downstreamProtocol == "" || a.downstreamProtocol == canonicalProtocolAnthropicMessages {
 		return (anthropicMessagesProtocolAdapter{downstreamProtocol: a.downstreamProtocol}).TransformBufferedResponse(statusCode, headers, body)
 	}
-	convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolAnthropicMessages, a.downstreamProtocol, body, responseConversionOptions{CustomTools: a.customTools, ResponseTools: a.responseTools})
+	convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolAnthropicMessages, a.downstreamProtocol, body, responseConversionOptions{CustomTools: a.customTools, ResponseTools: a.responseTools, RequireUsage: true})
 	if err != nil {
 		return gatewayBufferedResponse{}, err
 	}
@@ -261,7 +264,8 @@ func (a providerAnthropicMessagesProtocolAdapter) ProxyStream(ctx context.Contex
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolAnthropicMessages {
 		inspector := newProviderAnthropicStreamInspector()
 		return proxyCanonicalStream(ctx, w, resp, startedAt, canonicalProtocolAnthropicMessages, a.downstreamProtocol, canonicalStreamOptions{
-			IncludeUsage:        a.includeUsage,
+			IncludeUsage:        true,
+			RequireUsage:        true,
 			UpstreamLineInspect: inspector.inspect,
 			Candidate:           candidate,
 			CustomTools:         a.customTools,

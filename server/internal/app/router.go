@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
@@ -51,6 +52,13 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	var authService *auth.Service
 	if db != nil {
 		authService = auth.NewService(db.DB(), masterKey, confFile)
+		warmCtx, warmCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := authService.WarmBootstrapCache(warmCtx); err != nil {
+			logger.Warn("bootstrap admin cache warmup failed", "error", err)
+		} else {
+			logger.Info("bootstrap admin cache ready")
+		}
+		warmCancel()
 	}
 
 	httpClients := httpclient.NewManager(confFile)
@@ -91,12 +99,21 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	}
 	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db).WithAnalyticsService(analyticsService)
 	healthHandler := health.NewHandler(cfg, db)
-	var preRestore, postRestore func(context.Context) error
+	var preRestore, postRestore, databaseRestored func(context.Context) error
 	if playgroundService != nil {
 		preRestore = playgroundService.QuiesceForRestore
 		postRestore = playgroundService.RecoverAfterRestore
 	}
-	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, playgroundRoot, preRestore, postRestore, appTimeZone)
+	if authService != nil {
+		databaseRestored = func(ctx context.Context) error {
+			if err := authService.RefreshBootstrapCache(ctx); err != nil {
+				authService.ClearBootstrapCache()
+				logger.Warn("bootstrap admin cache refresh after restore failed", "error", err)
+			}
+			return nil
+		}
+	}
+	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, playgroundRoot, preRestore, postRestore, databaseRestored, appTimeZone)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -118,7 +135,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		httpx.Error(w, r, http.StatusNotFound, "not_found", "route not found")
 	})
 	if cfg.StaticDir != "" {
-		r.Handle("/*", spaHandler(cfg.StaticDir))
+		r.Handle("/*", newSPAHandler(cfg.StaticDir, authService))
 	}
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
@@ -349,6 +366,15 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		})
 	})
 
+	r.Route("/v1beta", func(v1beta chi.Router) {
+		v1beta.Group(func(protected chi.Router) {
+			protected.Use(requireAPIKey(authService))
+			limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
+			protected.Get("/models", gatewayHandler.GeminiModels)
+			protected.With(limitBody).Post("/models/{model}:generateContent", gatewayHandler.GeminiGenerateContent(false))
+			protected.With(limitBody).Post("/models/{model}:streamGenerateContent", gatewayHandler.GeminiGenerateContent(true))
+		})
+	})
 	r.Route("/api/playground/v1", func(playground chi.Router) {
 		playground.Use(requireAPIKey(authService))
 		limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
@@ -438,7 +464,8 @@ func routeAwareTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 				return
 			}
 			gatewayPath := strings.TrimPrefix(r.URL.Path, "/api/playground")
-			if r.Method == http.MethodPost && (gatewayPath == "/v1/chat/completions" || gatewayPath == "/v1/responses" || gatewayPath == "/v1/images/generations" || gatewayPath == "/v1/images/edits" || gatewayPath == "/v1/messages" || gatewayPath == "/v1/audio/speech") {
+			geminiGatewayPath := strings.HasPrefix(gatewayPath, "/v1beta/models/") && (strings.HasSuffix(gatewayPath, ":generateContent") || strings.HasSuffix(gatewayPath, ":streamGenerateContent"))
+			if r.Method == http.MethodPost && (gatewayPath == "/v1/chat/completions" || gatewayPath == "/v1/responses" || gatewayPath == "/v1/images/generations" || gatewayPath == "/v1/images/edits" || gatewayPath == "/v1/messages" || gatewayPath == "/v1/audio/speech" || geminiGatewayPath) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -455,20 +482,24 @@ func isBackupTransferRequest(r *http.Request) bool {
 }
 
 func spaHandler(staticDir string) http.Handler {
+	return newSPAHandler(staticDir, nil)
+}
+
+func newSPAHandler(staticDir string, authService *auth.Service) http.Handler {
 	fs := http.FileServer(http.Dir(staticDir))
 	index := filepath.Join(staticDir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(staticDir, filepath.Clean("/"+r.URL.Path))
 		info, err := os.Stat(path)
-		switch {
-		case os.IsNotExist(err):
-			w.Header().Set("Cache-Control", "no-cache")
-			http.ServeFile(w, r, index)
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" || os.IsNotExist(err) {
+			serveAppIndex(w, r, index, authService)
 			return
+		}
+		switch {
 		case err == nil && info.IsDir():
-			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Cache-Control", "no-store")
 		case mustRevalidateStaticFile(filepath.Base(path)):
-			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Cache-Control", "no-store")
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		default:
@@ -476,6 +507,41 @@ func spaHandler(staticDir string) http.Handler {
 		}
 		fs.ServeHTTP(w, r)
 	})
+}
+
+func serveAppIndex(w http.ResponseWriter, r *http.Request, indexPath string, authService *auth.Service) {
+	w.Header().Set("Cache-Control", "no-store")
+	body, err := os.ReadFile(indexPath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if authService != nil {
+		if initialized, ok := authService.CachedBootstrapInitialized(); ok {
+			httpx.SetBootstrapInitializedCookie(w, r, initialized)
+			body = injectBootstrapState(body, initialized)
+		}
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+func injectBootstrapState(body []byte, initialized bool) []byte {
+	value := "false"
+	if initialized {
+		value = "true"
+	}
+	snippet := []byte("<script>window.__XLYRA_BOOTSTRAP__={initialized:" + value + "}</script>")
+	lower := bytes.ToLower(body)
+	if i := bytes.Index(lower, []byte("</head>")); i >= 0 {
+		out := make([]byte, 0, len(body)+len(snippet))
+		out = append(out, body[:i]...)
+		out = append(out, snippet...)
+		out = append(out, body[i:]...)
+		return out
+	}
+	return append(snippet, body...)
 }
 
 func mustRevalidateStaticFile(name string) bool {

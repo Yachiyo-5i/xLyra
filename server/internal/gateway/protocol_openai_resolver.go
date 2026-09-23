@@ -60,6 +60,11 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 		}
 		return newOpenAIImagesProtocolAdapter(request, candidate), nil
 	}
+	if request.DownstreamPath == gatewayEndpointGeminiGenerate && request.Canonical != nil && request.Canonical.Image != nil {
+		if containsEndpointType(candidate.Model.SupportedEndpointTypes, upstreamEndpointTypeOpenAIImage) {
+			return newOpenAIImagesProtocolAdapter(request, candidate), nil
+		}
+	}
 
 	if isCodexSite(candidate.Site.SiteType) {
 		return newCodexProtocolAdapter(request), nil
@@ -97,6 +102,9 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 	}
 	if err != nil {
 		return nil, err
+	}
+	if request.DownstreamPath == gatewayEndpointGeminiGenerate && request.Canonical != nil && request.Canonical.Image != nil && containsEndpointType(endpointTypes, upstreamEndpointTypeOpenAIImage) {
+		return newOpenAIImagesProtocolAdapter(request, candidate), nil
 	}
 	downstream := downstreamCanonicalProtocol(request.DownstreamPath)
 	switch downstream {
@@ -143,6 +151,8 @@ func endpointTypesAllowRequest(request gatewayRequest, endpointTypes []string) b
 	case request.DownstreamPath == gatewayEndpointAudioSpeech:
 		return allowed(upstreamEndpointTypeOpenAIAudioSpeech, upstreamEndpointTypeOpenAI, upstreamEndpointTypeGoogleGemini)
 	case isOpenAIImagesEndpoint(request.DownstreamPath):
+		return allowed(upstreamEndpointTypeOpenAIImage, upstreamEndpointTypeOpenAI, upstreamEndpointTypeGoogleGemini)
+	case request.DownstreamPath == gatewayEndpointGeminiGenerate && request.Canonical != nil && request.Canonical.Image != nil:
 		return allowed(upstreamEndpointTypeOpenAIImage, upstreamEndpointTypeOpenAI, upstreamEndpointTypeGoogleGemini)
 	default:
 		return allowed(upstreamEndpointTypeOpenAI, upstreamEndpointTypeOpenAIResponse, upstreamEndpointTypeAnthropicMessages, upstreamEndpointTypeGoogleGemini)
@@ -314,6 +324,8 @@ func downstreamCanonicalProtocol(path string) canonicalProtocol {
 		return canonicalProtocolOpenAIResponses
 	case gatewayEndpointMessages:
 		return canonicalProtocolAnthropicMessages
+	case gatewayEndpointGeminiGenerate:
+		return canonicalProtocolGoogleGemini
 	case gatewayEndpointImagesGenerations, gatewayEndpointImagesEdits:
 		return canonicalProtocolOpenAIImages
 	default:
