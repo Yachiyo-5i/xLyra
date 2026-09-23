@@ -116,21 +116,8 @@ export function siteTypeIconClassName(siteType: string): string | undefined {
 
 export function normalizedSiteTypeFilter(siteType: string): string {
   const t = siteType.trim().toLowerCase()
-  if (t === 'codex') return 'codex'
-  if (t === 'antigravity') return 'antigravity'
-  if (t === 'claude_code') return 'claude_code'
-  if (t === 'newapi') return 'newapi'
-  if (t === 'xlyra') return 'xlyra'
-  if (t === 'anthropic') return 'anthropic'
-  if (t === 'google_gemini') return 'google_gemini'
-  if (t === 'deepseek') return 'deepseek'
-  if (t === 'minimax') return 'minimax'
-  if (t === 'xiaomi_mimo') return 'xiaomi_mimo'
-  if (t === 'moonshot') return 'moonshot'
-  if (t === 'kimi_code') return 'kimi_code'
-  if (t === 'zhipu') return 'zhipu'
-  if (t === 'glm_code') return 'glm_code'
-  return 'openai'
+  if (t === 'openai' || t === 'openai_compatible') return 'openai'
+  return t
 }
 
 export function isOAuthSite(site: Site, siteTypes?: SiteTypeInfo[]): boolean {

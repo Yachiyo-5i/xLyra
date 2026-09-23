@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteQuotaProbeEntry } from '@/features/sites/api/sites'
-import { accountBalanceDetails, formatAccountBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { accountBalanceDetails, formatAccountBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, normalizedSiteTypeFilter, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -43,6 +43,24 @@ describe('sortSitesForDisplay', () => {
     ]
 
     expect(sortSitesForDisplay(sites).map((site) => site.id)).toEqual(['high', 'low', 'disabled'])
+  })
+})
+
+describe('normalizedSiteTypeFilter', () => {
+  it('keeps Grok and OpenAI on separate tabs', () => {
+    expect(normalizedSiteTypeFilter('grok')).toBe('grok')
+    expect(normalizedSiteTypeFilter('openai')).toBe('openai')
+    expect(normalizedSiteTypeFilter('grok')).not.toBe(normalizedSiteTypeFilter('openai'))
+  })
+
+  it('groups only the OpenAI-compatible alias with OpenAI', () => {
+    expect(normalizedSiteTypeFilter('openai_compatible')).toBe('openai')
+    expect(normalizedSiteTypeFilter(' OpenAI ')).toBe('openai')
+  })
+
+  it('gives later site types their own tab instead of folding them into OpenAI', () => {
+    expect(normalizedSiteTypeFilter('opencode_go')).toBe('opencode_go')
+    expect(normalizedSiteTypeFilter('anthropic')).toBe('anthropic')
   })
 })
 

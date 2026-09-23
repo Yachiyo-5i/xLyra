@@ -59,6 +59,29 @@ export async function deleteSiteGroup(groupId: string) {
   })
 }
 
+export function applySiteGroupMembership(
+  current: { items: SiteGroup[]; meta?: { count?: number } } | undefined,
+  siteId: string,
+  groupIds: string[],
+) {
+  if (!current) return current
+  const selected = new Set(groupIds)
+  return {
+    ...current,
+    items: current.items.map((group) => {
+      const belongs = group.sites.some((site) => site.site_id === siteId)
+      const shouldBelong = selected.has(group.id)
+      if (belongs === shouldBelong) return group
+      return {
+        ...group,
+        sites: shouldBelong
+          ? [...group.sites, { id: `pending:${group.id}:${siteId}`, group_id: group.id, site_id: siteId }]
+          : group.sites.filter((site) => site.site_id !== siteId),
+      }
+    }),
+  }
+}
+
 export async function updateSiteGroupMembershipForSite(groups: SiteGroup[], siteId: string, groupIds: string[]) {
   const selected = new Set(groupIds)
   await Promise.all(
