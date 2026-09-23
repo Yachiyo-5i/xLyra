@@ -1,6 +1,9 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { ProtectedLayout } from '@/app/protected-layout'
 import { PublicOnlyRoute } from '@/components/auth/auth-guard'
+import { LoginPage } from '@/routes/login'
+import { RegisterPage } from '@/routes/register'
 
 function lazyNamed<T extends ComponentType>(
   loader: () => Promise<Record<string, T>>,
@@ -16,10 +19,10 @@ const APIKeysPage = lazyNamed(() => import('@/routes/api-keys'), 'APIKeysPage')
 const AnalyticsPage = lazyNamed(() => import('@/routes/analytics'), 'AnalyticsPage')
 const AuditLogsPage = lazyNamed(() => import('@/routes/audit-logs-page'), 'AuditLogsPage')
 const BackupSettingsPage = lazyNamed(() => import('@/routes/settings/backup-settings-page'), 'BackupSettingsPage')
-const DashboardPage = lazyNamed(() => import('@/routes/dashboard'), 'DashboardPage')
+const dashboardModule = import('@/routes/dashboard')
+const DashboardPage = lazyNamed(() => dashboardModule, 'DashboardPage')
 const GeneralSettingsPage = lazyNamed(() => import('@/routes/settings/global/general-settings-page'), 'GeneralSettingsPage')
 const GlobalConfigPage = lazyNamed(() => import('@/routes/settings/global-config-page'), 'GlobalConfigPage')
-const LoginPage = lazyNamed(() => import('@/routes/login'), 'LoginPage')
 const ModelsPage = lazyNamed(() => import('@/routes/models'), 'ModelsPage')
 const ModelsPriceSettingsPage = lazyNamed(() => import('@/routes/settings/models-price-settings-page'), 'ModelsPriceSettingsPage')
 const SystemProxySettingsPage = lazyNamed(() => import('@/routes/settings/global/system-proxy-settings-page'), 'SystemProxySettingsPage')
@@ -29,9 +32,7 @@ const PlaygroundPage = lazyNamed(() => import('@/routes/playground'), 'Playgroun
 const PortalPage = lazyNamed(() => import('@/routes/portal'), 'PortalPage')
 const PortalSettingsPage = lazyNamed(() => import('@/routes/settings/global/portal-settings-page'), 'PortalSettingsPage')
 const ProfileSettingsPage = lazyNamed(() => import('@/routes/settings/global/profile-settings-page'), 'ProfileSettingsPage')
-const ProtectedLayout = lazyNamed(() => import('@/app/protected-layout'), 'ProtectedLayout')
 const RateLimitSettingsPage = lazyNamed(() => import('@/routes/settings/global/rate-limit-settings-page'), 'RateLimitSettingsPage')
-const RegisterPage = lazyNamed(() => import('@/routes/register'), 'RegisterPage')
 const RequestsPage = lazyNamed(() => import('@/routes/requests'), 'RequestsPage')
 const RoutesPage = lazyNamed(() => import('@/routes/routing'), 'RoutesPage')
 const SiteGroupsSettingsPage = lazyNamed(() => import('@/routes/settings/global/site-groups-settings-page'), 'SiteGroupsSettingsPage')
@@ -52,14 +53,18 @@ function lazyElement(element: ReactNode) {
   )
 }
 
+function quietElement(element: ReactNode) {
+  return <Suspense fallback={null}>{element}</Suspense>
+}
+
 export const appRouter = createBrowserRouter([
   {
     path: '/',
-    element: lazyElement(<ProtectedLayout />),
+    element: <ProtectedLayout />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'playground', element: lazyElement(<PlaygroundPage />) },
-      { path: 'dashboard', element: lazyElement(<DashboardPage />) },
+      { path: 'dashboard', element: quietElement(<DashboardPage />) },
       { path: 'analytics', element: lazyElement(<AnalyticsPage />) },
       { path: 'sites', element: lazyElement(<SitesPage />) },
       { path: 'models', element: lazyElement(<ModelsPage />) },
@@ -79,7 +84,8 @@ export const appRouter = createBrowserRouter([
               { index: true, element: <Navigate to="/settings/global/general" replace /> },
               { path: 'profile', element: lazyElement(<ProfileSettingsPage />) },
               { path: 'general', element: lazyElement(<GeneralSettingsPage />) },
-              { path: 'system-proxy', element: lazyElement(<SystemProxySettingsPage />) },              { path: 'rate-limit', element: lazyElement(<RateLimitSettingsPage />) },
+              { path: 'system-proxy', element: lazyElement(<SystemProxySettingsPage />) },
+              { path: 'rate-limit', element: lazyElement(<RateLimitSettingsPage />) },
               { path: 'site-groups', element: lazyElement(<SiteGroupsSettingsPage />) },
               { path: 'portal', element: lazyElement(<PortalSettingsPage />) },
             ],
@@ -99,7 +105,7 @@ export const appRouter = createBrowserRouter([
     path: '/login',
     element: (
       <PublicOnlyRoute mode="login">
-        {lazyElement(<LoginPage />)}
+        <LoginPage />
       </PublicOnlyRoute>
     ),
   },
@@ -107,7 +113,7 @@ export const appRouter = createBrowserRouter([
     path: '/register',
     element: (
       <PublicOnlyRoute mode="register">
-        {lazyElement(<RegisterPage />)}
+        <RegisterPage />
       </PublicOnlyRoute>
     ),
   },

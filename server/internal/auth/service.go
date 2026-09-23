@@ -8,6 +8,7 @@ import (
 	"math"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,10 @@ type Service struct {
 	timeZone        config.TimeZone
 	loginGuard      *loginGuard
 	totpReplay      *totpReplayGuard
+	bootstrapMu     sync.RWMutex
+	bootstrapGen    uint64
+	bootstrapReady  bool
+	bootstrap       BootstrapStatus
 }
 
 // verifyTOTPForAdmin validates a code and rejects replays of a code already used
@@ -251,19 +256,120 @@ func (s *Service) CreateAdmin(ctx context.Context, username string, password str
 		}
 		return store.Admin{}, err
 	}
+	s.MarkBootstrapInitialized()
 	return admin, nil
 }
 
 func (s *Service) BootstrapStatus(ctx context.Context) (BootstrapStatus, error) {
+	if status, ok := s.loadBootstrap(); ok {
+		return status, nil
+	}
+
+	gen := s.nextBootstrapGeneration()
 	count, err := s.admins.Count(ctx)
 	if err != nil {
 		return BootstrapStatus{}, err
 	}
-
+	if !s.storeBootstrapIfCurrent(gen, count) {
+		if status, ok := s.loadBootstrap(); ok {
+			return status, nil
+		}
+	}
 	return BootstrapStatus{
 		Initialized: count > 0,
 		AdminCount:  count,
 	}, nil
+}
+
+func (s *Service) WarmBootstrapCache(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("auth service is not available")
+	}
+	gen := s.nextBootstrapGeneration()
+	count, err := s.admins.Count(ctx)
+	if err != nil {
+		return err
+	}
+	s.storeBootstrapIfCurrent(gen, count)
+	return nil
+}
+
+func (s *Service) RefreshBootstrapCache(ctx context.Context) error {
+	s.ClearBootstrapCache()
+	return s.WarmBootstrapCache(ctx)
+}
+
+func (s *Service) CachedBootstrapInitialized() (bool, bool) {
+	status, ok := s.loadBootstrap()
+	if !ok {
+		return false, false
+	}
+	return status.Initialized, true
+}
+
+func (s *Service) MarkBootstrapInitialized() {
+	if s == nil {
+		return
+	}
+	s.bootstrapMu.Lock()
+	defer s.bootstrapMu.Unlock()
+	s.bootstrapGen++
+	count := s.bootstrap.AdminCount
+	if count < 1 {
+		count = 1
+	}
+	s.bootstrapReady = true
+	s.bootstrap = BootstrapStatus{Initialized: true, AdminCount: count}
+}
+
+func (s *Service) ClearBootstrapCache() {
+	if s == nil {
+		return
+	}
+	s.bootstrapMu.Lock()
+	s.bootstrapGen++
+	s.bootstrapReady = false
+	s.bootstrap = BootstrapStatus{}
+	s.bootstrapMu.Unlock()
+}
+
+func (s *Service) loadBootstrap() (BootstrapStatus, bool) {
+	if s == nil {
+		return BootstrapStatus{}, false
+	}
+	s.bootstrapMu.RLock()
+	defer s.bootstrapMu.RUnlock()
+	if !s.bootstrapReady {
+		return BootstrapStatus{}, false
+	}
+	return s.bootstrap, true
+}
+
+func (s *Service) nextBootstrapGeneration() uint64 {
+	if s == nil {
+		return 0
+	}
+	s.bootstrapMu.Lock()
+	defer s.bootstrapMu.Unlock()
+	s.bootstrapGen++
+	return s.bootstrapGen
+}
+
+func (s *Service) storeBootstrapIfCurrent(gen uint64, count int) bool {
+	if s == nil {
+		return false
+	}
+	if count < 0 {
+		count = 0
+	}
+	s.bootstrapMu.Lock()
+	defer s.bootstrapMu.Unlock()
+	if gen != s.bootstrapGen {
+		return false
+	}
+	s.bootstrapReady = true
+	s.bootstrap = BootstrapStatus{Initialized: count > 0, AdminCount: count}
+	return true
 }
 
 func (s *Service) BootstrapAdmin(ctx context.Context, username string, password string, nickname string, avatar string, userAgent string, remoteAddr string) (LoginResult, error) {
@@ -293,6 +399,7 @@ func (s *Service) BootstrapAdmin(ctx context.Context, username string, password 
 		}
 		return LoginResult{}, err
 	}
+	s.MarkBootstrapInitialized()
 
 	return s.issueAdminSession(ctx, admin, userAgent, remoteAddr)
 }

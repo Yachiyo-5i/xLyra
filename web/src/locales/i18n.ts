@@ -24,6 +24,7 @@ const namespaces = [
 type Locale = 'zh' | 'en' | 'jp'
 type Namespace = (typeof namespaces)[number]
 type ResourceModule = { default: Record<string, unknown> }
+const initialNamespaces: Namespace[] = ['common', 'components', 'auth', 'dashboard']
 
 const resourceLoaders: Record<Locale, Record<Namespace, () => Promise<ResourceModule>>> = {
   zh: {
@@ -110,7 +111,7 @@ export const i18nReady = i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    ns: [namespaces[0]],
+    ns: initialNamespaces.filter((namespace) => namespaces.includes(namespace)),
     defaultNS: 'common',
     fallbackLng: {
       ja: ['jp'],

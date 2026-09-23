@@ -50,14 +50,15 @@ func endSharedOperation(db *store.Store) {
 }
 
 type Service struct {
-	db             *store.Store
-	confFile       *config.ConfigFile
-	masterKey      string
-	playgroundRoot string
-	preRestore     func(context.Context) error
-	postRestore    func(context.Context) error
-	now            func() time.Time
-	timeZone       config.TimeZone
+	db               *store.Store
+	confFile         *config.ConfigFile
+	masterKey        string
+	playgroundRoot   string
+	preRestore       func(context.Context) error
+	postRestore      func(context.Context) error
+	databaseRestored func(context.Context) error
+	now              func() time.Time
+	timeZone         config.TimeZone
 }
 
 type ImportSummary struct {
@@ -102,6 +103,25 @@ func (s Service) WithRestoreHooks(pre func(context.Context) error, post func(con
 	s.preRestore = pre
 	s.postRestore = post
 	return s
+}
+
+func (s Service) WithDatabaseRestored(fn func(context.Context) error) Service {
+	s.databaseRestored = fn
+	return s
+}
+
+func (s Service) finishRestore(ctx context.Context) error {
+	var hookErr error
+	if s.postRestore != nil {
+		hookErr = s.postRestore(ctx)
+	}
+	if s.databaseRestored != nil {
+		_ = s.databaseRestored(ctx)
+	}
+	if hookErr != nil {
+		return fmt.Errorf("finish restore: %w", hookErr)
+	}
+	return nil
 }
 
 func (s Service) Export(ctx context.Context, passphrase string) (string, string, error) {
@@ -275,8 +295,8 @@ func (s Service) importReaderLocked(ctx context.Context, passphrase string, encr
 		quiesced = true
 	}
 	converge := func() {
-		if quiesced && s.postRestore != nil {
-			_ = s.postRestore(ctx)
+		if quiesced {
+			_ = s.finishRestore(ctx)
 		}
 	}
 
@@ -286,6 +306,9 @@ func (s Service) importReaderLocked(ctx context.Context, passphrase string, encr
 	if err != nil {
 		converge()
 		return ImportSummary{}, err
+	}
+	if s.databaseRestored != nil {
+		_ = s.databaseRestored(ctx)
 	}
 
 	emit(ProgressEvent{Step: "import", Status: "complete", Rows: importedRows, TotalRows: totalRows})
@@ -305,10 +328,8 @@ func (s Service) importReaderLocked(ctx context.Context, passphrase string, encr
 
 	emit(ProgressEvent{Step: "files", Status: "complete", Bytes: restoredBytes})
 
-	if s.postRestore != nil {
-		if err := s.postRestore(ctx); err != nil {
-			return ImportSummary{}, fmt.Errorf("finish restore: %w", err)
-		}
+	if err := s.finishRestore(ctx); err != nil {
+		return ImportSummary{}, err
 	}
 
 	if err := preparedConfig.Commit(); err != nil {

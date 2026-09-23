@@ -124,5 +124,5 @@ func settingsHandlerWithStore() Handler {
 }
 
 func settingsBackupHandler(confFile *config.ConfigFile, downloadService *downloads.Service) Handler {
-	return NewHandlerWithBackup(slog.Default(), confFile, &store.Store{}, settingsTestMasterKey, downloadService, "", nil, nil)
+	return NewHandlerWithBackup(slog.Default(), confFile, &store.Store{}, settingsTestMasterKey, downloadService, "", nil, nil, nil)
 }

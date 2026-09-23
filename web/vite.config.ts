@@ -58,7 +58,8 @@ export default defineConfig(({ command, mode }) => {
         },
         workbox: {
           cleanupOutdatedCaches: true,
-          globIgnores: ['**/node_modules/**/*', '**/version.json'],
+          clientsClaim: true,
+          globIgnores: ['**/node_modules/**/*', '**/version.json', '**/index.html'],
           manifestTransforms: [
             async (entries) => ({
               manifest: entries.map((entry) =>
@@ -70,15 +71,6 @@ export default defineConfig(({ command, mode }) => {
                   : entry,
               ),
             }),
-          ],
-          navigateFallback: '/index.html',
-          navigateFallbackDenylist: [
-            /^\/api(?:\/|$)/,
-            /^\/v1(?:\/|$)/,
-            /^\/healthz(?:\/|$)/,
-            /^\/readyz(?:\/|$)/,
-            /^\/debug(?:\/|$)/,
-            /^\/version\.json$/,
           ],
         },
       }),

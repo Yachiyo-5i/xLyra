@@ -7,6 +7,7 @@ import {
   type AdminRecord,
   type CurrentAdminSession,
 } from '@/features/auth/api/auth'
+import { rememberBootstrapInitialized } from '@/lib/bootstrap-state'
 import { APIError, setCSRFToken as setHTTPCSRFToken } from '@/lib/http'
 
 type AuthUser = {
@@ -99,6 +100,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       try {
         const authState = await fetchAuthState()
+
+        rememberBootstrapInitialized(authState.initialized)
 
         if (!authState.initialized) {
           set({

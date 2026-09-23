@@ -45,6 +45,9 @@ func TestAuthStateReturnsRegistrationStateWithoutSessionLookup(t *testing.T) {
 	if queryCount != 1 {
 		t.Fatalf("query count = %d, want one bootstrap query", queryCount)
 	}
+	if cookie := rec.Header().Get("Set-Cookie"); !strings.Contains(cookie, "xlyra_admin_initialized=0") || strings.Contains(cookie, "HttpOnly") {
+		t.Fatalf("Set-Cookie = %q, want readable xlyra_admin_initialized=0", cookie)
+	}
 }
 
 func TestAuthStateReturnsAuthenticatedSessionWithoutBootstrapQuery(t *testing.T) {
@@ -96,6 +99,9 @@ func TestAuthStateReturnsAuthenticatedSessionWithoutBootstrapQuery(t *testing.T)
 	}
 	if queryCount != 2 {
 		t.Fatalf("query count = %d, want session and admin queries", queryCount)
+	}
+	if cookie := rec.Header().Get("Set-Cookie"); !strings.Contains(cookie, "xlyra_admin_initialized=1") || strings.Contains(cookie, "HttpOnly") {
+		t.Fatalf("Set-Cookie = %q, want readable xlyra_admin_initialized=1", cookie)
 	}
 }
 
