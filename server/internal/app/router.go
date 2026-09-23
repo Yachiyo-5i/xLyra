@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
@@ -66,6 +67,13 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	var authService *auth.Service
 	if db != nil {
 		authService = auth.NewService(db.DB(), masterKey, confFile)
+		warmCtx, warmCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := authService.WarmBootstrapCache(warmCtx); err != nil {
+			logger.Warn("bootstrap admin cache warmup failed", "error", err)
+		} else {
+			logger.Info("bootstrap admin cache ready")
+		}
+		warmCancel()
 	}
 
 	httpClients := httpclient.NewManager(confFile)
@@ -177,12 +185,21 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	}
 	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db).WithAnalyticsService(analyticsService)
 	healthHandler := health.NewHandler(cfg, db)
-	var preRestore, postRestore func(context.Context) error
+	var preRestore, postRestore, databaseRestored func(context.Context) error
 	if playgroundService != nil {
 		preRestore = playgroundService.QuiesceForRestore
 		postRestore = playgroundService.RecoverAfterRestore
 	}
-	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, playgroundRoot, preRestore, postRestore, appTimeZone)
+	if authService != nil {
+		databaseRestored = func(ctx context.Context) error {
+			if err := authService.RefreshBootstrapCache(ctx); err != nil {
+				authService.ClearBootstrapCache()
+				logger.Warn("bootstrap admin cache refresh after restore failed", "error", err)
+			}
+			return nil
+		}
+	}
+	settingsHandler := settings.NewHandlerWithBackup(logger.With("thread", "settings"), confFile, db, masterKey, downloadService, playgroundRoot, preRestore, postRestore, databaseRestored, appTimeZone)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -204,7 +221,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		httpx.Error(w, r, http.StatusNotFound, "not_found", "route not found")
 	})
 	if cfg.StaticDir != "" {
-		r.Handle("/*", spaHandler(cfg.StaticDir))
+		r.Handle("/*", newSPAHandler(cfg.StaticDir, authService))
 	}
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
@@ -623,19 +640,23 @@ func isBackupTransferRequest(r *http.Request) bool {
 }
 
 func spaHandler(staticDir string) http.Handler {
+	return newSPAHandler(staticDir, nil)
+}
+
+func newSPAHandler(staticDir string, authService *auth.Service) http.Handler {
 	fs := http.FileServer(http.Dir(staticDir))
 	index := filepath.Join(staticDir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(staticDir, filepath.Clean("/"+r.URL.Path))
 		info, err := os.Stat(path)
-		switch {
-		case os.IsNotExist(err):
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" || os.IsNotExist(err) {
 			// SPA 回退到 index.html：不缓存，保证发版后立刻生效
-			w.Header().Set("Cache-Control", "no-cache")
-			http.ServeFile(w, r, index)
+			serveAppIndex(w, r, index, authService)
 			return
+		}
+		switch {
 		case err == nil && info.IsDir():
-			// 目录请求（如 /）由 FileServer 落到 index.html，同样不缓存
+			// 其余目录请求由 FileServer 处理，同样不缓存
 			w.Header().Set("Cache-Control", "no-cache")
 		case mustRevalidateStaticFile(filepath.Base(path)):
 			// index.html、Service Worker 与构建号必须每次再验证，否则发版检测会被 HTTP 缓存拖住
@@ -650,6 +671,41 @@ func spaHandler(staticDir string) http.Handler {
 		}
 		fs.ServeHTTP(w, r)
 	})
+}
+
+func serveAppIndex(w http.ResponseWriter, r *http.Request, indexPath string, authService *auth.Service) {
+	w.Header().Set("Cache-Control", "no-cache")
+	body, err := os.ReadFile(indexPath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if authService != nil {
+		if initialized, ok := authService.CachedBootstrapInitialized(); ok {
+			httpx.SetBootstrapInitializedCookie(w, r, initialized)
+			body = injectBootstrapState(body, initialized)
+		}
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+func injectBootstrapState(body []byte, initialized bool) []byte {
+	value := "false"
+	if initialized {
+		value = "true"
+	}
+	snippet := []byte("<script>window.__XLYRA_BOOTSTRAP__={initialized:" + value + "}</script>")
+	lower := bytes.ToLower(body)
+	if i := bytes.Index(lower, []byte("</head>")); i >= 0 {
+		out := make([]byte, 0, len(body)+len(snippet))
+		out = append(out, body[:i]...)
+		out = append(out, snippet...)
+		out = append(out, body[i:]...)
+		return out
+	}
+	return append(snippet, body...)
 }
 
 func mustRevalidateStaticFile(name string) bool {

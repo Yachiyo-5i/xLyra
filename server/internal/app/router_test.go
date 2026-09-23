@@ -582,6 +582,30 @@ func testConfig() config.Config {
 	}
 }
 
+func TestSpaHandlerInjectsCachedBootstrapState(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html><head><title>xLyra</title></head><body></body></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := auth.NewService(nil, "test-master-key")
+	service.MarkBootstrapInitialized()
+	handler := newSPAHandler(dir, service)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "window.__XLYRA_BOOTSTRAP__={initialized:true}") {
+		t.Fatalf("body = %s, want injected bootstrap state", rec.Body.String())
+	}
+	if cookie := rec.Header().Get("Set-Cookie"); !strings.Contains(cookie, "xlyra_admin_initialized=1") {
+		t.Fatalf("Set-Cookie = %q, want bootstrap initialized cookie", cookie)
+	}
+}
+
 func TestSpaHandlerCacheHeaders(t *testing.T) {
 	t.Parallel()
 

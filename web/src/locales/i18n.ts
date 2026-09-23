@@ -114,7 +114,7 @@ export const i18nReady = i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    ns: [namespaces[0]],
+    ns: ['common', 'components', 'auth', 'dashboard'],
     defaultNS: 'common',
     fallbackLng: {
       ja: ['jp'],

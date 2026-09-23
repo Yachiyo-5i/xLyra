@@ -58,7 +58,7 @@ export default defineConfig(({ command, mode }) => {
         },
         workbox: {
           cleanupOutdatedCaches: true,
-          globIgnores: ['**/node_modules/**/*', '**/version.json'],
+          globIgnores: ['**/node_modules/**/*', '**/version.json', '**/index.html'],
           manifestTransforms: [
             async (entries) => ({
               manifest: entries.map((entry) =>
@@ -71,14 +71,16 @@ export default defineConfig(({ command, mode }) => {
               ),
             }),
           ],
-          navigateFallback: '/index.html',
-          navigateFallbackDenylist: [
-            /^\/api(?:\/|$)/,
-            /^\/v1(?:\/|$)/,
-            /^\/healthz(?:\/|$)/,
-            /^\/readyz(?:\/|$)/,
-            /^\/debug(?:\/|$)/,
-            /^\/version\.json$/,
+          runtimeCaching: [
+            {
+              urlPattern: ({ request }) => request.mode === 'navigate',
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'xlyra-documents',
+                networkTimeoutSeconds: 4,
+                expiration: { maxEntries: 8 },
+              },
+            },
           ],
         },
       }),

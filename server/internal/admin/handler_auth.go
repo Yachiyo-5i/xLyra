@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"xlyra/server/internal/auth"
+	"xlyra/server/internal/httpx"
 	"xlyra/server/internal/store"
 )
 
@@ -26,6 +27,7 @@ func (h Handler) BootstrapStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	httpx.SetBootstrapInitializedCookie(w, r, status.Initialized)
 	h.writePayload(w, http.StatusOK, map[string]any{
 		"initialized":  status.Initialized,
 		"can_register": !status.Initialized,
@@ -65,6 +67,7 @@ func (h Handler) AuthState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	httpx.SetBootstrapInitializedCookie(w, r, status.Initialized)
 	h.writePayload(w, http.StatusOK, map[string]any{
 		"initialized":   status.Initialized,
 		"can_register":  !status.Initialized,
@@ -74,6 +77,8 @@ func (h Handler) AuthState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) writeAuthenticatedState(w http.ResponseWriter, r *http.Request, actor auth.AdminActor, session *store.AdminSession) {
+	h.auth.MarkBootstrapInitialized()
+	httpx.SetBootstrapInitializedCookie(w, r, true)
 	admin, err := h.auth.GetAdminByID(r.Context(), actor.AdminID)
 	if err != nil {
 		h.writeError(w, r, http.StatusInternalServerError, "auth_state_failed", "failed to load authentication state")
@@ -132,6 +137,7 @@ func (h Handler) BootstrapRegister(w http.ResponseWriter, r *http.Request) {
 	h.logInfo("admin bootstrap completed", "admin_id", result.Admin.ID, "username", result.Admin.Username)
 	h.recordAudit(r, auth.AdminActor{Type: "session", AdminID: result.Admin.ID, SessionID: result.SessionID}, "auth.bootstrap", "", "", true, "", nil)
 	writeSessionCookie(w, r, result)
+	httpx.SetBootstrapInitializedCookie(w, r, true)
 	h.writePayload(w, http.StatusCreated, sessionPayload(result))
 }
 
