@@ -176,7 +176,12 @@ func (h Handler) CodexOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.TrimSpace(r.URL.Query().Get("code"))
-	session, connection, pendingSite, err := h.oauth.HandleCodexCallback(r.Context(), state, code)
+	var proxyID *string
+	if value, ok := r.Context().Value(oauthCallbackProxyIDContextKey{}).(string); ok {
+		value = strings.TrimSpace(value)
+		proxyID = &value
+	}
+	session, connection, pendingSite, err := h.oauth.HandleCodexCallbackWithProxy(r.Context(), state, code, proxyID)
 	if err != nil {
 		target := oauthRedirectTarget(session, map[string]string{
 			"status":  "error",
