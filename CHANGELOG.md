@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.12.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.11.0...v1.12.0) (2026-09-23)
+
+
+### Features
+
+* 🎸 增强模型协议兼容与模型发现能力 ([ae510b5](https://github.com/Yachiyo-5i/xLyra/commit/ae510b58346b37e564726247baf2fefcccbd9b87))
+
+
+### Bug Fixes
+
+* 🐛 保留 Codex 回调提交的代理 ([551cbe1](https://github.com/Yachiyo-5i/xLyra/commit/551cbe1b925b6ab32008559f2de25515794377e7))
+* 🐛 修复前端版本更新后页面未及时切换的问题 ([759a996](https://github.com/Yachiyo-5i/xLyra/commit/759a996465c1ca63d1af910767d9631e379a8ad1))
+* 🐛 修复站点筛选配置与下拉显示问题 ([9e3fba9](https://github.com/Yachiyo-5i/xLyra/commit/9e3fba933718865df5e52dd49dd7d03e0d8255bc))
+* 🐛 修正冷却 Key 的站点名称显示 ([97c9f9a](https://github.com/Yachiyo-5i/xLyra/commit/97c9f9a7b2c5af1709f3cd5266cbacbd8fe6f745))
+* 🐛 修正模型测试的协议和密钥筛选 ([b2f33b1](https://github.com/Yachiyo-5i/xLyra/commit/b2f33b13d2c4c3bc71f07ca13c86aabf5126732f))
+* 🐛 加速管理员初始化并改善页面加载缓存 ([7143f14](https://github.com/Yachiyo-5i/xLyra/commit/7143f14c8ad5f081e0104501be22f0901782d89a))
+* apply submitted proxy before Codex token exchange ([89d254a](https://github.com/Yachiyo-5i/xLyra/commit/89d254a072e11fdf089410f5a351aea8954f7439))
+* honor selected proxy during Codex OAuth token exchange ([0c58d68](https://github.com/Yachiyo-5i/xLyra/commit/0c58d6842ae0bad4db7eb9e006d3d8a14c2585e5))
+* route Codex OAuth token exchange through site proxy ([6597abe](https://github.com/Yachiyo-5i/xLyra/commit/6597abea58d8181354cb38f9fdb59ef7ea756492))
+
 ## [1.11.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.10.0...v1.11.0) (2026-09-22)
 
 
