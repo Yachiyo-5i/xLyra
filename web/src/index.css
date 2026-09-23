@@ -993,13 +993,14 @@ a {
   color: #f4f7ff;
 }
 
+/* -webkit-backdrop-filter 必须写在前面。Lightning CSS 会在标准属性位于前缀之前时丢掉 backdrop-filter，Chrome / Firefox 就只剩半透明底色。 */
 .glass-panel {
   background-color: hsl(var(--surface-soft));
   border: 1px solid hsl(var(--glass-border));
   border-radius: var(--radius-lg);
   box-shadow: 0 10px 30px rgba(4, 8, 18, 0.12);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .glass-panel-strong {
@@ -1007,15 +1008,15 @@ a {
   border: 1px solid hsl(var(--glass-border));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-dialog);
-  backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: blur(30px);
 }
 
 .glass-field {
   background-color: hsl(var(--surface-field));
   border: 1px solid hsl(var(--glass-border));
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .glass-row {
@@ -1037,8 +1038,8 @@ a {
   background-color: hsl(var(--surface-soft));
   border: 1px solid hsl(var(--glass-border));
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .divider-soft {
