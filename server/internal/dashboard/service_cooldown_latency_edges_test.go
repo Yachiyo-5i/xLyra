@@ -55,10 +55,10 @@ func TestCooldownsBuildsModelAndCredentialMetadata(t *testing.T) {
 			*dest = []store.CanonicalModel{{ID: canonicalID, ModelKey: "gpt-canonical"}}
 			tx.RowsAffected = 1
 		case *[]store.SiteCredential:
-			*dest = []store.SiteCredential{{ID: credentialID, CredentialType: "api_key", MaskedSecret: "sk-...abcd"}}
+			*dest = []store.SiteCredential{{ID: credentialID, CredentialType: "api_key", DisplayName: "Production Key", MaskedSecret: "sk-...abcd"}}
 			tx.RowsAffected = 1
 		case *[]store.SiteAPIKeyState:
-			*dest = []store.SiteAPIKeyState{{SiteCredentialID: credentialID, Name: "Production Key"}}
+			*dest = []store.SiteAPIKeyState{{SiteCredentialID: credentialID, Name: "6f1c2a90-1b2c-4d5e-8f90-123456789abc"}}
 			tx.RowsAffected = 1
 		default:
 			tx.AddError(fmt.Errorf("unexpected dashboard cooldown query destination %T", tx.Statement.Dest))

@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	overviewDays      = 90
-	failureReasonTopN = 10
+	overviewDays       = 90
+	failureReasonTopN  = 10
 	highLatencyTopN    = 10
 	uptimeBucketCount  = 24
 	insufficientRouteN = 10
@@ -58,12 +58,12 @@ type InsightsOverview struct {
 }
 
 type OverviewMeta struct {
-	Days          int    `json:"days"`
+	Days        int    `json:"days"`
 	Timezone    string `json:"timezone"`
-	GeneratedAt   string `json:"generated_at"`
-	TodayStart    string `json:"today_start"`
-	RangeStart    string `json:"range_start"`
-	RangeEnd      string `json:"range_end"`
+	GeneratedAt string `json:"generated_at"`
+	TodayStart  string `json:"today_start"`
+	RangeStart  string `json:"range_start"`
+	RangeEnd    string `json:"range_end"`
 }
 
 type OverviewKPIs struct {
@@ -535,7 +535,6 @@ func requestsKPIFromSummaries(window timeWindow, rows []store.RequestUsageDailyS
 	return result
 }
 
-
 func (s *Service) siteCostSummaryFromSummaries(ctx context.Context, window timeWindow, rows []store.RequestUsageDailySummary) ([]SiteCostSummaryItem, error) {
 	sites, err := s.sitesByID(ctx)
 	if err != nil {
@@ -970,11 +969,7 @@ func (s *Service) cooldowns(ctx context.Context, window timeWindow) ([]CooldownI
 		if row.SiteCredentialID.Valid {
 			credential := credentials[row.SiteCredentialID.UUID]
 			state := apiKeyStates[row.SiteCredentialID.UUID]
-			name := credential.CredentialType
-			if state.Name != "" {
-				name = state.Name
-			}
-			if name != "" {
+			if name := store.SiteCredentialDisplayName(credential, state); name != "" {
 				credentialName = sql.NullString{String: name, Valid: true}
 			}
 			if credential.MaskedSecret != "" {
