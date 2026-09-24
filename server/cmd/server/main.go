@@ -184,6 +184,38 @@ func run() int {
 		logger.Info("startup usage summary check completed", "summarized_days", result.SummarizedDays, "backfilled_cached_usage_records", result.BackfilledCachedUsageRecords, "rebuilt_cached_token_days", result.RebuiltCachedTokenDays, "rebuilt_hourly_rows", result.RebuiltHourlyRows, "deleted_hourly_rows", result.DeletedHourlyRows, "duration", time.Since(start))
 	}()
 
+	backgroundTasks.Add(1)
+	go func() {
+		defer backgroundTasks.Done()
+		repository := store.NewCacheObservationRepository(db.DB())
+		cleanup := func() {
+			ctx, cancel := context.WithTimeout(backgroundCtx, 5*time.Minute)
+			defer cancel()
+			cutoff := time.Now().Add(-store.CacheObservationRetention)
+			for {
+				deleted, err := repository.DeleteBefore(ctx, cutoff, 5000)
+				if err != nil {
+					logger.Warn("cache observation cleanup failed", "error", err)
+					return
+				}
+				if deleted < 5000 {
+					return
+				}
+			}
+		}
+		cleanup()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-backgroundCtx.Done():
+				return
+			case <-ticker.C:
+				cleanup()
+			}
+		}
+	}()
+
 	server := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", cfg.HTTPHost, cfg.HTTPPort),
 		Handler:           router,

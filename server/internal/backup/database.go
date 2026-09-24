@@ -222,6 +222,7 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 	requestLogIDs := make(map[string]struct{})
 
 	requestLogTransform := func(rows []map[string]any) []map[string]any {
+		stripCacheObservationRows(rows)
 		rowsWithValidNullableReferences(rows, requestLogRefs)
 		for _, row := range rows {
 			if id := stringValue(row["id"]); id != "" {
@@ -239,6 +240,9 @@ func importDatabase(ctx context.Context, db *gorm.DB, masterKey string, dump dat
 	total := 0
 	skippedTotal := 0
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.CacheObservation{}).Error; err != nil {
+			return fmt.Errorf("clear cache observations: %w", err)
+		}
 		// Clear every backup table before reloading. A single TRUNCATE (vs a
 		// per-table DELETE) reclaims storage immediately instead of leaving dead
 		// tuples that bloat each table on every restore, and is near-instant.
@@ -319,6 +323,9 @@ func importStreamedTable(ctx context.Context, tx *gorm.DB, dump databaseDump, ta
 		rows := dump.Tables[table.Name]
 		if len(rows) == 0 {
 			return 0, 0, nil
+		}
+		if transform != nil {
+			rows = transform(rows)
 		}
 		if err := importTable(ctx, tx, table, rows, func(imported int) {
 			if progress != nil {
@@ -437,6 +444,9 @@ func exportTableRows(ctx context.Context, db *gorm.DB, table backupTable, master
 		rows, err := modelRows(ctx, parsed, slice)
 		if err != nil {
 			return err
+		}
+		if table.Name == "request_logs" {
+			stripCacheObservationRows(rows)
 		}
 		if err := decryptTableSecrets(table.Name, rows, masterKey); err != nil {
 			return err
@@ -786,6 +796,35 @@ func modelRows(ctx context.Context, parsed *schema.Schema, slice any) ([]map[str
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+func stripCacheObservationRows(rows []map[string]any) {
+	for _, row := range rows {
+		value, ok := row["metadata"]
+		if !ok {
+			continue
+		}
+		var metadata map[string]any
+		switch item := value.(type) {
+		case json.RawMessage:
+			if json.Unmarshal(item, &metadata) != nil {
+				continue
+			}
+		case []byte:
+			if json.Unmarshal(item, &metadata) != nil {
+				continue
+			}
+		case map[string]any:
+			metadata = item
+		default:
+			continue
+		}
+		if _, ok := metadata["cache_observation"]; !ok {
+			continue
+		}
+		delete(metadata, "cache_observation")
+		row["metadata"] = metadata
+	}
 }
 
 func backupValue(value any) any {

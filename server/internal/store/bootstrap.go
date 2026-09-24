@@ -151,6 +151,11 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("ensure request_usage_hourly_summaries table: %w", err)
 		}
 	}
+	if !migrator.HasTable(&CacheObservation{}) {
+		if err := migrator.CreateTable(&CacheObservation{}); err != nil {
+			return fmt.Errorf("ensure cache_observations table: %w", err)
+		}
+	}
 	if !migrator.HasTable(&SiteSyncJob{}) {
 		if err := migrator.CreateTable(&SiteSyncJob{}); err != nil {
 			return fmt.Errorf("ensure site_sync_jobs table: %w", err)
@@ -323,6 +328,15 @@ func ensureSchemaUpgrades(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	if err := ensureSchemaIndex(migrator, &RequestLog{}, "request_logs_parent_request_id_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &CacheObservation{}, "cache_observations_lookup_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &CacheObservation{}, "cache_observations_expires_at_idx"); err != nil {
+		return err
+	}
+	if err := ensureSchemaIndex(migrator, &CacheObservation{}, "cache_observations_created_at_idx"); err != nil {
 		return err
 	}
 	if migrator.HasIndex(&RequestLog{}, "request_logs_parent_request_id_metadata_idx") {
@@ -681,6 +695,7 @@ func bootstrapModels() []any {
 		&SiteModelPricing{},
 		&RouteCooldown{},
 		&RequestLog{},
+		&CacheObservation{},
 		&UsageRecord{},
 		&RequestUsageDailySummary{},
 		&RequestUsageHourlySummary{},

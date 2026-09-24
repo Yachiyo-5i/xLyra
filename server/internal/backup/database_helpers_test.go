@@ -118,6 +118,28 @@ func TestModelRowsConvertsSchemaFieldsToBackupValues(t *testing.T) {
 	}
 }
 
+func TestCacheObservationsAreStrippedFromRequestLogBackupRows(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{{
+		"metadata": json.RawMessage(`{"request_id":"req-1","cache_observation":{"prefix_hash":"secret-hash"}}`),
+	}}
+	stripCacheObservationRows(rows)
+	metadata, ok := rows[0]["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata type = %T, want map", rows[0]["metadata"])
+	}
+	if _, ok := metadata["cache_observation"]; ok {
+		t.Fatal("cache observation should not be present in backup metadata")
+	}
+	if metadata["request_id"] != "req-1" {
+		t.Fatalf("unrelated metadata was changed: %#v", metadata)
+	}
+	if _, ok := backupTableByName("cache_observations"); ok {
+		t.Fatal("cache observations should not be a backup table")
+	}
+}
+
 func TestModelRowsRejectsInvalidSliceInputs(t *testing.T) {
 	t.Parallel()
 
