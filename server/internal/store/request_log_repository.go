@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -107,9 +108,16 @@ type RequestLogDetail struct {
 }
 
 type RequestLogCacheObservation struct {
-	Success   bool
-	Metadata  JSON
-	CreatedAt time.Time
+	RequestLogID     uuid.UUID
+	Success          bool
+	Metadata         JSON
+	PrefixHash       string
+	SessionHash      string
+	CacheDomainHash  string
+	CacheFingerprint string
+	LineageDepth     int
+	ExpiresAt        time.Time
+	CreatedAt        time.Time
 }
 
 type RequestLogRepository struct {
@@ -210,6 +218,15 @@ func (r RequestLogRepository) ListRecentCacheObservations(ctx context.Context, a
 		limit = 200
 	}
 	var items []RequestLogCacheObservation
+	var err error
+	items, err = NewCacheObservationRepository(r.db).ListRecent(ctx, apiKeyID, canonicalModelID, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) >= limit {
+		return items, nil
+	}
+	var embedded []RequestLogCacheObservation
 	if err := r.db.WithContext(ctx).
 		Model(&RequestLog{}).
 		Clauses(clause.Where{Exprs: []clause.Expression{
@@ -222,8 +239,15 @@ func (r RequestLogRepository) ListRecentCacheObservations(ctx context.Context, a
 			{Column: clause.Column{Name: "created_at"}, Desc: true},
 		}}).
 		Limit(limit).
-		Find(&items).Error; err != nil {
+		Find(&embedded).Error; err != nil {
 		return nil, fmt.Errorf("list recent request log cache observations: %w", err)
+	}
+	items = append(items, embedded...)
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+	if len(items) > limit {
+		items = items[:limit]
 	}
 	return items, nil
 }

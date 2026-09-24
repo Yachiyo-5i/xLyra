@@ -65,9 +65,19 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 	var usageRecord *store.UsageRecord
 	var quotaOvershoot *store.APIKey
 	err := r.db.WithinTx(ctx, func(tx store.Tx) error {
-		metadata := record.Metadata
-		if metadata == nil {
-			metadata = map[string]any{}
+		metadata := make(map[string]any, len(record.Metadata)+2)
+		for key, value := range record.Metadata {
+			metadata[key] = value
+		}
+		var cacheObservation *store.CacheObservationPayload
+		if raw, ok := metadata["cache_observation"]; ok {
+			if encoded, err := json.Marshal(raw); err == nil {
+				var payload store.CacheObservationPayload
+				if err := json.Unmarshal(encoded, &payload); err == nil {
+					cacheObservation = &payload
+					delete(metadata, "cache_observation")
+				}
+			}
 		}
 		metadata["upstream_status_code"] = record.UpstreamStatusCode
 		metadata["upstream_response"] = record.UpstreamResponse
@@ -111,6 +121,11 @@ func (r Recorder) RecordGatewayRequest(ctx context.Context, record GatewayReques
 			return err
 		}
 		requestLog = createdLog
+		if cacheObservation != nil {
+			if err := store.NewCacheObservationRepository(tx).Create(ctx, requestLog, *cacheObservation); err != nil {
+				return err
+			}
+		}
 
 		totalTokens := record.PromptTokens + record.CompletionTokens
 		if totalTokens > 0 || record.EstimatedCost != nil {

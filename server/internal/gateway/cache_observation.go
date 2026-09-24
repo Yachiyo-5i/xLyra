@@ -441,6 +441,15 @@ type cacheObservationRequestLog struct {
 }
 
 func cacheObservationFromRequestLog(log store.RequestLogCacheObservation) (cacheObservationRequestLog, bool) {
+	if log.PrefixHash != "" || log.SessionHash != "" {
+		return cacheObservationRequestLog{
+			PrefixHash:       log.PrefixHash,
+			SessionHash:      log.SessionHash,
+			CacheDomainHash:  log.CacheDomainHash,
+			CacheFingerprint: log.CacheFingerprint,
+			ExpiresAt:        log.ExpiresAt,
+		}, true
+	}
 	var metadata struct {
 		CacheObservation cacheObservationRequestLog `json:"cache_observation"`
 	}
