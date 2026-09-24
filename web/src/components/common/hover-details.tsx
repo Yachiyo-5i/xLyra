@@ -1,11 +1,13 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Slot } from '@radix-ui/react-slot'
-import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Draw, DrawBody, DrawContent, DrawDescription, DrawFooter, DrawHeader, DrawTitle, DrawTrigger } from '@/components/ui/draw'
+import { Draw, DrawBody, DrawContent, DrawDescription, DrawHeader, DrawTitle, DrawTrigger } from '@/components/ui/draw'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
+
+type PointerAnchor = {
+  getBoundingClientRect: () => DOMRect
+}
 
 type HoverDetailsProps = {
   children: ReactNode
@@ -20,11 +22,24 @@ type HoverDetailsProps = {
   titleClassName?: string
 }
 
+function emptyPointerAnchor(): PointerAnchor {
+  return {
+    getBoundingClientRect: () => new DOMRect(),
+  }
+}
+
+function pointerAnchorAt(x: number, y: number): PointerAnchor {
+  return {
+    getBoundingClientRect: () => new DOMRect(x, y, 0, 0),
+  }
+}
+
 export function HoverDetails({ children, content, title, description, accessibleDescription, disabled = false, asChild = false, className, contentClassName, titleClassName }: HoverDetailsProps) {
-  const { t } = useTranslation('common')
   const isMobile = useMobileLayout()
   const [open, setOpen] = useState(false)
+  const [anchorToPointer, setAnchorToPointer] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pointerAnchorRef = useRef<PointerAnchor>(emptyPointerAnchor())
   const descriptionId = useId()
 
   useEffect(() => () => {
@@ -39,11 +54,18 @@ export function HoverDetails({ children, content, title, description, accessible
   function changeOpen(nextOpen: boolean) {
     cancelClose()
     setOpen(nextOpen)
+    if (!nextOpen) setAnchorToPointer(false)
   }
 
   function scheduleClose() {
     cancelClose()
-    closeTimer.current = setTimeout(() => setOpen(false), 150)
+    closeTimer.current = setTimeout(() => changeOpen(false), 150)
+  }
+
+  function openAtPointer(clientX: number, clientY: number) {
+    pointerAnchorRef.current = pointerAnchorAt(clientX, clientY)
+    setAnchorToPointer(true)
+    changeOpen(true)
   }
 
   const Trigger = asChild ? Slot : 'div'
@@ -57,20 +79,26 @@ export function HoverDetails({ children, content, title, description, accessible
       aria-label={description ? `${title}: ${description}` : title}
       aria-describedby={accessibleDescription ? descriptionId : undefined}
       onPointerEnter={(event) => {
-        if (!isMobile && event.pointerType !== 'touch') changeOpen(true)
+        if (!isMobile && event.pointerType !== 'touch') {
+          openAtPointer(event.clientX, event.clientY)
+        }
       }}
       onPointerLeave={isMobile ? undefined : scheduleClose}
-      onFocus={isMobile ? undefined : () => changeOpen(true)}
+      onFocus={isMobile ? undefined : () => {
+        setAnchorToPointer(false)
+        changeOpen(true)
+      }}
       onBlur={isMobile ? undefined : scheduleClose}
       onClick={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        changeOpen(true)
+        openAtPointer(event.clientX, event.clientY)
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           event.stopPropagation()
+          setAnchorToPointer(false)
           changeOpen(true)
         }
       }}
@@ -89,18 +117,18 @@ export function HoverDetails({ children, content, title, description, accessible
               <DrawTitle className={titleClassName}>{title}</DrawTitle>
               <DrawDescription className={description ? 'break-words' : 'sr-only'}>{description || title}</DrawDescription>
             </DrawHeader>
-            <DrawBody className="text-sm [overflow-wrap:anywhere]">{content}</DrawBody>
-            <DrawFooter>
-              <Button variant="outline" className="w-full" onClick={() => changeOpen(false)}>{t('actions.close')}</Button>
-            </DrawFooter>
+            <DrawBody className="pb-[max(1.25rem,env(safe-area-inset-bottom))] text-sm [overflow-wrap:anywhere]">{content}</DrawBody>
           </DrawContent>
         </Draw>
       ) : (
         <PopoverPrimitive.Root open={open} onOpenChange={changeOpen}>
           <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
+          {anchorToPointer ? <PopoverPrimitive.Anchor virtualRef={pointerAnchorRef} /> : null}
           <PopoverPrimitive.Portal>
             <PopoverPrimitive.Content
-              sideOffset={8}
+              side="top"
+              align="start"
+              sideOffset={12}
               collisionPadding={16}
               className={cn('glass-panel-strong z-[170] max-h-[min(70vh,520px,var(--radix-popover-content-available-height))] w-[380px] max-w-[calc(100vw-32px)] overflow-y-auto overscroll-contain rounded-lg px-3 py-2 text-xs leading-5 text-foreground shadow-lg [overflow-wrap:anywhere]', contentClassName)}
               aria-label={title}

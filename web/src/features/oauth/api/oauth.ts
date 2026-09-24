@@ -41,6 +41,31 @@ type OAuthModelQuota = {
   reset_time?: string | null
 }
 
+export type OAuthQuotaEstimateWindow = {
+  status?: string | null
+  remaining_percent?: number | null
+  estimated_total?: number | null
+  estimated_remaining?: number | null
+  spend_rate_per_hour?: number | null
+  exhaust_in_seconds?: number | null
+  reset_at?: string | null
+  observed_from?: string | null
+  observed_to?: string | null
+  request_count?: number | null
+  system_cost?: number | null
+  sample_count?: number | null
+  cumulative_used_percent?: number | null
+  confidence?: string | null
+  external_usage_hint?: boolean | null
+  previous_estimated_total?: number | null
+  currency?: string | null
+}
+
+export type OAuthQuotaEstimate = {
+  five_hour?: OAuthQuotaEstimateWindow | null
+  weekly?: OAuthQuotaEstimateWindow | null
+}
+
 export type OAuthConnectionDetail = OAuthConnectionListItem & {
   plan_type?: string | null
   quota?: {
@@ -53,6 +78,7 @@ export type OAuthConnectionDetail = OAuthConnectionListItem & {
       available_count?: number | null
     }
   }
+  quota_estimate?: OAuthQuotaEstimate | null
   claims?: Record<string, unknown>
   models?: OAuthConnectionModel[]
   reset_credits?: OAuthResetCreditsList | null

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -1047,6 +1048,17 @@ func (s *Service) updateCodexConnectionSummary(ctx context.Context, connection s
 	if err := s.UpdateConnectionSync(ctx, connection.ID, patch); err != nil {
 		return CodexConnection{}, err
 	}
+	if connection.SiteID != nil && *connection.SiteID != uuid.Nil {
+		if quota, ok := asQuotaMap(patch["quota"]); ok {
+			if _, err := s.RecordCodexQuotaSnapshot(ctx, connection.ID, *connection.SiteID, quota, time.Now()); err != nil {
+				slog.Default().Warn("record codex quota snapshot failed",
+					"connection_id", connection.ID,
+					"site_id", *connection.SiteID,
+					"error", err,
+				)
+			}
+		}
+	}
 	updated, err := s.ConnectionByID(ctx, connection.ID)
 	if err != nil {
 		return CodexConnection{}, err
@@ -1409,6 +1421,11 @@ func quotaFromCodexUserSummary(summary adapter.UserSummary) any {
 		return nil
 	}
 	return user["quota"]
+}
+
+func asQuotaMap(value any) (map[string]any, bool) {
+	quota, ok := value.(map[string]any)
+	return quota, ok && len(quota) > 0
 }
 
 func modelsFromCodexUserSummary(summary adapter.UserSummary) any {

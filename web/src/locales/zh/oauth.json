@@ -255,10 +255,32 @@
     "title": "额度",
     "allModels": "全部模型额度",
     "allQuotas": "全部额度",
+    "estimateTitle": "额度详情",
     "modelQuota": "模型额度",
     "fiveHour": "5 小时",
     "weekly": "7 天",
     "remaining": "剩余 {{percent}}",
+    "estimate": {
+      "remaining": "剩余",
+      "total": "预估总量",
+      "rate": "消耗速率",
+      "perHour": "/小时",
+      "exhaust": "预计耗尽",
+      "reset": "重置",
+      "observation": "观测",
+      "previous": "上轮预估",
+      "externalHint": "可能有外部消耗",
+      "empty": "暂无预估",
+      "minutes": "{{count}} 分钟",
+      "hours": "{{count}} 小时",
+      "hoursMinutes": "{{hours}} 小时 {{minutes}} 分",
+      "status": {
+        "baseline": "首次快照",
+        "sampling": "估算中",
+        "lowSample": "样本较少",
+        "ready": "可参考"
+      }
+    },
     "resetCredits": {
       "count": "{{count}} 张重置卡",
       "title": "额度重置卡",

@@ -21,6 +21,8 @@ import {
   listOAuthConnectionResetCredits,
   oauthQueryKeys,
   type OAuthConnectionDetail,
+  type OAuthQuotaEstimate,
+  type OAuthQuotaEstimateWindow,
   type OAuthResetCredit,
   type OAuthResetCreditsList,
 } from '@/features/oauth/api/oauth'
@@ -46,12 +48,14 @@ export function QuotaPanel({
   connectionId,
   provider,
   quota,
+  estimate,
   loading,
   resetCreditsData,
 }: {
   connectionId?: string
   provider: string
   quota?: { type?: string | null; five_hour?: OAuthQuotaWindowLike; weekly?: OAuthQuotaWindowLike; models?: OAuthQuotaWindowLike[]; reset_credits?: { available_count?: number | null } }
+  estimate?: OAuthQuotaEstimate | null
   loading: boolean
   resetCreditsData?: OAuthResetCreditsList | null
 }) {
@@ -73,7 +77,18 @@ export function QuotaPanel({
     : isClaudeCode
       ? getClaudeCodeQuotaEntries(claudeCodeFiveHour, quota?.weekly, modelQuotas, t)
       : []
-  const hoverTooltipTitle = isClaudeCode ? t('quota.allQuotas') : t('quota.allModels')
+  const codexEstimateEntries = isCodex
+    ? [
+        { label: t('quota.fiveHour'), window: quota?.five_hour, estimate: estimate?.five_hour },
+        { label: t('quota.weekly'), window: quota?.weekly, estimate: estimate?.weekly },
+      ]
+    : []
+  const hoverTooltipTitle = isClaudeCode
+    ? t('quota.allQuotas')
+    : isCodex
+      ? t('quota.estimateTitle')
+      : t('quota.allModels')
+  const hoverEnabled = hoverQuotaEntries.length > 0 || (isCodex && Boolean(estimate?.five_hour || estimate?.weekly || quota?.five_hour || quota?.weekly))
   const resetCreditsQuery = useQuery({
     queryKey: oauthQueryKeys.resetCredits(connectionId ?? ''),
     queryFn: () => listOAuthConnectionResetCredits(connectionId ?? ''),
@@ -134,15 +149,28 @@ export function QuotaPanel({
     <div className="py-1">
       <HoverDetails
         className="block"
-        disabled={hoverQuotaEntries.length === 0}
+        disabled={!hoverEnabled}
         title={hoverTooltipTitle}
-        contentClassName="w-[420px]"
+        contentClassName="w-[280px]"
         content={
-          <div className="space-y-2.5">
-            {hoverQuotaEntries.map((entry, index) => (
-              <QuotaModelRow key={`${entry.label}-${index}`} item={entry.window} label={entry.label} t={t} language={i18n.language} />
-            ))}
-          </div>
+          isCodex ? (
+            <div className="space-y-3">
+              {codexEstimateEntries.map((entry) => (
+                <QuotaEstimateWindowBlock
+                  key={entry.label}
+                  label={entry.label}
+                  estimate={entry.estimate}
+                  t={t}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {hoverQuotaEntries.map((entry, index) => (
+                <QuotaModelRow key={`${entry.label}-${index}`} item={entry.window} label={entry.label} t={t} language={i18n.language} />
+              ))}
+            </div>
+          )
         }
       >
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -179,8 +207,22 @@ export function QuotaPanel({
           </div>
         ) : (
           <div className="space-y-3">
-            <QuotaProgress label={t('quota.fiveHour')} window={claudeCodeFiveHour} t={t} language={i18n.language} />
-            <QuotaProgress label={t('quota.weekly')} window={quota?.weekly} t={t} language={i18n.language} />
+            <QuotaProgress
+              label={t('quota.fiveHour')}
+              window={isCodex ? quota?.five_hour : claudeCodeFiveHour}
+              estimatedTotal={isCodex ? estimate?.five_hour?.estimated_total : undefined}
+              currency={isCodex ? estimate?.five_hour?.currency : undefined}
+              t={t}
+              language={i18n.language}
+            />
+            <QuotaProgress
+              label={t('quota.weekly')}
+              window={quota?.weekly}
+              estimatedTotal={isCodex ? estimate?.weekly?.estimated_total : undefined}
+              currency={isCodex ? estimate?.weekly?.currency : undefined}
+              t={t}
+              language={i18n.language}
+            />
           </div>
         )}
       </HoverDetails>
@@ -341,7 +383,21 @@ function QuotaModelRow({ item, label, t, language }: { item: OAuthQuotaWindowLik
   )
 }
 
-function QuotaProgress({ label, window, t, language }: { label: string; window?: OAuthQuotaWindowLike; t: (key: string, vars?: Record<string, unknown>) => string; language?: string }) {
+function QuotaProgress({
+  label,
+  window,
+  estimatedTotal,
+  currency,
+  t,
+  language,
+}: {
+  label: string
+  window?: OAuthQuotaWindowLike
+  estimatedTotal?: number | null
+  currency?: string | null
+  t: (key: string, vars?: Record<string, unknown>) => string
+  language?: string
+}) {
   if (!window) {
     return (
       <div className="space-y-1.5">
@@ -356,14 +412,16 @@ function QuotaProgress({ label, window, t, language }: { label: string; window?:
 
   const remaining = clampPercent(window.remaining_percent)
   const resetLabel = formatQuotaResetTime(parseQuotaResetAt(window.reset_at), language)
+  const totalLabel = formatEstimateMoney(estimatedTotal, currency)
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3 text-xs">
         <span className="text-muted-soft">{label}</span>
-        <span className="text-foreground">
-          {t('quota.remaining', { percent: formatPercent(window.remaining_percent, language) })}
-          {resetLabel !== '-' ? <span className="text-muted-soft ml-2">{resetLabel}</span> : null}
+        <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 text-foreground">
+          <span>{t('quota.remaining', { percent: formatPercent(window.remaining_percent, language) })}</span>
+          {totalLabel !== '—' ? <span className="tabular-nums text-muted-soft">{totalLabel}</span> : null}
+          {resetLabel !== '-' ? <span className="tabular-nums text-muted-soft">{resetLabel}</span> : null}
         </span>
       </div>
       <Progress
@@ -374,6 +432,54 @@ function QuotaProgress({ label, window, t, language }: { label: string; window?:
       />
     </div>
   )
+}
+
+function QuotaEstimateWindowBlock({
+  label,
+  estimate,
+  t,
+}: {
+  label: string
+  estimate?: OAuthQuotaEstimateWindow | null
+  t: (key: string, vars?: Record<string, unknown>) => string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="font-medium text-foreground">{label}</div>
+      <div className="space-y-1 tabular-nums">
+        <EstimateRow label={t('quota.estimate.total')} value={formatEstimateMoney(estimate?.estimated_total, estimate?.currency)} />
+        <EstimateRow label={t('quota.estimate.exhaust')} value={formatExhaustDuration(estimate?.exhaust_in_seconds, t)} />
+        <EstimateRow label={t('quota.estimate.previous')} value={formatEstimateMoney(estimate?.previous_estimated_total, estimate?.currency)} />
+      </div>
+      {estimate?.external_usage_hint ? (
+        <div className="text-muted-soft">{t('quota.estimate.externalHint')}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function EstimateRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="shrink-0 text-muted-soft">{label}</span>
+      <span className="text-right font-medium text-foreground [overflow-wrap:anywhere]">{value}</span>
+    </div>
+  )
+}
+
+function formatEstimateMoney(value?: number | null, currency?: string | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  const prefix = currency && currency.toUpperCase() !== 'USD' ? `${currency} ` : '$'
+  return `≈ ${prefix}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatExhaustDuration(seconds?: number | null, t?: (key: string, vars?: Record<string, unknown>) => string) {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return '—'
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours <= 0) return t ? t('quota.estimate.minutes', { count: Math.max(1, minutes) }) : `${minutes}m`
+  if (minutes <= 0) return t ? t('quota.estimate.hours', { count: hours }) : `${hours}h`
+  return t ? t('quota.estimate.hoursMinutes', { hours, minutes }) : `${hours}h ${minutes}m`
 }
 
 function ResetCreditTable({

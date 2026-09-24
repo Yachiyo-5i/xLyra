@@ -174,7 +174,14 @@ export function MobileOAuthConnectionCard({
         </div>
       ) : (
         <div className="mt-3">
-          <QuotaPanel connectionId={connection.id} provider={connection.provider} quota={quota} loading={detailQuery.isLoading} resetCreditsData={detail?.reset_credits} />
+          <QuotaPanel
+            connectionId={connection.id}
+            provider={connection.provider}
+            quota={quota}
+            estimate={detail?.quota_estimate}
+            loading={detailQuery.isLoading}
+            resetCreditsData={detail?.reset_credits}
+          />
         </div>
       )}
 

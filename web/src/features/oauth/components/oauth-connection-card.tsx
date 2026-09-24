@@ -173,7 +173,14 @@ export function OAuthConnectionCard({
           <OAuthErrorPreview label={t('card.errorInfo')} message={connectionError} />
         </div>
       ) : (
-        <QuotaPanel connectionId={connection.id} provider={connection.provider} quota={quota} loading={detailQuery.isLoading} resetCreditsData={detail?.reset_credits} />
+          <QuotaPanel
+            connectionId={connection.id}
+            provider={connection.provider}
+            quota={quota}
+            estimate={detail?.quota_estimate}
+            loading={detailQuery.isLoading}
+            resetCreditsData={detail?.reset_credits}
+          />
       )}
 
       <div className="flex items-center justify-end gap-1 border-t border-[hsl(var(--glass-divider))] pt-2">

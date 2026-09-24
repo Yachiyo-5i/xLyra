@@ -23,6 +23,7 @@ describe('HoverDetails', () => {
       expect(markup).toContain('aria-haspopup="dialog"')
       expect(markup).toContain('shrink-0')
       expect(markup).not.toContain('cursor-')
+      expect(markup).not.toContain('actions.close')
       expect(markup.match(/<div\b/g)).toHaveLength(1)
     })
   }

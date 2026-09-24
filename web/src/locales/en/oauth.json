@@ -255,10 +255,32 @@
     "title": "Quota",
     "allModels": "All model quotas",
     "allQuotas": "All quotas",
+    "estimateTitle": "Quota details",
     "modelQuota": "Model quota",
     "fiveHour": "5 hours",
     "weekly": "7 days",
     "remaining": "{{percent}} remaining",
+    "estimate": {
+      "remaining": "Remaining",
+      "total": "Estimated total",
+      "rate": "Spend rate",
+      "perHour": "/h",
+      "exhaust": "Est. exhaust",
+      "reset": "Reset",
+      "observation": "Observed",
+      "previous": "Previous",
+      "externalHint": "Possible external usage",
+      "empty": "No estimate yet",
+      "minutes": "{{count}} min",
+      "hours": "{{count}} h",
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "status": {
+        "baseline": "First snapshot",
+        "sampling": "Estimating",
+        "lowSample": "Low sample",
+        "ready": "Ready"
+      }
+    },
     "resetCredits": {
       "count": "{{count}} reset cards",
       "title": "Quota reset cards",
