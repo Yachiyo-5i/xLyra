@@ -66,6 +66,42 @@ func TestDecompressRequestBodyAcceptsSupportedEncodings(t *testing.T) {
 	}
 }
 
+// Responses accepts bodies larger than the former 32 MiB default, whether
+// sent as plain JSON or compressed with zstd.
+func TestDecompressRequestBodyAcceptsLargeBodyWithinGatewayLimit(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"input":"` + strings.Repeat("x", 32*1024*1024) + `"}`)
+	for _, tc := range []struct {
+		name     string
+		payload  []byte
+		encoding string
+	}{
+		{name: "plain JSON", payload: body},
+		{name: "zstd", payload: compressZstdFixture(t, body), encoding: "zstd"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var decoded map[string]string
+			handler := DecompressRequestBody(256*1024*1024, nil)(LimitRequestBody(256 * 1024 * 1024)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := DecodeJSONBody(r, &decoded); err != nil {
+					t.Errorf("DecodeJSONBody: %v", err)
+				}
+			})))
+			req := httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(tc.payload))
+			if tc.encoding != "" {
+				req.Header.Set("Content-Encoding", tc.encoding)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rec.Code)
+			}
+			if len(decoded["input"]) != 32*1024*1024 {
+				t.Fatalf("input length = %d", len(decoded["input"]))
+			}
+		})
+	}
+}
+
 func TestDecompressRequestBodyRejectsUnsupportedEncoding(t *testing.T) {
 	t.Parallel()
 
