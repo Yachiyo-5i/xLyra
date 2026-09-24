@@ -21,7 +21,7 @@ type Config struct {
 	LogToStdout         bool          `env:"LOG_TO_STDOUT" envDefault:"true"`
 	ReadHeaderTimeout   time.Duration `env:"READ_HEADER_TIMEOUT" envDefault:"5s"`
 	RequestTimeout      time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`
-	MaxRequestBodyBytes int64         `env:"MAX_REQUEST_BODY_BYTES" envDefault:"33554432"`
+	MaxRequestBodyBytes int64         `env:"MAX_REQUEST_BODY_BYTES" envDefault:"268435456"`
 	ShutdownTimeout     time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	DBConnectTimeout    time.Duration `env:"DB_CONNECT_TIMEOUT" envDefault:"30s"`
 	DBMinConns          int32         `env:"DB_MIN_CONNS" envDefault:"2"`
