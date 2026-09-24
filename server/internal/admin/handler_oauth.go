@@ -1385,6 +1385,18 @@ func (h Handler) oauthConnectionDetailsPayload(r *http.Request, details oauthsvc
 			"total_earned_count": resetCredits.TotalEarnedCount,
 		}
 	}
+	if h.oauth != nil && strings.EqualFold(details.Connection.Provider, "codex") {
+		if estimate, err := h.oauth.QuotaEstimateView(r.Context(), details.Connection.ID); err != nil {
+			if h.logger != nil {
+				h.logger.Warn("oauth quota estimate view failed",
+					"connection_id", details.Connection.ID,
+					"error", err,
+				)
+			}
+		} else if estimate.FiveHour != nil || estimate.Weekly != nil {
+			payload["quota_estimate"] = estimate
+		}
+	}
 	return payload
 }
 

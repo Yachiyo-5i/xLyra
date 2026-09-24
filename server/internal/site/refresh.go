@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
@@ -617,6 +618,15 @@ func (s *Service) refreshCapabilityState(ctx context.Context, item store.Site, m
 		}
 		if newQuota := quotaFromUserSummary(userSummary); codexQuotaHasWindowData(newQuota) {
 			patch["quota"] = newQuota
+			if s.oauth != nil && normalizeSiteType(item.SiteType) == "codex" {
+				if _, err := s.oauth.RecordCodexQuotaSnapshot(ctx, auth.ConnectionID, item.ID, newQuota, now); err != nil {
+					slog.Default().Warn("record codex quota snapshot failed",
+						"connection_id", auth.ConnectionID,
+						"site_id", item.ID,
+						"error", err,
+					)
+				}
+			}
 		}
 		for key, value := range oauthMetadataFromUserSummary(userSummary) {
 			patch[key] = value

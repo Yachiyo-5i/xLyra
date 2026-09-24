@@ -255,10 +255,32 @@
     "title": "クォータ",
     "allModels": "すべてのモデルクォータ",
     "allQuotas": "すべてのクォータ",
+    "estimateTitle": "クォータ詳細",
     "modelQuota": "モデルクォータ",
     "fiveHour": "5 時間",
     "weekly": "7 日",
     "remaining": "残り {{percent}}",
+    "estimate": {
+      "remaining": "残り",
+      "total": "推定総量",
+      "rate": "消費速度",
+      "perHour": "/時間",
+      "exhaust": "推定枯渇",
+      "reset": "リセット",
+      "observation": "観測",
+      "previous": "前回推定",
+      "externalHint": "外部利用の可能性",
+      "empty": "推定なし",
+      "minutes": "{{count}} 分",
+      "hours": "{{count}} 時間",
+      "hoursMinutes": "{{hours}} 時間 {{minutes}} 分",
+      "status": {
+        "baseline": "初回スナップショット",
+        "sampling": "推定中",
+        "lowSample": "サンプル少",
+        "ready": "参考可"
+      }
+    },
     "resetCredits": {
       "count": "{{count}} 枚のリセットカード",
       "title": "クォータリセットカード",

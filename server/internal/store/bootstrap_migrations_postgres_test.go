@@ -51,10 +51,16 @@ func TestDevPostgresMigrationsInitializeNewSchema(t *testing.T) {
 	if !migrator.HasColumn(&OAuthConnection{}, "RefreshLeaseUntil") {
 		t.Fatal("oauth_connections.refresh_lease_until column was not created")
 	}
+	if !migrator.HasTable(&OAuthQuotaSnapshot{}) {
+		t.Fatal("oauth_quota_snapshots table was not created")
+	}
+	if !migrator.HasTable(&OAuthQuotaWindowRound{}) {
+		t.Fatal("oauth_quota_window_rounds table was not created")
+	}
 	if !migrator.HasTable(&CacheObservation{}) {
 		t.Fatal("cache_observations table was not created")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5})
 }
 
 func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
@@ -83,7 +89,7 @@ func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
 	if !db.Migrator().HasColumn(&OAuthConnection{}, "RefreshLeaseID") {
 		t.Fatal("refresh lease column was not added by upgrade migration")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5})
 }
 
 func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
@@ -97,7 +103,7 @@ func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
 	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
 		t.Fatalf("second migration run: %v", err)
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5})
 }
 
 func TestDevPostgresFailedMigrationIsNotRecordedAndCanRetry(t *testing.T) {
