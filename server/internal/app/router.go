@@ -354,9 +354,10 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 			protected.Use(requireAPIKey(authService))
 			// Cap JSON text endpoints; image endpoints keep their own upload limit.
 			limitBody := httpx.LimitRequestBody(cfg.MaxRequestBodyBytes)
+			textLimitBody := httpx.LimitRequestBody(min(cfg.MaxRequestBodyBytes, 32*1024*1024))
 			protected.With(limitBody).Post("/chat/completions", gatewayHandler.ChatCompletions)
-			protected.With(limitBody).Post("/embeddings", gatewayHandler.Embeddings)
-			protected.With(limitBody).Post("/audio/speech", gatewayHandler.AudioSpeech)
+			protected.With(textLimitBody).Post("/embeddings", gatewayHandler.Embeddings)
+			protected.With(textLimitBody).Post("/audio/speech", gatewayHandler.AudioSpeech)
 			protected.Post("/images/generations", gatewayHandler.ImagesGenerations)
 			protected.Post("/images/edits", gatewayHandler.ImagesEdits)
 			protected.With(limitBody).Post("/messages", gatewayHandler.Messages)
