@@ -202,6 +202,7 @@ func TestLoadUsesEnvironmentAndSanitizesOrigins(t *testing.T) {
 	t.Setenv("POSTGRES_DSN", "postgres://user:pass@localhost:5432/xlyra?sslmode=disable")
 	t.Setenv("CORS_ALLOWED_ORIGINS", " http://localhost:5173 , ,https://admin.example.com ")
 	t.Setenv("SITE_HEALTH_INTERVAL", "5m")
+	t.Setenv("MAX_REQUEST_BODY_BYTES", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -209,6 +210,9 @@ func TestLoadUsesEnvironmentAndSanitizesOrigins(t *testing.T) {
 	}
 	if cfg.AppEnv != "test" || cfg.HTTPPort != 5901 {
 		t.Fatalf("unexpected env config: %#v", cfg)
+	}
+	if cfg.MaxRequestBodyBytes != 256*1024*1024 {
+		t.Fatalf("max request body bytes = %d, want %d", cfg.MaxRequestBodyBytes, 256*1024*1024)
 	}
 	if len(cfg.CORSAllowedOrigins) != 2 || cfg.CORSAllowedOrigins[1] != "https://admin.example.com" {
 		t.Fatalf("origins were not sanitized: %#v", cfg.CORSAllowedOrigins)

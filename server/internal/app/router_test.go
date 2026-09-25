@@ -484,6 +484,46 @@ func TestRouteAwareTimeoutExtendsAgentSessionCommands(t *testing.T) {
 	}
 }
 
+func TestResponsesRouteRejectsBodyAboveConfiguredLimit(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.MaxRequestBodyBytes = 256 * 1024 * 1024
+	routes, ok := NewRouter(cfg, slog.Default(), nil, nil, "test-master-key").(chi.Routes)
+	if !ok {
+		t.Fatal("router does not expose chi routes")
+	}
+
+	var routeMiddlewares []func(http.Handler) http.Handler
+	if err := chi.Walk(routes, func(method string, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		if method == http.MethodPost && route == "/v1/responses" {
+			routeMiddlewares = middlewares
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk routes: %v", err)
+	}
+	if len(routeMiddlewares) == 0 {
+		t.Fatal("responses route has no middleware")
+	}
+
+	for _, routeMiddleware := range routeMiddlewares {
+		req := httptest.NewRequest(http.MethodPost, "/v1/responses", http.NoBody)
+		req.ContentLength = cfg.MaxRequestBodyBytes + 1
+		rec := httptest.NewRecorder()
+		handler := routeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+
+		handler.ServeHTTP(rec, req)
+		if rec.Code == http.StatusRequestEntityTooLarge {
+			return
+		}
+	}
+
+	t.Fatalf("responses route did not reject a body over %d bytes", cfg.MaxRequestBodyBytes)
+}
+
 func TestRouteAwareTimeoutKeepsDefaultForRegularRoutes(t *testing.T) {
 	t.Parallel()
 
