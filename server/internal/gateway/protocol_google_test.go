@@ -23,8 +23,12 @@ func TestGoogleProtocolBuildsGenerateContentPayloadFromChatRequest(t *testing.T)
 				map[string]any{"role": "system", "content": "Be concise."},
 				map[string]any{"role": "user", "content": "Hello"},
 			},
-			"temperature": 0.2,
-			"max_tokens":  128,
+			"temperature":         0.2,
+			"max_tokens":          128,
+			"user":                "client-user",
+			"metadata":            map[string]any{"trace": "x"},
+			"parallel_tool_calls": true,
+			"reasoning_effort":    "medium",
 		},
 	}, routeengine.Candidate{
 		Model: routeengine.CandidateModel{UpstreamName: "gemini-2.5-pro"},
@@ -34,6 +38,19 @@ func TestGoogleProtocolBuildsGenerateContentPayloadFromChatRequest(t *testing.T)
 	}
 	if _, ok := payload["model"]; ok {
 		t.Fatalf("Google payload should not include model in body: %#v", payload["model"])
+	}
+	for _, key := range []string{"user", "metadata", "parallel_tool_calls", "reasoning_effort"} {
+		if _, ok := payload[key]; ok {
+			t.Fatalf("%s should be stripped from Gemini body, got %#v", key, payload[key])
+		}
+	}
+	config := payload["generationConfig"].(map[string]any)
+	if config["temperature"] != 0.2 || config["maxOutputTokens"] != 128 {
+		t.Fatalf("generationConfig = %#v", config)
+	}
+	thinking := config["thinkingConfig"].(map[string]any)
+	if thinking["thinkingLevel"] != "MEDIUM" {
+		t.Fatalf("thinkingConfig = %#v, want medium effort", thinking)
 	}
 	contents, ok := payload["contents"].([]any)
 	if !ok || len(contents) != 1 {

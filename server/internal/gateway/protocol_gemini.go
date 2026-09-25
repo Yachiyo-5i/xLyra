@@ -412,6 +412,26 @@ func validateSourceKeys(value map[string]any, target canonicalProtocol, label st
 	return nil
 }
 
+func geminiMappedRequestParams() map[string]struct{} {
+	return map[string]struct{}{
+		"stream": {}, "stream_options": {}, "temperature": {}, "top_p": {}, "top_k": {},
+		"max_tokens": {}, "max_completion_tokens": {}, "max_output_tokens": {}, "stop": {},
+		"stop_sequences": {}, "seed": {}, "presence_penalty": {}, "frequency_penalty": {},
+		"n": {}, "candidate_count": {}, "response_modalities": {}, "modalities": {},
+		"thinking": {}, "thinking_config": {}, "reasoning": {}, "reasoning_effort": {},
+		"output_config": {}, "response_format": {}, "response_mime_type": {},
+		"response_schema": {}, "image_config": {}, "gemini_generation_config": {}, "text": {},
+	}
+}
+
+func geminiIgnorableRequestParams() map[string]struct{} {
+	return map[string]struct{}{
+		"user": {}, "metadata": {}, "store": {}, "service_tier": {}, "safety_identifier": {},
+		"prompt_cache_key": {}, "prompt_cache_retention": {}, "prompt_cache_options": {},
+		"parallel_tool_calls": {}, "include": {}, "background": {}, "max_tool_calls": {},
+	}
+}
+
 func validateCanonicalRequestForGoogleGemini(request canonicalRequest) error {
 	if request.Image != nil {
 		if request.Image.Mask != nil {
@@ -426,18 +446,16 @@ func validateCanonicalRequestForGoogleGemini(request canonicalRequest) error {
 			return fmt.Errorf("%s image response_format %q cannot be represented by Gemini without loss", request.SourceProtocol, format)
 		}
 	}
-	allowedParams := map[string]struct{}{
-		"stream": {}, "stream_options": {}, "temperature": {}, "top_p": {}, "top_k": {},
-		"max_tokens": {}, "max_completion_tokens": {}, "max_output_tokens": {}, "stop": {},
-		"stop_sequences": {}, "seed": {}, "presence_penalty": {}, "frequency_penalty": {},
-		"n": {}, "candidate_count": {}, "response_modalities": {}, "modalities": {},
-		"thinking": {}, "thinking_config": {}, "response_format": {}, "response_mime_type": {},
-		"response_schema": {}, "image_config": {}, "gemini_generation_config": {}, "text": {},
-	}
+	mapped := geminiMappedRequestParams()
+	ignorable := geminiIgnorableRequestParams()
 	for key := range request.Params {
-		if _, ok := allowedParams[key]; !ok {
-			return fmt.Errorf("%s field %q cannot be represented by Gemini without loss", request.SourceProtocol, key)
+		if _, ok := ignorable[key]; ok {
+			continue
 		}
+		if _, ok := mapped[key]; ok {
+			continue
+		}
+		return fmt.Errorf("%s field %q cannot be represented by Gemini without loss", request.SourceProtocol, key)
 	}
 	for _, tool := range request.Tools {
 		if tool.Type != "function" {
@@ -560,6 +578,49 @@ func geminiGenerationConfigToCanonical(params map[string]any, config map[string]
 	}
 	if schema := config["responseSchema"]; schema != nil {
 		params["response_schema"] = schema
+	}
+}
+
+func geminiThinkingConfigFromCrossProtocolParams(params map[string]any) map[string]any {
+	if effort := geminiEffortFromCrossProtocolParams(params); effort != "" {
+		return geminiThinkingConfigFromEffort(effort)
+	}
+	return nil
+}
+
+func geminiEffortFromCrossProtocolParams(params map[string]any) string {
+	if effort := strings.ToLower(strings.TrimSpace(anyString(params["reasoning_effort"]))); effort != "" {
+		return effort
+	}
+	if reasoning, ok := params["reasoning"].(map[string]any); ok {
+		if effort := strings.ToLower(strings.TrimSpace(anyString(reasoning["effort"]))); effort != "" {
+			return effort
+		}
+	}
+	if outputConfig, ok := params["output_config"].(map[string]any); ok {
+		if effort := strings.ToLower(strings.TrimSpace(anyString(outputConfig["effort"]))); effort != "" {
+			return effort
+		}
+	}
+	return ""
+}
+
+func geminiThinkingConfigFromEffort(effort string) map[string]any {
+	switch effort {
+	case "auto":
+		return nil
+	case "none":
+		return map[string]any{"includeThoughts": false, "budgetTokens": 0}
+	case "minimal":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "MINIMAL", "budgetTokens": 512}
+	case "low":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "LOW", "budgetTokens": 1024}
+	case "medium":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "MEDIUM", "budgetTokens": 8192}
+	case "high", "xhigh", "max", "ultra":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "HIGH", "budgetTokens": 24576}
+	default:
+		return nil
 	}
 }
 

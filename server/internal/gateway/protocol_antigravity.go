@@ -801,6 +801,11 @@ func antigravityCanonicalGenerationConfig(request canonicalRequest) map[string]a
 			config["thinkingConfig"] = thinkingConfig
 		}
 	}
+	if _, hasThinking := config["thinkingConfig"]; !hasThinking {
+		if thinkingConfig := geminiThinkingConfigFromCrossProtocolParams(request.Params); len(thinkingConfig) > 0 {
+			config["thinkingConfig"] = thinkingConfig
+		}
+	}
 	if responseFormat, ok := request.Params["response_format"].(map[string]any); ok {
 		switch stringFromMapAny(responseFormat, "type") {
 		case "json_object":
