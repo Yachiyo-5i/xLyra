@@ -2,20 +2,16 @@
 
 ## [1.13.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.12.0...v1.13.0) (2026-09-25)
 
-
 ### Features
 
-* ✨ 为 Codex OAuth 增加额度预估 ([d42f1ca](https://github.com/Yachiyo-5i/xLyra/commit/d42f1caec9624fd611fd2b0e0c04791d08308438))
-
+* 🎸 为 Codex OAuth 增加额度预估 ([d42f1ca](https://github.com/Yachiyo-5i/xLyra/commit/d42f1caec9624fd611fd2b0e0c04791d08308438))
 
 ### Bug Fixes
 
 * 🐛 修复下游 completions 转 Gemini 时因用户标识等字段被拒的问题 ([02f3fb5](https://github.com/Yachiyo-5i/xLyra/commit/02f3fb57efc3e82c49e223e3a3ac9f253c57c557))
-* 🐛 将缓存观测从请求日志备份中分离 ([29196fc](https://github.com/Yachiyo-5i/xLyra/commit/29196fc2b8eca960bf583cac04f46f35a269eec4))
+* 🐛 修复缓存观测数据的备份与升级问题 ([29196fc](https://github.com/Yachiyo-5i/xLyra/commit/29196fc2b8eca960bf583cac04f46f35a269eec4), [026d666](https://github.com/Yachiyo-5i/xLyra/commit/026d666c36fd5d9455c3a51ae5cadbaabb1fce58))
 * 🐛 恢复总览页加载时的骨架屏 ([ec422ea](https://github.com/Yachiyo-5i/xLyra/commit/ec422eafa5a70892611cde732105957ec7bb4cdb))
-* 🐛 用版本迁移创建缓存观测表 ([026d666](https://github.com/Yachiyo-5i/xLyra/commit/026d666c36fd5d9455c3a51ae5cadbaabb1fce58))
-* raise gateway request body limit to 256 MiB ([c436f5e](https://github.com/Yachiyo-5i/xLyra/commit/c436f5eefac2790846f3d81a113e884706173c2c))
-* raise gateway request body limit to 256 MiB ([8c19c54](https://github.com/Yachiyo-5i/xLyra/commit/8c19c54f947040a53eec3d3d095745f70f9b07b5))
+* 🐛 修复超过 32 MiB 的网关请求被拒绝的问题，支持最大 256 MiB 请求体 ([c436f5e](https://github.com/Yachiyo-5i/xLyra/commit/c436f5eefac2790846f3d81a113e884706173c2c))
 
 ## [1.12.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.11.0...v1.12.0) (2026-09-23)
 
