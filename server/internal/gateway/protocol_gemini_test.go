@@ -228,7 +228,7 @@ func TestGeminiImageConversionRejectsTextTargetAndUnsupportedImageFields(t *test
 	}
 }
 
-func TestCrossProtocolToGeminiRejectsUnrepresentableFieldsAndKeepsToolCalls(t *testing.T) {
+func TestCrossProtocolToGeminiStripsIgnorableFieldsAndKeepsToolCalls(t *testing.T) {
 	request, err := canonicalRequestFromOpenAIChatPayload(map[string]any{
 		"model": "gpt-alias",
 		"messages": []any{
@@ -237,23 +237,118 @@ func TestCrossProtocolToGeminiRejectsUnrepresentableFieldsAndKeepsToolCalls(t *t
 				"id": "call_1", "type": "function", "function": map[string]any{"name": "lookup", "arguments": `{"q":"x"}`},
 			}}},
 		},
-		"metadata": map[string]any{"trace": "x"},
+		"user":                  "client-user",
+		"metadata":              map[string]any{"trace": "x"},
+		"store":                 true,
+		"service_tier":          "default",
+		"parallel_tool_calls":   true,
+		"safety_identifier":     "safe",
+		"prompt_cache_key":      "cache-1",
+		"prompt_cache_retention": "24h",
 	}, "gpt-alias")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateGoogleGeminiConversion(request, canonicalProtocolGoogleGemini); err == nil {
-		t.Fatal("expected metadata to be rejected for Gemini conversion")
+	if err := validateGoogleGeminiConversion(request, canonicalProtocolGoogleGemini); err != nil {
+		t.Fatalf("ignorable OpenAI Chat fields should be stripped, got %v", err)
 	}
-	request.Params = map[string]any{}
 	encoded, err := encodeCanonicalRequestToGoogleGemini(request, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gemini-2.5-pro"}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, key := range []string{"user", "metadata", "store", "service_tier", "parallel_tool_calls"} {
+		if _, ok := encoded[key]; ok {
+			t.Fatalf("%s should not appear in Gemini payload: %#v", key, encoded[key])
+		}
 	}
 	contents := encoded["contents"].([]any)
 	modelParts := contents[1].(map[string]any)["parts"].([]any)
 	if _, ok := modelParts[0].(map[string]any)["functionCall"]; !ok {
 		t.Fatalf("unsigned cross-protocol tool call was dropped: %#v", modelParts)
+	}
+}
+
+func TestCrossProtocolToGeminiMapsReasoningEffortToThinkingConfig(t *testing.T) {
+	chat, err := canonicalRequestFromOpenAIChatPayload(map[string]any{
+		"model":            "gpt-alias",
+		"messages":         []any{map[string]any{"role": "user", "content": "think"}},
+		"reasoning_effort": "high",
+		"user":             "client-user",
+	}, "gpt-alias")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := encodeCanonicalRequestToGoogleGemini(chat, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gemini-2.5-pro"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := encoded["generationConfig"].(map[string]any)
+	thinking := config["thinkingConfig"].(map[string]any)
+	if thinking["thinkingLevel"] != "HIGH" || thinking["includeThoughts"] != true || thinking["budgetTokens"] != 24576 {
+		t.Fatalf("thinkingConfig = %#v, want high effort mapping", thinking)
+	}
+
+	responses, err := canonicalRequestFromOpenAIResponsesPayload(map[string]any{
+		"model":     "gpt-alias",
+		"input":     "think",
+		"reasoning": map[string]any{"effort": "low"},
+		"metadata":  map[string]any{"trace": "x"},
+	}, "gpt-alias")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err = encodeCanonicalRequestToGoogleGemini(responses, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gemini-2.5-pro"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	thinking = encoded["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
+	if thinking["thinkingLevel"] != "LOW" || thinking["budgetTokens"] != 1024 {
+		t.Fatalf("responses thinkingConfig = %#v, want low effort mapping", thinking)
+	}
+
+	anthropic, err := canonicalRequestFromAnthropicMessagesPayload(map[string]any{
+		"model":         "claude",
+		"max_tokens":    64,
+		"messages":      []any{map[string]any{"role": "user", "content": "think"}},
+		"output_config": map[string]any{"effort": "medium"},
+		"metadata":      map[string]any{"user_id": "u1"},
+	}, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err = encodeCanonicalRequestToGoogleGemini(anthropic, routeengine.Candidate{Model: routeengine.CandidateModel{UpstreamName: "gemini-2.5-pro"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	thinking = encoded["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
+	if thinking["thinkingLevel"] != "MEDIUM" || thinking["budgetTokens"] != 8192 {
+		t.Fatalf("anthropic thinkingConfig = %#v, want medium effort mapping", thinking)
+	}
+}
+
+func TestCrossProtocolToGeminiRejectsUnrepresentableParams(t *testing.T) {
+	request, err := canonicalRequestFromOpenAIChatPayload(map[string]any{
+		"model":      "gpt-alias",
+		"messages":   []any{map[string]any{"role": "user", "content": "hi"}},
+		"logit_bias": map[string]any{"42": 1},
+	}, "gpt-alias")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateGoogleGeminiConversion(request, canonicalProtocolGoogleGemini); err == nil {
+		t.Fatal("expected logit_bias to be rejected for Gemini conversion")
+	}
+
+	responses, err := canonicalRequestFromOpenAIResponsesPayload(map[string]any{
+		"model":                "gpt-alias",
+		"input":                "hi",
+		"previous_response_id": "resp_1",
+	}, "gpt-alias")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateGoogleGeminiConversion(responses, canonicalProtocolGoogleGemini); err == nil {
+		t.Fatal("expected previous_response_id to be rejected for Gemini conversion")
 	}
 }
 
