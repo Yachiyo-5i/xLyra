@@ -20,7 +20,11 @@ func canonicalThinkingFromChatMessage(msg map[string]any) []canonicalThinkingBlo
 func canonicalThinkingFromResponsesItem(item map[string]any) []canonicalThinkingBlock {
 	itemType := strings.TrimSpace(anyString(item["type"]))
 	if itemType == "reasoning" {
-		if thinking := responsesReasoningText(item["content"]); thinking != "" {
+		thinking := firstNonEmptyGatewayString(
+			responsesReasoningText(item["content"]),
+			responsesReasoningText(item["summary"]),
+		)
+		if thinking != "" {
 			return []canonicalThinkingBlock{{Type: "thinking", Thinking: thinking, Signature: firstNonEmptyGatewayString(anyString(item["thinking_signature"]), anyString(item["signature"]))}}
 		}
 	}
@@ -86,6 +90,9 @@ func responsesReasoningItem(blocks []canonicalThinkingBlock) map[string]any {
 	}
 	item := map[string]any{
 		"type": "reasoning",
+		"summary": []any{
+			map[string]any{"type": "summary_text", "text": text},
+		},
 		"content": []any{
 			map[string]any{"type": "reasoning_text", "text": text},
 		},

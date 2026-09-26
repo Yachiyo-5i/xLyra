@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, CalendarDays, Gauge, Hash, RefreshCw, Sigma, Timer, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,8 @@ import { ErrorState } from '@/components/common/error-state'
 import { PageHeader } from '@/components/common/page-header'
 import type { TokenUsageColumn, TokenUsageLabels } from '@/components/common/token-usage-hover-card'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DashboardCooldownList,
   DashboardMetricCard,
@@ -15,7 +17,7 @@ import {
   SiteUptimeStrip,
   SystemResourcePanel,
 } from '@/features/dashboard/components'
-import { MobileDashboard } from '@/features/dashboard/components/mobile-dashboard'
+import { MobileDashboard, MobileDashboardSkeleton } from '@/features/dashboard/components/mobile-dashboard'
 import {
   dashboardQueryKeys,
   getDashboardCooldowns,
@@ -37,6 +39,7 @@ import {
 import { clearRouteCooldown, routeQueryKeys } from '@/features/routes/api/routes'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 
 export function DashboardPage() {
   const { t, i18n } = useTranslation('dashboard')
@@ -152,13 +155,7 @@ export function DashboardPage() {
   })
 
   if (usageQuery.isLoading) {
-    return (
-      <PageHeader
-        eyebrow={t('page.eyebrow')}
-        title={t('page.title')}
-        description={t('page.description')}
-      />
-    )
+    return isMobile ? <MobileDashboardSkeleton /> : <DashboardSkeleton />
   }
 
   if (usageQuery.isError) {
@@ -371,4 +368,161 @@ export function DashboardPage() {
       </div>
     </div>
   )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-10" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+      </div>
+      <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <DashboardMetricSkeleton>
+            <div className="mb-4 flex items-center gap-2">
+              <Skeleton className="size-4 rounded" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
+              <Skeleton className="h-12 rounded-lg" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <Skeleton className="h-12 rounded-lg" />
+            </div>
+          </DashboardMetricSkeleton>
+          <DashboardMetricSkeleton>
+            <div className="mb-4 flex items-center gap-2">
+              <Skeleton className="size-4 rounded" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
+              <Skeleton className="h-12 rounded-lg" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <Skeleton className="h-12 rounded-lg" />
+            </div>
+          </DashboardMetricSkeleton>
+          <DashboardMetricSkeleton>
+            <div className="mb-4 flex items-center gap-2">
+              <Skeleton className="size-4 rounded" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
+              <Skeleton className="h-12 rounded-lg" />
+              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <Skeleton className="h-12 rounded-lg" />
+            </div>
+          </DashboardMetricSkeleton>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <DashboardPanelSkeleton className="h-[360px]" variant="list" />
+          <DashboardPanelSkeleton className="h-[360px]" variant="list" />
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <DashboardPanelSkeleton className="h-[320px]" variant="uptime" />
+          <DashboardPanelSkeleton className="h-[320px]" variant="resource" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DashboardMetricSkeleton({ children }: { children: ReactNode }) {
+  return (
+    <Card className="@container/metric min-h-[132px] rounded-lg p-4">
+      {children}
+    </Card>
+  )
+}
+
+type DashboardPanelSkeletonVariant = 'list' | 'resource' | 'uptime'
+
+function DashboardPanelSkeleton({
+  className,
+  variant = 'list',
+}: {
+  className?: string
+  variant?: DashboardPanelSkeletonVariant
+}) {
+  return (
+    <Card
+      className={cn(
+        'flex min-h-0 flex-col rounded-lg p-5',
+        className,
+      )}
+    >
+      <div className="mb-5 flex shrink-0 flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+      </div>
+      <DashboardPanelSkeletonContent variant={variant} />
+    </Card>
+  )
+}
+
+function DashboardPanelSkeletonContent({ variant }: { variant: DashboardPanelSkeletonVariant }) {
+  if (variant === 'list') {
+    return (
+      <div className="min-h-0 flex-1 divide-y divide-[hsl(var(--glass-divider))] overflow-hidden">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 py-3">
+            <Skeleton className="mt-0.5 size-4 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-3 w-11/12" />
+            </div>
+            <Skeleton className="h-4 w-12" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (variant === 'uptime') {
+    return (
+      <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="grid grid-cols-[120px_minmax(0,1fr)_44px] items-center gap-3">
+            <Skeleton className="h-4 w-full" />
+            <div className="grid grid-cols-[repeat(24,minmax(0,1fr))] gap-1">
+              {Array.from({ length: 24 }).map((_, bucketIndex) => (
+                <Skeleton key={bucketIndex} className="h-4 rounded-[4px]" />
+              ))}
+            </div>
+            <Skeleton className="h-4 w-full" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (variant === 'resource') {
+    return (
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-x-8 gap-y-6">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-12" />
+            </div>
+            <Skeleton className="h-2 w-full rounded-full" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return <Skeleton className="h-[250px] rounded-lg" />
 }
