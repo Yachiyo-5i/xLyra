@@ -184,7 +184,7 @@ export function OAuthImportSheet({
 
   return (
     <Draw open={open} onOpenChange={handleClose}>
-      <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DrawHeader>
           <DrawTitle>{t('import.title')}</DrawTitle>
         </DrawHeader>

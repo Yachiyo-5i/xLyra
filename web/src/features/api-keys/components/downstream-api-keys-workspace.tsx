@@ -39,7 +39,7 @@ import {
   type QuotaResetScope,
 } from '@/features/api-keys/api/api-keys'
 import { APIKeyOrderDraw } from '@/features/api-keys/components/api-key-order-draw'
-import { APIKeyFormDraw } from '@/features/api-keys/components/api-key-form-draw'
+import { APIKeyFormDialog } from '@/features/api-keys/components/api-key-form-dialog'
 import { APIKeyModelsDraw } from '@/features/api-keys/components/api-key-models-draw'
 import { APIKeysSkeleton } from '@/features/api-keys/components/api-keys-skeleton'
 import { DownstreamAPIKeysTable } from '@/features/api-keys/components/downstream-api-keys-table'
@@ -279,7 +279,7 @@ export function DownstreamAPIKeysWorkspace() {
         <APIKeyOrderDraw initialData={apiKeysQuery.data} onClose={() => setOrderOpen(false)} />
       ) : null}
       {formOpen ? (
-        <APIKeyFormDraw
+        <APIKeyFormDialog
           open={formOpen}
           initialKey={editingKey}
           canonicalModels={canonicalModels}
@@ -307,6 +307,7 @@ export function DownstreamAPIKeysWorkspace() {
       <APIKeyModelsDraw
         apiKey={modelsKey}
         canonicalModels={canonicalModels}
+        sites={sites}
         onOpenChange={(open) => {
           if (!open) setModelsKey(null)
         }}

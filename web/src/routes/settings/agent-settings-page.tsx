@@ -99,7 +99,6 @@ export function AgentSettingsPage() {
   const [modelPolicy, setModelPolicy] = useState<SiteModelScopePolicy | null>(null)
   const [siteIDs, setSiteIDs] = useState<string[] | null>(null)
   const [siteModelIDs, setSiteModelIDs] = useState<string[] | null>(null)
-  const [autoSelect, setAutoSelect] = useState<boolean | null>(null)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [scopeView, setScopeView] = useState<ScopeView | null>(null)
   const [viewSearch, setViewSearch] = useState('')
@@ -176,9 +175,8 @@ export function AgentSettingsPage() {
   const effectiveRunnerURL = runnerURL || runtime.data?.runner_base_url || ''
   const effectiveSitePolicy = sitePolicy ?? runtime.data?.site_policy ?? 'allow_all'
   const effectiveModelPolicy = effectiveSitePolicy === 'allow_list' ? 'allow_list' : modelPolicy ?? runtime.data?.model_policy ?? 'allow_all'
-  const selectedSiteIDs = siteIDs ?? runtime.data?.allowed_site_ids ?? []
   const storedSiteModelIDs = siteModelIDs ?? runtime.data?.allowed_site_model_ids ?? []
-  const effectiveAutoSelect = autoSelect ?? storedSiteModelIDs.length === 0
+  const selectedSiteIDs = siteIDs ?? runtime.data?.allowed_site_ids ?? []
 
   const scope = useSiteModelScope({
     sites,
@@ -186,7 +184,6 @@ export function AgentSettingsPage() {
     modelPolicy: effectiveModelPolicy,
     siteIds: selectedSiteIDs,
     siteModelIds: storedSiteModelIDs,
-    autoSelectSiteModels: effectiveAutoSelect,
   })
 
   const availableSites = useMemo(() => [...(available.data ?? [])].sort((left, right) => left.site_name.localeCompare(right.site_name, 'zh-CN')), [available.data])
@@ -242,7 +239,6 @@ export function AgentSettingsPage() {
       setModelPolicy(null)
       setSiteIDs(null)
       setSiteModelIDs(null)
-      setAutoSelect(null)
       setScopeOpen(false)
       await queryClient.invalidateQueries({ queryKey: agentSettingsKey })
       toast.success(t('settings:agent.saveSuccess'))
@@ -264,7 +260,6 @@ export function AgentSettingsPage() {
     if (patch.modelPolicy !== undefined) setModelPolicy(patch.modelPolicy)
     if (patch.siteIds !== undefined) setSiteIDs(patch.siteIds)
     if (patch.siteModelIds !== undefined) setSiteModelIDs(patch.siteModelIds)
-    if (patch.autoSelectSiteModels !== undefined) setAutoSelect(patch.autoSelectSiteModels)
   }
 
   function openView(view: ScopeView) {
@@ -408,7 +403,7 @@ export function AgentSettingsPage() {
       </section>
 
       <Draw open={scopeOpen} onOpenChange={setScopeOpen}>
-        <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
           <DrawHeader>
             <DrawTitle>{t('settings:agent.scope.title')}</DrawTitle>
             <DrawDescription>{t('settings:agent.scope.description')}</DrawDescription>
@@ -439,7 +434,7 @@ export function AgentSettingsPage() {
       </Draw>
 
       <Draw open={scopeView !== null} onOpenChange={(open) => { if (!open) setScopeView(null) }}>
-        <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
           <DrawHeader>
             <DrawTitle>{scopeView === 'sites' ? t('settings:agent.scope.availableSites') : t('settings:agent.scope.availableModels')}</DrawTitle>
           </DrawHeader>

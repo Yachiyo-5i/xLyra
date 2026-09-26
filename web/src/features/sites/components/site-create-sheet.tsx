@@ -734,7 +734,7 @@ export function SiteCreateSheet({
   return (
     <>
       <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DrawHeader>
           {selectedProvider && mode === 'create' ? (
             <div className="flex items-center gap-2">
@@ -1263,7 +1263,7 @@ export function SiteCreateSheet({
           }
         }}
       >
-        <DrawContent side="right" size="wide">
+        <DrawContent side="right">
           <DrawHeader>
             <div className="flex items-center gap-2">
               <Button

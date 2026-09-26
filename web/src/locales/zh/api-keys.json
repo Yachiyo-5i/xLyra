@@ -23,15 +23,24 @@
     "detailsTitle": "额度详情"
   },
   "modelsDraw": {
-    "search": "搜索模型...",
-    "noModels": "暂无模型"
+    "title": "访问范围",
+    "search": "搜索模型或站点...",
+    "colModels": "模型",
+    "noModels": "暂无模型",
+    "colSites": "站点",
+    "allSites": "允许全部站点",
+    "noSites": "暂无站点",
+    "siteDisabled": "停用",
+    "filterAll": "全部模型"
   },
   "table": {
     "headers": {
       "key": "密钥",
+      "scope": "模型/站点",
       "models": "模型",
       "sites": "站点",
       "quota": "额度",
+      "billingMultiplier": "计费倍率",
       "rateLimit": "限流",
       "lastUsed": "最后使用",
       "expiresAt": "到期时间",
@@ -55,6 +64,7 @@
       "selectedModels": "{{count}} 个模型",
       "allSites": "全部站点",
       "selectedSites": "{{count}} 个站点",
+      "selectedGroups": "{{count}} 个分组",
       "selectedSitesAndGroups": "{{siteCount}} 个站点 / {{groupCount}} 个分组"
     },
     "relative": {
@@ -172,6 +182,7 @@
       "selectedCount": "已选 {{count}} 个",
       "selectAll": "全选",
       "deselectAll": "取消全选",
+      "deselectSelected": "取消所选",
       "noSites": "暂无可用站点",
       "customSiteCount": "最终 {{count}} 个站点，额外 {{direct}} 个，分组继承 {{inherited}} 个",
       "directSiteCount": "直接选择 {{count}} 个，分组继承 {{inherited}} 个",
@@ -184,6 +195,7 @@
       "modelScopeSummary": "当前自定义范围包含 {{siteCount}} 个站点、{{modelCount}} 个可用模型，已按来源站点展开并默认勾选。",
       "modelScopeSummaryLoading": "正在读取当前 {{siteCount}} 个站点的可用模型...",
       "selectSitesFirst": "请先选择站点以查看可用模型",
+      "sitePanelTitle": "{{count}} 个站点",
       "modelSearch": "搜索模型...",
       "brandAll": "全部品牌",
       "noModels": "暂无模型",

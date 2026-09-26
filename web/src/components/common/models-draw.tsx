@@ -52,7 +52,7 @@ export function ModelsDraw({ open, title, items, loading, pendingItemId, bulkPen
 
   return (
     <Draw open={open} onOpenChange={handleOpenChange}>
-      <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DrawHeader>
           <div className="flex items-center gap-2">
             {onBack ? (

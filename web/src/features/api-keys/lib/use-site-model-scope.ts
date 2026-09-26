@@ -18,7 +18,6 @@ export type SiteModelScopePatch = {
   siteIds?: string[]
   siteGroupIds?: string[]
   siteModelIds?: string[]
-  autoSelectSiteModels?: boolean
 }
 
 export function useSiteModelScope({
@@ -29,7 +28,6 @@ export function useSiteModelScope({
   siteIds,
   siteGroupIds = [],
   siteModelIds,
-  autoSelectSiteModels = false,
   imageBridgeEnabled = false,
   advancedExpanded = false,
 }: {
@@ -40,7 +38,6 @@ export function useSiteModelScope({
   siteIds: string[]
   siteGroupIds?: string[]
   siteModelIds: string[]
-  autoSelectSiteModels?: boolean
   imageBridgeEnabled?: boolean
   advancedExpanded?: boolean
 }) {
@@ -67,7 +64,7 @@ export function useSiteModelScope({
     return sortedSites.filter((site) => ids.has(site.id)).map((site) => site.id)
   }, [enabledSites, inheritedSiteIds, siteIds, sitePolicy, sortedSites])
 
-  const effectiveModelPolicy: SiteModelScopePolicy = sitePolicy === 'allow_list' ? 'allow_list' : modelPolicy
+  const effectiveModelPolicy: SiteModelScopePolicy = modelPolicy
   const requestedSiteModelIds = useMemo(() => {
     const ids = new Set<string>()
     if (effectiveModelPolicy === 'allow_list' || advancedExpanded) {
@@ -119,12 +116,7 @@ export function useSiteModelScope({
     () => siteModelRows.map(({ model }) => model.id),
     [siteModelRows],
   )
-  const selectedSiteModelIds = useMemo(() => {
-    if (effectiveModelPolicy === 'allow_list' && autoSelectSiteModels) {
-      return allSiteModelIds
-    }
-    return siteModelIds
-  }, [allSiteModelIds, autoSelectSiteModels, effectiveModelPolicy, siteModelIds])
+  const selectedSiteModelIds = useMemo(() => siteModelIds, [siteModelIds])
   const validSelectedSiteModelCount = useMemo(
     () => selectedSiteModelIds.filter((id) => availableSiteModelIds.has(id)).length,
     [availableSiteModelIds, selectedSiteModelIds],

@@ -207,7 +207,7 @@ export function SystemProxySettingsPage() {
       ) : null}
 
       <Draw open={formOpen} onOpenChange={(open) => { if (!open && !saveMutation.isPending) closeForm() }}>
-        <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
           <DrawHeader>
             <DrawTitle>{editingProxy ? t('systemProxy.form.editTitle') : t('systemProxy.form.createTitle')}</DrawTitle>
           </DrawHeader>

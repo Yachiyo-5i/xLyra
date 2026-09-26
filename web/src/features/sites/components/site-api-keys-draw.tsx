@@ -494,7 +494,7 @@ export function SiteAPIKeysDraw({
           onOpenChange(next)
         }}
       >
-        <DrawContent side="right" size="wide">
+        <DrawContent side="right">
           <DrawHeader className="flex items-center justify-between gap-3">
             <DrawTitle>{t('apiKeys.title')}</DrawTitle>
             {canAddAPIKey ? (
@@ -794,7 +794,7 @@ export function SiteAPIKeysDraw({
           }
         }}
       >
-        <DrawContent side="right" size="wide">
+        <DrawContent side="right">
           <DrawHeader>
             <DrawTitle>{t('apiKeys.addTitle')}</DrawTitle>
           </DrawHeader>
@@ -860,7 +860,7 @@ export function SiteAPIKeysDraw({
             setConfiguringAPIKey(null)
         }}
       >
-        <DrawContent side="right" size="wide">
+        <DrawContent side="right">
           <DrawHeader>
             <DrawTitle>{t('apiKeys.editConfig')}</DrawTitle>
           </DrawHeader>
@@ -922,7 +922,7 @@ export function SiteAPIKeysDraw({
           }
         }}
       >
-        <DrawContent side="right" size="wide">
+        <DrawContent side="right">
           <DrawHeader>
             <DrawTitle>{t('apiKeys.title')}</DrawTitle>
           </DrawHeader>

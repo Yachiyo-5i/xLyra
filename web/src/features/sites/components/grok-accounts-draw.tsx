@@ -187,7 +187,7 @@ export function GrokAccountsDraw({
         }
         onOpenChange(next)
       }}>
-        <DrawContent side="right" size="wide">
+        <DrawContent side="right">
           <DrawHeader className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
             <DrawTitle>{t('grokAccounts.title')}</DrawTitle>
             <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center">

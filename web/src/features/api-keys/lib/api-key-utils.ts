@@ -39,9 +39,7 @@ const OTHER_BRAND_LABEL = 'Other'
 export function formValuesFromAPIKey(apiKey: DownstreamAPIKey | null): APIKeyFormValues {
   if (!apiKey) return defaultFormValues
   const sitePolicy = apiKey.site_policy === 'allow_list' ? 'allow_list' : 'allow_all'
-  const modelPolicy = sitePolicy === 'allow_list'
-    ? 'allow_list'
-    : apiKey.model_policy === 'allow_list' ? 'allow_list' : 'allow_all'
+  const modelPolicy = apiKey.model_policy === 'allow_list' ? 'allow_list' : 'allow_all'
 
   return {
     name: apiKey.name,
@@ -130,13 +128,13 @@ export function enabledSiteModels(apiKey: DownstreamAPIKey | null) {
   return apiKey?.site_models ?? apiKey?.models ?? []
 }
 
-function enabledSiteIds(apiKey: DownstreamAPIKey | null) {
+export function enabledSiteIds(apiKey: DownstreamAPIKey | null) {
   return (apiKey?.sites ?? [])
     .filter((site) => site.enabled !== false)
     .map((site) => site.site_id)
 }
 
-function enabledSiteGroupIds(apiKey: DownstreamAPIKey | null) {
+export function enabledSiteGroupIds(apiKey: DownstreamAPIKey | null) {
   return (apiKey?.site_groups ?? [])
     .filter((group) => group.enabled !== false)
     .map((group) => group.group_id)

@@ -7,135 +7,192 @@ import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { Badge } from '@/components/ui/badge'
 import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
-import { enabledSiteModels, formatSiteTypeLabel } from '@/features/api-keys/lib/api-key-utils'
-import type { CanonicalModelItem } from '@/features/sites/api/sites'
+import { enabledSiteModels } from '@/features/api-keys/lib/api-key-utils'
+import type { CanonicalModelItem, Site } from '@/features/sites/api/sites'
 import { getProviderCatalogEntry } from '@/lib/brands'
+
+type ModelListRow = {
+  modelKey: string
+  displayName: string
+  provider: string
+  modelIconPath?: string
+  siteId: string
+  siteName: string
+  siteType: string
+  sitePriority: number
+  siteGlobalEnabled: boolean
+  siteKeyEnabled: boolean
+  siteIconPath?: string
+}
 
 export function APIKeyModelsDraw({
   apiKey,
   canonicalModels,
+  sites,
   onOpenChange,
 }: {
   apiKey: DownstreamAPIKey | null
   canonicalModels: CanonicalModelItem[]
+  sites: Site[]
   onOpenChange: (open: boolean) => void
 }) {
-  const { t } = useTranslation(['api-keys', 'components'])
+  const { t } = useTranslation('api-keys')
   const [search, setSearch] = useState('')
-  const rows = useMemo(() => {
-    const keyword = search.trim().toLowerCase()
-    const siteModels = enabledSiteModels(apiKey)
-    const canonicalByKey = new Map(canonicalModels.map((model) => [model.model_key, model]))
-    const source = apiKey?.model_policy === 'allow_list'
-      ? siteModels.map((model) => {
-          const canonical = canonicalByKey.get(model.canonical_model_key ?? '')
-          const provider = canonical?.provider ?? ''
-          const providerEntry = provider ? getProviderCatalogEntry(provider) : undefined
-          const siteTypeLabel = model.site_type ? formatSiteTypeLabel(model.site_type) : ''
-          const iconLabel = providerEntry?.name || siteTypeLabel || provider || model.site_name || '-'
-          return {
-            id: model.site_model_id ?? model.id ?? `${model.site_id}:${model.upstream_model_name}`,
-            modelKey: model.canonical_model_key || model.model_key || model.upstream_model_name || '-',
-            displayName: model.display_name || model.upstream_model_name || model.canonical_model_key || '-',
-            provider: providerEntry?.name || siteTypeLabel || provider || '-',
-            siteName: model.site_name,
-            upstreamName: model.upstream_model_name,
-            badgeLabel: model.site_name || '-',
-            badgeToneKey: model.site_id || model.site_name || '-',
-            iconPath: providerEntry?.iconPath ?? (model.site_type ? siteTypeIconPath(model.site_type) : undefined),
-            iconLabel,
-          }
-        })
-      : canonicalModels.map((model) => {
-          const providerEntry = getProviderCatalogEntry(model.provider)
-          const providerLabel = providerEntry?.name || model.provider || '-'
-          return {
-            id: model.id,
-            modelKey: model.model_key,
-            displayName: model.display_name,
-            provider: providerLabel,
-            siteName: '',
-            upstreamName: '',
-            badgeLabel: providerLabel,
-            badgeToneKey: providerLabel,
-            iconPath: providerEntry?.iconPath,
-            iconLabel: providerLabel,
-          }
-        })
+  const [filterModel, setFilterModel] = useState('')
 
-    const badgeToneByKey = new Map<string, string>()
-    for (const model of source) {
-      if (!badgeToneByKey.has(model.badgeToneKey)) {
-        badgeToneByKey.set(model.badgeToneKey, SITE_BADGE_TONE_CLASS_NAMES[badgeToneByKey.size % SITE_BADGE_TONE_CLASS_NAMES.length])
-      }
+  const isAllowListModel = apiKey?.model_policy === 'allow_list'
+
+  const allRows = useMemo<ModelListRow[]>(() => {
+    if (!apiKey) return []
+
+    const canonicalByKey = new Map(canonicalModels.map((m) => [m.model_key, m]))
+    const siteById = new Map(sites.map((s) => [s.id, s]))
+    const keySiteById = new Map((apiKey.sites ?? []).map((s) => [s.site_id, s]))
+
+    let result: ModelListRow[]
+
+    if (isAllowListModel) {
+      result = enabledSiteModels(apiKey).map((sm) => {
+        const canonicalKey = sm.canonical_model_key || sm.model_key || ''
+        const canonical = canonicalByKey.get(canonicalKey)
+        const provider = canonical?.provider ?? sm.site_type ?? ''
+        const modelEntry = getProviderCatalogEntry(provider)
+        const siteId = sm.site_id ?? ''
+        const site = siteById.get(siteId)
+        const keySite = keySiteById.get(siteId)
+        return {
+          modelKey: canonicalKey,
+          displayName: sm.display_name || canonical?.display_name || canonicalKey,
+          provider,
+          modelIconPath: modelEntry?.iconPath,
+          siteId,
+          siteName: sm.site_name || site?.name || siteId,
+          siteType: sm.site_type || site?.site_type || '',
+          sitePriority: site?.routing_priority ?? 0,
+          siteGlobalEnabled: site?.enabled ?? true,
+          siteKeyEnabled: keySite?.enabled !== false,
+          siteIconPath: (sm.site_type || site?.site_type)
+            ? siteTypeIconPath(sm.site_type || site?.site_type || '')
+            : undefined,
+        }
+      })
+    } else {
+      result = canonicalModels.map((m) => {
+        const entry = getProviderCatalogEntry(m.provider)
+        return {
+          modelKey: m.model_key,
+          displayName: m.display_name,
+          provider: m.provider,
+          modelIconPath: entry?.iconPath,
+          siteId: '',
+          siteName: '',
+          siteType: '',
+          sitePriority: 0,
+          siteGlobalEnabled: true,
+          siteKeyEnabled: true,
+          siteIconPath: undefined,
+        }
+      })
     }
 
-    const filteredSource = keyword
-      ? source.filter((model) => (
-          `${model.modelKey} ${model.displayName} ${model.provider} ${model.siteName} ${model.upstreamName}`.toLowerCase().includes(keyword)
-        ))
-      : source
+    result.sort((a, b) => {
+      if (b.sitePriority !== a.sitePriority) return b.sitePriority - a.sitePriority
+      if (a.siteId !== b.siteId) return a.siteName.localeCompare(b.siteName)
+      return a.modelKey.localeCompare(b.modelKey)
+    })
 
-    return filteredSource.map((model) => ({
-      ...model,
-      badgeToneClassName: badgeToneByKey.get(model.badgeToneKey) ?? SITE_BADGE_TONE_CLASS_NAMES[0],
-    }))
-  }, [apiKey, canonicalModels, search])
+    return result
+  }, [apiKey, canonicalModels, sites, isAllowListModel])
+
+  const uniqueModelKeys = useMemo<string[]>(() => {
+    const seen = new Set<string>()
+    for (const row of allRows) {
+      if (row.modelKey) seen.add(row.modelKey)
+    }
+    return Array.from(seen).sort()
+  }, [allRows])
+
+  const rows = useMemo<ModelListRow[]>(() => {
+    const keyword = search.trim().toLowerCase()
+    return allRows.filter((r) => {
+      if (filterModel && r.modelKey !== filterModel) return false
+      if (!keyword) return true
+      return `${r.modelKey} ${r.displayName} ${r.siteName}`.toLowerCase().includes(keyword)
+    })
+  }, [allRows, search, filterModel])
 
   return (
     <Draw open={Boolean(apiKey)} onOpenChange={onOpenChange}>
       <DrawContent
         side="right"
-        size="wide"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <DrawHeader>
-          <DrawTitle>{t('table.headers.models')}</DrawTitle>
+          <DrawTitle>{t('modelsDraw.title')}</DrawTitle>
         </DrawHeader>
-        <DrawBody className="space-y-4">
-          <div className="relative">
-            <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t('modelsDraw.search')}
-              className="pl-9"
-            />
+        <DrawBody className="flex flex-col gap-3 overflow-hidden">
+          <div className="flex shrink-0 gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('modelsDraw.search')}
+                className="pl-9"
+              />
+            </div>
+            <Select value={filterModel || '__all__'} onValueChange={(v) => setFilterModel(v === '__all__' ? '' : v)}>
+              <SelectTrigger variant="filter" filterLabel={t('modelsDraw.filterAll')} active={Boolean(filterModel)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent widthMode="content">
+                <SelectItem value="__all__">{t('modelsDraw.filterAll')}</SelectItem>
+                {uniqueModelKeys.map((key) => (
+                  <SelectItem key={key} value={key}>{key}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="overflow-y-auto rounded-lg border border-[hsl(var(--glass-border))]">
-            {rows.length ? (
-              rows.map((model) => (
-                <div
-                  key={model.id}
-                  className="grid grid-cols-[minmax(0,1fr)_minmax(96px,160px)] gap-4 border-t border-[hsl(var(--glass-divider))] px-4 py-3 first:border-t-0"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <BrandMark
-                      iconPath={model.iconPath}
-                      label={model.iconLabel}
-                      fallback={model.provider || model.modelKey}
-                      fallbackText={buildModelGlyph(model.provider || model.modelKey)}
-                      size="sm"
-                    />
-                    <button
-                      type="button"
-                      className="min-w-0 max-w-full truncate bg-transparent p-0 text-left text-sm font-medium text-foreground"
-                      title={`${model.modelKey}${model.upstreamName ? ` / ${model.upstreamName}` : ''}`}
-                      onClick={() => copyToClipboard(model.modelKey, t('components:modelsDraw.copied'), t('components:modelsDraw.copyFailed'))}
-                    >
-                      {model.modelKey}
-                    </button>
-                  </div>
-                  <div className="flex min-w-0 items-center justify-end">
-                    <Badge variant="neutral" className={`max-w-full truncate ${model.badgeToneClassName}`} title={model.badgeLabel || '-'}>
-                      {model.badgeLabel || '-'}
-                    </Badge>
-                  </div>
-                </div>
-              ))
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {rows.length === 0 ? (
+              <div className="py-10 text-center text-muted-soft">
+                {t('modelsDraw.noModels')}
+              </div>
             ) : (
-              <div className="text-muted-soft py-10 text-center text-sm">{t('modelsDraw.noModels')}</div>
+              rows.map((row, i) => {
+                const isSiteDisabled = isAllowListModel && (!row.siteGlobalEnabled || !row.siteKeyEnabled)
+                return (
+                  <button
+                    key={`${row.siteId}:${row.modelKey}:${i}`}
+                    type="button"
+                    className="flex w-full items-center gap-2.5 border-t border-[hsl(var(--glass-divider))] px-1 py-2 text-left first:border-t-0 hover:bg-[hsl(var(--surface-raised))]"
+                    onClick={() => copyToClipboard(row.modelKey, t('table.copySuccess'), t('table.copyFailed'))}
+                  >
+                    <BrandMark
+                      iconPath={row.modelIconPath}
+                      label={row.provider}
+                      fallback={row.provider}
+                      fallbackText={buildModelGlyph(row.provider)}
+                      size="xs"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-foreground">
+                      {row.modelKey}
+                    </span>
+                    {isAllowListModel && row.siteName && (
+                      <SiteBadge
+                        siteName={row.siteName}
+                        siteType={row.siteType}
+                        siteIconPath={row.siteIconPath}
+                        priority={row.sitePriority}
+                        disabled={isSiteDisabled}
+                        t={t}
+                      />
+                    )}
+                  </button>
+                )
+              })
             )}
           </div>
         </DrawBody>
@@ -144,17 +201,42 @@ export function APIKeyModelsDraw({
   )
 }
 
-const SITE_BADGE_TONE_CLASS_NAMES = [
-  'border-sky-600/20 bg-sky-500/10 text-sky-800 [html.dark_&]:text-sky-300',
-  'border-emerald-600/20 bg-emerald-500/10 text-emerald-800 [html.dark_&]:text-emerald-300',
-  'border-amber-600/20 bg-amber-500/10 text-amber-900 [html.dark_&]:text-amber-300',
-  'border-violet-600/20 bg-violet-500/10 text-violet-800 [html.dark_&]:text-violet-300',
-  'border-rose-600/20 bg-rose-500/10 text-rose-800 [html.dark_&]:text-rose-300',
-  'border-cyan-600/20 bg-cyan-500/10 text-cyan-800 [html.dark_&]:text-cyan-300',
-  'border-lime-600/20 bg-lime-500/10 text-lime-900 [html.dark_&]:text-lime-300',
-  'border-orange-600/20 bg-orange-500/10 text-orange-800 [html.dark_&]:text-orange-300',
-  'border-fuchsia-600/20 bg-fuchsia-500/10 text-fuchsia-800 [html.dark_&]:text-fuchsia-300',
-  'border-teal-600/20 bg-teal-500/10 text-teal-800 [html.dark_&]:text-teal-300',
-  'border-blue-600/20 bg-blue-500/10 text-blue-800 [html.dark_&]:text-blue-300',
-  'border-pink-600/20 bg-pink-500/10 text-pink-800 [html.dark_&]:text-pink-300',
-]
+function SiteBadge({
+  siteName,
+  siteType,
+  siteIconPath,
+  priority,
+  disabled,
+  t,
+}: {
+  siteName: string
+  siteType: string
+  siteIconPath?: string
+  priority: number
+  disabled: boolean
+  t: (key: string) => string
+}) {
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {disabled && (
+        <Badge variant="warning">{t('modelsDraw.siteDisabled')}</Badge>
+      )}
+      <span className="inline-flex items-center gap-1 rounded bg-[hsl(var(--surface-sunken))] px-1.5 py-0.5">
+        <BrandMark
+          iconPath={siteIconPath}
+          label={siteName}
+          fallback={siteType || siteName}
+          fallbackText={buildModelGlyph(siteType || siteName)}
+          transparent
+          size="xs"
+        />
+        <span className="leading-tight text-muted-soft">
+          {siteName}
+        </span>
+        <span className="leading-tight tabular-nums text-muted-soft opacity-60">
+          P{priority}
+        </span>
+      </span>
+    </span>
+  )
+}

@@ -529,7 +529,7 @@ export function ModelCatalogSurface({
         <Draw open={open} onOpenChange={onOpenChange}>
           <DrawContent
             side="bottom"
-            size="wide"
+           
             className="max-h-[92dvh]"
             onOpenAutoFocus={(event) => event.preventDefault()}
           >

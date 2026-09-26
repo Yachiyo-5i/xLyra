@@ -10,11 +10,12 @@ import { APIKeyActionsMenu } from '@/features/api-keys/components/api-key-action
 import { APIKeyQuotaCell } from '@/features/api-keys/components/api-key-quota-cell'
 import { APIKeyCopyMenu } from '@/features/api-keys/components/api-key-copy-menu'
 import {
+  enabledSiteGroupIds,
+  enabledSiteIds,
   formatDateTime,
   formatModelPolicy,
   formatRateLimitSummary,
   formatRelativeDateTime,
-  formatSitePolicy,
   hasResettableQuota,
   isAPIKeyActive,
   isAPIKeyExpired,
@@ -22,9 +23,9 @@ import {
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
 
 const API_KEYS_COLUMN_SIZING = {
-  storageKey: 'xlyra:api-keys:table-column-widths:v1',
-  defaultWidths: defaultTableColumnWidths([15, 12, 10, 18, 12, 12, 12, 7, 5]),
-  minimumWidths: [6, 6, 6, 8, 6, 6, 6, 4, 3],
+  storageKey: 'xlyra:api-keys:table-column-widths:v3',
+  defaultWidths: defaultTableColumnWidths([15, 16, 10, 18, 12, 12, 12, 7, 5]),
+  minimumWidths: [6, 7, 5, 8, 6, 6, 6, 4, 3],
 }
 
 export function DownstreamAPIKeysTable({
@@ -74,29 +75,48 @@ export function DownstreamAPIKeysTable({
         },
       },
       {
-        id: 'models',
-        header: t('table.headers.models'),
-        cell: ({ row }) => (
-          <div className="flex items-center justify-center gap-1 text-xs tabular-nums whitespace-nowrap">
+        id: 'scope',
+        header: t('table.headers.scope'),
+        cell: ({ row }) => {
+          const apiKey = row.original
+          const siteCount = enabledSiteIds(apiKey).length
+          const groupCount = enabledSiteGroupIds(apiKey).length
+          const showSiteCount = apiKey.site_policy === 'allow_list' && siteCount > 0
+          const showGroupCount = apiKey.site_policy === 'allow_list' && groupCount > 0
+          return (
             <button
               type="button"
-              className="hover:text-foreground text-foreground cursor-pointer"
+              className="inline-flex cursor-pointer flex-col items-center gap-0.5 text-muted-soft transition-colors hover:text-foreground"
               onClick={() => onShowModels(row.original)}
             >
-              {formatModelPolicy(row.original, t)}
+              <span className="text-xs tabular-nums">
+                {formatModelPolicy(row.original, t)}
+              </span>
+              {showSiteCount && (
+                <span className="text-xs tabular-nums">
+                  {t('table.policy.selectedSites', { count: siteCount })}
+                </span>
+              )}
+              {showGroupCount && (
+                <span className="text-xs tabular-nums">
+                  {t('table.policy.selectedGroups', { count: groupCount })}
+                </span>
+              )}
             </button>
-          </div>
-        ),
+          )
+        },
         meta: {
           align: 'center',
         },
       },
       {
-        id: 'sites',
-        header: t('table.headers.sites'),
-        cell: ({ row }) => (
-          <span className="text-muted-soft text-sm">{formatSitePolicy(row.original, t)}</span>
-        ),
+        id: 'billing_multiplier',
+        header: t('table.headers.billingMultiplier'),
+        cell: ({ row }) => {
+          const val = row.original.billing_multiplier
+          if (!val || val === 1) return <span className="text-muted-soft text-sm">×1</span>
+          return <span className="text-sm tabular-nums text-foreground">×{val}</span>
+        },
         meta: {
           align: 'center',
         },

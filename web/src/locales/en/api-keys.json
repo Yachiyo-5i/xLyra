@@ -23,15 +23,24 @@
     "detailsTitle": "Quota details"
   },
   "modelsDraw": {
-    "search": "Search models...",
-    "noModels": "No models"
+    "title": "Access Scope",
+    "search": "Search models or sites...",
+    "colModels": "Models",
+    "noModels": "No models",
+    "colSites": "Sites",
+    "allSites": "All sites allowed",
+    "noSites": "No sites",
+    "siteDisabled": "Disabled",
+    "filterAll": "All models"
   },
   "table": {
     "headers": {
       "key": "Key",
+      "scope": "Models / Sites",
       "models": "Models",
       "sites": "Sites",
       "quota": "Quota",
+      "billingMultiplier": "Multiplier",
       "rateLimit": "Rate Limit",
       "lastUsed": "Last Used",
       "expiresAt": "Expires",
@@ -55,6 +64,7 @@
       "selectedModels": "{{count}} model(s)",
       "allSites": "All sites",
       "selectedSites": "{{count}} site(s)",
+      "selectedGroups": "{{count}} group(s)",
       "selectedSitesAndGroups": "{{siteCount}} site(s) / {{groupCount}} group(s)"
     },
     "relative": {
@@ -172,6 +182,7 @@
       "selectedCount": "{{count}} selected",
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
+      "deselectSelected": "Deselect selected",
       "noSites": "No available sites",
       "customSiteCount": "{{count}} final site(s), {{direct}} extra, {{inherited}} inherited",
       "directSiteCount": "{{count}} direct, {{inherited}} inherited from groups",
@@ -184,6 +195,7 @@
       "modelScopeSummary": "Current custom range has {{siteCount}} site(s) and {{modelCount}} available model(s), expanded by source site and checked by default.",
       "modelScopeSummaryLoading": "Loading available models from {{siteCount}} current site(s)...",
       "selectSitesFirst": "Select sites first to view available models",
+      "sitePanelTitle": "{{count}} sites",
       "modelSearch": "Search models...",
       "brandAll": "All brands",
       "noModels": "No models",

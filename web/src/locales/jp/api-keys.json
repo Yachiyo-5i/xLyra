@@ -23,15 +23,24 @@
     "detailsTitle": "クォータ詳細"
   },
   "modelsDraw": {
-    "search": "モデルを検索...",
-    "noModels": "モデルがありません"
+    "title": "アクセス範囲",
+    "search": "モデルまたはサイトを検索...",
+    "colModels": "モデル",
+    "noModels": "モデルがありません",
+    "colSites": "サイト",
+    "allSites": "すべてのサイトを許可",
+    "noSites": "サイトがありません",
+    "siteDisabled": "無効",
+    "filterAll": "すべてのモデル"
   },
   "table": {
     "headers": {
       "key": "キー",
+      "scope": "モデル/サイト",
       "models": "モデル",
       "sites": "サイト",
       "quota": "クォータ",
+      "billingMultiplier": "課金倍率",
       "rateLimit": "レート制限",
       "lastUsed": "最終使用",
       "expiresAt": "有効期限",
@@ -55,6 +64,7 @@
       "selectedModels": "{{count}} 個のモデル",
       "allSites": "すべてのサイト",
       "selectedSites": "{{count}} 個のサイト",
+      "selectedGroups": "{{count}} 個のグループ",
       "selectedSitesAndGroups": "{{siteCount}} 個のサイト / {{groupCount}} 個のグループ"
     },
     "relative": {
@@ -172,6 +182,7 @@
       "selectedCount": "{{count}} 件選択済み",
       "selectAll": "すべて選択",
       "deselectAll": "すべて解除",
+      "deselectSelected": "選択を解除",
       "noSites": "利用可能なサイトがありません",
       "customSiteCount": "最終 {{count}} 件、追加 {{direct}} 件、グループ継承 {{inherited}} 件",
       "directSiteCount": "直接選択 {{count}} 件、グループ継承 {{inherited}} 件",
@@ -184,6 +195,7 @@
       "modelScopeSummary": "現在のカスタム範囲には {{siteCount}} 件のサイト、{{modelCount}} 件の利用可能モデルがあり、ソースサイト別に展開されデフォルトで選択されます。",
       "modelScopeSummaryLoading": "現在の {{siteCount}} 件のサイトから利用可能モデルを読み込み中...",
       "selectSitesFirst": "利用可能なモデルを表示するには、先にサイトを選択してください",
+      "sitePanelTitle": "{{count}} サイト",
       "modelSearch": "モデルを検索...",
       "brandAll": "すべてのブランド",
       "noModels": "モデルがありません",

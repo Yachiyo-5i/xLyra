@@ -36,7 +36,7 @@ export function APIKeyOrderDraw({ initialData, onClose }: {
 
   return (
     <Draw open onOpenChange={(open) => { if (!open && !pending) onClose() }}>
-      <DrawContent side="right" size="wide">
+      <DrawContent side="right">
         <DrawHeader>
           <DrawTitle>{t('order.title')}</DrawTitle>
           <DrawDescription>{t('order.description')}</DrawDescription>

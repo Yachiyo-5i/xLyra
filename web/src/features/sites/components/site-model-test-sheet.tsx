@@ -173,7 +173,7 @@ export function SiteModelTestSheet({
 
   return (
     <Draw open={open} onOpenChange={handleOpenChange}>
-      <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DrawHeader>
           <DrawTitle>{site ? t('test.title', { name: site.name }) : t('test.title', { name: '' })}</DrawTitle>
         </DrawHeader>

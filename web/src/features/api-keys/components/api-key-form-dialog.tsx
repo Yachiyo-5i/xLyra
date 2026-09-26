@@ -3,7 +3,7 @@ import { ChevronDown, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -19,10 +19,7 @@ import {
   formValuesFromAPIKey,
 } from '@/features/api-keys/lib/api-key-utils'
 import type { APIKeyFormValues } from '@/features/api-keys/lib/types'
-import type {
-  CanonicalModelItem,
-  Site,
-} from '@/features/sites/api/sites'
+import type { CanonicalModelItem, Site } from '@/features/sites/api/sites'
 import type { SiteGroup } from '@/features/settings/api/site-groups'
 
 const CUSTOM_API_KEY_PATTERN = /^[A-Za-z0-9-]+$/
@@ -58,7 +55,7 @@ function mappingPatternIdentity(pattern: string) {
   return normalized ? `exact:${normalized}` : ''
 }
 
-export function APIKeyFormDraw({
+export function APIKeyFormDialog({
   open,
   initialKey,
   canonicalModels,
@@ -127,6 +124,7 @@ export function APIKeyFormDraw({
   const bridgeSiteModelsLoading = values.imageBridgeEnabled && enabledSites.some((site) => loadingSiteModelIds.has(site.id))
   const mappingModelsLoading = advancedExpanded && (sitesLoading || canonicalModelsLoading || siteModelsLoading)
   const saveDisabled = pending || (values.sitePolicy === 'allow_list' && siteModelsLoading)
+
   const bridgeImageRows = useMemo(() => {
     const canonicalById = new Map(canonicalModels.map((model) => [model.id, model.model_key]))
     const rows: { siteId: string; modelKey: string }[] = []
@@ -143,6 +141,7 @@ export function APIKeyFormDraw({
     }
     return rows
   }, [canonicalModels, enabledSites, siteModelsMap])
+
   const imageBridgeModelKeys = useMemo(() => {
     const keys = [...new Set(bridgeImageRows.map((row) => row.modelKey))].sort()
     const current = values.imageBridgeModel.trim()
@@ -151,6 +150,7 @@ export function APIKeyFormDraw({
     }
     return keys
   }, [bridgeImageRows, values.imageBridgeModel])
+
   const imageBridgeSites = useMemo(() => {
     const model = values.imageBridgeModel.trim()
     if (!model) return []
@@ -318,16 +318,15 @@ export function APIKeyFormDraw({
     : undefined
 
   return (
-    <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent
-        side="right"
-       
-        onOpenAutoFocus={(event) => event.preventDefault()}
-      >
-        <DrawHeader>
-          <DrawTitle>{initialKey ? t('form.editTitle') : t('form.createTitle')}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className="space-y-0">
+    <Dialog open={open} onOpenChange={(next) => {
+      if (!next && !pending) onOpenChange(false)
+    }}>
+      <DialogContent size="form" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{initialKey ? t('form.editTitle') : t('form.createTitle')}</DialogTitle>
+        </DialogHeader>
+
+        <DialogBody className="min-h-0 flex-1 overflow-y-auto space-y-0">
           <FormSection title={t('form.sections.basic')}>
             <FormField label={t('form.fields.name')} required>
               <Input
@@ -396,8 +395,6 @@ export function APIKeyFormDraw({
                 <DateTimePicker
                   value={values.expiresAt}
                   onValueChange={(date) => setValues((current) => {
-                    // First day selection starts at 00:00; keep the previous
-                    // end-of-day default so picking only a date behaves as before.
                     if (date && !current.expiresAt && date.getHours() === 0 && date.getMinutes() === 0) {
                       const endOfDay = new Date(date)
                       endOfDay.setHours(23, 59, 0, 0)
@@ -468,7 +465,6 @@ export function APIKeyFormDraw({
             )}
             divided
           >
-
             {advancedExpanded ? (
               <div className="space-y-5">
                 <div className="space-y-3">
@@ -685,12 +681,9 @@ export function APIKeyFormDraw({
               </div>
             ) : null}
           </FormSection>
-        </DrawBody>
-        <DrawFooter>
-          <Button onClick={handleSubmit} disabled={saveDisabled}>
-            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {t('form.actions.save')}
-          </Button>
+        </DialogBody>
+
+        <DialogFooter>
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
@@ -698,9 +691,13 @@ export function APIKeyFormDraw({
           >
             {t('form.actions.cancel')}
           </Button>
-        </DrawFooter>
-      </DrawContent>
-    </Draw>
+          <Button onClick={handleSubmit} disabled={saveDisabled}>
+            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+            {t('form.actions.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

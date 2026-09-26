@@ -86,7 +86,7 @@ export function OAuthEditSheet({
 
   return (
     <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
         <DrawHeader>
           <DrawTitle>{t('edit.title')}</DrawTitle>
         </DrawHeader>

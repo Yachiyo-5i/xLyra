@@ -209,7 +209,7 @@ export function SiteGroupsSettingsPage() {
       ) : null}
 
       <Draw open={formOpen} onOpenChange={(open) => { if (!open && !saveMutation.isPending) closeForm() }}>
-        <DrawContent side="right" size="wide" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
           <DrawHeader>
             <DrawTitle>{editingGroup ? t('siteGroups.form.editTitle') : t('siteGroups.form.createTitle')}</DrawTitle>
           </DrawHeader>
