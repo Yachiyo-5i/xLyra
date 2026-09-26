@@ -57,6 +57,9 @@ func TestCanonicalModelKeyFromUpstream(t *testing.T) {
 		"plain-custom-model":                         "plain-custom-model",
 		"gpt-5.4":                                    "gpt-5.4",
 		"gpt-5.3-code":                               "gpt-5.3-code",
+		"gemini-3.7-flash-tiered":                    "gemini-3.7-flash",
+		"google/gemini-3.8-flash-tiered":             "gemini-3.8-flash",
+		"models/gemini-3.1-pro-tiered":               "gemini-3.1-pro",
 	}
 
 	for input, want := range cases {

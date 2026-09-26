@@ -84,6 +84,7 @@ var canonicalSuffixNoiseTokens = map[string]struct{}{
 	"business":  {},
 	"inference": {},
 	"search":    {},
+	"tiered":    {},
 }
 
 type providerModelFamilyRule struct {
