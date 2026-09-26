@@ -63,9 +63,10 @@ import type { ChannelSplitTarget } from '@/features/usage/api/channel-split'
 import { SiteAPIKeysDraw } from '@/features/sites/components/site-api-keys-draw'
 import { GrokAccountsDraw } from '@/features/sites/components/grok-accounts-draw'
 import {
-  SiteCreateSheet,
+  SiteCreateDialog,
   type SiteCreateSubmitInput,
-} from '@/features/sites/components/site-create-sheet'
+} from '@/features/sites/components/site-create-dialog'
+import { SiteCreateSheet } from '@/features/sites/components/site-create-sheet'
 import { SiteModelTestSheet } from '@/features/sites/components/site-model-test-sheet'
 import { SiteModelsDraw } from '@/features/sites/components/site-models-draw'
 import { MobileSitesList } from '@/features/sites/components/mobile-sites-list'
@@ -1003,38 +1004,43 @@ export function SitesWorkspace({
     </div>
   )
 
+  const siteFormProps = {
+    open: createOpen,
+    onOpenChange: (next: boolean) => {
+      setCreateOpen(next)
+      if (!next) setEditingSite(null)
+    },
+    mode: (editingSite ? 'edit' : 'create') as 'create' | 'edit',
+    initialSite: editingInitialSite,
+    isPending:
+      createMutation.isPending ||
+      updateMutation.isPending ||
+      editingSiteDetailQuery.isFetching,
+    siteTypes,
+    siteGroups,
+    proxies,
+    siteGroupsLoading: siteGroupsQuery.isLoading,
+    onSubmit: async (input: SiteCreateSubmitInput) => {
+      if (editingSite) {
+        await updateMutation.mutateAsync({
+          siteId: editingSite.id,
+          input,
+        })
+        return
+      }
+      await createMutation.mutateAsync(input)
+    },
+  }
+
   return (
     <div className={isMobile ? 'min-h-full' : 'h-full min-h-0 overflow-hidden'}>
       {layout}
       {createOpen ? (
-        <SiteCreateSheet
-          open={createOpen}
-          onOpenChange={(next) => {
-            setCreateOpen(next)
-            if (!next) setEditingSite(null)
-          }}
-          mode={editingSite ? 'edit' : 'create'}
-          initialSite={editingInitialSite}
-          isPending={
-            createMutation.isPending ||
-            updateMutation.isPending ||
-            editingSiteDetailQuery.isFetching
-          }
-          siteTypes={siteTypes}
-          siteGroups={siteGroups}
-          proxies={proxies}
-          siteGroupsLoading={siteGroupsQuery.isLoading}
-          onSubmit={async (input) => {
-            if (editingSite) {
-              await updateMutation.mutateAsync({
-                siteId: editingSite.id,
-                input,
-              })
-              return
-            }
-            await createMutation.mutateAsync(input)
-          }}
-        />
+        isMobile ? (
+          <SiteCreateSheet {...siteFormProps} />
+        ) : (
+          <SiteCreateDialog {...siteFormProps} />
+        )
       ) : null}
 
       <SiteModelsDraw

@@ -214,6 +214,10 @@
     "defaultKey": "Apikey 1",
     "add": "Apikey を追加",
     "addTitle": "Apikey を追加",
+    "addModel": "モデルを追加",
+    "addSiteModelTitle": "モデルを追加",
+    "addSiteModelDescription": "この API キーにサイトモデルを追加します。追加後にプロトコルを個別設定できます。",
+    "addSiteModelEmpty": "追加できるサイトモデルがありません",
     "back": "サイト設定に戻る",
     "backToKeys": "API キー一覧に戻る",
     "name": "キー名",
@@ -254,6 +258,17 @@
     "openCodeGoPlan": "Go $12 / 5時間 · $30 / 週 · $60 / 月 · 公式リアルタイム照会なし",
     "openCodeGoLimited": "{{window}}上限に到達しました。{{reset}}にリセット",
     "openCodeGoUnavailable": "OpenCode は API キーのリアルタイム使用枠照会を提供していません",
+    "protocol": {
+      "title": "モデルプロトコルを設定",
+      "configure": "プロトコルを設定",
+      "configureLabel": "{{name}} のプロトコルを設定",
+      "description": "このキーが当該モデルで使用できる上流プロトコルを選択します。",
+      "namedDescription": "{{name}} でこのキーが使用できる上流プロトコルを選択します。",
+      "modeInherit": "サイトのデフォルトプロトコルを使用中",
+      "modeAllowlist": "選択したプロトコルのみを使用中",
+      "modeDisabled": "すべてのプロトコルが無効です",
+      "empty": "このモデルに設定できるプロトコルがありません"
+    },
     "sync": {
       "synced": "同期済み",
       "failed": "失敗",
@@ -349,7 +364,7 @@
       "canonicalPlaceholder": "標準モデルを選択",
       "endpointTypes": "エンドポイント種別",
       "endpointPlaceholder": "エンドポイント種別を選択",
-      "apiKeys": "有効な API Key に追加",
+      "apiKeys": "API Key に追加",
       "apiKeysPlaceholder": "API Key を選択",
       "searchPlaceholder": "検索...",
       "emptyOptions": "選択肢がありません",
@@ -357,6 +372,9 @@
       "cancel": "キャンセル",
       "submit": "作成"
     },
+    "keyDisabled": "無効",
+    "collapseKey": "{{name}} を折りたたむ",
+    "expandKey": "{{name}} を展開",
     "manageManual": {
       "action": "手動管理",
       "done": "完了"

@@ -20,25 +20,32 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+const dialogSizeClassName = {
+  default: 'grid w-[min(92vw,720px)] overflow-visible',
+  sm: 'flex w-[min(92vw,520px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
+  md: 'flex w-[min(92vw,640px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
+  form: 'flex w-[min(96vw,907px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
+} as const
+
+type DialogSize = keyof typeof dialogSizeClassName
+
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   overlayClassName?: string
   container?: HTMLElement | null
-  size?: 'default' | 'form'
+  size?: DialogSize
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, overlayClassName, container, size, ...props }, ref) => (
+>(({ className, children, overlayClassName, container, size = 'default', ...props }, ref) => (
   <DialogPortal container={container ?? undefined}>
     <DialogOverlay className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
         'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] gap-0 rounded-[28px] bg-[hsl(var(--dialog-surface))] p-0 shadow-[var(--shadow-dialog)] backdrop-blur-[40px] backdrop-saturate-150 duration-200',
-        size === 'form'
-          ? 'flex w-[min(96vw,907px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden'
-          : 'grid w-[min(92vw,720px)] overflow-visible',
+        dialogSizeClassName[size],
         className,
       )}
       {...props}

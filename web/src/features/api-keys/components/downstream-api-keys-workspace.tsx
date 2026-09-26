@@ -40,6 +40,7 @@ import {
 } from '@/features/api-keys/api/api-keys'
 import { APIKeyOrderDraw } from '@/features/api-keys/components/api-key-order-draw'
 import { APIKeyFormDialog } from '@/features/api-keys/components/api-key-form-dialog'
+import { APIKeyFormDraw } from '@/features/api-keys/components/api-key-form-draw'
 import { APIKeyModelsDraw } from '@/features/api-keys/components/api-key-models-draw'
 import { APIKeysSkeleton } from '@/features/api-keys/components/api-keys-skeleton'
 import { DownstreamAPIKeysTable } from '@/features/api-keys/components/downstream-api-keys-table'
@@ -273,35 +274,41 @@ export function DownstreamAPIKeysWorkspace() {
     </Button>
   )
 
+  const apiKeyFormProps = {
+    open: formOpen,
+    initialKey: editingKey,
+    canonicalModels,
+    canonicalModelsLoading: canonicalModelsQuery.isLoading,
+    sites,
+    sitesLoading: sitesQuery.isLoading,
+    siteGroups,
+    siteGroupsLoading: siteGroupsQuery.isLoading,
+    pending: saveMutation.isPending && (saveMutation.variables?.id ?? null) === (editingKey?.id ?? null),
+    onOpenChange: (open: boolean) => {
+      if (!open && !saveMutation.isPending) {
+        setFormOpen(false)
+        setEditingKey(null)
+      }
+    },
+    onSubmit: (values: APIKeyUpsertInput) => {
+      saveMutation.mutate({
+        ...values,
+        id: editingKey?.id,
+      })
+    },
+  }
+
   const dialogs = (
     <>
       {orderOpen && apiKeysQuery.data ? (
         <APIKeyOrderDraw initialData={apiKeysQuery.data} onClose={() => setOrderOpen(false)} />
       ) : null}
       {formOpen ? (
-        <APIKeyFormDialog
-          open={formOpen}
-          initialKey={editingKey}
-          canonicalModels={canonicalModels}
-          canonicalModelsLoading={canonicalModelsQuery.isLoading}
-          sites={sites}
-          sitesLoading={sitesQuery.isLoading}
-          siteGroups={siteGroups}
-          siteGroupsLoading={siteGroupsQuery.isLoading}
-          pending={saveMutation.isPending && (saveMutation.variables?.id ?? null) === (editingKey?.id ?? null)}
-          onOpenChange={(open) => {
-            if (!open && !saveMutation.isPending) {
-              setFormOpen(false)
-              setEditingKey(null)
-            }
-          }}
-          onSubmit={(values) => {
-            saveMutation.mutate({
-              ...values,
-              id: editingKey?.id,
-            })
-          }}
-        />
+        isMobile ? (
+          <APIKeyFormDraw {...apiKeyFormProps} />
+        ) : (
+          <APIKeyFormDialog {...apiKeyFormProps} />
+        )
       ) : null}
 
       <APIKeyModelsDraw

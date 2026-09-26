@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { ErrorDetails } from '@/components/common/error-details'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LoaderCircle,
   PencilLine,
-  Plus,
   RefreshCw,
   Settings2,
   Trash2,
@@ -81,6 +80,7 @@ import {
   parseSiteAPIKeyForm,
   type APIKeyFormDraft,
 } from '@/features/sites/components/site-api-key-form-data'
+import { useMobileLayout } from '@/hooks/use-media-query'
 
 const EMPTY_API_KEYS: SiteAPIKey[] = []
 
@@ -93,11 +93,13 @@ export function SiteAPIKeysDraw({
 }) {
   const queryClient = useQueryClient()
   const { t } = useTranslation('sites')
+  const isMobile = useMobileLayout()
   const [modelsAPIKey, setModelsAPIKey] = useState<SiteAPIKey | null>(null)
   const [modelProtocolTarget, setModelProtocolTarget] = useState<SiteAPIKeyModel | null>(null)
   const [modelProtocolMode, setModelProtocolMode] = useState<'inherit' | 'allowlist' | 'disabled'>('inherit')
   const [modelProtocolTypes, setModelProtocolTypes] = useState<string[]>([])
-  const [addingSiteModel, setAddingSiteModel] = useState<SiteModel | null>(null)
+  const [addingSiteModelOpen, setAddingSiteModelOpen] = useState(false)
+  const [selectedSiteModel, setSelectedSiteModel] = useState<SiteModel | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [addingAPIKey, setAddingAPIKey] = useState(false)
   const [configuringAPIKey, setConfiguringAPIKey] = useState<SiteAPIKey | null>(
@@ -475,44 +477,87 @@ export function SiteAPIKeysDraw({
     const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
     return (modelProtocolTarget?.supported_endpoint_types ?? []).filter((value) => siteTypes.length === 0 || siteTypes.includes(value))
   })()
+  const assignableSiteModels = (siteModelsQuery.data?.items ?? []).filter((model) => (
+    !apiKeyModels(modelsAPIKey).some((item) => item.site_model_id === model.id)
+  ))
   const canAddAPIKey = site ? canAddOfficialAPIKey(site) : false
+  const nestedOpen = addingAPIKey
+    || Boolean(configuringAPIKey)
+    || Boolean(editingAPIKey)
+    || Boolean(deletingAPIKey)
+    || Boolean(modelsAPIKey)
+    || addingSiteModelOpen
+    || Boolean(modelProtocolTarget)
 
-  return (
+  function closeInnermostNested() {
+    if (addingSiteModelOpen) {
+      setAddingSiteModelOpen(false)
+      setSelectedSiteModel(null)
+      return
+    }
+    if (modelProtocolTarget && !updateModelMutation.isPending) {
+      setModelProtocolTarget(null)
+      return
+    }
+    if (modelsAPIKey) {
+      setModelsAPIKey(null)
+      return
+    }
+    if (deletingAPIKey && !deleteMutation.isPending) {
+      setDeletingAPIKey(null)
+      return
+    }
+    if (addingAPIKey && !createAPIKeyMutation.isPending) {
+      setAddingAPIKey(false)
+      setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+      return
+    }
+    if (configuringAPIKey && !updateConfigMutation.isPending) {
+      setConfiguringAPIKey(null)
+      return
+    }
+    if (editingAPIKey && !updateSecretMutation.isPending) {
+      setEditingAPIKey(null)
+      setSecretInput('')
+    }
+  }
+
+  function handleMainOpenChange(next: boolean) {
+    if (!next && !isMobile && nestedOpen) {
+      closeInnermostNested()
+      return
+    }
+    if (!next) {
+      setModelsAPIKey(null)
+      setAddingAPIKey(false)
+      setConfiguringAPIKey(null)
+      setEditingAPIKey(null)
+      setDeletingAPIKey(null)
+      setAddingSiteModelOpen(false)
+      setSelectedSiteModel(null)
+      setModelProtocolTarget(null)
+      setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+      setSecretInput('')
+    }
+    onOpenChange(next)
+  }
+
+  const headerActions = canAddAPIKey ? (
+    <Button size="sm" onClick={() => setAddingAPIKey(true)}>
+      {t('apiKeys.add')}
+    </Button>
+  ) : null
+
+  const listBody = (
     <>
-      <Draw
-        open={open}
-        onOpenChange={(next) => {
-          if (!next) {
-            setModelsAPIKey(null)
-            setAddingAPIKey(false)
-            setConfiguringAPIKey(null)
-            setEditingAPIKey(null)
-            setDeletingAPIKey(null)
-            setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
-            setSecretInput('')
-          }
-          onOpenChange(next)
-        }}
-      >
-        <DrawContent side="right">
-          <DrawHeader className="flex items-center justify-between gap-3">
-            <DrawTitle>{t('apiKeys.title')}</DrawTitle>
-            {canAddAPIKey ? (
-              <Button size="sm" onClick={() => setAddingAPIKey(true)}>
-                <Plus className="h-4 w-4" />
-                {t('apiKeys.add')}
-              </Button>
-            ) : null}
-          </DrawHeader>
-          <DrawBody>
-            {apiKeysQuery.isLoading ? (
-              <p className="text-muted-soft text-center text-sm py-10">
-                {t('apiKeys.loading')}
-              </p>
-            ) : items.length ? (
-              <div className="space-y-3">
-                {items.map((item) => {
-                  const ensureSKPrefix = site ? isNewAPISite(site) : false
+      {apiKeysQuery.isLoading ? (
+        <p className="text-muted-soft text-center text-sm py-10">
+          {t('apiKeys.loading')}
+        </p>
+      ) : items.length ? (
+        <div className={isMobile ? 'space-y-3' : 'divide-y divide-[hsl(var(--glass-divider))]'}>
+          {items.map((item) => {
+            const ensureSKPrefix = site ? isNewAPISite(site) : false
                   const displayKey = formatAPIKeyValue(item.key, {
                     ensureSKPrefix,
                   })
@@ -560,11 +605,11 @@ export function SiteAPIKeysDraw({
                     : null
                   const probeFailed = Boolean(probe && probe.status !== 'ok')
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="section-soft rounded-lg p-4 space-y-3"
-                    >
+            return (
+              <div
+                key={item.id}
+                className={isMobile ? 'section-soft space-y-3 rounded-lg p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
+              >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="truncate font-medium text-sm text-foreground">
@@ -772,198 +817,288 @@ export function SiteAPIKeysDraw({
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
               </div>
-            ) : (
-              <p className="text-muted-soft text-center text-sm py-10">
-                {t('apiKeys.noKey')}
-              </p>
-            )}
-          </DrawBody>
-        </DrawContent>
-      </Draw>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-muted-soft text-center text-sm py-10">
+          {t('apiKeys.noKey')}
+        </p>
+      )}
+    </>
+  )
 
-      <Draw
-        open={addingAPIKey}
-        onOpenChange={(next) => {
-          if (!next && !createAPIKeyMutation.isPending) {
-            setAddingAPIKey(false)
-            setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
-          }
+  const addForm = (
+    <SiteAPIKeyFormFields
+      draft={newAPIKeyDraft}
+      onChange={setNewAPIKeyDraft}
+      showAPIKey
+      showCostMultiplier={supportsCostMultiplier}
+      t={t}
+    />
+  )
+  const addFooter = (
+    <>
+      <Button
+        onClick={() => {
+          const values = parseSiteAPIKeyForm(
+            newAPIKeyDraft,
+            {
+              includeCostMultiplier: supportsCostMultiplier,
+              requireAPIKey: true,
+            },
+          )
+          if (!values?.apiKey) return
+          createAPIKeyMutation.mutate({
+            ...values,
+            apiKey: values.apiKey,
+          })
         }}
+        disabled={
+          !parseSiteAPIKeyForm(
+            newAPIKeyDraft,
+            {
+              includeCostMultiplier: supportsCostMultiplier,
+              requireAPIKey: true,
+            },
+          ) ||
+          createAPIKeyMutation.isPending
+        }
       >
-        <DrawContent side="right">
-          <DrawHeader>
-            <DrawTitle>{t('apiKeys.addTitle')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
-            <SiteAPIKeyFormFields
-              draft={newAPIKeyDraft}
-              onChange={setNewAPIKeyDraft}
-              showAPIKey
-              showCostMultiplier={supportsCostMultiplier}
-              t={t}
-            />
-          </DrawBody>
-          <DrawFooter>
-            <Button
-              onClick={() => {
-                const values = parseSiteAPIKeyForm(
-                  newAPIKeyDraft,
-                  {
-                    includeCostMultiplier: supportsCostMultiplier,
-                    requireAPIKey: true,
-                  },
-                )
-                if (!values?.apiKey) return
-                createAPIKeyMutation.mutate({
-                  ...values,
-                  apiKey: values.apiKey,
-                })
-              }}
-              disabled={
-                !parseSiteAPIKeyForm(
-                  newAPIKeyDraft,
-                  {
-                    includeCostMultiplier: supportsCostMultiplier,
-                    requireAPIKey: true,
-                  },
-                ) ||
-                createAPIKeyMutation.isPending
-              }
-            >
-              {createAPIKeyMutation.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t('apiKeys.save')}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
+        {createAPIKeyMutation.isPending ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : null}
+        {t('apiKeys.save')}
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={() => {
+          setAddingAPIKey(false)
+          setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+        }}
+        disabled={createAPIKeyMutation.isPending}
+      >
+        {t('apiKeys.cancel')}
+      </Button>
+    </>
+  )
+
+  const configForm = (
+    <SiteAPIKeyFormFields
+      draft={configDraft}
+      onChange={setConfigDraft}
+      showAPIKey={false}
+      showCostMultiplier={supportsCostMultiplier}
+      t={t}
+    />
+  )
+  const configFooter = (
+    <>
+      <Button
+        onClick={() => {
+          const values = parseSiteAPIKeyForm(
+            configDraft,
+            {
+              includeCostMultiplier: supportsCostMultiplier,
+              requireAPIKey: false,
+            },
+          )
+          if (!configuringAPIKey || !values) return
+          updateConfigMutation.mutate({
+            apiKeyId: configuringAPIKey.id,
+            ...values,
+          })
+        }}
+        disabled={
+          !parseSiteAPIKeyForm(configDraft, {
+            includeCostMultiplier: supportsCostMultiplier,
+            requireAPIKey: false,
+          }) ||
+          updateConfigMutation.isPending
+        }
+      >
+        {updateConfigMutation.isPending ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : null}
+        {t('apiKeys.save')}
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={() => setConfiguringAPIKey(null)}
+        disabled={updateConfigMutation.isPending}
+      >
+        {t('apiKeys.cancel')}
+      </Button>
+    </>
+  )
+
+  const secretForm = (
+    <>
+      <span className="block text-sm font-medium">ApiKey</span>
+      <Input
+        value={secretInput}
+        autoComplete="off"
+        onChange={(event) => setSecretInput(event.target.value)}
+      />
+    </>
+  )
+  const secretFooter = (
+    <>
+      <Button
+        onClick={() => {
+          const value = secretInput.trim()
+          if (!editingAPIKey || !value) return
+          updateSecretMutation.mutate({
+            apiKeyId: editingAPIKey.id,
+            apiKey: value,
+          })
+        }}
+        disabled={!secretInput.trim() || updateSecretMutation.isPending}
+      >
+        {updateSecretMutation.isPending ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : null}
+        {t('apiKeys.save')}
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={() => {
+          setEditingAPIKey(null)
+          setSecretInput('')
+        }}
+        disabled={updateSecretMutation.isPending}
+      >
+        {t('apiKeys.cancel')}
+      </Button>
+    </>
+  )
+
+  return (
+    <>
+      {isMobile ? (
+        <Draw open={open} onOpenChange={handleMainOpenChange}>
+          <DrawContent side="right">
+            <DrawHeader className="flex items-center justify-between gap-3">
+              <DrawTitle>{t('apiKeys.title')}</DrawTitle>
+              {headerActions}
+            </DrawHeader>
+            <DrawBody>
+              {listBody}
+            </DrawBody>
+          </DrawContent>
+        </Draw>
+      ) : (
+        <Dialog open={open} onOpenChange={handleMainOpenChange}>
+          <DialogContent
+            size="md"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            onPointerDownOutside={(event) => {
+              if (nestedOpen) event.preventDefault()
+            }}
+            onInteractOutside={(event) => {
+              if (nestedOpen) event.preventDefault()
+            }}
+            onEscapeKeyDown={(event) => {
+              if (!nestedOpen) return
+              event.preventDefault()
+              handleMainOpenChange(false)
+            }}
+          >
+            <DialogHeader className="flex flex-row items-center justify-between gap-3">
+              <DialogTitle>{t('apiKeys.title')}</DialogTitle>
+              {headerActions}
+            </DialogHeader>
+            <DialogBody className="min-h-0 flex-1 overflow-y-auto">
+              {listBody}
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {isMobile ? (
+        <>
+          <NestedDraw
+            open={addingAPIKey}
+            title={t('apiKeys.addTitle')}
+            bodyClassName="space-y-4"
+            onOpenChange={(next) => {
+              if (!next && !createAPIKeyMutation.isPending) {
                 setAddingAPIKey(false)
                 setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
-              }}
-              disabled={createAPIKeyMutation.isPending}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
-
-      <Draw
-        open={Boolean(configuringAPIKey)}
-        onOpenChange={(next) => {
-          if (!next && !updateConfigMutation.isPending)
-            setConfiguringAPIKey(null)
-        }}
-      >
-        <DrawContent side="right">
-          <DrawHeader>
-            <DrawTitle>{t('apiKeys.editConfig')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody>
-            <SiteAPIKeyFormFields
-              draft={configDraft}
-              onChange={setConfigDraft}
-              showAPIKey={false}
-              showCostMultiplier={supportsCostMultiplier}
-              t={t}
-            />
-          </DrawBody>
-          <DrawFooter>
-            <Button
-              onClick={() => {
-                const values = parseSiteAPIKeyForm(
-                  configDraft,
-                  {
-                    includeCostMultiplier: supportsCostMultiplier,
-                    requireAPIKey: false,
-                  },
-                )
-                if (!configuringAPIKey || !values) return
-                updateConfigMutation.mutate({
-                  apiKeyId: configuringAPIKey.id,
-                  ...values,
-                })
-              }}
-              disabled={
-                !parseSiteAPIKeyForm(configDraft, {
-                  includeCostMultiplier: supportsCostMultiplier,
-                  requireAPIKey: false,
-                }) ||
-                updateConfigMutation.isPending
               }
-            >
-              {updateConfigMutation.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t('apiKeys.save')}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => setConfiguringAPIKey(null)}
-              disabled={updateConfigMutation.isPending}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
-
-      <Draw
-        open={Boolean(editingAPIKey)}
-        onOpenChange={(next) => {
-          if (!next && !updateSecretMutation.isPending) {
-            setEditingAPIKey(null)
-            setSecretInput('')
-          }
-        }}
-      >
-        <DrawContent side="right">
-          <DrawHeader>
-            <DrawTitle>{t('apiKeys.title')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-2">
-            <span className="block text-sm font-medium">ApiKey</span>
-            <Input
-              value={secretInput}
-              autoComplete="off"
-              onChange={(event) => setSecretInput(event.target.value)}
-            />
-          </DrawBody>
-          <DrawFooter>
-            <Button
-              onClick={() => {
-                const value = secretInput.trim()
-                if (!editingAPIKey || !value) return
-                updateSecretMutation.mutate({
-                  apiKeyId: editingAPIKey.id,
-                  apiKey: value,
-                })
-              }}
-              disabled={!secretInput.trim() || updateSecretMutation.isPending}
-            >
-              {updateSecretMutation.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t('apiKeys.save')}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
+            }}
+            footer={addFooter}
+          >
+            {addForm}
+          </NestedDraw>
+          <NestedDraw
+            open={Boolean(configuringAPIKey)}
+            title={t('apiKeys.editConfig')}
+            onOpenChange={(next) => {
+              if (!next && !updateConfigMutation.isPending) setConfiguringAPIKey(null)
+            }}
+            footer={configFooter}
+          >
+            {configForm}
+          </NestedDraw>
+          <NestedDraw
+            open={Boolean(editingAPIKey)}
+            title={t('apiKeys.title')}
+            bodyClassName="space-y-2"
+            onOpenChange={(next) => {
+              if (!next && !updateSecretMutation.isPending) {
                 setEditingAPIKey(null)
                 setSecretInput('')
-              }}
-              disabled={updateSecretMutation.isPending}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+              }
+            }}
+            footer={secretFooter}
+          >
+            {secretForm}
+          </NestedDraw>
+        </>
+      ) : (
+        <>
+          <NestedEditorDialog
+            open={addingAPIKey}
+            title={t('apiKeys.addTitle')}
+            bodyClassName="space-y-4"
+            onOpenChange={(next) => {
+              if (!next && !createAPIKeyMutation.isPending) {
+                setAddingAPIKey(false)
+                setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+              }
+            }}
+            footer={addFooter}
+          >
+            {addForm}
+          </NestedEditorDialog>
+          <NestedEditorDialog
+            open={Boolean(configuringAPIKey)}
+            title={t('apiKeys.editConfig')}
+            onOpenChange={(next) => {
+              if (!next && !updateConfigMutation.isPending) setConfiguringAPIKey(null)
+            }}
+            footer={configFooter}
+          >
+            {configForm}
+          </NestedEditorDialog>
+          <NestedEditorDialog
+            open={Boolean(editingAPIKey)}
+            title={t('apiKeys.title')}
+            bodyClassName="space-y-2"
+            onOpenChange={(next) => {
+              if (!next && !updateSecretMutation.isPending) {
+                setEditingAPIKey(null)
+                setSecretInput('')
+              }
+            }}
+            footer={secretFooter}
+          >
+            {secretForm}
+          </NestedEditorDialog>
+        </>
+      )}
 
       <Dialog
         open={Boolean(deletingAPIKey)}
@@ -971,7 +1106,11 @@ export function SiteAPIKeysDraw({
           if (!next && !deleteMutation.isPending) setDeletingAPIKey(null)
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent
+          size="sm"
+          overlayClassName={isMobile ? undefined : 'z-[60]'}
+          className={isMobile ? undefined : 'z-[60]'}
+        >
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('apiKeys.deleteDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -1017,7 +1156,7 @@ export function SiteAPIKeysDraw({
             ? `${modelsAPIKey.name} ${t('apiKeys.modelsTitle')}`
             : t('apiKeys.modelsTitle')
         }
-        items={buildAPIKeyModelItems(modelsAPIKey, siteModelsQuery.data?.items ?? [], (model) => {
+        items={buildAPIKeyModelItems(modelsAPIKey, siteModelsQuery.data?.items ?? [], t, (model) => {
           setModelProtocolTarget(model)
           const mode = model.endpoint_override?.mode ?? 'inherit'
           setModelProtocolMode(mode)
@@ -1036,6 +1175,10 @@ export function SiteAPIKeysDraw({
             : undefined
         }
         bulkPending={bulkUpdateModelMutation.isPending}
+        shell={isMobile ? 'draw' : 'dialog'}
+        nested={!isMobile}
+        dialogSize="md"
+        dismissLocked={addingSiteModelOpen || Boolean(modelProtocolTarget)}
         onToggleItem={(item, enabled) => {
           if (!modelsAPIKey) return
           updateModelMutation.mutate({
@@ -1057,76 +1200,244 @@ export function SiteAPIKeysDraw({
           })
         }}
         onOpenChange={(next) => {
-          if (!next) setModelsAPIKey(null)
+          if (!next) {
+            if (addingSiteModelOpen) {
+              setAddingSiteModelOpen(false)
+              setSelectedSiteModel(null)
+              return
+            }
+            if (modelProtocolTarget && !updateModelMutation.isPending) {
+              setModelProtocolTarget(null)
+              return
+            }
+            setModelsAPIKey(null)
+          }
         }}
         toolbarAction={modelsAPIKey ? (
-          <Button size="sm" variant="secondary" onClick={() => setAddingSiteModel(siteModelsQuery.data?.items.find((model) => !apiKeyModels(modelsAPIKey).some((item) => item.site_model_id === model.id)) ?? null)}>
-            <Plus className="h-4 w-4" />
-            添加站点模型
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setSelectedSiteModel(null)
+              setAddingSiteModelOpen(true)
+            }}
+          >
+            {t('apiKeys.addModel')}
           </Button>
         ) : null}
       />
-      <Dialog open={Boolean(addingSiteModel)} onOpenChange={(next) => { if (!next) setAddingSiteModel(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] rounded-3xl">
+      <Dialog
+        open={addingSiteModelOpen}
+        onOpenChange={(next) => {
+          if (next) return
+          setAddingSiteModelOpen(false)
+          setSelectedSiteModel(null)
+        }}
+      >
+        <DialogContent size="sm" overlayClassName="z-[60]" className="z-[60]">
           <DialogHeader>
-            <DialogTitle>添加站点模型</DialogTitle>
-            <DialogDescription>将站点模型加入当前 API Key 后，可单独配置协议。</DialogDescription>
+            <DialogTitle>{t('apiKeys.addSiteModelTitle')}</DialogTitle>
+            <DialogDescription>{t('apiKeys.addSiteModelDescription')}</DialogDescription>
           </DialogHeader>
-          <DialogBody className="space-y-2">
-            {(siteModelsQuery.data?.items ?? []).filter((model) => !apiKeyModels(modelsAPIKey).some((item) => item.site_model_id === model.id)).map((model) => (
-              <button key={model.id} type="button" className="w-full rounded-lg border p-3 text-left hover:bg-muted" onClick={() => setAddingSiteModel(model)}>
-                <div className="font-medium">{model.display_name || model.upstream_model_name}</div>
-                <div className="text-xs text-muted-soft">{model.upstream_model_name}</div>
-              </button>
-            ))}
+          <DialogBody className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+            {assignableSiteModels.length ? assignableSiteModels.map((model) => {
+              const selected = selectedSiteModel?.id === model.id
+              return (
+                <button
+                  key={model.id}
+                  type="button"
+                  className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${selected ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'}`}
+                  onClick={() => setSelectedSiteModel(model)}
+                >
+                  <div className="truncate text-sm font-medium text-foreground">{model.display_name || model.upstream_model_name}</div>
+                  {model.display_name && model.display_name !== model.upstream_model_name ? (
+                    <div className="truncate text-xs text-muted-soft">{model.upstream_model_name}</div>
+                  ) : null}
+                </button>
+              )
+            }) : (
+              <p className="py-8 text-center text-sm text-muted-soft">{t('apiKeys.addSiteModelEmpty')}</p>
+            )}
           </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddingSiteModel(null)}>取消</Button>
-            <Button disabled={!addingSiteModel || !modelsAPIKey || updateModelMutation.isPending} onClick={() => {
-              if (!addingSiteModel || !modelsAPIKey) return
-              updateModelMutation.mutate({ apiKeyId: modelsAPIKey.id, model: addingSiteModel.upstream_model_name, enabled: true, siteModelId: addingSiteModel.id, endpointMode: 'inherit', endpointTypes: [] })
-              setAddingSiteModel(null)
-            }}>添加</Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAddingSiteModelOpen(false)
+                setSelectedSiteModel(null)
+              }}
+            >
+              {t('apiKeys.cancel')}
+            </Button>
+            <Button
+              disabled={!selectedSiteModel || !modelsAPIKey || updateModelMutation.isPending}
+              onClick={() => {
+                if (!selectedSiteModel || !modelsAPIKey) return
+                updateModelMutation.mutate({
+                  apiKeyId: modelsAPIKey.id,
+                  model: selectedSiteModel.upstream_model_name,
+                  enabled: true,
+                  siteModelId: selectedSiteModel.id,
+                  endpointMode: 'inherit',
+                  endpointTypes: [],
+                })
+                setAddingSiteModelOpen(false)
+                setSelectedSiteModel(null)
+              }}
+            >
+              {t('apiKeys.addModel')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(modelProtocolTarget)} onOpenChange={(nextOpen) => { if (!nextOpen && !updateModelMutation.isPending) setModelProtocolTarget(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] rounded-3xl">
+      <Dialog
+        open={Boolean(modelProtocolTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !updateModelMutation.isPending) setModelProtocolTarget(null)
+        }}
+      >
+        <DialogContent size="sm" overlayClassName="z-[60]" className="z-[60]">
           <DialogHeader>
-            <DialogTitle>配置模型协议</DialogTitle>
-            <DialogDescription>{modelProtocolTarget?.name}</DialogDescription>
+            <DialogTitle>{t('apiKeys.protocol.title')}</DialogTitle>
+            <DialogDescription>
+              {modelProtocolTarget
+                ? t('apiKeys.protocol.namedDescription', { name: modelProtocolTarget.name })
+                : t('apiKeys.protocol.description')}
+            </DialogDescription>
           </DialogHeader>
-          <DialogBody className="space-y-4">
-            <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] p-3 text-sm">
-              <div className="font-medium">当前 Key 实际允许的协议</div>
-              <div className="mt-1 text-xs text-muted-soft">勾选结果会直接用于该 Key 的上游请求协议选择。</div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {protocolOptions.map((endpointType) => (
-                <div key={endpointType} role="button" tabIndex={0} className={`rounded-lg border p-3 text-left transition-colors ${modelProtocolTypes.includes(endpointType) ? 'border-primary bg-primary/10' : 'border-[hsl(var(--glass-border))]'}`} onClick={() => {
-                  setModelProtocolMode('allowlist')
-                  setModelProtocolTypes((current) => current.includes(endpointType) ? current.filter((item) => item !== endpointType) : [...current, endpointType])
-                }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.currentTarget.click() }}>
-                  <Checkbox checked={modelProtocolTypes.includes(endpointType)} label={formatEndpointTypeLabel(endpointType)} description={endpointType} onCheckedChange={() => undefined} />
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setModelProtocolMode('inherit'); setModelProtocolTypes(protocolOptions) }}>恢复站点默认</Button>
-              <Button variant="outline" size="sm" onClick={() => { setModelProtocolMode('disabled'); setModelProtocolTypes([]) }}>全部禁用</Button>
-            </div>
+          <DialogBody className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+            <p className="text-sm text-muted-soft">
+              {modelProtocolMode === 'disabled'
+                ? t('apiKeys.protocol.modeDisabled')
+                : modelProtocolMode === 'allowlist'
+                  ? t('apiKeys.protocol.modeAllowlist')
+                  : t('apiKeys.protocol.modeInherit')}
+            </p>
+            {protocolOptions.length ? (
+              <div className="divide-y divide-[hsl(var(--glass-divider))]">
+                {protocolOptions.map((endpointType) => {
+                  const checked = modelProtocolTypes.includes(endpointType)
+                  return (
+                    <button
+                      key={endpointType}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 py-3 text-left first:pt-0 last:pb-0"
+                      onClick={() => {
+                        setModelProtocolMode('allowlist')
+                        setModelProtocolTypes((current) => (
+                          checked
+                            ? current.filter((item) => item !== endpointType)
+                            : current.includes(endpointType) ? current : [...current, endpointType]
+                        ))
+                      }}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-foreground">{formatEndpointTypeLabel(endpointType)}</span>
+                        <span className="block text-xs text-muted-soft">{endpointType}</span>
+                      </span>
+                      <Checkbox
+                        checked={checked}
+                        className="pointer-events-none"
+                        ariaLabel={formatEndpointTypeLabel(endpointType)}
+                        onCheckedChange={() => undefined}
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-soft">{t('apiKeys.protocol.empty')}</p>
+            )}
           </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>取消</Button>
-            <Button disabled={!modelProtocolTarget?.site_model_id || updateModelMutation.isPending || (modelProtocolMode === 'allowlist' && modelProtocolTypes.length === 0)} onClick={() => {
-              if (!modelProtocolTarget || !modelsAPIKey || !modelProtocolTarget.site_model_id) return
-              updateModelMutation.mutate({ apiKeyId: modelsAPIKey.id, model: modelProtocolTarget.name, enabled: modelProtocolTarget.enabled, siteModelId: modelProtocolTarget.site_model_id, endpointMode: modelProtocolMode, endpointTypes: modelProtocolTypes })
-              setModelProtocolTarget(null)
-            }}>保存</Button>
+            <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>
+              {t('apiKeys.cancel')}
+            </Button>
+            <Button
+              disabled={!modelProtocolTarget?.site_model_id || updateModelMutation.isPending || (modelProtocolMode === 'allowlist' && modelProtocolTypes.length === 0)}
+              onClick={() => {
+                if (!modelProtocolTarget || !modelsAPIKey || !modelProtocolTarget.site_model_id) return
+                updateModelMutation.mutate({
+                  apiKeyId: modelsAPIKey.id,
+                  model: modelProtocolTarget.name,
+                  enabled: modelProtocolTarget.enabled,
+                  siteModelId: modelProtocolTarget.site_model_id,
+                  endpointMode: modelProtocolMode,
+                  endpointTypes: modelProtocolTypes,
+                })
+                setModelProtocolTarget(null)
+              }}
+            >
+              {updateModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {t('apiKeys.save')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+function NestedDraw({
+  open,
+  title,
+  bodyClassName,
+  footer,
+  children,
+  onOpenChange,
+}: {
+  open: boolean
+  title: string
+  bodyClassName?: string
+  footer: ReactNode
+  children: ReactNode
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Draw open={open} onOpenChange={onOpenChange}>
+      <DrawContent side="right">
+        <DrawHeader>
+          <DrawTitle>{title}</DrawTitle>
+        </DrawHeader>
+        <DrawBody className={bodyClassName}>{children}</DrawBody>
+        <DrawFooter>{footer}</DrawFooter>
+      </DrawContent>
+    </Draw>
+  )
+}
+
+function NestedEditorDialog({
+  open,
+  title,
+  bodyClassName,
+  footer,
+  children,
+  onOpenChange,
+}: {
+  open: boolean
+  title: string
+  bodyClassName?: string
+  footer: ReactNode
+  children: ReactNode
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        size="sm"
+        overlayClassName="z-[60]"
+        className="z-[60]"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName ?? ''}`}>
+          {children}
+        </DialogBody>
+        <DialogFooter>{footer}</DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1201,7 +1512,12 @@ function canAddOfficialAPIKey(site: Site): boolean {
   return site.supports_multiple_api_keys === true
 }
 
-function buildAPIKeyModelItems(apiKey: SiteAPIKey | null, siteModels: SiteModel[], onConfigure: (model: SiteAPIKeyModel) => void): ModelsDrawItem[] {
+function buildAPIKeyModelItems(
+  apiKey: SiteAPIKey | null,
+  siteModels: SiteModel[],
+  t: (key: string, options?: { name: string }) => string,
+  onConfigure: (model: SiteAPIKeyModel) => void,
+): ModelsDrawItem[] {
   if (!apiKey) return []
   const models = apiKeyModels(apiKey)
   if (!models.length) return []
@@ -1218,7 +1534,7 @@ function buildAPIKeyModelItems(apiKey: SiteAPIKey | null, siteModels: SiteModel[
       enabled: model.enabled,
       icon: modelNameIconInfo(name),
       trailingAction: model.site_model_id ? (
-        <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title="配置模型协议" aria-label={`配置 ${name} 协议`} onClick={() => onConfigure(model)}>
+        <Button type="button" size="icon" variant="ghost" className="h-7 w-7" title={t('apiKeys.protocol.configure')} aria-label={t('apiKeys.protocol.configureLabel', { name })} onClick={() => onConfigure(model)}>
           <Settings2 className="h-4 w-4" />
         </Button>
       ) : undefined,

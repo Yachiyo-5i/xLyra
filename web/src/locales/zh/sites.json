@@ -221,6 +221,10 @@
     "defaultKey": "Apikey 1",
     "add": "添加 Apikey",
     "addTitle": "添加 Apikey",
+    "addModel": "添加模型",
+    "addSiteModelTitle": "添加模型",
+    "addSiteModelDescription": "将站点模型加入当前 API Key，之后可单独配置协议。",
+    "addSiteModelEmpty": "没有可添加的站点模型",
     "back": "返回站点配置",
     "backToKeys": "返回 API Key 列表",
     "name": "Key 名称",
@@ -265,6 +269,17 @@
     "openCodeGoPlan": "Go $12 / 5 小时 · $30 / 周 · $60 / 月 · 官方实时额度不可查询",
     "openCodeGoLimited": "{{window}}额度已达上限，{{reset}} 重置",
     "openCodeGoUnavailable": "OpenCode 未提供 API Key 实时额度查询接口",
+    "protocol": {
+      "title": "配置模型协议",
+      "configure": "配置协议",
+      "configureLabel": "配置 {{name}} 协议",
+      "description": "选择该 Key 请求此模型时允许使用的上游协议。",
+      "namedDescription": "为 {{name}} 选择该 Key 允许使用的上游协议。",
+      "modeInherit": "当前使用站点默认协议",
+      "modeAllowlist": "当前仅使用已勾选协议",
+      "modeDisabled": "当前已禁用全部协议",
+      "empty": "该模型没有可配置的协议"
+    },
     "sync": {
       "synced": "已同步",
       "failed": "失败",
@@ -370,7 +385,7 @@
       "canonicalPlaceholder": "选择标准模型",
       "endpointTypes": "端点类型",
       "endpointPlaceholder": "选择端点类型",
-      "apiKeys": "添加到启用 API Key",
+      "apiKeys": "添加到 API Key",
       "apiKeysPlaceholder": "选择 API Key",
       "searchPlaceholder": "搜索...",
       "emptyOptions": "暂无选项",
@@ -378,6 +393,9 @@
       "cancel": "取消",
       "submit": "创建"
     },
+    "keyDisabled": "停用",
+    "collapseKey": "折叠 {{name}}",
+    "expandKey": "展开 {{name}}",
     "manageManual": {
       "action": "管理手动",
       "done": "完成管理"

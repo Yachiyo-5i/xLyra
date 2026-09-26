@@ -7,13 +7,13 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Draw,
-  DrawBody,
-  DrawContent,
-  DrawFooter,
-  DrawHeader,
-  DrawTitle,
-} from '@/components/ui/draw'
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
@@ -59,7 +59,7 @@ function usesDomesticBuiltinBaseURL(siteType: string): boolean {
   return ['deepseek', 'minimax', 'xiaomi_mimo', 'zhipu', 'glm_code'].includes(siteType)
 }
 
-function createSiteSchema(mode: SiteSheetMode, siteTypes: SiteTypeInfo[] | undefined, t: (key: string) => string, initialSite?: Site | null) {
+function createSiteSchema(mode: SiteFormMode, siteTypes: SiteTypeInfo[] | undefined, t: (key: string) => string, initialSite?: Site | null) {
   const validTypes = (siteTypes ?? []).filter(st => st.show_in_create_dialog).map(st => st.site_type)
 
   return z
@@ -191,14 +191,14 @@ function createSiteSchema(mode: SiteSheetMode, siteTypes: SiteTypeInfo[] | undef
     })
 }
 
-type SiteSheetMode = 'create' | 'edit'
+type SiteFormMode = 'create' | 'edit'
 type CreateSiteFormValues = z.infer<ReturnType<typeof createSiteSchema>>
 export type SiteCreateSubmitInput = CreateSiteInput & { siteGroupIds?: string[] }
 
-type SiteCreateSheetProps = {
+type SiteCreateDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  mode?: SiteSheetMode
+  mode?: SiteFormMode
   initialSite?: Site | null
   isPending: boolean
   siteTypes?: SiteTypeInfo[]
@@ -486,7 +486,7 @@ function relayProviderRank(siteType: string) {
   return 2
 }
 
-export function SiteCreateSheet({
+export function SiteCreateDialog({
   open,
   onOpenChange,
   mode = 'create',
@@ -497,7 +497,7 @@ export function SiteCreateSheet({
   proxies = [],
   siteGroupsLoading = false,
   onSubmit,
-}: SiteCreateSheetProps) {
+}: SiteCreateDialogProps) {
   const { t, i18n } = useTranslation('sites')
   const resolver = useMemo(() => zodResolver(createSiteSchema(mode, siteTypes, t, initialSite)), [initialSite, mode, siteTypes, t])
   const lastFormResetKeyRef = useRef<string | null>(null)
@@ -591,6 +591,9 @@ export function SiteCreateSheet({
     if (!open) {
       lastFormResetKeyRef.current = null
       reset(defaultValues)
+      setAPIKeyEditorOpen(false)
+      setEditingAPIKeyIndex(null)
+      setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
       return
     }
 
@@ -733,36 +736,64 @@ export function SiteCreateSheet({
 
   return (
     <>
-      <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-        <DrawHeader>
-          {selectedProvider && mode === 'create' ? (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 -ml-1"
-                onClick={handleBackToProviders}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              {selectedProviderIcon ? (
-                <img
-                  src={selectedProviderIcon}
-                  alt=""
-                  className={cn('h-6 w-6 shrink-0 rounded-md object-contain', siteTypeIconClassName(selectedProvider))}
-                />
-              ) : null}
-              <DrawTitle>
-                {selectedProviderInfo?.display_name ?? t('form.createTitle')}
-              </DrawTitle>
-            </div>
-          ) : (
-            <DrawTitle>{mode === 'edit' ? t('form.editTitle') : t('form.createTitle')}</DrawTitle>
-          )}
-        </DrawHeader>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next && apiKeyEditorOpen) {
+            setAPIKeyEditorOpen(false)
+            setEditingAPIKeyIndex(null)
+            setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+            return
+          }
+          if (!next && isPending) return
+          onOpenChange(next)
+        }}
+      >
+        <DialogContent
+          size="form"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => {
+            if (apiKeyEditorOpen) event.preventDefault()
+          }}
+          onInteractOutside={(event) => {
+            if (apiKeyEditorOpen) event.preventDefault()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (!apiKeyEditorOpen) return
+            event.preventDefault()
+            setAPIKeyEditorOpen(false)
+            setEditingAPIKeyIndex(null)
+            setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+          }}
+        >
+          <DialogHeader>
+            {selectedProvider && mode === 'create' ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 -ml-1"
+                  onClick={handleBackToProviders}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {selectedProviderIcon ? (
+                  <img
+                    src={selectedProviderIcon}
+                    alt=""
+                    className={cn('h-6 w-6 shrink-0 rounded-md object-contain', siteTypeIconClassName(selectedProvider))}
+                  />
+                ) : null}
+                <DialogTitle>
+                  {selectedProviderInfo?.display_name ?? t('form.createTitle')}
+                </DialogTitle>
+              </div>
+            ) : (
+              <DialogTitle>{mode === 'edit' ? t('form.editTitle') : t('form.createTitle')}</DialogTitle>
+            )}
+          </DialogHeader>
 
-        <DrawBody className="space-y-0">
+          <DialogBody className="min-h-0 flex-1 overflow-y-auto space-y-0">
           {showProviderWall ? (
             <ProviderWall siteTypes={siteTypes ?? []} onSelect={handleSelectProvider} language={i18n.language} t={t} />
           ) : (
@@ -1237,23 +1268,23 @@ export function SiteCreateSheet({
               </FormSection>
             </>
           )}
-        </DrawBody>
+          </DialogBody>
 
-        {showProviderWall ? null : (
-          <DrawFooter>
-            <Button onClick={handleSubmit(handleFormSubmit)} disabled={isPending}>
-              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {mode === 'edit' ? t('form.actions.save') : t('form.actions.create')}
-            </Button>
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
-              {t('form.actions.cancel')}
-            </Button>
-          </DrawFooter>
-        )}
-      </DrawContent>
-      </Draw>
+          {showProviderWall ? null : (
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
+                {t('form.actions.cancel')}
+              </Button>
+              <Button onClick={handleSubmit(handleFormSubmit)} disabled={isPending}>
+                {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {mode === 'edit' ? t('form.actions.save') : t('form.actions.create')}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
 
-      <Draw
+      <Dialog
         open={apiKeyEditorOpen}
         onOpenChange={(next) => {
           setAPIKeyEditorOpen(next)
@@ -1263,28 +1294,20 @@ export function SiteCreateSheet({
           }
         }}
       >
-        <DrawContent side="right">
-          <DrawHeader>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="-ml-1 h-7 w-7"
-                title={t('apiKeys.back')}
-                aria-label={t('apiKeys.back')}
-                onClick={() => setAPIKeyEditorOpen(false)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <DrawTitle>
-                {editingAPIKeyIndex == null
-                  ? t('apiKeys.addTitle')
-                  : t('apiKeys.editConfig')}
-              </DrawTitle>
-            </div>
-          </DrawHeader>
-          <DrawBody>
+        <DialogContent
+          overlayClassName="z-[60]"
+          size="sm"
+          className="z-[60]"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {editingAPIKeyIndex == null
+                ? t('apiKeys.addTitle')
+                : t('apiKeys.editConfig')}
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody className="min-h-0 flex-1 overflow-y-auto">
             <SiteAPIKeyFormFields
               draft={apiKeyDraft}
               onChange={setAPIKeyDraft}
@@ -1292,8 +1315,15 @@ export function SiteCreateSheet({
               showCostMultiplier={supportsAPIKeyCostMultiplier}
               t={t}
             />
-          </DrawBody>
-          <DrawFooter>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setAPIKeyEditorOpen(false)}
+            >
+              {t('apiKeys.cancel')}
+            </Button>
             <Button
               type="button"
               onClick={saveAPIKeyDraft}
@@ -1306,16 +1336,9 @@ export function SiteCreateSheet({
             >
               {t('apiKeys.save')}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setAPIKeyEditorOpen(false)}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

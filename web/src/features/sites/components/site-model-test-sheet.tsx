@@ -7,6 +7,7 @@ import { BrandMark } from '@/components/common/brand-mark'
 import { EmptyState } from '@/components/common/empty-state'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -27,6 +28,7 @@ import {
 } from '@/features/sites/api/sites'
 import { siteModelIconInfo } from '@/features/sites/lib/model-icon'
 import { filterSiteModelTestModels } from '@/features/sites/lib/site-model-test-filters'
+import { useMobileLayout } from '@/hooks/use-media-query'
 
 const EMPTY_MODELS: SiteModel[] = []
 const EMPTY_API_KEYS: SiteAPIKey[] = []
@@ -47,6 +49,7 @@ export function SiteModelTestSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const open = Boolean(site)
+  const isMobile = useMobileLayout()
   const { t } = useTranslation(['sites', 'components'])
   const [results, setResults] = useState<Record<string, TestRecord>>({})
   const [pendingModelIds, setPendingModelIds] = useState<string[]>([])
@@ -171,174 +174,209 @@ export function SiteModelTestSheet({
     }
   }
 
-  return (
-    <Draw open={open} onOpenChange={handleOpenChange}>
-      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-        <DrawHeader>
-          <DrawTitle>{site ? t('test.title', { name: site.name }) : t('test.title', { name: '' })}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className="space-y-3">
-          {modelsQuery.isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="h-14 rounded-lg bg-[hsl(var(--surface-subtle))]" />
+  const title = site ? t('test.title', { name: site.name }) : t('test.title', { name: '' })
+  const loadingState = (
+    <div className="space-y-2">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="h-14 rounded-lg bg-[hsl(var(--surface-subtle))]" />
+      ))}
+    </div>
+  )
+  const emptyState = <EmptyState title={t('test.empty')} description={t('test.empty')} />
+  const toolbar = (
+    <>
+      <div className="relative min-w-0">
+        <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t('components:modelsDraw.searchPlaceholder')}
+          className="pl-10"
+        />
+      </div>
+      <div className={site?.supports_multiple_api_keys ? 'grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3' : 'grid grid-cols-2 gap-2 sm:gap-3'}>
+        <Select value={protocol} onValueChange={(value) => setProtocol(value as SiteModelTestProtocol)}>
+          <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent searchable={false}>
+            <SelectItem value="auto">{t('test.protocol.auto')}</SelectItem>
+            <SelectItem value="chat_completions">{t('test.protocol.chatCompletions')}</SelectItem>
+            <SelectItem value="responses">{t('test.protocol.responses')}</SelectItem>
+            <SelectItem value="messages">{t('test.protocol.messages')}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={streamMode} onValueChange={(value) => setStreamMode(value as SiteModelTestStreamMode)}>
+          <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent searchable={false}>
+            <SelectItem value="stream">{t('test.stream.stream')}</SelectItem>
+            <SelectItem value="non_stream">{t('test.stream.nonStream')}</SelectItem>
+          </SelectContent>
+        </Select>
+        {site?.supports_multiple_api_keys ? (
+          <Select
+            value={selectedCredentialId}
+            onValueChange={(value) => {
+              setCredentialId(value)
+              setResults({})
+            }}
+          >
+            <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent searchable={false}>
+              <SelectItem value={AUTO_CREDENTIAL_ID}>{t('test.credential.auto')}</SelectItem>
+              {availableAPIKeys.map((apiKey) => (
+                <SelectItem key={apiKey.id} value={apiKey.id}>
+                  {apiKey.name || apiKey.key || apiKey.id} · P{apiKey.routing_priority ?? 1}
+                </SelectItem>
               ))}
-            </div>
-          ) : availableModels.length ? (
-            <>
-              <div className="relative min-w-0">
-                <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t('components:modelsDraw.searchPlaceholder')}
-                  className="pl-10"
-                />
-              </div>
-              <div className={site?.supports_multiple_api_keys ? 'grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3' : 'grid grid-cols-2 gap-2 sm:gap-3'}>
-                <Select value={protocol} onValueChange={(value) => setProtocol(value as SiteModelTestProtocol)}>
-                  <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent searchable={false}>
-                    <SelectItem value="auto">{t('test.protocol.auto')}</SelectItem>
-                    <SelectItem value="chat_completions">{t('test.protocol.chatCompletions')}</SelectItem>
-                    <SelectItem value="responses">{t('test.protocol.responses')}</SelectItem>
-                    <SelectItem value="messages">{t('test.protocol.messages')}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={streamMode} onValueChange={(value) => setStreamMode(value as SiteModelTestStreamMode)}>
-                  <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent searchable={false}>
-                    <SelectItem value="stream">{t('test.stream.stream')}</SelectItem>
-                    <SelectItem value="non_stream">{t('test.stream.nonStream')}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {site?.supports_multiple_api_keys ? (
-                  <Select
-                    value={selectedCredentialId}
-                    onValueChange={(value) => {
-                      setCredentialId(value)
-                      setResults({})
-                    }}
-                  >
-                    <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent searchable={false}>
-                      <SelectItem value={AUTO_CREDENTIAL_ID}>{t('test.credential.auto')}</SelectItem>
-                      {availableAPIKeys.map((apiKey) => (
-                        <SelectItem key={apiKey.id} value={apiKey.id}>
-                          {apiKey.name || apiKey.key || apiKey.id} · P{apiKey.routing_priority ?? 1}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </div>
-              <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))]">
-                <table className="w-full table-fixed border-collapse text-left">
-                  <thead className="bg-[hsl(var(--surface-subtle))]">
-                    <tr className="text-faint text-xs uppercase tracking-[0.16em]">
-                      <th className="w-[42%] px-3 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.model')}</th>
-                      <th className="w-[26%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.status')}</th>
-                      <th className="w-[20%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.latency')}</th>
-                      <th className="w-[12%] px-2 py-2.5 text-right font-medium md:px-4 md:py-3">{t('test.headers.action')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredModels.length ? filteredModels.map((model) => {
-                      const record = results[model.id]
-                      const result = record?.status === 'success' ? record.result : null
-                      const pending = pendingModelIds.includes(model.id)
-                      const failureResponse = result && !result.ok
-                        ? formatTestFailureResponse(result.result.failure_response, result.result.error_message)
-                        : ''
-                      const icon = siteModelIconInfo(model, canonicalMap, site)
-                      return (
-                        <tr key={model.id} className="border-t border-[hsl(var(--glass-divider))]">
-                          <td className="px-3 py-2.5 align-middle md:px-4 md:py-3">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <BrandMark
-                                iconPath={icon.iconPath}
-                                label={icon.label}
-                                fallback={icon.fallback}
-                                fallbackText={icon.fallbackText}
-                                size="sm"
-                              />
-                              <div className="truncate text-sm font-medium text-foreground" title={model.upstream_model_name}>
-                                {model.upstream_model_name}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2.5 align-middle md:px-4 md:py-3">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              {record ? (
-                                record.status === 'success' ? (
-                                  failureResponse ? (
-                                    <ErrorDetails message={failureResponse}>
-                                      <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
-                                        {record.result.ok ? t('test.status.success') : t('test.status.failed')}
-                                      </StatusBadge>
-                                    </ErrorDetails>
-                                  ) : (
-                                    <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
-                                      {record.result.ok ? t('test.status.success') : t('test.status.failed')}
-                                    </StatusBadge>
-                                  )
-                                ) : (
-                                  <ErrorDetails message={record.message}>
-                                    <StatusBadge status="error" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.failed')}</StatusBadge>
-                                  </ErrorDetails>
-                                )
-                              ) : (
-                                <StatusBadge status="idle" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.untested')}</StatusBadge>
-                              )}
-                              {result?.result.status_code ? (
-                                <span className="shrink-0 text-xs text-muted-soft">{result.result.status_code}</span>
-                              ) : null}
-                              {result?.request.credential_name ? (
-                                <span className="min-w-0 truncate text-xs text-muted-soft" title={result.request.credential_name}>
-                                  {result.request.credential_name}
-                                </span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-2 py-2.5 align-middle text-sm tabular-nums text-foreground md:px-4 md:py-3">
-                            {result?.result.latency_ms != null ? `${result.result.latency_ms} ms` : '-'}
-                          </td>
-                          <td className="px-2 py-2.5 align-middle text-right md:px-4 md:py-3">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 border-0 bg-transparent p-0 shadow-none hover:bg-transparent hover:text-primary hover:shadow-none"
-                              onClick={() => testMutation.mutate(model)}
-                              disabled={pending}
-                              aria-label={t('test.test')}
-                              title={t('test.test')}
-                            >
-                              {pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
-                            </Button>
-                          </td>
-                        </tr>
+            </SelectContent>
+          </Select>
+        ) : null}
+      </div>
+    </>
+  )
+  const modelsTable = (
+    <table className="w-full table-fixed border-collapse text-left">
+      <thead className={isMobile
+        ? 'bg-[hsl(var(--surface-subtle))]'
+        : 'sticky top-0 z-10 bg-[hsl(var(--surface-subtle))] shadow-[0_1px_0_hsl(var(--glass-divider))]'}
+      >
+        <tr className="text-faint text-xs uppercase tracking-[0.16em]">
+          <th className="w-[42%] px-3 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.model')}</th>
+          <th className="w-[26%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.status')}</th>
+          <th className="w-[20%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.latency')}</th>
+          <th className="w-[12%] px-2 py-2.5 text-right font-medium md:px-4 md:py-3">{t('test.headers.action')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {filteredModels.length ? filteredModels.map((model) => {
+          const record = results[model.id]
+          const result = record?.status === 'success' ? record.result : null
+          const pending = pendingModelIds.includes(model.id)
+          const failureResponse = result && !result.ok
+            ? formatTestFailureResponse(result.result.failure_response, result.result.error_message)
+            : ''
+          const icon = siteModelIconInfo(model, canonicalMap, site)
+          return (
+            <tr key={model.id} className="border-t border-[hsl(var(--glass-divider))]">
+              <td className="px-3 py-2.5 align-middle md:px-4 md:py-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <BrandMark
+                    iconPath={icon.iconPath}
+                    label={icon.label}
+                    fallback={icon.fallback}
+                    fallbackText={icon.fallbackText}
+                    size="sm"
+                  />
+                  <div className="truncate text-sm font-medium text-foreground" title={model.upstream_model_name}>
+                    {model.upstream_model_name}
+                  </div>
+                </div>
+              </td>
+              <td className="px-2 py-2.5 align-middle md:px-4 md:py-3">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {record ? (
+                    record.status === 'success' ? (
+                      failureResponse ? (
+                        <ErrorDetails message={failureResponse}>
+                          <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
+                            {record.result.ok ? t('test.status.success') : t('test.status.failed')}
+                          </StatusBadge>
+                        </ErrorDetails>
+                      ) : (
+                        <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
+                          {record.result.ok ? t('test.status.success') : t('test.status.failed')}
+                        </StatusBadge>
                       )
-                    }) : (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-soft">{t('components:modelsDraw.noModels')}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    ) : (
+                      <ErrorDetails message={record.message}>
+                        <StatusBadge status="error" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.failed')}</StatusBadge>
+                      </ErrorDetails>
+                    )
+                  ) : (
+                    <StatusBadge status="idle" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.untested')}</StatusBadge>
+                  )}
+                  {result?.result.status_code ? (
+                    <span className="shrink-0 text-xs text-muted-soft">{result.result.status_code}</span>
+                  ) : null}
+                  {result?.request.credential_name ? (
+                    <span className="min-w-0 truncate text-xs text-muted-soft" title={result.request.credential_name}>
+                      {result.request.credential_name}
+                    </span>
+                  ) : null}
+                </div>
+              </td>
+              <td className="px-2 py-2.5 align-middle text-sm tabular-nums text-foreground md:px-4 md:py-3">
+                {result?.result.latency_ms != null ? `${result.result.latency_ms} ms` : '-'}
+              </td>
+              <td className="px-2 py-2.5 align-middle text-right md:px-4 md:py-3">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 border-0 bg-transparent p-0 shadow-none hover:bg-transparent hover:text-primary hover:shadow-none"
+                  onClick={() => testMutation.mutate(model)}
+                  disabled={pending}
+                  aria-label={t('test.test')}
+                  title={t('test.test')}
+                >
+                  {pending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+                </Button>
+              </td>
+            </tr>
+          )
+        }) : (
+          <tr>
+            <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-soft">{t('components:modelsDraw.noModels')}</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  )
+
+  if (isMobile) {
+    return (
+      <Draw open={open} onOpenChange={handleOpenChange}>
+        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
+          <DrawHeader>
+            <DrawTitle>{title}</DrawTitle>
+          </DrawHeader>
+          <DrawBody className="space-y-3">
+            {modelsQuery.isLoading ? loadingState : availableModels.length ? (
+              <>
+                {toolbar}
+                <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))]">
+                  {modelsTable}
+                </div>
+              </>
+            ) : emptyState}
+          </DrawBody>
+        </DrawContent>
+      </Draw>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent size="form" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {modelsQuery.isLoading ? loadingState : availableModels.length ? (
+            <>
+              <div className="shrink-0 space-y-3 pb-3">{toolbar}</div>
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-[hsl(var(--glass-border))]">
+                {modelsTable}
               </div>
             </>
-          ) : (
-            <EmptyState title={t('test.empty')} description={t('test.empty')} />
-          )}
-        </DrawBody>
-      </DrawContent>
-    </Draw>
+          ) : emptyState}
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   )
 }
 

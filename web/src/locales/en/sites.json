@@ -223,6 +223,10 @@
     "defaultKey": "Apikey 1",
     "add": "Add Apikey",
     "addTitle": "Add Apikey",
+    "addModel": "Add model",
+    "addSiteModelTitle": "Add model",
+    "addSiteModelDescription": "Add a site model to this API key. You can configure its protocols afterwards.",
+    "addSiteModelEmpty": "No site models available to add",
     "back": "Back to site settings",
     "backToKeys": "Back to API keys",
     "name": "Key name",
@@ -263,6 +267,17 @@
     "openCodeGoPlan": "Go $12 / 5 hours · $30 / week · $60 / month · no official real-time quota API",
     "openCodeGoLimited": "{{window}} limit reached; resets {{reset}}",
     "openCodeGoUnavailable": "OpenCode does not provide real-time API key quota queries",
+    "protocol": {
+      "title": "Configure model protocol",
+      "configure": "Configure protocol",
+      "configureLabel": "Configure protocol for {{name}}",
+      "description": "Choose which upstream protocols this key may use for the model.",
+      "namedDescription": "Choose which upstream protocols this key may use for {{name}}.",
+      "modeInherit": "Using the site default protocols",
+      "modeAllowlist": "Using only the selected protocols",
+      "modeDisabled": "All protocols are disabled",
+      "empty": "This model has no configurable protocols"
+    },
     "sync": {
       "synced": "Synced",
       "failed": "Failed",
@@ -368,7 +383,7 @@
       "canonicalPlaceholder": "Select canonical model",
       "endpointTypes": "Endpoint types",
       "endpointPlaceholder": "Select endpoint types",
-      "apiKeys": "Add to enabled API keys",
+      "apiKeys": "Add to API keys",
       "apiKeysPlaceholder": "Select API keys",
       "searchPlaceholder": "Search...",
       "emptyOptions": "No options",
@@ -376,6 +391,9 @@
       "cancel": "Cancel",
       "submit": "Create"
     },
+    "keyDisabled": "Disabled",
+    "collapseKey": "Collapse {{name}}",
+    "expandKey": "Expand {{name}}",
     "manageManual": {
       "action": "Manage manual",
       "done": "Done"
