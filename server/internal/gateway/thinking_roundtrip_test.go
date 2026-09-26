@@ -42,6 +42,16 @@ func TestCanonicalThinkingFromResponsesItemUsesReasoningOrChatFallback(t *testin
 	}
 
 	blocks = canonicalThinkingFromResponsesItem(map[string]any{
+		"type": "reasoning",
+		"summary": []any{
+			map[string]any{"type": "summary_text", "text": " summary only "},
+		},
+	})
+	if len(blocks) != 1 || blocks[0].Thinking != "summary only" {
+		t.Fatalf("summary-only reasoning blocks = %#v", blocks)
+	}
+
+	blocks = canonicalThinkingFromResponsesItem(map[string]any{
 		"type":               "message",
 		"reasoning_content":  " chat private ",
 		"thinking_signature": "sig-chat",
@@ -125,6 +135,14 @@ func TestReasoningContentEncodersSkipBlankBlocks(t *testing.T) {
 	part, _ := content[0].(map[string]any)
 	if part["type"] != "reasoning_text" || part["text"] != " first \nsecond" {
 		t.Fatalf("responses reasoning part = %#v", part)
+	}
+	summary, ok := item["summary"].([]any)
+	if !ok || len(summary) != 1 {
+		t.Fatalf("responses reasoning summary = %#v, want list with one summary_text", item["summary"])
+	}
+	summaryPart, _ := summary[0].(map[string]any)
+	if summaryPart["type"] != "summary_text" || summaryPart["text"] != " first \nsecond" {
+		t.Fatalf("responses reasoning summary part = %#v", summaryPart)
 	}
 
 	if got := responsesReasoningItem([]canonicalThinkingBlock{{Thinking: " "}}); got != nil {
