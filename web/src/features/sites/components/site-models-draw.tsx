@@ -466,19 +466,24 @@ export function SiteModelsDraw({
               <Switch checked={enabled} onCheckedChange={setEnabled} aria-label={t('models.add.enabled')} />
             </label>
           </DialogBody>
-          <DialogFooter className="gap-4 px-6 py-5">
-            <Button type="button" variant="ghost" onClick={() => { resetAddForm(); setAddOpen(false) }}>
-              {t('models.add.cancel')}
-            </Button>
-            <Button
-              type="button"
-              disabled={!canCreate || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
-              {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t('models.add.submit')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="gap-4 px-6 py-5"
+            cancel={(
+              <Button type="button" variant="ghost" onClick={() => { resetAddForm(); setAddOpen(false) }}>
+                {t('models.add.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                type="button"
+                disabled={!canCreate || createMutation.isPending}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {t('models.add.submit')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(nextOpen) => {
@@ -499,21 +504,26 @@ export function SiteModelsDraw({
                 : t('models.delete.descriptionDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
-              {t('models.delete.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteMutation.isPending || !deleteTarget}
-              onClick={() => {
-                if (deleteTarget) deleteMutation.mutate({ modelId: deleteTarget.id })
-              }}
-            >
-              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t('models.delete.confirm')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={(
+              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+                {t('models.delete.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                variant="destructive"
+                disabled={deleteMutation.isPending || !deleteTarget}
+                onClick={() => {
+                  if (deleteTarget) deleteMutation.mutate({ modelId: deleteTarget.id })
+                }}
+              >
+                {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {t('models.delete.confirm')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </>

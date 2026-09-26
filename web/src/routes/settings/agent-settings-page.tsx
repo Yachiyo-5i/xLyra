@@ -504,14 +504,18 @@ export function AgentSettingsPage() {
             <DialogTitle>{t('settings:agent.runner.clearTitle')}</DialogTitle>
             <DialogDescription>{t('settings:agent.runner.clearDescription')}</DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setClearRunnerOpen(false)} disabled={clearRunner.isPending}>
-              {t('settings:agent.runner.clearCancel')}
-            </Button>
-            <Button variant="destructive" disabled={clearRunner.isPending} onClick={() => clearRunner.mutate()}>
-              {clearRunner.isPending ? t('settings:agent.runner.clearing') : t('settings:agent.runner.clearConfirm')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button variant="outline" onClick={() => setClearRunnerOpen(false)} disabled={clearRunner.isPending}>
+                {t('settings:agent.runner.clearCancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button variant="destructive" disabled={clearRunner.isPending} onClick={() => clearRunner.mutate()}>
+                {clearRunner.isPending ? t('settings:agent.runner.clearing') : t('settings:agent.runner.clearConfirm')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 
@@ -527,22 +531,26 @@ export function AgentSettingsPage() {
                 : t('settings:agent.upgrade.description', { current: agentVersionText, target: versionInfo?.latest ?? '' })}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUpgradeDialog(null)}>
-              {t('settings:agent.upgrade.cancel')}
-            </Button>
-            <Button
-              variant={upgradeDialog?.force ? 'destructive' : 'default'}
-              disabled={upgrade.isPending}
-              onClick={() => upgrade.mutate(Boolean(upgradeDialog?.force))}
-            >
-              {upgrade.isPending
-                ? t('settings:agent.upgrade.starting')
-                : upgradeDialog?.force
-                  ? t('settings:agent.upgrade.forceConfirm')
-                  : t('settings:agent.upgrade.confirm')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button variant="outline" onClick={() => setUpgradeDialog(null)}>
+                {t('settings:agent.upgrade.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                variant={upgradeDialog?.force ? 'destructive' : 'default'}
+                disabled={upgrade.isPending}
+                onClick={() => upgrade.mutate(Boolean(upgradeDialog?.force))}
+              >
+                {upgrade.isPending
+                  ? t('settings:agent.upgrade.starting')
+                  : upgradeDialog?.force
+                    ? t('settings:agent.upgrade.forceConfirm')
+                    : t('settings:agent.upgrade.confirm')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </div>

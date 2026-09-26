@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { BrandMark } from '@/components/common/brand-mark'
@@ -49,7 +49,7 @@ export function SiteModelScopePicker({
   const [siteTypeFilter, setSiteTypeFilter] = useState('all')
   const [showDisabledSites, setShowDisabledSites] = useState(true)
   const [modelSearch, setModelSearch] = useState('')
-  const [focusedSiteId, setFocusedSiteId] = useState<string | null>(null)
+  const [pickedSiteId, setPickedSiteId] = useState<string | null>(null)
 
   const {
     sortedSites,
@@ -131,9 +131,11 @@ export function SiteModelScopePicker({
     })
   }, [effectiveSiteIds, sortedSites])
 
-  useEffect(() => {
-    setFocusedSiteId((prev) => (prev && effectiveSiteIds.includes(prev) ? prev : (effectiveSiteIds[0] ?? null)))
-  }, [effectiveSiteIds])
+  // 选中的站点可能因筛选/策略变化而不在可选范围内，此时回退到第一个可选站点。
+  // 派生而非落盘到 state，避免在 effect 里同步 setState。
+  const focusedSiteId = pickedSiteId && effectiveSiteIds.includes(pickedSiteId)
+    ? pickedSiteId
+    : (effectiveSiteIds[0] ?? null)
 
   const focusedSiteModels = useMemo(() => {
     if (!focusedSiteId) return []
@@ -365,7 +367,7 @@ export function SiteModelScopePicker({
                       <button
                         key={site.id}
                         type="button"
-                        onClick={() => setFocusedSiteId(site.id)}
+                        onClick={() => setPickedSiteId(site.id)}
                         className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors ${isFocused ? 'bg-[hsl(var(--surface-raised))] text-foreground' : 'text-foreground/70 hover:bg-[hsl(var(--surface-raised))] hover:text-foreground'}`}
                       >
                         <div className="min-w-0 flex-1">

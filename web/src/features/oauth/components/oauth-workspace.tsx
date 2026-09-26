@@ -599,12 +599,15 @@ export function OAuthWorkspace() {
               {deleteTarget ? t('workspace.deleteDialog.confirm', { provider: providerLabel(deleteTarget.provider) }) : t('workspace.deleteDialog.confirmDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteTargetPending}>{t('workspace.deleteDialog.cancel')}</Button>
-            <Button variant="destructive" onClick={() => { if (deleteTarget?.site_id) deleteMutation.mutate({ siteId: deleteTarget.site_id, connectionId: deleteTarget.id }) }} disabled={deleteTargetPending}>
-              {deleteTargetPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{t('workspace.deleteDialog.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={<Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteTargetPending}>{t('workspace.deleteDialog.cancel')}</Button>}
+            confirm={(
+              <Button variant="destructive" onClick={() => { if (deleteTarget?.site_id) deleteMutation.mutate({ siteId: deleteTarget.site_id, connectionId: deleteTarget.id }) }} disabled={deleteTargetPending}>
+                {deleteTargetPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{t('workspace.deleteDialog.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </>

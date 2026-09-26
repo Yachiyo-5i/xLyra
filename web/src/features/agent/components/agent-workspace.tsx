@@ -201,10 +201,10 @@ function FullAccessConfirmDialog({
         </div>
         <p className="text-xs leading-5 text-muted-soft">{t('composer.fullConfirmRisk')}</p>
       </DialogBody>
-      <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>{t('composer.fullConfirmCancel')}</Button>
-        <Button variant="destructive" onClick={onConfirm}>{t('composer.fullConfirmAccept')}</Button>
-      </DialogFooter>
+      <DialogFooter
+        cancel={<Button variant="outline" onClick={onCancel}>{t('composer.fullConfirmCancel')}</Button>}
+        confirm={<Button variant="destructive" onClick={onConfirm}>{t('composer.fullConfirmAccept')}</Button>}
+      />
     </>
   )
 
@@ -257,10 +257,12 @@ function EditReplayConfirmDialog({
             <DialogTitle>{t('chat.editReplayTitle')}</DialogTitle>
             <DialogDescription>{t('chat.editReplayDescription')}</DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={onCancel}>{t('chat.editReplayCancel')}</Button>
-            <Button className="border-white bg-white text-black hover:bg-white/90 hover:text-black" onClick={onConfirm}>{t('chat.editReplayConfirm')}</Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={<Button variant="outline" onClick={onCancel}>{t('chat.editReplayCancel')}</Button>}
+            confirm={(
+              <Button className="border-white bg-white text-black hover:bg-white/90 hover:text-black" onClick={onConfirm}>{t('chat.editReplayConfirm')}</Button>
+            )}
+          />
         </AgentLiquidGlassPanel>
       </DialogContent>
     </Dialog>

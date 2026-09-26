@@ -39,15 +39,15 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={pending}>
-            {t('actions.cancel')}
-          </Button>
-          <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} disabled={pending}>
-            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
+        <DialogFooter
+          cancel={<Button variant="outline" onClick={onCancel} disabled={pending}>{t('actions.cancel')}</Button>}
+          confirm={(
+            <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} disabled={pending}>
+              {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {confirmLabel}
+            </Button>
+          )}
+        />
       </DialogContent>
     </Dialog>
   )

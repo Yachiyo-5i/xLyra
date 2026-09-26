@@ -260,13 +260,16 @@ export function SiteGroupsSettingsPage() {
               {deleteTarget ? t('siteGroups.deleteDialog.confirm', { name: deleteTarget.name }) : t('siteGroups.deleteDialog.confirmDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('siteGroups.actions.cancel')}</Button>
-            <Button variant="destructive" onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t('siteGroups.actions.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={<Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('siteGroups.actions.cancel')}</Button>}
+            confirm={(
+              <Button variant="destructive" onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {t('siteGroups.actions.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -319,12 +319,15 @@ export function GrokAccountsDraw({
           <DialogBody className="pt-0">
             <DialogDescription className="mt-0">{t('grokAccounts.deleteDialog.confirm', { name: deleting?.masked_token || t('grokAccounts.unnamed') })}</DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button variant="outline" disabled={deleteMutation.isPending} onClick={() => setDeleting(null)}>{t('grokAccounts.cancel')}</Button>
-            <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => { if (deleting) deleteMutation.mutate(deleting) }}>
-              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{t('grokAccounts.deleteDialog.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={<Button variant="outline" disabled={deleteMutation.isPending} onClick={() => setDeleting(null)}>{t('grokAccounts.cancel')}</Button>}
+            confirm={(
+              <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => { if (deleting) deleteMutation.mutate(deleting) }}>
+                {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{t('grokAccounts.deleteDialog.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 

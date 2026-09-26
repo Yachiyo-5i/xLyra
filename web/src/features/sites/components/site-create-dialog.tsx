@@ -591,9 +591,6 @@ export function SiteCreateDialog({
     if (!open) {
       lastFormResetKeyRef.current = null
       reset(defaultValues)
-      setAPIKeyEditorOpen(false)
-      setEditingAPIKeyIndex(null)
-      setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
       return
     }
 
@@ -634,6 +631,12 @@ export function SiteCreateDialog({
     setValue('newapiUserId', '', { shouldDirty: false })
     setValue('xlyraAuthMode', 'api_key', { shouldDirty: false })
     setValue('xlyraAccessToken', '', { shouldDirty: false })
+  }
+
+  function closeAPIKeyEditor() {
+    setAPIKeyEditorOpen(false)
+    setEditingAPIKeyIndex(null)
+    setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
   }
 
   function openNewAPIKeyForm() {
@@ -677,9 +680,7 @@ export function SiteCreateDialog({
       shouldDirty: true,
       shouldValidate: true,
     })
-    setAPIKeyEditorOpen(false)
-    setEditingAPIKeyIndex(null)
-    setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+    closeAPIKeyEditor()
   }
 
   async function handleFormSubmit(values: CreateSiteFormValues) {
@@ -740,9 +741,7 @@ export function SiteCreateDialog({
         open={open}
         onOpenChange={(next) => {
           if (!next && apiKeyEditorOpen) {
-            setAPIKeyEditorOpen(false)
-            setEditingAPIKeyIndex(null)
-            setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+            closeAPIKeyEditor()
             return
           }
           if (!next && isPending) return
@@ -761,9 +760,7 @@ export function SiteCreateDialog({
           onEscapeKeyDown={(event) => {
             if (!apiKeyEditorOpen) return
             event.preventDefault()
-            setAPIKeyEditorOpen(false)
-            setEditingAPIKeyIndex(null)
-            setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+            closeAPIKeyEditor()
           }}
         >
           <DialogHeader>
@@ -1271,15 +1268,19 @@ export function SiteCreateDialog({
           </DialogBody>
 
           {showProviderWall ? null : (
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
-                {t('form.actions.cancel')}
-              </Button>
-              <Button onClick={handleSubmit(handleFormSubmit)} disabled={isPending}>
-                {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-                {mode === 'edit' ? t('form.actions.save') : t('form.actions.create')}
-              </Button>
-            </DialogFooter>
+            <DialogFooter
+              cancel={(
+                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
+                  {t('form.actions.cancel')}
+                </Button>
+              )}
+              confirm={(
+                <Button onClick={handleSubmit(handleFormSubmit)} disabled={isPending}>
+                  {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  {mode === 'edit' ? t('form.actions.save') : t('form.actions.create')}
+                </Button>
+              )}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -1287,11 +1288,11 @@ export function SiteCreateDialog({
       <Dialog
         open={apiKeyEditorOpen}
         onOpenChange={(next) => {
-          setAPIKeyEditorOpen(next)
-          if (!next) {
-            setEditingAPIKeyIndex(null)
-            setAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+          if (next) {
+            setAPIKeyEditorOpen(true)
+            return
           }
+          closeAPIKeyEditor()
         }}
       >
         <DialogContent
@@ -1316,27 +1317,31 @@ export function SiteCreateDialog({
               t={t}
             />
           </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setAPIKeyEditorOpen(false)}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-            <Button
-              type="button"
-              onClick={saveAPIKeyDraft}
-              disabled={
-                !parseSiteAPIKeyForm(apiKeyDraft, {
-                  includeCostMultiplier: supportsAPIKeyCostMultiplier,
-                  requireAPIKey: true,
-                })
-              }
-            >
-              {t('apiKeys.save')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closeAPIKeyEditor}
+              >
+                {t('apiKeys.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                type="button"
+                onClick={saveAPIKeyDraft}
+                disabled={
+                  !parseSiteAPIKeyForm(apiKeyDraft, {
+                    includeCostMultiplier: supportsAPIKeyCostMultiplier,
+                    requireAPIKey: true,
+                  })
+                }
+              >
+                {t('apiKeys.save')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </>

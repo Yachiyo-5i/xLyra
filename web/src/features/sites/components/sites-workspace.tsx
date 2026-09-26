@@ -1138,28 +1138,33 @@ export function SitesWorkspace({
                 : t('page.deleteDialog.confirmDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTargetSite(null)}
-              disabled={isDeleteTargetPending}
-            >
-              {t('page.deleteDialog.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (!deleteTargetSite) return
-                deleteMutation.mutate(deleteTargetSite.id)
-              }}
-              disabled={isDeleteTargetPending}
-            >
-              {isDeleteTargetPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t('page.deleteDialog.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={(
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTargetSite(null)}
+                disabled={isDeleteTargetPending}
+              >
+                {t('page.deleteDialog.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (!deleteTargetSite) return
+                  deleteMutation.mutate(deleteTargetSite.id)
+                }}
+                disabled={isDeleteTargetPending}
+              >
+                {isDeleteTargetPending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : null}
+                {t('page.deleteDialog.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </div>

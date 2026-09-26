@@ -620,15 +620,19 @@ export function BackupSettingsPage() {
               />
             </FormField>
           </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeExportDialog} disabled={exportMutation.isPending}>
-              {t('common:actions.cancel', { ns: 'common' })}
-            </Button>
-            <Button onClick={handleExport} disabled={exportMutation.isPending}>
-              {exportMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileArchive className="h-4 w-4" />}
-              {t('backup.export.confirmAction')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button variant="outline" onClick={closeExportDialog} disabled={exportMutation.isPending}>
+                {t('common:actions.cancel', { ns: 'common' })}
+              </Button>
+            )}
+            confirm={(
+              <Button onClick={handleExport} disabled={exportMutation.isPending}>
+                {exportMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileArchive className="h-4 w-4" />}
+                {t('backup.export.confirmAction')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 
@@ -699,15 +703,19 @@ export function BackupSettingsPage() {
               />
             </FormField>
           </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeImportDialog}>
-              {t('common:actions.cancel', { ns: 'common' })}
-            </Button>
-            <Button variant="destructive" onClick={handleImport} disabled={Boolean(visibleBackgroundRestoreTask)}>
-              <DatabaseBackup className="h-4 w-4" />
-              {t('backup.import.confirmAction')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button variant="outline" onClick={closeImportDialog}>
+                {t('common:actions.cancel', { ns: 'common' })}
+              </Button>
+            )}
+            confirm={(
+              <Button variant="destructive" onClick={handleImport} disabled={Boolean(visibleBackgroundRestoreTask)}>
+                <DatabaseBackup className="h-4 w-4" />
+                {t('backup.import.confirmAction')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 
@@ -827,15 +835,19 @@ function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={pending}>
-            {t('common:actions.cancel', { ns: 'common' })}
-          </Button>
-          <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} disabled={pending}>
-            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
+        <DialogFooter
+          cancel={(
+            <Button variant="outline" onClick={onCancel} disabled={pending}>
+              {t('common:actions.cancel', { ns: 'common' })}
+            </Button>
+          )}
+          confirm={(
+            <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} disabled={pending}>
+              {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {confirmLabel}
+            </Button>
+          )}
+        />
       </DialogContent>
     </Dialog>
   )

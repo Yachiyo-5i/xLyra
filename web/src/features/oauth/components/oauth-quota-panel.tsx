@@ -228,8 +228,23 @@ export function QuotaPanel({
       </HoverDetails>
 
       {isCodex ? (
-        <Dialog open={resetCreditsOpen} onOpenChange={(open) => { if (!consumeResetMutation.isPending) setResetCreditsOpen(open) }}>
-          <DialogContent className="w-[min(96vw,640px)] overflow-hidden">
+        <Dialog
+          open={resetCreditsOpen}
+          onOpenChange={(open) => {
+            if (consumeResetMutation.isPending) return
+            if (!open && confirmResetOpen) {
+              setConfirmResetOpen(false)
+              return
+            }
+            setResetCreditsOpen(open)
+          }}
+        >
+          <DialogContent
+            className="w-[min(96vw,640px)] overflow-hidden"
+            onPointerDownOutside={(event) => { if (confirmResetOpen) event.preventDefault() }}
+            onInteractOutside={(event) => { if (confirmResetOpen) event.preventDefault() }}
+            onEscapeKeyDown={(event) => { if (confirmResetOpen) event.preventDefault() }}
+          >
             <DialogHeader className="border-b-0 pb-2">
               <DialogTitle>{t('quota.resetCredits.title')}</DialogTitle>
             </DialogHeader>
@@ -268,7 +283,10 @@ export function QuotaPanel({
 
       {isCodex ? (
         <Dialog open={confirmResetOpen} onOpenChange={(open) => { if (!open && !consumeResetMutation.isPending) setConfirmResetOpen(false) }}>
-        <DialogContent className="w-[min(92vw,460px)] overflow-hidden">
+        <DialogContent
+          className="z-[60] w-[min(92vw,460px)] overflow-hidden"
+          overlayClassName="z-[60]"
+        >
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('quota.resetCredits.confirmTitle')}</DialogTitle>
           </DialogHeader>

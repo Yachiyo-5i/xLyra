@@ -838,49 +838,55 @@ export function SiteAPIKeysDraw({
       t={t}
     />
   )
+  const addSaveButton = (
+    <Button
+      onClick={() => {
+        const values = parseSiteAPIKeyForm(
+          newAPIKeyDraft,
+          {
+            includeCostMultiplier: supportsCostMultiplier,
+            requireAPIKey: true,
+          },
+        )
+        if (!values?.apiKey) return
+        createAPIKeyMutation.mutate({
+          ...values,
+          apiKey: values.apiKey,
+        })
+      }}
+      disabled={
+        !parseSiteAPIKeyForm(
+          newAPIKeyDraft,
+          {
+            includeCostMultiplier: supportsCostMultiplier,
+            requireAPIKey: true,
+          },
+        ) ||
+        createAPIKeyMutation.isPending
+      }
+    >
+      {createAPIKeyMutation.isPending ? (
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+      ) : null}
+      {t('apiKeys.save')}
+    </Button>
+  )
+  const addCancelButton = (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        setAddingAPIKey(false)
+        setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
+      }}
+      disabled={createAPIKeyMutation.isPending}
+    >
+      {t('apiKeys.cancel')}
+    </Button>
+  )
   const addFooter = (
     <>
-      <Button
-        onClick={() => {
-          const values = parseSiteAPIKeyForm(
-            newAPIKeyDraft,
-            {
-              includeCostMultiplier: supportsCostMultiplier,
-              requireAPIKey: true,
-            },
-          )
-          if (!values?.apiKey) return
-          createAPIKeyMutation.mutate({
-            ...values,
-            apiKey: values.apiKey,
-          })
-        }}
-        disabled={
-          !parseSiteAPIKeyForm(
-            newAPIKeyDraft,
-            {
-              includeCostMultiplier: supportsCostMultiplier,
-              requireAPIKey: true,
-            },
-          ) ||
-          createAPIKeyMutation.isPending
-        }
-      >
-        {createAPIKeyMutation.isPending ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-        ) : null}
-        {t('apiKeys.save')}
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          setAddingAPIKey(false)
-          setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
-        }}
-        disabled={createAPIKeyMutation.isPending}
-      >
-        {t('apiKeys.cancel')}
-      </Button>
+      {addSaveButton}
+      {addCancelButton}
     </>
   )
 
@@ -893,43 +899,49 @@ export function SiteAPIKeysDraw({
       t={t}
     />
   )
-  const configFooter = (
-    <>
-      <Button
-        onClick={() => {
-          const values = parseSiteAPIKeyForm(
-            configDraft,
-            {
-              includeCostMultiplier: supportsCostMultiplier,
-              requireAPIKey: false,
-            },
-          )
-          if (!configuringAPIKey || !values) return
-          updateConfigMutation.mutate({
-            apiKeyId: configuringAPIKey.id,
-            ...values,
-          })
-        }}
-        disabled={
-          !parseSiteAPIKeyForm(configDraft, {
+  const configSaveButton = (
+    <Button
+      onClick={() => {
+        const values = parseSiteAPIKeyForm(
+          configDraft,
+          {
             includeCostMultiplier: supportsCostMultiplier,
             requireAPIKey: false,
-          }) ||
-          updateConfigMutation.isPending
-        }
-      >
-        {updateConfigMutation.isPending ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-        ) : null}
-        {t('apiKeys.save')}
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={() => setConfiguringAPIKey(null)}
-        disabled={updateConfigMutation.isPending}
-      >
-        {t('apiKeys.cancel')}
-      </Button>
+          },
+        )
+        if (!configuringAPIKey || !values) return
+        updateConfigMutation.mutate({
+          apiKeyId: configuringAPIKey.id,
+          ...values,
+        })
+      }}
+      disabled={
+        !parseSiteAPIKeyForm(configDraft, {
+          includeCostMultiplier: supportsCostMultiplier,
+          requireAPIKey: false,
+        }) ||
+        updateConfigMutation.isPending
+      }
+    >
+      {updateConfigMutation.isPending ? (
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+      ) : null}
+      {t('apiKeys.save')}
+    </Button>
+  )
+  const configCancelButton = (
+    <Button
+      variant="ghost"
+      onClick={() => setConfiguringAPIKey(null)}
+      disabled={updateConfigMutation.isPending}
+    >
+      {t('apiKeys.cancel')}
+    </Button>
+  )
+  const configFooter = (
+    <>
+      {configSaveButton}
+      {configCancelButton}
     </>
   )
 
@@ -943,34 +955,40 @@ export function SiteAPIKeysDraw({
       />
     </>
   )
+  const secretSaveButton = (
+    <Button
+      onClick={() => {
+        const value = secretInput.trim()
+        if (!editingAPIKey || !value) return
+        updateSecretMutation.mutate({
+          apiKeyId: editingAPIKey.id,
+          apiKey: value,
+        })
+      }}
+      disabled={!secretInput.trim() || updateSecretMutation.isPending}
+    >
+      {updateSecretMutation.isPending ? (
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+      ) : null}
+      {t('apiKeys.save')}
+    </Button>
+  )
+  const secretCancelButton = (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        setEditingAPIKey(null)
+        setSecretInput('')
+      }}
+      disabled={updateSecretMutation.isPending}
+    >
+      {t('apiKeys.cancel')}
+    </Button>
+  )
   const secretFooter = (
     <>
-      <Button
-        onClick={() => {
-          const value = secretInput.trim()
-          if (!editingAPIKey || !value) return
-          updateSecretMutation.mutate({
-            apiKeyId: editingAPIKey.id,
-            apiKey: value,
-          })
-        }}
-        disabled={!secretInput.trim() || updateSecretMutation.isPending}
-      >
-        {updateSecretMutation.isPending ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-        ) : null}
-        {t('apiKeys.save')}
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          setEditingAPIKey(null)
-          setSecretInput('')
-        }}
-        disabled={updateSecretMutation.isPending}
-      >
-        {t('apiKeys.cancel')}
-      </Button>
+      {secretSaveButton}
+      {secretCancelButton}
     </>
   )
 
@@ -1069,7 +1087,8 @@ export function SiteAPIKeysDraw({
                 setNewAPIKeyDraft(DEFAULT_API_KEY_FORM_DRAFT)
               }
             }}
-            footer={addFooter}
+            cancel={addCancelButton}
+            confirm={addSaveButton}
           >
             {addForm}
           </NestedEditorDialog>
@@ -1079,7 +1098,8 @@ export function SiteAPIKeysDraw({
             onOpenChange={(next) => {
               if (!next && !updateConfigMutation.isPending) setConfiguringAPIKey(null)
             }}
-            footer={configFooter}
+            cancel={configCancelButton}
+            confirm={configSaveButton}
           >
             {configForm}
           </NestedEditorDialog>
@@ -1093,7 +1113,8 @@ export function SiteAPIKeysDraw({
                 setSecretInput('')
               }
             }}
-            footer={secretFooter}
+            cancel={secretCancelButton}
+            confirm={secretSaveButton}
           >
             {secretForm}
           </NestedEditorDialog>
@@ -1123,28 +1144,33 @@ export function SiteAPIKeysDraw({
                 : t('apiKeys.deleteDialog.confirmDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setDeletingAPIKey(null)}
-              disabled={deleteMutation.isPending}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (!deletingAPIKey) return
-                deleteMutation.mutate({ apiKeyId: deletingAPIKey.id })
-              }}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t('apiKeys.deleteDialog.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={(
+              <Button
+                variant="outline"
+                onClick={() => setDeletingAPIKey(null)}
+                disabled={deleteMutation.isPending}
+              >
+                {t('apiKeys.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (!deletingAPIKey) return
+                  deleteMutation.mutate({ apiKeyId: deletingAPIKey.id })
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : null}
+                {t('apiKeys.deleteDialog.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1259,35 +1285,39 @@ export function SiteAPIKeysDraw({
               <p className="py-8 text-center text-sm text-muted-soft">{t('apiKeys.addSiteModelEmpty')}</p>
             )}
           </DialogBody>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setAddingSiteModelOpen(false)
-                setSelectedSiteModel(null)
-              }}
-            >
-              {t('apiKeys.cancel')}
-            </Button>
-            <Button
-              disabled={!selectedSiteModel || !modelsAPIKey || updateModelMutation.isPending}
-              onClick={() => {
-                if (!selectedSiteModel || !modelsAPIKey) return
-                updateModelMutation.mutate({
-                  apiKeyId: modelsAPIKey.id,
-                  model: selectedSiteModel.upstream_model_name,
-                  enabled: true,
-                  siteModelId: selectedSiteModel.id,
-                  endpointMode: 'inherit',
-                  endpointTypes: [],
-                })
-                setAddingSiteModelOpen(false)
-                setSelectedSiteModel(null)
-              }}
-            >
-              {t('apiKeys.addModel')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setAddingSiteModelOpen(false)
+                  setSelectedSiteModel(null)
+                }}
+              >
+                {t('apiKeys.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                disabled={!selectedSiteModel || !modelsAPIKey || updateModelMutation.isPending}
+                onClick={() => {
+                  if (!selectedSiteModel || !modelsAPIKey) return
+                  updateModelMutation.mutate({
+                    apiKeyId: modelsAPIKey.id,
+                    model: selectedSiteModel.upstream_model_name,
+                    enabled: true,
+                    siteModelId: selectedSiteModel.id,
+                    endpointMode: 'inherit',
+                    endpointTypes: [],
+                  })
+                  setAddingSiteModelOpen(false)
+                  setSelectedSiteModel(null)
+                }}
+              >
+                {t('apiKeys.addModel')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
       <Dialog
@@ -1349,29 +1379,33 @@ export function SiteAPIKeysDraw({
               <p className="text-sm text-muted-soft">{t('apiKeys.protocol.empty')}</p>
             )}
           </DialogBody>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>
-              {t('apiKeys.cancel')}
-            </Button>
-            <Button
-              disabled={!modelProtocolTarget?.site_model_id || updateModelMutation.isPending || (modelProtocolMode === 'allowlist' && modelProtocolTypes.length === 0)}
-              onClick={() => {
-                if (!modelProtocolTarget || !modelsAPIKey || !modelProtocolTarget.site_model_id) return
-                updateModelMutation.mutate({
-                  apiKeyId: modelsAPIKey.id,
-                  model: modelProtocolTarget.name,
-                  enabled: modelProtocolTarget.enabled,
-                  siteModelId: modelProtocolTarget.site_model_id,
-                  endpointMode: modelProtocolMode,
-                  endpointTypes: modelProtocolTypes,
-                })
-                setModelProtocolTarget(null)
-              }}
-            >
-              {updateModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t('apiKeys.save')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={(
+              <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>
+                {t('apiKeys.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                disabled={!modelProtocolTarget?.site_model_id || updateModelMutation.isPending || (modelProtocolMode === 'allowlist' && modelProtocolTypes.length === 0)}
+                onClick={() => {
+                  if (!modelProtocolTarget || !modelsAPIKey || !modelProtocolTarget.site_model_id) return
+                  updateModelMutation.mutate({
+                    apiKeyId: modelsAPIKey.id,
+                    model: modelProtocolTarget.name,
+                    enabled: modelProtocolTarget.enabled,
+                    siteModelId: modelProtocolTarget.site_model_id,
+                    endpointMode: modelProtocolMode,
+                    endpointTypes: modelProtocolTypes,
+                  })
+                  setModelProtocolTarget(null)
+                }}
+              >
+                {updateModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {t('apiKeys.save')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </>
@@ -1410,14 +1444,16 @@ function NestedEditorDialog({
   open,
   title,
   bodyClassName,
-  footer,
+  cancel,
+  confirm,
   children,
   onOpenChange,
 }: {
   open: boolean
   title: string
   bodyClassName?: string
-  footer: ReactNode
+  cancel: ReactNode
+  confirm: ReactNode
   children: ReactNode
   onOpenChange: (open: boolean) => void
 }) {
@@ -1435,7 +1471,7 @@ function NestedEditorDialog({
         <DialogBody className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName ?? ''}`}>
           {children}
         </DialogBody>
-        <DialogFooter>{footer}</DialogFooter>
+        <DialogFooter cancel={cancel} confirm={confirm} />
       </DialogContent>
     </Dialog>
   )

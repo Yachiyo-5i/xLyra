@@ -683,19 +683,23 @@ export function APIKeyFormDialog({
           </FormSection>
         </DialogBody>
 
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={pending}
-          >
-            {t('form.actions.cancel')}
-          </Button>
-          <Button onClick={handleSubmit} disabled={saveDisabled}>
-            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {t('form.actions.save')}
-          </Button>
-        </DialogFooter>
+        <DialogFooter
+          cancel={(
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={pending}
+            >
+              {t('form.actions.cancel')}
+            </Button>
+          )}
+          confirm={(
+            <Button onClick={handleSubmit} disabled={saveDisabled}>
+              {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {t('form.actions.save')}
+            </Button>
+          )}
+        />
       </DialogContent>
     </Dialog>
   )

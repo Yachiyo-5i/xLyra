@@ -69,12 +69,23 @@ function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement
   return <div className={cn('px-6 py-5', className)} {...props} />
 }
 
-function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+type DialogFooterProps = React.HTMLAttributes<HTMLDivElement> & {
+  // 取消动作固定渲染在左侧、确认动作固定渲染在右侧；按钮文本与样式由调用方决定。
+  // 单个按钮或非「取消/确认」形态的页脚继续用 children。
+  cancel?: React.ReactNode
+  confirm?: React.ReactNode
+}
+
+function DialogFooter({ className, cancel, confirm, children, ...props }: DialogFooterProps) {
   return (
     <div
       className={cn('flex items-center justify-end gap-3 border-t border-[hsl(var(--glass-divider))] px-6 py-4', className)}
       {...props}
-    />
+    >
+      {children}
+      {cancel}
+      {confirm}
+    </div>
   )
 }
 

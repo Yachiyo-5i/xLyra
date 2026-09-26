@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
 import { Input } from '@/components/ui/input'
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -14,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { updateSite, type Site } from '@/features/sites/api/sites'
@@ -83,35 +85,62 @@ export function OAuthEditSheet({
   onSaved: () => void
 }) {
   const { t } = useTranslation('oauth')
+  const isMobile = useMobileLayout()
+  const title = t('edit.title')
+
+  if (isMobile) {
+    return (
+      <Draw open={open} onOpenChange={onOpenChange}>
+        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
+          <DrawHeader>
+            <DrawTitle>{title}</DrawTitle>
+          </DrawHeader>
+          {site ? (
+            <OAuthEditForm
+              key={site.id}
+              site={site}
+              email={email}
+              isMobile
+              onOpenChange={onOpenChange}
+              onSaved={onSaved}
+            />
+          ) : null}
+        </DrawContent>
+      </Draw>
+    )
+  }
 
   return (
-    <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-        <DrawHeader>
-          <DrawTitle>{t('edit.title')}</DrawTitle>
-        </DrawHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="md" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
         {site ? (
           <OAuthEditForm
             key={site.id}
             site={site}
             email={email}
+            isMobile={false}
             onOpenChange={onOpenChange}
             onSaved={onSaved}
           />
         ) : null}
-      </DrawContent>
-    </Draw>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function OAuthEditForm({
   site,
   email,
+  isMobile,
   onOpenChange,
   onSaved,
 }: {
   site: Site
   email?: string | null
+  isMobile: boolean
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
@@ -185,87 +214,118 @@ function OAuthEditForm({
     }
   }
 
+  const body = (
+    <>
+      <FormSection title={t('edit.sections.basic')}>
+        <FormField label={t('edit.fields.siteName')}>
+          <Input value={site.name} disabled />
+        </FormField>
+
+        <Switch
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          label={t('edit.fields.enableRouting')}
+          description={t('edit.fields.enableRoutingDesc')}
+        />
+
+        <FormField label={t('edit.fields.siteType')}>
+          <Input value={site.site_type} disabled />
+        </FormField>
+
+        <FormField label={t('edit.fields.account')}>
+          <Input value={email ?? ''} disabled />
+        </FormField>
+      </FormSection>
+
+      <FormSection title={t('edit.sections.groups')} divided>
+        <FormField label={t('edit.fields.siteGroups')} hint={t('edit.fields.siteGroupsHint')}>
+          <MultiSelect
+            value={siteGroupIds}
+            options={groupOptions}
+            placeholder={t('edit.fields.siteGroupsPlaceholder')}
+            searchPlaceholder={t('edit.fields.siteGroupsSearch')}
+            emptyText={t('edit.fields.noSiteGroups')}
+            disabled={groupsQuery.isLoading}
+            onChange={handleSiteGroupIdsChange}
+          />
+        </FormField>
+      </FormSection>
+
+      <FormSection title={t('edit.sections.routing')} divided>
+        <FormField
+          label={t('edit.fields.routingPriority')}
+          hint={t('edit.fields.routingPriorityHint')}
+          error={priorityError}
+        >
+          <Input
+            inputMode="decimal"
+            min="1"
+            max="5"
+            step="0.1"
+            value={routingPriority}
+            onChange={(e) => setRoutingPriority(e.target.value)}
+            placeholder="1.0"
+          />
+        </FormField>
+
+        <FormField label={t('edit.fields.proxy')} hint={t('edit.fields.proxyDesc')}>
+          <Select value={proxyId || 'direct'} onValueChange={setProxyId}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent searchable={false}>
+              <SelectItem value="direct">{t('edit.fields.proxyDirect')}</SelectItem>
+              {proxies.map((proxy) => (
+                <SelectItem key={proxy.id} value={proxy.id}>
+                  {proxy.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      </FormSection>
+    </>
+  )
+
+  const saveButton = (
+    <Button onClick={handleSave} disabled={saving}>
+      {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+      {t('edit.actions.save')}
+    </Button>
+  )
+
+  const cancelButton = (
+    <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+      {t('edit.actions.cancel')}
+    </Button>
+  )
+
+  const footer = (
+    <>
+      {saveButton}
+      {cancelButton}
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <>
+        <DrawBody className="space-y-0">
+          {body}
+        </DrawBody>
+        <DrawFooter>
+          {footer}
+        </DrawFooter>
+      </>
+    )
+  }
+
   return (
     <>
-      <DrawBody className="space-y-0">
-        <FormSection title={t('edit.sections.basic')}>
-          <FormField label={t('edit.fields.siteName')}>
-            <Input value={site.name} disabled />
-          </FormField>
-
-          <Switch
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            label={t('edit.fields.enableRouting')}
-            description={t('edit.fields.enableRoutingDesc')}
-          />
-
-          <FormField label={t('edit.fields.siteType')}>
-            <Input value={site.site_type} disabled />
-          </FormField>
-
-          <FormField label={t('edit.fields.account')}>
-            <Input value={email ?? ''} disabled />
-          </FormField>
-        </FormSection>
-
-        <FormSection title={t('edit.sections.groups')} divided>
-          <FormField label={t('edit.fields.siteGroups')} hint={t('edit.fields.siteGroupsHint')}>
-            <MultiSelect
-              value={siteGroupIds}
-              options={groupOptions}
-              placeholder={t('edit.fields.siteGroupsPlaceholder')}
-              searchPlaceholder={t('edit.fields.siteGroupsSearch')}
-              emptyText={t('edit.fields.noSiteGroups')}
-              disabled={groupsQuery.isLoading}
-              onChange={handleSiteGroupIdsChange}
-            />
-          </FormField>
-        </FormSection>
-
-        <FormSection title={t('edit.sections.routing')} divided>
-          <FormField
-            label={t('edit.fields.routingPriority')}
-            hint={t('edit.fields.routingPriorityHint')}
-            error={priorityError}
-          >
-            <Input
-              inputMode="decimal"
-              min="1"
-              max="5"
-              step="0.1"
-              value={routingPriority}
-              onChange={(e) => setRoutingPriority(e.target.value)}
-              placeholder="1.0"
-            />
-          </FormField>
-
-          <FormField label={t('edit.fields.proxy')} hint={t('edit.fields.proxyDesc')}>
-            <Select value={proxyId || 'direct'} onValueChange={setProxyId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent searchable={false}>
-                <SelectItem value="direct">{t('edit.fields.proxyDirect')}</SelectItem>
-                {proxies.map((proxy) => (
-                  <SelectItem key={proxy.id} value={proxy.id}>
-                    {proxy.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-        </FormSection>
-      </DrawBody>
-      <DrawFooter>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-          {t('edit.actions.save')}
-        </Button>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-          {t('edit.actions.cancel')}
-        </Button>
-      </DrawFooter>
+      <DialogBody className="min-h-0 flex-1 overflow-y-auto py-0">
+        {body}
+      </DialogBody>
+      <DialogFooter cancel={cancelButton} confirm={saveButton} />
     </>
   )
 }

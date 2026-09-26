@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { BrandMark } from '@/components/common/brand-mark'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 
 export type ModelsDrawItem = {
   id: string
@@ -89,6 +90,17 @@ export function ModelsDraw({
     if (!nextOpen && !dismissLocked) setSearch('')
   }
 
+  // 桌面 Dialog 内：工具栏固定在滚动区外，表头 sticky，只让表格内部滚动。
+  const desktopShell = shell === 'dialog'
+  const scrollContainerClassName = cn(
+    'rounded-lg border border-[hsl(var(--glass-border))]',
+    desktopShell ? 'min-h-0 flex-1 overflow-y-auto' : 'scrollbar-hidden overflow-auto',
+  )
+  const tableHeadClassName = cn(
+    'bg-[hsl(var(--surface-subtle))] text-faint text-xs uppercase tracking-[0.16em]',
+    desktopShell && 'sticky top-0 z-10 shadow-[0_1px_0_hsl(var(--glass-divider))]',
+  )
+
   const header = (
     <div className="flex items-center gap-2">
       {onBack ? (
@@ -109,7 +121,7 @@ export function ModelsDraw({
 
   const body = (
     <>
-      <div className="space-y-3">
+      <div className={cn('space-y-3', desktopShell && 'shrink-0')}>
         <div className="relative min-w-0">
           <Search className="text-foreground/40 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 pointer-events-none z-10" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('modelsDraw.searchPlaceholder')} className="pl-10" />
@@ -129,9 +141,9 @@ export function ModelsDraw({
         </div>
       </div>
       {children}
-      <div className="scrollbar-hidden overflow-auto rounded-lg border border-[hsl(var(--glass-border))]">
+      <div className={scrollContainerClassName}>
         <table className="w-full table-fixed border-collapse text-left text-sm">
-          <thead className="bg-[hsl(var(--surface-subtle))] text-faint text-xs uppercase tracking-[0.16em]">
+          <thead className={tableHeadClassName}>
             <tr>
               <th className="w-[65%] px-4 py-3 font-medium">{t('modelsDraw.headers.model')}</th>
               <th className="w-[35%] px-4 py-3 font-medium text-right">{t('modelsDraw.headers.enabled')}</th>
@@ -213,7 +225,7 @@ export function ModelsDraw({
           }}
         >
           <DialogHeader>{header}</DialogHeader>
-          <DialogBody className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          <DialogBody className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
             {body}
           </DialogBody>
         </DialogContent>

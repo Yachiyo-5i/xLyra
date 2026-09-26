@@ -498,27 +498,32 @@ export function ModelCatalogSurface({
               : t('catalog.archiveDialog.confirmDefault')}
           </DialogDescription>
         </DialogBody>
-        <DialogFooter className="border-t-0 pt-2">
-          <Button
-            variant="outline"
-            onClick={() => setArchiveTarget(null)}
-            disabled={archiveModelMutation.isPending}
-          >
-            {t('catalog.archiveDialog.cancel')}
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              if (archiveTarget) {
-                archiveModelMutation.mutate(archiveTarget.id)
-              }
-            }}
-            disabled={!archiveTarget || archiveModelMutation.isPending}
-          >
-            {archiveModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {t('catalog.archiveDialog.confirmAction')}
-          </Button>
-        </DialogFooter>
+        <DialogFooter
+          className="border-t-0 pt-2"
+          cancel={(
+            <Button
+              variant="outline"
+              onClick={() => setArchiveTarget(null)}
+              disabled={archiveModelMutation.isPending}
+            >
+              {t('catalog.archiveDialog.cancel')}
+            </Button>
+          )}
+          confirm={(
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (archiveTarget) {
+                  archiveModelMutation.mutate(archiveTarget.id)
+                }
+              }}
+              disabled={!archiveTarget || archiveModelMutation.isPending}
+            >
+              {archiveModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {t('catalog.archiveDialog.confirmAction')}
+            </Button>
+          )}
+        />
       </DialogContent>
     </Dialog>
   )

@@ -89,14 +89,18 @@ export function DeleteAccessTokenDialog({
         <DialogBody className="text-sm text-muted-soft">
           {t('profile.accessToken.deleteDialog.description')}
         </DialogBody>
-        <DialogFooter>
-          <Button variant="secondary" disabled={pending} onClick={() => onOpenChange(false)}>
-            {t('profile.accessToken.deleteDialog.cancel')}
-          </Button>
-          <Button variant="destructive" disabled={pending} onClick={onConfirm}>
-            {t('profile.accessToken.deleteDialog.confirm')}
-          </Button>
-        </DialogFooter>
+        <DialogFooter
+          cancel={(
+            <Button variant="secondary" disabled={pending} onClick={() => onOpenChange(false)}>
+              {t('profile.accessToken.deleteDialog.cancel')}
+            </Button>
+          )}
+          confirm={(
+            <Button variant="destructive" disabled={pending} onClick={onConfirm}>
+              {t('profile.accessToken.deleteDialog.confirm')}
+            </Button>
+          )}
+        />
       </DialogContent>
     </Dialog>
   )

@@ -259,13 +259,16 @@ export function SystemProxySettingsPage() {
               {deleteTarget ? t('systemProxy.deleteDialog.confirm', { name: deleteTarget.name }) : t('systemProxy.deleteDialog.confirmDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('systemProxy.actions.cancel')}</Button>
-            <Button variant="destructive" onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t('systemProxy.actions.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={<Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('systemProxy.actions.cancel')}</Button>}
+            confirm={(
+              <Button variant="destructive" onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {t('systemProxy.actions.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </div>

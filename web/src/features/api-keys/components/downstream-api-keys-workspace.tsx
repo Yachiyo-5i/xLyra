@@ -372,26 +372,31 @@ export function DownstreamAPIKeysWorkspace() {
               ) : null}
             </div>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setResetTarget(null)}
-              disabled={resetQuotaMutation.isPending}
-            >
-              {t('workspace.resetQuotaDialog.cancel')}
-            </Button>
-            <Button
-              onClick={() => {
-                if (resetTarget && resetScopes.length > 0) {
-                  resetQuotaMutation.mutate({ apiKeyId: resetTarget.id, scopes: resetScopes })
-                }
-              }}
-              disabled={resetQuotaMutation.isPending || resetScopes.length === 0}
-            >
-              {resetQuotaMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-              {t('workspace.resetQuotaDialog.confirm')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={(
+              <Button
+                variant="outline"
+                onClick={() => setResetTarget(null)}
+                disabled={resetQuotaMutation.isPending}
+              >
+                {t('workspace.resetQuotaDialog.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                onClick={() => {
+                  if (resetTarget && resetScopes.length > 0) {
+                    resetQuotaMutation.mutate({ apiKeyId: resetTarget.id, scopes: resetScopes })
+                  }
+                }}
+                disabled={resetQuotaMutation.isPending || resetScopes.length === 0}
+              >
+                {resetQuotaMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                {t('workspace.resetQuotaDialog.confirm')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 
@@ -412,26 +417,31 @@ export function DownstreamAPIKeysWorkspace() {
               {rotateTarget ? t('workspace.rotateDialog.description', { name: rotateTarget.name }) : null}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setRotateTarget(null)}
-              disabled={rotateMutation.isPending}
-            >
-              {t('workspace.rotateDialog.cancel')}
-            </Button>
-            <Button
-              onClick={() => {
-                if (rotateTarget) {
-                  rotateMutation.mutate(rotateTarget.id)
-                }
-              }}
-              disabled={rotateMutation.isPending}
-            >
-              {rotateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {t('workspace.rotateDialog.confirm')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={(
+              <Button
+                variant="outline"
+                onClick={() => setRotateTarget(null)}
+                disabled={rotateMutation.isPending}
+              >
+                {t('workspace.rotateDialog.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                onClick={() => {
+                  if (rotateTarget) {
+                    rotateMutation.mutate(rotateTarget.id)
+                  }
+                }}
+                disabled={rotateMutation.isPending}
+              >
+                {rotateMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {t('workspace.rotateDialog.confirm')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
 
@@ -494,27 +504,32 @@ export function DownstreamAPIKeysWorkspace() {
               {deleteTarget ? t('workspace.deleteDialog.confirm', { name: deleteTarget.name }) : t('workspace.deleteDialog.confirmDefault')}
             </DialogDescription>
           </DialogBody>
-          <DialogFooter className="border-t-0 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={deleteMutation.isPending}
-            >
-              {t('workspace.deleteDialog.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (deleteTarget) {
-                  deleteMutation.mutate(deleteTarget.id)
-                }
-              }}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t('workspace.deleteDialog.delete')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            className="border-t-0 pt-2"
+            cancel={(
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteMutation.isPending}
+              >
+                {t('workspace.deleteDialog.cancel')}
+              </Button>
+            )}
+            confirm={(
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (deleteTarget) {
+                    deleteMutation.mutate(deleteTarget.id)
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {t('workspace.deleteDialog.delete')}
+              </Button>
+            )}
+          />
         </DialogContent>
       </Dialog>
     </>
