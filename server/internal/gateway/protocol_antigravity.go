@@ -795,10 +795,12 @@ func antigravityCanonicalGenerationConfig(request canonicalRequest) map[string]a
 			thinkingConfig["includeThoughts"] = false
 		}
 		if budget, ok := thinking["budget_tokens"]; ok {
-			thinkingConfig["budgetTokens"] = budget
+			thinkingConfig["thinkingBudget"] = budget
+		} else if budget, ok := thinking["thinking_budget"]; ok {
+			thinkingConfig["thinkingBudget"] = budget
 		}
-		if len(thinkingConfig) > 0 {
-			config["thinkingConfig"] = thinkingConfig
+		if normalized := normalizeGeminiThinkingConfig(thinkingConfig); len(normalized) > 0 {
+			config["thinkingConfig"] = normalized
 		}
 	}
 	if _, hasThinking := config["thinkingConfig"]; !hasThinking {
@@ -836,7 +838,11 @@ func antigravityCanonicalGenerationConfig(request canonicalRequest) map[string]a
 		config["responseModalities"] = value
 	}
 	if value, ok := request.Params["thinking_config"]; ok {
-		config["thinkingConfig"] = value
+		if normalized := normalizeGeminiThinkingConfig(value); len(normalized) > 0 {
+			config["thinkingConfig"] = normalized
+		} else {
+			config["thinkingConfig"] = value
+		}
 	}
 	if value, ok := request.Params["image_config"]; ok {
 		config["imageConfig"] = value

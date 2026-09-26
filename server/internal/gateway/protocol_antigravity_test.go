@@ -54,6 +54,49 @@ func TestAntigravityProtocolBuildsV1InternalPayload(t *testing.T) {
 	_ = payload
 }
 
+func TestAntigravityMapsReasoningEffortToThinkingBudget(t *testing.T) {
+	t.Parallel()
+
+	canonical, err := canonicalRequestFromOpenAIResponsesPayload(map[string]any{
+		"model":     "gemini-3.8-flash-tiered",
+		"input":     "hello",
+		"reasoning": map[string]any{"effort": "low", "summary": "auto"},
+	}, "gemini-3.8-flash-tiered")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := encodeCanonicalRequestToAntigravityGemini(canonical, "gemini-3.8-flash-tiered")
+	thinking, ok := inner["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("thinkingConfig missing: %#v", inner["generationConfig"])
+	}
+	if thinking["includeThoughts"] != true || thinking["thinkingLevel"] != "LOW" || thinking["thinkingBudget"] != 1024 {
+		t.Fatalf("thinkingConfig = %#v, want low effort with thinkingBudget", thinking)
+	}
+	if _, ok := thinking["budgetTokens"]; ok {
+		t.Fatalf("Antigravity must not emit legacy budgetTokens: %#v", thinking)
+	}
+
+	canonical, err = canonicalRequestFromOpenAIChatPayload(map[string]any{
+		"model": "gemini-3.8-flash-tiered",
+		"messages": []any{
+			map[string]any{"role": "user", "content": "hello"},
+		},
+		"thinking": map[string]any{"type": "enabled", "budget_tokens": 2048},
+	}, "gemini-3.8-flash-tiered")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner = encodeCanonicalRequestToAntigravityGemini(canonical, "gemini-3.8-flash-tiered")
+	thinking = inner["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
+	if thinking["includeThoughts"] != true || thinking["thinkingBudget"] != 2048 {
+		t.Fatalf("anthropic-style thinking map = %#v, want thinkingBudget 2048", thinking)
+	}
+	if _, ok := thinking["budgetTokens"]; ok {
+		t.Fatalf("budget_tokens path must not emit budgetTokens: %#v", thinking)
+	}
+}
+
 func TestAntigravityProtocolTransformsGeminiResponseToChat(t *testing.T) {
 	protocol := antigravityProtocolAdapter{}
 	body := []byte(`{

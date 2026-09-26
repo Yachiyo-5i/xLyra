@@ -284,7 +284,7 @@ func TestCrossProtocolToGeminiMapsReasoningEffortToThinkingConfig(t *testing.T) 
 	}
 	config := encoded["generationConfig"].(map[string]any)
 	thinking := config["thinkingConfig"].(map[string]any)
-	if thinking["thinkingLevel"] != "HIGH" || thinking["includeThoughts"] != true || thinking["budgetTokens"] != 24576 {
+	if thinking["thinkingLevel"] != "HIGH" || thinking["includeThoughts"] != true || thinking["thinkingBudget"] != 24576 {
 		t.Fatalf("thinkingConfig = %#v, want high effort mapping", thinking)
 	}
 
@@ -302,7 +302,7 @@ func TestCrossProtocolToGeminiMapsReasoningEffortToThinkingConfig(t *testing.T) 
 		t.Fatal(err)
 	}
 	thinking = encoded["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
-	if thinking["thinkingLevel"] != "LOW" || thinking["budgetTokens"] != 1024 {
+	if thinking["thinkingLevel"] != "LOW" || thinking["thinkingBudget"] != 1024 {
 		t.Fatalf("responses thinkingConfig = %#v, want low effort mapping", thinking)
 	}
 
@@ -321,8 +321,35 @@ func TestCrossProtocolToGeminiMapsReasoningEffortToThinkingConfig(t *testing.T) 
 		t.Fatal(err)
 	}
 	thinking = encoded["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
-	if thinking["thinkingLevel"] != "MEDIUM" || thinking["budgetTokens"] != 8192 {
+	if thinking["thinkingLevel"] != "MEDIUM" || thinking["thinkingBudget"] != 8192 {
 		t.Fatalf("anthropic thinkingConfig = %#v, want medium effort mapping", thinking)
+	}
+}
+
+func TestNormalizeGeminiThinkingConfigRewritesBudgetAliases(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeGeminiThinkingConfig(map[string]any{
+		"includeThoughts": true,
+		"budgetTokens":    1024,
+		"thinkingLevel":   "LOW",
+	})
+	if got["thinkingBudget"] != 1024 {
+		t.Fatalf("thinkingBudget = %#v, want 1024", got["thinkingBudget"])
+	}
+	if _, ok := got["budgetTokens"]; ok {
+		t.Fatalf("legacy budgetTokens must be removed: %#v", got)
+	}
+
+	got = normalizeGeminiThinkingConfig(map[string]any{
+		"thinkingBudget": 2048,
+		"budgetTokens":   999,
+	})
+	if got["thinkingBudget"] != 2048 {
+		t.Fatalf("explicit thinkingBudget must win: %#v", got)
+	}
+	if _, ok := got["budgetTokens"]; ok {
+		t.Fatalf("budgetTokens alias must be stripped when thinkingBudget present: %#v", got)
 	}
 }
 

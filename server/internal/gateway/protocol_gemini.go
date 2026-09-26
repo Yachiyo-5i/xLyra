@@ -605,23 +605,55 @@ func geminiEffortFromCrossProtocolParams(params map[string]any) string {
 	return ""
 }
 
+// geminiThinkingConfigFromEffort maps cross-protocol reasoning_effort onto Gemini /
+// Antigravity generationConfig.thinkingConfig.
+//
+// Upstream field names follow the Google ThinkingConfig protobuf used by both the
+// Gemini API and Antigravity Cloud Code PA: includeThoughts, thinkingLevel, and
+// thinkingBudget (NOT budgetTokens — Antigravity rejects that unknown name).
 func geminiThinkingConfigFromEffort(effort string) map[string]any {
 	switch effort {
 	case "auto":
 		return nil
 	case "none":
-		return map[string]any{"includeThoughts": false, "budgetTokens": 0}
+		return map[string]any{"includeThoughts": false, "thinkingBudget": 0}
 	case "minimal":
-		return map[string]any{"includeThoughts": true, "thinkingLevel": "MINIMAL", "budgetTokens": 512}
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "MINIMAL", "thinkingBudget": 512}
 	case "low":
-		return map[string]any{"includeThoughts": true, "thinkingLevel": "LOW", "budgetTokens": 1024}
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "LOW", "thinkingBudget": 1024}
 	case "medium":
-		return map[string]any{"includeThoughts": true, "thinkingLevel": "MEDIUM", "budgetTokens": 8192}
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "MEDIUM", "thinkingBudget": 8192}
 	case "high", "xhigh", "max", "ultra":
-		return map[string]any{"includeThoughts": true, "thinkingLevel": "HIGH", "budgetTokens": 24576}
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "HIGH", "thinkingBudget": 24576}
 	default:
 		return nil
 	}
+}
+
+// normalizeGeminiThinkingConfig rewrites legacy / cross-protocol aliases onto the
+// upstream ThinkingConfig field names before the payload is sent.
+func normalizeGeminiThinkingConfig(raw any) map[string]any {
+	config, ok := raw.(map[string]any)
+	if !ok || len(config) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(config)+1)
+	for key, value := range config {
+		out[key] = value
+	}
+	if _, hasBudget := out["thinkingBudget"]; !hasBudget {
+		if budget, ok := out["budgetTokens"]; ok {
+			out["thinkingBudget"] = budget
+			delete(out, "budgetTokens")
+		} else if budget, ok := out["budget_tokens"]; ok {
+			out["thinkingBudget"] = budget
+			delete(out, "budget_tokens")
+		}
+	} else {
+		delete(out, "budgetTokens")
+		delete(out, "budget_tokens")
+	}
+	return out
 }
 
 func geminiResponseFormat(config map[string]any) map[string]any {
@@ -870,7 +902,11 @@ func geminiGenerationConfigFromCanonical(config map[string]any, request canonica
 		config["responseModalities"] = value
 	}
 	if value, ok := request.Params["thinking_config"]; ok {
-		config["thinkingConfig"] = value
+		if normalized := normalizeGeminiThinkingConfig(value); len(normalized) > 0 {
+			config["thinkingConfig"] = normalized
+		} else {
+			config["thinkingConfig"] = value
+		}
 	}
 	if value, ok := request.Params["image_config"]; ok {
 		config["imageConfig"] = value
