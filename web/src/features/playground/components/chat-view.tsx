@@ -15,6 +15,7 @@ import { ModelReasoningPicker } from '@/features/playground/components/model-rea
 import { ChatMessageItem } from '@/features/playground/components/chat-message'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
+import { autoProtocol } from '@/features/playground/lib/protocol'
 import { attachmentMimeType, normalizeAttachmentDataURL } from '@/features/playground/lib/attachments'
 import { newId } from '@/features/playground/lib/storage'
 import { RESPONSE_TIMER_TICK_MS } from '@/features/playground/lib/response-timing'
@@ -24,7 +25,6 @@ import { saveChatAttachmentDataAsync } from '@/features/playground/lib/attachmen
 import type {
   ChatMessage,
   ChatAttachment,
-  ChatProtocol,
   Conversation,
   GatewayModel,
   ReasoningEffort,
@@ -53,13 +53,6 @@ type ChatViewProps = {
   conversation: Conversation
   onChange: (updater: (conversation: Conversation) => Conversation) => void
   onImageMode: () => void
-}
-
-function autoProtocol(model: GatewayModel | undefined): ChatProtocol {
-  const types = model?.endpointTypes ?? []
-  if (types.includes('openai-response')) return 'responses'
-  if (types.some((t) => t.startsWith('anthropic'))) return 'messages'
-  return 'chat'
 }
 
 export function ChatView({

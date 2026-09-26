@@ -94,6 +94,12 @@
     "reasoning": "推論強度",
     "noModels": "利用可能なモデルがありません"
   },
+  "protocol": {
+    "chat": "Chat Completions",
+    "responses": "Responses",
+    "messages": "Messages",
+    "gemini": "Gemini"
+  },
   "effort": {
     "none": "オフ",
     "minimal": "極低",

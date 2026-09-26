@@ -70,6 +70,21 @@ describe('listPlaygroundModels', () => {
 
     expect(models[0].endpointTypes).toEqual(['chat', 'responses'])
   })
+
+  it('normalizes site types from model metadata', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      data: [{
+        id: 'gemini-3.1-pro',
+        metadata: {
+          supported_endpoint_types: ['google-gemini', 'openai-response'],
+          site_types: [' Antigravity ', 'GOOGLE_GEMINI', 7, ''],
+        },
+      }],
+    })))
+
+    const models = await listPlaygroundModels('key-id-1')
+    expect(models[0].siteTypes).toEqual(['antigravity', 'google_gemini'])
+  })
 })
 
 describe('followServerConversation', () => {

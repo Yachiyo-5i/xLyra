@@ -94,6 +94,12 @@
     "reasoning": "Reasoning",
     "noModels": "No models available"
   },
+  "protocol": {
+    "chat": "Chat Completions",
+    "responses": "Responses",
+    "messages": "Messages",
+    "gemini": "Gemini"
+  },
   "effort": {
     "none": "Off",
     "minimal": "Minimal",

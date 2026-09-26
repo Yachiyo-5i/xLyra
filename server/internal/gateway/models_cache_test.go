@@ -531,6 +531,21 @@ func TestGatewayModelEndpointTypesAreNormalizedAndApplied(t *testing.T) {
 	}
 }
 
+func TestApplyModelSiteTypes(t *testing.T) {
+	t.Parallel()
+
+	item := canonicalModelPayload(store.CanonicalModel{ModelKey: "gemini-test"})
+	applyModelSiteTypes(item, map[string]struct{}{"google_gemini": {}, "antigravity": {}})
+	metadata, ok := item["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata = %#v", item["metadata"])
+	}
+	got, ok := metadata["site_types"].([]string)
+	if !ok || len(got) != 2 || got[0] != "antigravity" || got[1] != "google_gemini" {
+		t.Fatalf("site_types = %#v", metadata["site_types"])
+	}
+}
+
 func TestGatewayModelEndpointTypesOverrideStaleCategory(t *testing.T) {
 	t.Parallel()
 

@@ -50,10 +50,11 @@ export type GatewayModel = {
   category: string
   ownedBy?: string
   endpointTypes: string[]
+  siteTypes?: string[]
   reasoning?: GatewayModelReasoning
 }
 
-export type ChatProtocol = 'chat' | 'responses' | 'messages'
+export type ChatProtocol = 'chat' | 'responses' | 'messages' | 'gemini'
 
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
 

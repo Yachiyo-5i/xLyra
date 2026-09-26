@@ -16,8 +16,18 @@ type ProtocolPickerProps = {
 
 export function ProtocolPicker({ protocols, value, onChange, disabled }: ProtocolPickerProps) {
   const { t } = useTranslation('playground')
-  const label = (protocol: ChatProtocol) =>
-    protocol === 'responses' ? t('protocol.responses') : t('protocol.chat')
+  const label = (protocol: ChatProtocol) => {
+    switch (protocol) {
+      case 'responses':
+        return t('protocol.responses')
+      case 'messages':
+        return t('protocol.messages')
+      case 'gemini':
+        return t('protocol.gemini')
+      default:
+        return t('protocol.chat')
+    }
+  }
 
   return (
     <Select

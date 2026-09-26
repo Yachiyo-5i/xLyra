@@ -19,7 +19,14 @@ type GatewayModelPayload = {
   data?: Array<{
     id?: string
     owned_by?: string
-    metadata?: { display_name?: string; category?: string; mapped_model?: string; supported_endpoint_types?: unknown; reasoning_effort?: unknown }
+    metadata?: {
+      display_name?: string
+      category?: string
+      mapped_model?: string
+      supported_endpoint_types?: unknown
+      site_types?: unknown
+      reasoning_effort?: unknown
+    }
   }>
 }
 
@@ -41,6 +48,7 @@ function gatewayModelsFromPayload(payload: GatewayModelPayload): GatewayModel[] 
       category: item.metadata?.category?.trim().toLowerCase() || 'chat',
       ownedBy: item.owned_by,
       endpointTypes: normalizeEndpointTypes(item.metadata?.supported_endpoint_types),
+      siteTypes: normalizeEndpointTypes(item.metadata?.site_types),
       reasoning: parseGatewayModelReasoning(item.metadata?.reasoning_effort),
     }))
     .sort((left, right) => left.id.localeCompare(right.id, undefined, { sensitivity: 'base' }))

@@ -306,6 +306,7 @@ func (h Handler) buildModelsPayloadForAccess(ctx context.Context, access auth.AP
 
 	itemsByModelKey := map[string]map[string]any{}
 	endpointTypesByModelKey := map[string]map[string]struct{}{}
+	siteTypesByModelKey := map[string]map[string]struct{}{}
 	for _, siteModel := range siteModels {
 		if siteModel.Status != "active" || !siteModel.CanonicalID.Valid {
 			continue
@@ -351,6 +352,14 @@ func (h Handler) buildModelsPayloadForAccess(ctx context.Context, access auth.AP
 		for _, endpointType := range gatewayModelEndpointTypes(siteModel) {
 			endpointSet[endpointType] = struct{}{}
 		}
+		if siteType := strings.TrimSpace(strings.ToLower(site.SiteType)); siteType != "" {
+			siteTypeSet, ok := siteTypesByModelKey[canonical.ModelKey]
+			if !ok {
+				siteTypeSet = map[string]struct{}{}
+				siteTypesByModelKey[canonical.ModelKey] = siteTypeSet
+			}
+			siteTypeSet[siteType] = struct{}{}
+		}
 		item, ok := itemsByModelKey[canonical.ModelKey]
 		if !ok {
 			item = canonicalModelPayload(canonical)
@@ -361,6 +370,7 @@ func (h Handler) buildModelsPayloadForAccess(ctx context.Context, access auth.AP
 
 	for modelKey, item := range itemsByModelKey {
 		applyModelEndpointTypes(item, endpointTypesByModelKey[modelKey])
+		applyModelSiteTypes(item, siteTypesByModelKey[modelKey])
 	}
 
 	data := make([]map[string]any, 0, len(itemsByModelKey))
@@ -487,6 +497,23 @@ func applyModelEndpointTypes(item map[string]any, endpointSet map[string]struct{
 	} else if _, ok := endpointSet["openai-audio-speech"]; ok {
 		metadata["category"] = "audio"
 	}
+}
+
+func applyModelSiteTypes(item map[string]any, siteTypeSet map[string]struct{}) {
+	if item == nil || len(siteTypeSet) == 0 {
+		return
+	}
+	types := make([]string, 0, len(siteTypeSet))
+	for siteType := range siteTypeSet {
+		types = append(types, siteType)
+	}
+	sort.Strings(types)
+	metadata, ok := item["metadata"].(map[string]any)
+	if !ok {
+		metadata = map[string]any{}
+		item["metadata"] = metadata
+	}
+	metadata["site_types"] = types
 }
 
 func applyModelCapabilitiesMetadata(item map[string]any, capabilities store.JSON) {

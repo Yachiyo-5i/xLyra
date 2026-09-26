@@ -94,6 +94,12 @@
     "reasoning": "推理强度",
     "noModels": "暂无可用模型"
   },
+  "protocol": {
+    "chat": "Chat Completions",
+    "responses": "Responses",
+    "messages": "Messages",
+    "gemini": "Gemini"
+  },
   "effort": {
     "none": "关闭",
     "minimal": "极低",

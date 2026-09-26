@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"xlyra/server/internal/auth"
@@ -185,7 +186,7 @@ func (s *Service) executeChat(ctx context.Context, run store.PlaygroundRun, apiK
 			}
 		}
 	}()
-	request, err := http.NewRequestWithContext(auth.WithAPIKey(ctx, apiKey), http.MethodPost, gatewayPath(payload.Protocol), bytes.NewReader(encoded))
+	request, err := http.NewRequestWithContext(auth.WithAPIKey(ctx, apiKey), http.MethodPost, gatewayPath(payload.Protocol, payload.Model), bytes.NewReader(encoded))
 	if err != nil {
 		close(flushStop)
 		<-flushDone
@@ -193,6 +194,11 @@ func (s *Service) executeChat(ctx context.Context, run store.PlaygroundRun, apiK
 		return
 	}
 	request.Header.Set("Content-Type", "application/json")
+	if payload.Protocol == "gemini" {
+		routeCtx := chi.NewRouteContext()
+		routeCtx.URLParams.Add("model", payload.Model)
+		request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeCtx))
+	}
 	s.serveGateway(writer, request, payload.Protocol, false)
 	close(flushStop)
 	<-flushDone
@@ -288,6 +294,10 @@ func (s *Service) consumeChatEvent(protocol string, value string, state *chatRun
 		}
 		return nil
 	}
+	if protocol == "gemini" {
+		consumeGeminiChatEvent(event, state)
+		return nil
+	}
 	if errorValue, ok := event["error"].(map[string]any); ok {
 		state.failure = stringValue(errorValue["message"])
 	}
@@ -303,6 +313,54 @@ func (s *Service) consumeChatEvent(protocol string, value string, state *chatRun
 		state.usage = openAIUsage(usage)
 	}
 	return nil
+}
+
+func consumeGeminiChatEvent(event map[string]any, state *chatRunState) {
+	if errorValue, ok := event["error"].(map[string]any); ok {
+		if message := stringValue(errorValue["message"]); message != "" {
+			state.failure = message
+		} else {
+			state.failure = nestedError(event)
+		}
+	}
+	if candidates, ok := event["candidates"].([]any); ok {
+		for _, rawCandidate := range candidates {
+			candidate, ok := rawCandidate.(map[string]any)
+			if !ok {
+				continue
+			}
+			content, _ := candidate["content"].(map[string]any)
+			parts, _ := content["parts"].([]any)
+			for _, rawPart := range parts {
+				part, ok := rawPart.(map[string]any)
+				if !ok {
+					continue
+				}
+				text := stringValue(part["text"])
+				if text == "" {
+					continue
+				}
+				if thought, ok := part["thought"].(bool); ok && thought {
+					state.addReasoning(text)
+					continue
+				}
+				state.addContent(text)
+			}
+		}
+	}
+	if usage, ok := event["usageMetadata"].(map[string]any); ok {
+		state.usage = geminiUsage(usage)
+	}
+}
+
+func geminiUsage(value map[string]any) *Usage {
+	prompt := int64Value(value["promptTokenCount"])
+	completion := int64Value(value["candidatesTokenCount"])
+	total := int64Value(value["totalTokenCount"])
+	if total == 0 {
+		total = prompt + completion + int64Value(value["thoughtsTokenCount"])
+	}
+	return &Usage{PromptTokens: prompt, CompletionTokens: completion, TotalTokens: total}
 }
 
 func (s *chatRunState) shouldFlush() bool {
@@ -351,6 +409,9 @@ func (s *Service) chatGatewayBody(ctx context.Context, payload RunPayload) (map[
 	if payload.Chat == nil {
 		return nil, fmt.Errorf("chat payload is missing")
 	}
+	if payload.Protocol == "gemini" {
+		return s.geminiGatewayBody(ctx, payload)
+	}
 	messages := make([]map[string]any, 0, len(payload.Chat.Messages)+1)
 	if strings.TrimSpace(payload.Chat.SystemPrompt) != "" && payload.Protocol != "responses" && payload.Protocol != "messages" {
 		messages = append(messages, map[string]any{"role": "system", "content": payload.Chat.SystemPrompt})
@@ -394,6 +455,96 @@ func (s *Service) chatGatewayBody(ctx context.Context, payload RunPayload) (map[
 		body["reasoning_effort"] = payload.ReasoningEffort
 	}
 	return body, nil
+}
+
+func (s *Service) geminiGatewayBody(ctx context.Context, payload RunPayload) (map[string]any, error) {
+	contents := make([]map[string]any, 0, len(payload.Chat.Messages))
+	for _, message := range payload.Chat.Messages {
+		if message.ID == payload.MessageID || message.Error != "" {
+			continue
+		}
+		parts, err := s.geminiContentParts(ctx, message)
+		if err != nil {
+			return nil, err
+		}
+		if len(parts) == 0 {
+			continue
+		}
+		role := message.Role
+		if role == "assistant" {
+			role = "model"
+		}
+		if role == "" {
+			role = "user"
+		}
+		contents = append(contents, map[string]any{"role": role, "parts": parts})
+	}
+	if len(contents) == 0 {
+		return nil, fmt.Errorf("gemini contents must not be empty")
+	}
+	body := map[string]any{"contents": contents}
+	if system := strings.TrimSpace(payload.Chat.SystemPrompt); system != "" {
+		body["systemInstruction"] = map[string]any{
+			"role":  "user",
+			"parts": []any{map[string]any{"text": system}},
+		}
+	}
+	if thinkingConfig := playgroundGeminiThinkingConfig(payload.ReasoningEffort); len(thinkingConfig) > 0 {
+		body["generationConfig"] = map[string]any{"thinkingConfig": thinkingConfig}
+	}
+	return body, nil
+}
+
+func (s *Service) geminiContentParts(ctx context.Context, message ChatMessage) ([]any, error) {
+	parts := make([]any, 0, len(message.Attachments)+1)
+	if strings.TrimSpace(message.Content) != "" {
+		parts = append(parts, map[string]any{"text": message.Content})
+	}
+	for _, attachment := range message.Attachments {
+		id, err := uuid.Parse(attachment.AssetID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid attachment asset")
+		}
+		dataURL, err := s.assets.DataURL(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		mimeType := strings.TrimSpace(attachment.MIMEType)
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		comma := strings.IndexByte(dataURL, ',')
+		data := dataURL
+		if comma >= 0 {
+			data = dataURL[comma+1:]
+		}
+		parts = append(parts, map[string]any{
+			"inlineData": map[string]any{
+				"mimeType": mimeType,
+				"data":     data,
+			},
+		})
+	}
+	return parts, nil
+}
+
+func playgroundGeminiThinkingConfig(effort string) map[string]any {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "", "auto":
+		return nil
+	case "none":
+		return map[string]any{"includeThoughts": false, "thinkingBudget": 0}
+	case "minimal":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "MINIMAL", "thinkingBudget": 512}
+	case "low":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "LOW", "thinkingBudget": 1024}
+	case "medium":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "MEDIUM", "thinkingBudget": 8192}
+	case "high", "xhigh", "max", "ultra":
+		return map[string]any{"includeThoughts": true, "thinkingLevel": "HIGH", "thinkingBudget": 24576}
+	default:
+		return nil
+	}
 }
 
 func (s *Service) gatewayMessageContent(ctx context.Context, protocol string, message ChatMessage) (any, error) {
@@ -451,12 +602,15 @@ func (s *Service) gatewayMessageContent(ctx context.Context, protocol string, me
 	return parts, nil
 }
 
-func gatewayPath(protocol string) string {
+func gatewayPath(protocol string, model string) string {
 	switch protocol {
 	case "responses":
 		return "/responses"
 	case "messages":
 		return "/messages"
+	case "gemini":
+		escaped := url.PathEscape(strings.TrimSpace(model))
+		return "/v1beta/models/" + escaped + ":streamGenerateContent"
 	default:
 		return "/chat/completions"
 	}
@@ -476,6 +630,8 @@ func (s *Service) serveGateway(writer http.ResponseWriter, request *http.Request
 		s.gateway.Responses(writer, request)
 	case "messages":
 		s.gateway.Messages(writer, request)
+	case "gemini":
+		s.gateway.GeminiGenerateContent(true)(writer, request)
 	default:
 		s.gateway.ChatCompletions(writer, request)
 	}
