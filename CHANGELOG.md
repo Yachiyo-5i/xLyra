@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.13.0...v1.13.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* 🐛 修复转 Responses 上游时多轮思考回放因缺少 summary 被拒的问题 ([fc72496](https://github.com/Yachiyo-5i/xLyra/commit/fc72496d6388be2a3ee52d8a8bb5008f0fa56858))
+
 ## [1.13.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.12.0...v1.13.0) (2026-09-25)
 
 ### Features
