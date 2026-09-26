@@ -940,3 +940,68 @@ func TestClaudeCodeQuotaForDetailsReadaptsStoredSummaryFromRaw(t *testing.T) {
 		t.Fatalf("stale summary should gain scoped model windows: %#v", got["models"])
 	}
 }
+
+func TestAntigravityQuotaForDetailsRebuildsPerModelPayloadFromNestedSnapshots(t *testing.T) {
+	t.Parallel()
+
+	models := []map[string]any{
+		{
+			"id":           "gemini-pro-agent",
+			"name":         "gemini-pro-agent",
+			"display_name": "Gemini 3.1 Pro (High)",
+			"quota": map[string]any{
+				"name":              "gemini-pro-agent",
+				"display_name":      "Gemini 3.1 Pro (High)",
+				"remaining_percent": 66,
+				"used_percent":      34,
+				"reset_time":        "2026-09-26T21:45:01Z",
+				"reset_at":          int64(1790459101),
+			},
+		},
+		{
+			"name": "claude-opus-4-6-thinking",
+			"quota": map[string]any{
+				"remaining_percent": 100,
+				"used_percent":      0,
+				"reset_time":        "2026-09-26T21:45:01Z",
+			},
+		},
+		{
+			"name": "no-quota-model",
+		},
+	}
+
+	got := antigravityQuotaForDetails(nil, models)
+	if got["type"] != "per_model" {
+		t.Fatalf("type = %#v, want per_model", got["type"])
+	}
+	items, _ := got["models"].([]map[string]any)
+	if len(items) != 2 {
+		t.Fatalf("models = %#v, want 2 rebuilt entries", got["models"])
+	}
+	if items[0]["name"] != "gemini-pro-agent" || items[0]["remaining_percent"] != 66 || items[0]["display_name"] != "Gemini 3.1 Pro (High)" {
+		t.Fatalf("first rebuilt model = %#v", items[0])
+	}
+	if items[1]["name"] != "claude-opus-4-6-thinking" || items[1]["remaining_percent"] != 100 {
+		t.Fatalf("second rebuilt model = %#v", items[1])
+	}
+
+	existing := map[string]any{
+		"type": "per_model",
+		"models": []map[string]any{
+			{"name": "gemini-pro-agent", "remaining_percent": 10},
+		},
+	}
+	kept := antigravityQuotaForDetails(existing, models)
+	keptModels, _ := kept["models"].([]map[string]any)
+	if len(keptModels) != 1 || keptModels[0]["remaining_percent"] != 10 {
+		t.Fatalf("existing quota.models should win: %#v", kept)
+	}
+
+	typed := antigravityQuotaForDetails(map[string]any{
+		"models": []any{map[string]any{"name": "gemini-pro-agent", "remaining_percent": 5}},
+	}, nil)
+	if typed["type"] != "per_model" {
+		t.Fatalf("missing type should be filled: %#v", typed)
+	}
+}

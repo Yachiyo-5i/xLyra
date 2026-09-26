@@ -1255,13 +1255,19 @@ func (s *Service) codexConnectionDetails(connection store.OAuthConnection) (Code
 	}
 	planType, _ := meta["plan_type"].(string)
 	quota, _ := meta["quota"].(map[string]any)
-	if connection.Provider == claudeCodeProvider {
+	models := normalizeCodexModelSnapshots(mapsFromAny(meta["models"]))
+	switch connection.Provider {
+	case claudeCodeProvider:
 		if derived := adapter.ClaudeCodePlanType(stringFromAny(meta["organization_type"]), stringFromAny(meta["rate_limit_tier"])); derived != "" {
 			planType = derived
 		}
 		quota = claudeCodeQuotaForDetails(quota)
+	case antigravityProvider:
+		// Frontend QuotaPanel reads connection.quota.models for Antigravity.
+		// Older syncs only stored nested model.quota snapshots; rebuild the
+		// per_model payload so the panel does not fall back to Codex windows.
+		quota = antigravityQuotaForDetails(quota, models)
 	}
-	models := normalizeCodexModelSnapshots(mapsFromAny(meta["models"]))
 	return CodexConnection{
 		Connection:   connection,
 		AccessToken:  accessToken,
@@ -1275,6 +1281,75 @@ func (s *Service) codexConnectionDetails(connection store.OAuthConnection) (Code
 		Quota:        quota,
 		Models:       models,
 	}, nil
+}
+
+func antigravityQuotaForDetails(quota map[string]any, models []map[string]any) map[string]any {
+	if quotaModelsLen(quota["models"]) > 0 {
+		if _, ok := quota["type"]; !ok {
+			merged := make(map[string]any, len(quota)+1)
+			for key, value := range quota {
+				merged[key] = value
+			}
+			merged["type"] = "per_model"
+			return merged
+		}
+		return quota
+	}
+	items := make([]map[string]any, 0, len(models))
+	for _, model := range models {
+		nested, _ := model["quota"].(map[string]any)
+		if len(nested) == 0 {
+			continue
+		}
+		name := firstNonEmptyString(
+			stringFromAny(nested["name"]),
+			stringFromAny(model["name"]),
+			stringFromAny(model["upstream_model_name"]),
+			stringFromAny(model["id"]),
+		)
+		displayName := firstNonEmptyString(
+			stringFromAny(nested["display_name"]),
+			stringFromAny(model["display_name"]),
+			stringFromAny(model["display"]),
+			name,
+		)
+		item := map[string]any{
+			"name":              name,
+			"display_name":      displayName,
+			"remaining_percent": nested["remaining_percent"],
+			"used_percent":      nested["used_percent"],
+			"reset_at":          nested["reset_at"],
+			"reset_time":        nested["reset_time"],
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		return quota
+	}
+	result := map[string]any{
+		"type":   "per_model",
+		"models": items,
+	}
+	if len(quota) > 0 {
+		for key, value := range quota {
+			if _, exists := result[key]; exists {
+				continue
+			}
+			result[key] = value
+		}
+	}
+	return result
+}
+
+func quotaModelsLen(value any) int {
+	switch models := value.(type) {
+	case []any:
+		return len(models)
+	case []map[string]any:
+		return len(models)
+	default:
+		return 0
+	}
 }
 
 func claudeCodeQuotaForDetails(quota map[string]any) map[string]any {

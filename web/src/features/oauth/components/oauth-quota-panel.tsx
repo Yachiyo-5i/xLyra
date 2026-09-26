@@ -197,7 +197,7 @@ export function QuotaPanel({
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-full" />
           </div>
-        ) : isAntigravity && modelQuotas.length > 0 ? (
+        ) : isAntigravity || quota?.type === 'per_model' ? (
           <div className="space-y-3">
             {visibleModelQuotas.length ? visibleModelQuotas.map((item, index) => (
               <QuotaProgress key={`${item.name ?? item.display_name ?? 'model'}-${index}`} label={formatQuotaCardModelLabel(item, t)} window={item} t={t} language={i18n.language} />

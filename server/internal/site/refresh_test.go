@@ -631,6 +631,41 @@ func TestUsageAndNullableRefreshHelpers(t *testing.T) {
 		t.Fatal("non-map usage should not count as quota data")
 	}
 
+	if !codexQuotaHasWindowData(map[string]any{
+		"five_hour": map[string]any{"remaining_percent": 80},
+		"weekly":    map[string]any{"remaining_percent": 60},
+	}) {
+		t.Fatal("codex five_hour/weekly quota should be persistable")
+	}
+	if !codexQuotaHasWindowData(map[string]any{
+		"type":      "claude_code",
+		"five_hour": map[string]any{"remaining_percent": 70},
+	}) {
+		t.Fatal("claude_code five_hour quota should be persistable")
+	}
+	if !codexQuotaHasWindowData(map[string]any{
+		"type": "per_model",
+		"models": []map[string]any{
+			{"name": "gemini-pro-agent", "remaining_percent": 100},
+		},
+	}) {
+		t.Fatal("antigravity adapter []map[string]any models must count as persistable quota")
+	}
+	if !codexQuotaHasWindowData(map[string]any{
+		"type": "per_model",
+		"models": []any{
+			map[string]any{"name": "claude-opus-4-6-thinking", "remaining_percent": 100},
+		},
+	}) {
+		t.Fatal("json-decoded []any models must count as persistable quota")
+	}
+	if codexQuotaHasWindowData(map[string]any{"type": "per_model", "models": []map[string]any{}}) {
+		t.Fatal("empty antigravity models should not count as persistable quota")
+	}
+	if codexQuotaHasWindowData(map[string]any{"raw": map[string]any{"ignored": true}}) {
+		t.Fatal("quota without provider windows/models should not be persistable")
+	}
+
 	usage := usageFromTokenRaw(map[string]any{
 		"name":                 "token-a",
 		"remain_quota":         json.Number("8"),

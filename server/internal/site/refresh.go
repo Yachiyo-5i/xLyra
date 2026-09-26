@@ -1980,6 +1980,16 @@ func usageHasQuotaData(usage any) bool {
 	return hasGranted || hasUsed || hasAvailable
 }
 
+// codexQuotaHasWindowData reports whether an OAuth user-summary quota payload
+// should be persisted onto the connection metadata for the frontend QuotaPanel.
+//
+// Provider shapes (must stay aligned with web QuotaPanel):
+//   - Codex: five_hour / weekly (+ optional reset_credits, credits)
+//   - Claude Code: five_hour / weekly (+ optional models)
+//   - Antigravity: models[] with remaining_percent (type=per_model)
+//
+// Adapter-built payloads often use []map[string]any for models; JSON-decoded
+// payloads use []any. Both must count as present.
 func codexQuotaHasWindowData(quota map[string]any) bool {
 	if len(quota) == 0 {
 		return false
@@ -1989,10 +1999,18 @@ func codexQuotaHasWindowData(quota map[string]any) bool {
 			return true
 		}
 	}
-	if models, ok := quota["models"].([]any); ok && len(models) > 0 {
-		return true
+	return quotaModelsLen(quota["models"]) > 0
+}
+
+func quotaModelsLen(value any) int {
+	switch models := value.(type) {
+	case []any:
+		return len(models)
+	case []map[string]any:
+		return len(models)
+	default:
+		return 0
 	}
-	return false
 }
 
 func usageFromTokenRaw(raw map[string]any) map[string]any {
