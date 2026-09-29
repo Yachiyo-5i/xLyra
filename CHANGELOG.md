@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.13.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.13.1...v1.13.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* 🐛 Playground 按模型站点选择 Gemini 协议 ([52b466f](https://github.com/Yachiyo-5i/xLyra/commit/52b466fb3513f3600cac737b912d5470f091bf73))
+* 🐛 修复 Antigravity 额度持久化与面板展示 ([e04bdef](https://github.com/Yachiyo-5i/xLyra/commit/e04bdef1da6c38d486e29220b04088b6527f618b))
+* 🐛 修复 Gemini 历史系统消息发送失败 ([3c3e597](https://github.com/Yachiyo-5i/xLyra/commit/3c3e59783300fb46da252597fe8fa20e91a8d770))
+* 🐛 修正 Gemini/Antigravity thinkingBudget 字段名 ([870fa9a](https://github.com/Yachiyo-5i/xLyra/commit/870fa9aabbc603ed9f700a0a191f9882ec1ba94f))
+* 🐛 将 Antigravity -tiered 归入标准 canonical ([654b98a](https://github.com/Yachiyo-5i/xLyra/commit/654b98a45193463039781a7755b8c930102ad273))
+
 ## [1.13.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.13.0...v1.13.1) (2026-09-26)
 
 
