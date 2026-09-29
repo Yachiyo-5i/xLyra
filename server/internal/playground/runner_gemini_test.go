@@ -1,9 +1,50 @@
 package playground
 
 import (
+	"context"
 	"net/url"
 	"testing"
 )
+
+func TestGeminiGatewayBodyMovesSystemMessagesToInstruction(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	body, err := service.geminiGatewayBody(context.Background(), RunPayload{
+		Chat: &ChatConversation{
+			SystemPrompt: "base instruction",
+			Messages: []ChatMessage{
+				{ID: "system", Role: "system", Content: "legacy instruction"},
+				{ID: "developer", Role: "developer", Content: "developer instruction"},
+				{ID: "user", Role: "user", Content: "hello"},
+				{ID: "assistant", Role: "assistant", Content: "world"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("geminiGatewayBody returned error: %v", err)
+	}
+	contents, ok := body["contents"].([]map[string]any)
+	if !ok || len(contents) != 2 {
+		t.Fatalf("contents = %#v, want two user/model messages", body["contents"])
+	}
+	if contents[0]["role"] != "user" || contents[1]["role"] != "model" {
+		t.Fatalf("contents roles = %#v, want user/model", contents)
+	}
+	instruction, ok := body["systemInstruction"].(map[string]any)
+	if !ok {
+		t.Fatalf("systemInstruction = %#v, want object", body["systemInstruction"])
+	}
+	parts, ok := instruction["parts"].([]any)
+	if !ok || len(parts) != 3 {
+		t.Fatalf("systemInstruction parts = %#v, want three parts", instruction["parts"])
+	}
+	for index, want := range []string{"base instruction", "legacy instruction", "developer instruction"} {
+		part, ok := parts[index].(map[string]any)
+		if !ok || part["text"] != want {
+			t.Fatalf("systemInstruction part %d = %#v, want %q", index, parts[index], want)
+		}
+	}
+}
 
 func TestGatewayPathGeminiIncludesModel(t *testing.T) {
 	t.Parallel()

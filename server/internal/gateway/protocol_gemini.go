@@ -605,12 +605,6 @@ func geminiEffortFromCrossProtocolParams(params map[string]any) string {
 	return ""
 }
 
-// geminiThinkingConfigFromEffort maps cross-protocol reasoning_effort onto Gemini /
-// Antigravity generationConfig.thinkingConfig.
-//
-// Upstream field names follow the Google ThinkingConfig protobuf used by both the
-// Gemini API and Antigravity Cloud Code PA: includeThoughts, thinkingLevel, and
-// thinkingBudget (NOT budgetTokens — Antigravity rejects that unknown name).
 func geminiThinkingConfigFromEffort(effort string) map[string]any {
 	switch effort {
 	case "auto":
@@ -630,8 +624,6 @@ func geminiThinkingConfigFromEffort(effort string) map[string]any {
 	}
 }
 
-// normalizeGeminiThinkingConfig rewrites legacy / cross-protocol aliases onto the
-// upstream ThinkingConfig field names before the payload is sent.
 func normalizeGeminiThinkingConfig(raw any) map[string]any {
 	config, ok := raw.(map[string]any)
 	if !ok || len(config) == 0 {

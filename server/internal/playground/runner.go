@@ -459,6 +459,10 @@ func (s *Service) chatGatewayBody(ctx context.Context, payload RunPayload) (map[
 
 func (s *Service) geminiGatewayBody(ctx context.Context, payload RunPayload) (map[string]any, error) {
 	contents := make([]map[string]any, 0, len(payload.Chat.Messages))
+	systemParts := make([]any, 0, 1)
+	if system := strings.TrimSpace(payload.Chat.SystemPrompt); system != "" {
+		systemParts = append(systemParts, map[string]any{"text": system})
+	}
 	for _, message := range payload.Chat.Messages {
 		if message.ID == payload.MessageID || message.Error != "" {
 			continue
@@ -468,6 +472,10 @@ func (s *Service) geminiGatewayBody(ctx context.Context, payload RunPayload) (ma
 			return nil, err
 		}
 		if len(parts) == 0 {
+			continue
+		}
+		if message.Role == "system" || message.Role == "developer" {
+			systemParts = append(systemParts, parts...)
 			continue
 		}
 		role := message.Role
@@ -483,10 +491,10 @@ func (s *Service) geminiGatewayBody(ctx context.Context, payload RunPayload) (ma
 		return nil, fmt.Errorf("gemini contents must not be empty")
 	}
 	body := map[string]any{"contents": contents}
-	if system := strings.TrimSpace(payload.Chat.SystemPrompt); system != "" {
+	if len(systemParts) > 0 {
 		body["systemInstruction"] = map[string]any{
 			"role":  "user",
-			"parts": []any{map[string]any{"text": system}},
+			"parts": systemParts,
 		}
 	}
 	if thinkingConfig := playgroundGeminiThinkingConfig(payload.ReasoningEffort); len(thinkingConfig) > 0 {
