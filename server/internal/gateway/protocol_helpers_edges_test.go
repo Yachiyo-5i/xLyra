@@ -350,6 +350,8 @@ func TestGatewaySiteModelDiagnosticProtocolHelpersAndRecorder(t *testing.T) {
 		" /chat/completions ": siteModelTestProtocolChatCompletions,
 		"openai-responses":    siteModelTestProtocolResponses,
 		"anthropic_messages":  siteModelTestProtocolMessages,
+		"typesafe-systemone":  siteModelTestProtocolSystemOne,
+		"typesafe_systemone":  siteModelTestProtocolSystemOne,
 		"":                    siteModelTestProtocolAuto,
 	} {
 		got, err := normalizeSiteModelTestProtocol(input)
@@ -367,6 +369,10 @@ func TestGatewaySiteModelDiagnosticProtocolHelpersAndRecorder(t *testing.T) {
 	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeAnthropicMessages}, siteModelTestProtocolMessages)
 	if err != nil || path != gatewayEndpointMessages {
 		t.Fatalf("messages protocol path = %q err=%v", path, err)
+	}
+	path, err = siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeTypeSafeSystemOne}, siteModelTestProtocolSystemOne)
+	if err != nil || path != gatewayEndpointTypeSafeSystemOne {
+		t.Fatalf("systemone protocol path = %q err=%v", path, err)
 	}
 	if _, err := siteModelTestDownstreamPathForProtocol(nil, "bad"); err == nil {
 		t.Fatal("expected invalid downstream protocol error")

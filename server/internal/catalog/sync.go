@@ -18,11 +18,43 @@ import (
 const catalogSyncURL = "https://raw.githubusercontent.com/Yachiyo-5i/models-price/refs/heads/main/catalog.json"
 
 type catalogPayload struct {
-	SchemaVersion  int                     `json:"schema_version"`
-	CatalogVersion string                  `json:"catalog_version"`
-	UpdatedAt      string                  `json:"updated_at"`
-	Brands         map[string]catalogBrand `json:"brands"`
+	SchemaVersion  int           `json:"schema_version"`
+	CatalogVersion string        `json:"catalog_version"`
+	UpdatedAt      string        `json:"updated_at"`
+	Brands         catalogBrands `json:"brands"`
 }
+type catalogBrands map[string]catalogBrand
+
+func (b *catalogBrands) UnmarshalJSON(data []byte) error {
+	var object map[string]catalogBrand
+	if err := json.Unmarshal(data, &object); err == nil {
+		*b = object
+		return nil
+	}
+
+	var list []struct {
+		Brand  string                  `json:"brand"`
+		Models map[string]catalogModel `json:"models"`
+	}
+	if err := json.Unmarshal(data, &list); err != nil {
+		return err
+	}
+
+	brands := make(catalogBrands, len(list))
+	for _, item := range list {
+		brand := strings.TrimSpace(item.Brand)
+		if brand == "" {
+			return fmt.Errorf("catalog brand has empty name")
+		}
+		if _, exists := brands[brand]; exists {
+			return fmt.Errorf("catalog contains duplicate brand %q", brand)
+		}
+		brands[brand] = catalogBrand{Models: item.Models}
+	}
+	*b = brands
+	return nil
+}
+
 type catalogBrand struct {
 	Models map[string]catalogModel `json:"models"`
 }

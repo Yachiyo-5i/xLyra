@@ -6,6 +6,7 @@ import { filterSiteModelTestModels } from '@/features/sites/lib/site-model-test-
 const chatModel = model('chat', ['openai'])
 const responsesModel = model('responses', ['openai-response'])
 const messagesModel = model('messages', ['anthropic-messages'])
+const systemOneModel = model('systemone', ['typesafe-systemone'])
 const bothModel = model('both', ['openai', 'openai-response'])
 
 describe('filterSiteModelTestModels', () => {
@@ -46,6 +47,21 @@ describe('filterSiteModelTestModels', () => {
     })
 
     expect(visible.map((item) => item.id)).toEqual(['responses'])
+  })
+
+  it('filters TypeSafe models for the systemone protocol', () => {
+    const visible = filterSiteModelTestModels({
+      models: [chatModel, systemOneModel],
+      apiKeys: [apiKey('key-a', [
+        item(chatModel, ['openai']),
+        item(systemOneModel, ['typesafe-systemone']),
+      ])],
+      protocol: 'systemone',
+      credentialId: 'key-a',
+      supportsMultipleAPIKeys: true,
+    })
+
+    expect(visible.map((item) => item.id)).toEqual(['systemone'])
   })
 
   it('uses any enabled key when the credential is automatic', () => {

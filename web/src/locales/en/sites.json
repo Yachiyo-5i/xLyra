@@ -185,6 +185,7 @@
       "xiaomi_mimo": "Connect with a Xiaomi MiMo API key",
       "moonshot": "Connect with a Moonshot platform API key",
       "kimi_code": "Connect with a Kimi coding model API key",
+      "typesafe": "Connect with a TypeSafe Jev decision model API key",
       "zhipu": "Connect with a Zhipu GLM general API key",
       "glm_code": "Connect with a GLM Coding Plan API key",
       "newapi": "Use a system token for a self-hosted or third-party panel",
@@ -353,7 +354,8 @@
       "auto": "Auto",
       "chatCompletions": "/chat/completions",
       "responses": "/responses",
-      "messages": "/messages"
+      "messages": "/messages",
+      "systemOne": "/systemone"
     },
     "stream": {
       "stream": "Streaming",

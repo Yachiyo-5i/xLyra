@@ -148,6 +148,9 @@ func TestRouteCandidateSupportsEndpointEdgeCases(t *testing.T) {
 		{name: "unknown request endpoint cannot match text family", endpointType: "unknown", supported: []string{"openai"}, want: false},
 		{name: "image request accepts Gemini upstream", endpointType: "gemini-image", supported: []string{"google-gemini"}, want: true},
 		{name: "image request accepts OpenAI upstream", endpointType: "gemini-image", supported: []string{"openai-image"}, want: true},
+		{name: "systemone request accepts systemone upstream", endpointType: "typesafe-systemone", supported: []string{"typesafe-systemone"}, want: true},
+		{name: "systemone request rejects chat upstream", endpointType: "typesafe-systemone", supported: []string{"openai", "openai-response"}, want: false},
+		{name: "chat request rejects systemone upstream", endpointType: "openai", supported: []string{"typesafe-systemone"}, want: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

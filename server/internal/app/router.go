@@ -480,6 +480,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 			protected.With(limitBody).Post("/chat/completions", gatewayHandler.ChatCompletions)
 			protected.With(textLimitBody).Post("/embeddings", gatewayHandler.Embeddings)
 			protected.With(textLimitBody).Post("/audio/speech", gatewayHandler.AudioSpeech)
+			protected.With(textLimitBody).Post("/systemone", gatewayHandler.TypeSafeSystemOne)
 			protected.Post("/images/generations", gatewayHandler.ImagesGenerations)
 			protected.Post("/images/edits", gatewayHandler.ImagesEdits)
 			protected.With(limitBody).Post("/messages", gatewayHandler.Messages)

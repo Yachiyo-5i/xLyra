@@ -21,6 +21,7 @@ const lightBrandIconPaths: Record<string, string> = {
   '/brand-icons/flux-dark.png': '/brand-icons/flux-light.png',
   '/brand-icons/hunyuan-dark.png': '/brand-icons/hunyuan-light.png',
   '/brand-icons/sensenova-dark.png': '/brand-icons/sensenova-light.png',
+  '/brand-icons/typesafe-dark.png': '/brand-icons/typesafe-light.png',
 }
 
 export function siteTypeIconPath(siteType: string, resolvedMode: 'light' | 'dark' = 'dark'): string | undefined {
@@ -41,6 +42,7 @@ export function siteTypeIconPath(siteType: string, resolvedMode: 'light' | 'dark
   if (type === 'codex') return '/oauth-icons/codex.svg'
   if (type === 'antigravity') return '/oauth-icons/antigravity.png'
   if (type === 'claude_code') return '/oauth-icons/claudecode.png'
+  if (type === 'typesafe') return resolveThemedIconPath('/brand-icons/typesafe-dark.png', 'TypeSafe', resolvedMode)
   return undefined
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { inferFallbackBrand } from './brands'
-import { resolveThemedIconPath } from '@/components/common/brand-utils'
+import { getProviderCatalogEntry, getProviderCatalogEntryByName, inferFallbackBrand } from './brands'
+import { resolveThemedIconPath, siteTypeIconPath } from '@/components/common/brand-utils'
 
 describe('inferFallbackBrand', () => {
   it.each([
@@ -24,6 +24,7 @@ describe('inferFallbackBrand', () => {
     ['hy3-preview', 'Hunyuan'],
     ['tencent-hunyuan-mt-7b', 'Hunyuan'],
     ['sensenova-u1-fast', 'SenseNova'],
+    ['jev-latest', 'TypeSafe'],
   ])('recognizes %s as %s', (model, brand) => {
     expect(inferFallbackBrand([model])).toBe(brand)
   })
@@ -32,10 +33,24 @@ describe('inferFallbackBrand', () => {
     expect(inferFallbackBrand(['mygptproxy'])).toBe('Other Brands')
   })
 
+  it('includes TypeSafe in the provider catalog', () => {
+    const entry = getProviderCatalogEntry('typesafe')
+    expect(entry).toMatchObject({
+      id: 'typesafe',
+      name: 'TypeSafe',
+      iconPath: '/brand-icons/typesafe-dark.png',
+    })
+    expect(getProviderCatalogEntryByName('TypeSafe')).toBe(entry)
+  })
+
   it('uses light variants for new monochrome brand icons', () => {
     expect(resolveThemedIconPath('/brand-icons/vidu-dark.png', 'Vidu', 'light')).toBe('/brand-icons/vidu-light.png')
     expect(resolveThemedIconPath('/brand-icons/vidu-dark.png', 'Vidu', 'dark')).toBe('/brand-icons/vidu-dark.png')
     expect(resolveThemedIconPath('/brand-icons/kuaishou.svg', 'Kuaishou', 'light')).toBe('/brand-icons/kuaishou.svg')
     expect(resolveThemedIconPath('/brand-icons/hunyuan-dark.png', 'Hunyuan', 'light')).toBe('/brand-icons/hunyuan-light.png')
+    expect(resolveThemedIconPath('/brand-icons/typesafe-dark.png', 'TypeSafe', 'dark')).toBe('/brand-icons/typesafe-dark.png')
+    expect(resolveThemedIconPath('/brand-icons/typesafe-dark.png', 'TypeSafe', 'light')).toBe('/brand-icons/typesafe-light.png')
+    expect(siteTypeIconPath('typesafe', 'light')).toBe('/brand-icons/typesafe-light.png')
+    expect(siteTypeIconPath('typesafe', 'dark')).toBe('/brand-icons/typesafe-dark.png')
   })
 })

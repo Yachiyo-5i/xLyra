@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/adapter"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/store"
 )
@@ -20,6 +21,7 @@ const (
 	upstreamEndpointTypeOpenAIAudioSpeech = "openai-audio-speech"
 	upstreamEndpointTypeGoogleGemini      = "google-gemini"
 	upstreamEndpointTypeAnthropicMessages = "anthropic-messages"
+	upstreamEndpointTypeTypeSafeSystemOne = adapter.TypeSafeSystemOneEndpointType
 )
 
 func isAnthropicSite(siteType string) bool {
@@ -36,6 +38,9 @@ func (r openAIProtocolResolver) Resolve(ctx context.Context, request gatewayRequ
 	}
 	if request.DownstreamPath == gatewayEndpointEmbeddings {
 		return newOpenAIEmbeddingsProtocolAdapter(request, candidate), nil
+	}
+	if request.DownstreamPath == gatewayEndpointTypeSafeSystemOne {
+		return typeSafeSystemOneProtocolAdapter{}, nil
 	}
 
 	if request.DownstreamPath == gatewayEndpointAudioSpeech && isMiMoV25TTSModel(candidate.Model.UpstreamName) {
@@ -148,6 +153,8 @@ func endpointTypesAllowRequest(request gatewayRequest, endpointTypes []string) b
 	switch {
 	case request.DownstreamPath == gatewayEndpointEmbeddings:
 		return allowed(upstreamEndpointTypeOpenAIEmbedding)
+	case request.DownstreamPath == gatewayEndpointTypeSafeSystemOne:
+		return allowed(upstreamEndpointTypeTypeSafeSystemOne)
 	case request.DownstreamPath == gatewayEndpointAudioSpeech:
 		return allowed(upstreamEndpointTypeOpenAIAudioSpeech, upstreamEndpointTypeOpenAI, upstreamEndpointTypeGoogleGemini)
 	case isOpenAIImagesEndpoint(request.DownstreamPath):

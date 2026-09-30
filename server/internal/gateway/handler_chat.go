@@ -45,6 +45,10 @@ func (h Handler) AudioSpeech(w http.ResponseWriter, r *http.Request) {
 	h.serveEndpoint(w, r, audioSpeechEndpointAdapter{}, openAIProtocolResolver{db: h.db})
 }
 
+func (h Handler) TypeSafeSystemOne(w http.ResponseWriter, r *http.Request) {
+	h.serveEndpoint(w, r, typeSafeSystemOneEndpointAdapter{}, openAIProtocolResolver{db: h.db})
+}
+
 func (h Handler) GeminiGenerateContent(stream bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		h.serveEndpoint(w, r, geminiGenerateContentEndpointAdapter{stream: stream}, openAIProtocolResolver{db: h.db})

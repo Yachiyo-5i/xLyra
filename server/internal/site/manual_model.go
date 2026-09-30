@@ -29,6 +29,7 @@ var allowedManualEndpointTypes = map[string]struct{}{
 	"openai-audio-speech": {},
 	"anthropic-messages":  {},
 	"google-gemini":       {},
+	"typesafe-systemone":  {},
 }
 
 func (s *Service) CreateManualSiteModel(ctx context.Context, params CreateManualSiteModelParams) (store.SiteModel, error) {

@@ -90,6 +90,7 @@ const (
 	gatewayEndpointImagesEdits       = "/v1/images/edits"
 	gatewayEndpointEmbeddings        = "/v1/embeddings"
 	gatewayEndpointAudioSpeech       = "/v1/audio/speech"
+	gatewayEndpointTypeSafeSystemOne = "/v1/systemone"
 	gatewayEndpointGeminiModels      = "/v1beta/models"
 	gatewayEndpointGeminiGenerate    = "/v1beta/models/{model}:generateContent"
 )

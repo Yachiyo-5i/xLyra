@@ -97,7 +97,7 @@ export function SiteModelTestSheet({
       if (!site) throw new Error('site required')
       const result = await testSiteModel(site.id, model.id, {
         protocol,
-        stream: streamMode === 'stream',
+        stream: protocol !== 'systemone' && streamMode === 'stream',
         siteCredentialId: selectedCredentialId === AUTO_CREDENTIAL_ID ? undefined : selectedCredentialId,
       })
       return { modelId: model.id, result }
@@ -195,7 +195,14 @@ export function SiteModelTestSheet({
         />
       </div>
       <div className={site?.supports_multiple_api_keys ? 'grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3' : 'grid grid-cols-2 gap-2 sm:gap-3'}>
-        <Select value={protocol} onValueChange={(value) => setProtocol(value as SiteModelTestProtocol)}>
+        <Select
+          value={protocol}
+          onValueChange={(value) => {
+            const nextProtocol = value as SiteModelTestProtocol
+            setProtocol(nextProtocol)
+            if (nextProtocol === 'systemone') setStreamMode('non_stream')
+          }}
+        >
           <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
             <SelectValue />
           </SelectTrigger>
@@ -204,9 +211,14 @@ export function SiteModelTestSheet({
             <SelectItem value="chat_completions">{t('test.protocol.chatCompletions')}</SelectItem>
             <SelectItem value="responses">{t('test.protocol.responses')}</SelectItem>
             <SelectItem value="messages">{t('test.protocol.messages')}</SelectItem>
+            <SelectItem value="systemone">{t('test.protocol.systemOne')}</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={streamMode} onValueChange={(value) => setStreamMode(value as SiteModelTestStreamMode)}>
+        <Select
+          value={protocol === 'systemone' ? 'non_stream' : streamMode}
+          onValueChange={(value) => setStreamMode(value as SiteModelTestStreamMode)}
+          disabled={protocol === 'systemone'}
+        >
           <SelectTrigger className="h-10 min-w-0 px-3 sm:px-4">
             <SelectValue />
           </SelectTrigger>

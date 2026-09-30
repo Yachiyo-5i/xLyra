@@ -30,6 +30,7 @@ const (
 	siteModelTestProtocolChatCompletions = "chat_completions"
 	siteModelTestProtocolResponses       = "responses"
 	siteModelTestProtocolMessages        = "messages"
+	siteModelTestProtocolSystemOne       = "systemone"
 )
 
 type SiteModelTestInput struct {
@@ -128,6 +129,9 @@ func (h Handler) TestSiteModel(ctx context.Context, input SiteModelTestInput) (S
 	stream := true
 	if input.Stream != nil {
 		stream = *input.Stream
+	}
+	if protocolMode == siteModelTestProtocolSystemOne {
+		stream = false
 	}
 
 	site, err := store.NewSiteRepository(h.db.DB()).GetByID(ctx, input.SiteID)
@@ -533,9 +537,9 @@ func selectSiteModelTestGatewayCredential(credentials []store.GatewayCredential,
 
 func (h Handler) siteModelTestProtocolAdapter(ctx context.Context, request gatewayRequest, candidate routeengine.Candidate, protocol string) (gatewayProtocolAdapter, error) {
 	switch protocol {
-	case "", siteModelTestProtocolAuto, siteModelTestProtocolChatCompletions, siteModelTestProtocolResponses, siteModelTestProtocolMessages:
+	case "", siteModelTestProtocolAuto, siteModelTestProtocolChatCompletions, siteModelTestProtocolResponses, siteModelTestProtocolMessages, siteModelTestProtocolSystemOne:
 	default:
-		return nil, siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
+		return nil, siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, messages, or systemone")
 	}
 	resolved, err := (openAIProtocolResolver{db: h.db}).Resolve(ctx, request, candidate)
 	if err != nil {
@@ -645,6 +649,11 @@ func siteModelTestDownstreamPath(endpointTypes []string) (string, error) {
 	if len(endpointTypes) == 0 {
 		return "", siteModelTestError(http.StatusBadRequest, "model_test_protocol_unavailable", "model has no enabled protocols for this API key")
 	}
+	for _, endpointType := range endpointTypes {
+		if normalizeEndpointType(endpointType) == upstreamEndpointTypeTypeSafeSystemOne {
+			return gatewayEndpointTypeSafeSystemOne, nil
+		}
+	}
 	supportsText := false
 	for _, endpointType := range endpointTypes {
 		switch normalizeEndpointType(endpointType) {
@@ -677,8 +686,10 @@ func normalizeSiteModelTestProtocol(value string) (string, error) {
 		return siteModelTestProtocolResponses, nil
 	case siteModelTestProtocolMessages, "anthropic_messages", "anthropic-messages", "/messages", gatewayEndpointMessages:
 		return siteModelTestProtocolMessages, nil
+	case siteModelTestProtocolSystemOne, "typesafe_systemone", "typesafe-systemone", "/systemone", gatewayEndpointTypeSafeSystemOne:
+		return siteModelTestProtocolSystemOne, nil
 	default:
-		return "", siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
+		return "", siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, messages, or systemone")
 	}
 }
 
@@ -693,8 +704,14 @@ func siteModelTestDownstreamPathForProtocol(endpointTypes []string, protocol str
 		path = gatewayEndpointResponses
 	case siteModelTestProtocolMessages:
 		path = gatewayEndpointMessages
+	case siteModelTestProtocolSystemOne:
+		path = gatewayEndpointTypeSafeSystemOne
+		if !endpointTypesAllowSystemOneRequest(endpointTypes) {
+			return "", siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", fmt.Sprintf("protocol %s is not enabled for the selected API key and model", protocol))
+		}
+		return path, nil
 	default:
-		return "", siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, or messages")
+		return "", siteModelTestError(http.StatusBadRequest, "invalid_protocol", "protocol must be auto, chat_completions, responses, messages, or systemone")
 	}
 	if !endpointTypesAllowTextRequest(endpointTypes) {
 		return "", siteModelTestError(http.StatusBadRequest, "model_test_protocol_unsupported", fmt.Sprintf("protocol %s is not enabled for the selected API key and model", protocol))
@@ -712,9 +729,30 @@ func endpointTypesAllowTextRequest(endpointTypes []string) bool {
 	return false
 }
 
+func endpointTypesAllowSystemOneRequest(endpointTypes []string) bool {
+	for _, endpointType := range endpointTypes {
+		if normalizeEndpointType(endpointType) == upstreamEndpointTypeTypeSafeSystemOne {
+			return true
+		}
+	}
+	return false
+}
+
 func siteModelTestGatewayRequest(path string, model string, prompt string, stream bool) (gatewayRequest, error) {
 	payload := map[string]any{}
 	switch path {
+	case gatewayEndpointTypeSafeSystemOne:
+		payload = map[string]any{
+			"model": model,
+			"state": prompt,
+			"questions": map[string]any{
+				"test": map[string]any{
+					"type":         "noul",
+					"instructions": "Is the supplied state non-empty?",
+				},
+			},
+		}
+		return gatewayRequest{DownstreamPath: path, RequestedModel: model, Stream: false, Payload: payload, Diagnostic: true}, nil
 	case gatewayEndpointMessages:
 		payload = map[string]any{
 			"model":      model,

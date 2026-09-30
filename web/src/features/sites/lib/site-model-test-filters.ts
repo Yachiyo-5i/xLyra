@@ -6,6 +6,7 @@ const PROTOCOL_ENDPOINT_TYPES: Record<Exclude<SiteModelTestProtocol, 'auto'>, re
   chat_completions: ['openai', 'google-gemini'],
   responses: ['openai-response'],
   messages: ['anthropic-messages'],
+  systemone: ['typesafe-systemone'],
 }
 
 export function filterSiteModelTestModels(input: {

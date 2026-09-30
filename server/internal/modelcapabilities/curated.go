@@ -145,7 +145,8 @@ func UsesModelNameEndpointInference(siteType string) bool {
 	case "newapi", "codex", "antigravity",
 		"opencode_go",
 		"deepseek", "minimax", "xiaomi_mimo", "moonshot", "kimi_code",
-		"google", "google_gemini", "zhipu", "glm_code":
+		"google", "google_gemini", "zhipu", "glm_code",
+		"typesafe":
 		return false
 	default:
 		return true

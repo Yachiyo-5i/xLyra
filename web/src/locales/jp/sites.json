@@ -177,6 +177,7 @@
       "xiaomi_mimo": "Xiaomi MiMo API キーで接続",
       "moonshot": "Moonshot プラットフォームの API キーで接続",
       "kimi_code": "Kimi コーディングモデル API キーで接続",
+      "typesafe": "TypeSafe Jev 意思決定モデルの API キーで接続",
       "zhipu": "Zhipu GLM 汎用 API キーで接続",
       "glm_code": "GLM Coding Plan API キーで接続",
       "newapi": "自ホストまたはサードパーティパネルにはシステムトークンを使用",
@@ -339,6 +340,13 @@
       "success": "成功",
       "failed": "失敗",
       "untested": "未テスト"
+    },
+    "protocol": {
+      "auto": "自動選択",
+      "chatCompletions": "/chat/completions",
+      "responses": "/responses",
+      "messages": "/messages",
+      "systemOne": "/systemone"
     },
     "credential": {
       "auto": "Key を自動選択"

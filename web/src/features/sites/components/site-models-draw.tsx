@@ -812,6 +812,7 @@ const MANUAL_ENDPOINT_TYPES = [
   'openai-audio-speech',
   'anthropic-messages',
   'google-gemini',
+  'typesafe-systemone',
 ]
 
 const MANUAL_ENDPOINT_TYPE_OPTIONS: MultiSelectOption[] = MANUAL_ENDPOINT_TYPES.map((value) => ({
@@ -830,6 +831,8 @@ function defaultManualEndpointTypes(site: Site | null) {
     case 'codex':
     case 'antigravity':
       return ['openai-response']
+    case 'typesafe':
+      return ['typesafe-systemone']
     default:
       return ['openai']
   }

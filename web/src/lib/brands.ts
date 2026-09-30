@@ -20,6 +20,7 @@ type ProviderId =
   | 'flux'
   | 'hunyuan'
   | 'sensenova'
+  | 'typesafe'
 
 export type ProviderCatalogEntry = {
   id: ProviderId
@@ -49,6 +50,7 @@ export const providerCatalog: ProviderCatalogEntry[] = [
   { id: 'flux', name: 'FLUX', iconPath: '/brand-icons/flux-dark.png' },
   { id: 'hunyuan', name: 'Hunyuan', iconPath: '/brand-icons/hunyuan-dark.png' },
   { id: 'sensenova', name: 'SenseNova', iconPath: '/brand-icons/sensenova-dark.png' },
+  { id: 'typesafe', name: 'TypeSafe', iconPath: '/brand-icons/typesafe-dark.png' },
 ]
 
 const providerCatalogMap = new Map(providerCatalog.map((p) => [p.id, p]))
@@ -60,6 +62,11 @@ export const OTHER_BRAND_LABEL = 'Other Brands'
 
 export function getProviderCatalogEntry(id: string): ProviderCatalogEntry | undefined {
   return providerCatalogMap.get(id as ProviderId)
+}
+
+export function getProviderCatalogEntryByName(name: string): ProviderCatalogEntry | undefined {
+  const normalized = name.trim().toLowerCase()
+  return providerCatalog.find((provider) => provider.name.toLowerCase() === normalized)
 }
 
 export function brandGroupKey(brand: string): string {
@@ -93,6 +100,7 @@ export function inferFallbackBrand(candidates: string[]): string {
   if (hasBrandFamily(candidates, ['flux'])) return 'FLUX'
   if (hasBrandFamily(candidates, ['hy', 'hunyuan'])) return 'Hunyuan'
   if (hasBrandFamily(candidates, ['sensenova'])) return 'SenseNova'
+  if (hasBrandFamily(candidates, ['jev', 'typesafe'])) return 'TypeSafe'
   if (hasBrandFamily(candidates, ['llama', 'meta'])) return 'Meta'
   if (hasBrandFamily(candidates, ['mistral'])) return 'Mistral'
 

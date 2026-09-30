@@ -30,6 +30,7 @@ import {
   brandGroupKey,
   brandOrderIndex,
   getProviderCatalogEntry,
+  getProviderCatalogEntryByName,
   inferFallbackBrand,
 } from '@/lib/brands'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
@@ -192,6 +193,9 @@ export function buildMarketplaceModels(
             site.name,
             site.base_url,
           ])
+      const inferredProvider = canonical
+        ? undefined
+        : getProviderCatalogEntryByName(brand)
       const group = grouped.get(canonicalName) ?? {
         id: canonicalName,
         canonicalModelId: canonical?.id,
@@ -203,9 +207,9 @@ export function buildMarketplaceModels(
           canonical?.display_name ||
           model.display_name ||
           model.upstream_model_name,
-        providerId: canonicalProvider?.id ?? 'other',
+        providerId: canonicalProvider?.id ?? inferredProvider?.id ?? 'other',
         brand,
-        iconPath: canonical?.icon_url ?? canonicalProvider?.iconPath,
+        iconPath: canonical?.icon_url ?? canonicalProvider?.iconPath ?? inferredProvider?.iconPath,
         supportedSites: [],
       }
 

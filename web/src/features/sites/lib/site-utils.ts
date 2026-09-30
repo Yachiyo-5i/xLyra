@@ -98,6 +98,7 @@ export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[]
   if (t === 'kimi_code') return 'Kimi Code'
   if (t === 'zhipu') return 'GLM'
   if (t === 'glm_code') return 'GLM Code'
+  if (t === 'typesafe') return 'TypeSafe'
   return siteType
 }
 

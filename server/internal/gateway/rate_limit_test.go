@@ -94,7 +94,7 @@ func TestWriteRateLimitFailureDefaultsRetryAfterToOneSecond(t *testing.T) {
 func TestEndpointUsesTPMForTokenBilledGenerationEndpoints(t *testing.T) {
 	t.Parallel()
 
-	for _, endpoint := range []string{gatewayEndpointChatCompletions, gatewayEndpointResponses, gatewayEndpointMessages, gatewayEndpointAudioSpeech} {
+	for _, endpoint := range []string{gatewayEndpointChatCompletions, gatewayEndpointResponses, gatewayEndpointMessages, gatewayEndpointAudioSpeech, gatewayEndpointTypeSafeSystemOne} {
 		if !endpointUsesTPM(endpoint) {
 			t.Fatalf("expected %s to reserve TPM", endpoint)
 		}

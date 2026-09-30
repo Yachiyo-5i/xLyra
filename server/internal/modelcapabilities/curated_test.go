@@ -116,6 +116,7 @@ func TestUsesModelNameEndpointInferencePreservesSpecializedChannels(t *testing.T
 	for _, siteType := range []string{
 		"newapi", "codex", "antigravity", "deepseek", "minimax", "xiaomi_mimo",
 		"moonshot", "kimi_code", "google", "google_gemini", "zhipu", "glm_code",
+		"typesafe",
 	} {
 		if UsesModelNameEndpointInference(siteType) {
 			t.Errorf("UsesModelNameEndpointInference(%q) = true, want false", siteType)

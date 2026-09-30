@@ -41,6 +41,18 @@ func TestSiteModelTestDownstreamPathUsesResponses(t *testing.T) {
 	}
 }
 
+func TestSiteModelTestDownstreamPathUsesTypeSafeSystemOne(t *testing.T) {
+	t.Parallel()
+
+	path, err := siteModelTestDownstreamPath([]string{upstreamEndpointTypeTypeSafeSystemOne})
+	if err != nil {
+		t.Fatalf("siteModelTestDownstreamPath returned error: %v", err)
+	}
+	if path != gatewayEndpointTypeSafeSystemOne {
+		t.Fatalf("path = %q, want %q", path, gatewayEndpointTypeSafeSystemOne)
+	}
+}
+
 func TestSiteModelTestDownstreamPathRejectsImageOnlyModel(t *testing.T) {
 	t.Parallel()
 
@@ -102,11 +114,46 @@ func TestSiteModelTestGatewayRequestBuildsNonStreamResponsesRequest(t *testing.T
 	}
 }
 
+func TestSiteModelTestGatewayRequestBuildsTypeSafeSystemOneRequest(t *testing.T) {
+	t.Parallel()
+
+	request, err := siteModelTestGatewayRequest(gatewayEndpointTypeSafeSystemOne, "jev-latest", "check this", true)
+	if err != nil {
+		t.Fatalf("siteModelTestGatewayRequest returned error: %v", err)
+	}
+	if request.Stream {
+		t.Fatal("expected TypeSafe systemone request to be non-streaming")
+	}
+	if request.Canonical != nil {
+		t.Fatal("expected TypeSafe systemone request to skip canonical text conversion")
+	}
+	if got := request.Payload["model"]; got != "jev-latest" {
+		t.Fatalf("model = %#v, want jev-latest", got)
+	}
+	if got := request.Payload["state"]; got != "check this" {
+		t.Fatalf("state = %#v, want check this", got)
+	}
+	questions, ok := request.Payload["questions"].(map[string]any)
+	if !ok {
+		t.Fatalf("questions = %#v, want object", request.Payload["questions"])
+	}
+	if _, ok := questions["test"]; !ok {
+		t.Fatalf("questions = %#v, want test question", questions)
+	}
+}
+
 func TestSiteModelTestDownstreamPathAllowsProtocolConversion(t *testing.T) {
 	t.Parallel()
 	path, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeAnthropicMessages}, siteModelTestProtocolResponses)
 	if err != nil || path != gatewayEndpointResponses {
 		t.Fatalf("responses protocol path = %q err=%v", path, err)
+	}
+	path, err = siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeTypeSafeSystemOne}, siteModelTestProtocolSystemOne)
+	if err != nil || path != gatewayEndpointTypeSafeSystemOne {
+		t.Fatalf("systemone protocol path = %q err=%v", path, err)
+	}
+	if _, err := siteModelTestDownstreamPathForProtocol([]string{upstreamEndpointTypeOpenAI}, siteModelTestProtocolSystemOne); err == nil {
+		t.Fatal("expected systemone protocol to reject non-TypeSafe models")
 	}
 	for _, endpoints := range [][]string{nil, {}} {
 		_, err := siteModelTestDownstreamPathForProtocol(endpoints, siteModelTestProtocolAuto)
@@ -163,6 +210,24 @@ func TestSiteModelTestProtocolAdapterHonorsManualProtocol(t *testing.T) {
 				t.Fatalf("ProtocolName = %q, want %q", got, tt.wantProtocol)
 			}
 		})
+	}
+}
+
+func TestSiteModelTestProtocolAdapterHonorsManualSystemOne(t *testing.T) {
+	t.Parallel()
+
+	request, err := siteModelTestGatewayRequest(gatewayEndpointTypeSafeSystemOne, "jev-latest", "Reply with only: ok", true)
+	if err != nil {
+		t.Fatalf("siteModelTestGatewayRequest returned error: %v", err)
+	}
+	candidate := siteModelTestRouteCandidate()
+	candidate.Model.SupportedEndpointTypes = []string{upstreamEndpointTypeTypeSafeSystemOne}
+	adapter, err := (Handler{}).siteModelTestProtocolAdapter(context.Background(), request, candidate, siteModelTestProtocolSystemOne)
+	if err != nil {
+		t.Fatalf("siteModelTestProtocolAdapter returned error: %v", err)
+	}
+	if got := adapter.ProtocolName(); got != "typesafe_systemone" {
+		t.Fatalf("ProtocolName = %q, want typesafe_systemone", got)
 	}
 }
 
@@ -455,6 +520,7 @@ func TestSiteModelTestNativeProtocolResolution(t *testing.T) {
 		{siteType: "codex", endpoints: []string{"openai", "openai-response"}, wantProtocol: "codex_responses"},
 		{siteType: "antigravity", endpoints: []string{"openai", "openai-response", "google-gemini"}, wantProtocol: "antigravity_generate_content"},
 		{siteType: "anthropic", endpoints: []string{"openai"}, wantProtocol: "anthropic_messages_to_chat_completions"},
+		{siteType: "typesafe", endpoints: []string{"typesafe-systemone"}, wantProtocol: "typesafe_systemone"},
 	} {
 		t.Run(tt.siteType, func(t *testing.T) {
 			candidate := siteModelTestRouteCandidate()

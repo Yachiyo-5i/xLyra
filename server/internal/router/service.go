@@ -392,6 +392,8 @@ func endpointTypeFamily(endpointType string) string {
 		return "embedding"
 	case "openai-audio-speech":
 		return "audio-speech"
+	case "typesafe-systemone":
+		return "systemone"
 	default:
 		return ""
 	}
