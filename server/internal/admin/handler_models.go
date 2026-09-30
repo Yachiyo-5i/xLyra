@@ -449,6 +449,8 @@ func providerIconURL(provider string) string {
 		return "/brand-icons/hunyuan-dark.png"
 	case "sensenova":
 		return "/brand-icons/sensenova-dark.png"
+	case "typesafe":
+		return "/brand-icons/typesafe-dark.png"
 	default:
 		return ""
 	}

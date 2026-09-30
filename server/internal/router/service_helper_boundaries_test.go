@@ -149,6 +149,7 @@ func TestRouteCandidateSupportsEndpointEdgeCases(t *testing.T) {
 		{name: "image request accepts Gemini upstream", endpointType: "gemini-image", supported: []string{"google-gemini"}, want: true},
 		{name: "image request accepts OpenAI upstream", endpointType: "gemini-image", supported: []string{"openai-image"}, want: true},
 		{name: "systemone request accepts systemone upstream", endpointType: "typesafe-systemone", supported: []string{"typesafe-systemone"}, want: true},
+		{name: "catalog systemone accepts TypeSafe upstream", endpointType: "systemone", supported: []string{"typesafe-systemone"}, want: true},
 		{name: "systemone request rejects chat upstream", endpointType: "typesafe-systemone", supported: []string{"openai", "openai-response"}, want: false},
 		{name: "chat request rejects systemone upstream", endpointType: "openai", supported: []string{"typesafe-systemone"}, want: false},
 	} {

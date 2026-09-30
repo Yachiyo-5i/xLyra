@@ -1613,6 +1613,8 @@ function normalizeEndpointType(value: string): string {
       return 'anthropic-messages'
     case 'gemini':
       return 'google-gemini'
+    case 'systemone':
+      return 'typesafe-systemone'
     default:
       return value.trim().toLowerCase()
   }

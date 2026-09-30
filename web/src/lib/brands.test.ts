@@ -41,6 +41,7 @@ describe('inferFallbackBrand', () => {
       iconPath: '/brand-icons/typesafe-dark.png',
     })
     expect(getProviderCatalogEntryByName('TypeSafe')).toBe(entry)
+    expect(getProviderCatalogEntry(' TYPESAFE ')).toBe(entry)
   })
 
   it('uses light variants for new monochrome brand icons', () => {

@@ -184,6 +184,7 @@ export function buildMarketplaceModels(
       const canonicalProvider = canonical
         ? getProviderCatalogEntry(canonical.provider)
         : undefined
+      const canonicalIconPath = canonical?.icon_url?.trim()
       const brand = canonical
         ? (canonicalProvider?.name ?? canonical.provider)
         : inferFallbackBrand([
@@ -209,7 +210,7 @@ export function buildMarketplaceModels(
           model.upstream_model_name,
         providerId: canonicalProvider?.id ?? inferredProvider?.id ?? 'other',
         brand,
-        iconPath: canonical?.icon_url ?? canonicalProvider?.iconPath ?? inferredProvider?.iconPath,
+        iconPath: canonicalIconPath || canonicalProvider?.iconPath || inferredProvider?.iconPath,
         supportedSites: [],
       }
 
@@ -403,17 +404,20 @@ export function buildBrandItems(
   for (const model of models) {
     const key = brandGroupKey(model.brand)
     const label = key === OTHER_BRAND_KEY ? OTHER_BRAND_LABEL : model.brand
+    const providerIconPath = key === OTHER_BRAND_KEY
+      ? undefined
+      : getProviderCatalogEntryByName(model.brand)?.iconPath
     const item = map.get(key) ?? {
       key,
       label,
       count: 0,
-      iconPath: key === OTHER_BRAND_KEY ? undefined : model.iconPath,
+      iconPath: model.iconPath || providerIconPath,
       fallbackText: key === OTHER_BRAND_KEY ? '?' : undefined,
     }
 
     item.count += 1
-    if (!item.iconPath && key !== OTHER_BRAND_KEY && model.iconPath) {
-      item.iconPath = model.iconPath
+    if (!item.iconPath && key !== OTHER_BRAND_KEY) {
+      item.iconPath = model.iconPath || providerIconPath
     }
 
     map.set(key, item)
@@ -676,6 +680,8 @@ function normalizeEndpointType(value: string): string {
       return 'anthropic-messages'
     case 'gemini':
       return 'google-gemini'
+    case 'systemone':
+      return 'typesafe-systemone'
     default:
       return value.trim().toLowerCase()
   }

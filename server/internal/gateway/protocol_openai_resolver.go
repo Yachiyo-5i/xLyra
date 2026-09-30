@@ -312,7 +312,11 @@ func shouldUseOpenAIResponses(request gatewayRequest, candidate routeengine.Cand
 }
 
 func normalizeEndpointType(value string) string {
-	return strings.TrimSpace(strings.ToLower(value))
+	normalized := strings.TrimSpace(strings.ToLower(value))
+	if normalized == "systemone" {
+		return upstreamEndpointTypeTypeSafeSystemOne
+	}
+	return normalized
 }
 
 func containsEndpointType(types []string, target string) bool {

@@ -130,6 +130,9 @@ func TestEndpointTypeHelpersMatchResponsesRouting(t *testing.T) {
 	if !containsEndpointType([]string{" OpenAI-Response ", "google-gemini"}, "openai-response") {
 		t.Fatal("expected endpoint type match to be case and whitespace insensitive")
 	}
+	if !containsEndpointType([]string{"systemone"}, upstreamEndpointTypeTypeSafeSystemOne) {
+		t.Fatal("expected systemone endpoint alias to match")
+	}
 	if containsEndpointType(nil, "openai-response") {
 		t.Fatal("expected nil endpoint types not to match")
 	}

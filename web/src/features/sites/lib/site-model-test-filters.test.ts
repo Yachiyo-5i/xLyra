@@ -64,6 +64,18 @@ describe('filterSiteModelTestModels', () => {
     expect(visible.map((item) => item.id)).toEqual(['systemone'])
   })
 
+  it('matches the catalog systemone endpoint alias', () => {
+    const visible = filterSiteModelTestModels({
+      models: [model('systemone-catalog', ['systemone'])],
+      apiKeys: [],
+      protocol: 'systemone',
+      credentialId: 'auto',
+      supportsMultipleAPIKeys: false,
+    })
+
+    expect(visible.map((item) => item.id)).toEqual(['systemone-catalog'])
+  })
+
   it('uses any enabled key when the credential is automatic', () => {
     const visible = filterSiteModelTestModels({
       models: [chatModel, responsesModel],

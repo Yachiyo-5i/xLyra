@@ -307,6 +307,9 @@ func TestProviderIconURL(t *testing.T) {
 	if got := providerIconURL("hunyuan"); got != "/brand-icons/hunyuan-dark.png" {
 		t.Fatalf("hunyuan icon = %q", got)
 	}
+	if got := providerIconURL("typesafe"); got != "/brand-icons/typesafe-dark.png" {
+		t.Fatalf("typesafe icon = %q", got)
+	}
 	if got := providerIconURL("unknown-provider"); got != "" {
 		t.Fatalf("unknown provider icon = %q, want empty", got)
 	}

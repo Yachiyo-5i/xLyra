@@ -61,7 +61,7 @@ export const OTHER_BRAND_KEY = 'other'
 export const OTHER_BRAND_LABEL = 'Other Brands'
 
 export function getProviderCatalogEntry(id: string): ProviderCatalogEntry | undefined {
-  return providerCatalogMap.get(id as ProviderId)
+  return providerCatalogMap.get(id.trim().toLowerCase() as ProviderId)
 }
 
 export function getProviderCatalogEntryByName(name: string): ProviderCatalogEntry | undefined {

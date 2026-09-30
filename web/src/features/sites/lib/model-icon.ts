@@ -42,7 +42,7 @@ export function canonicalModelIconInfo(
   const fallback = fallbackName.trim() || canonical.model_key || canonical.display_name
 
   return {
-    iconPath: canonical.icon_url ?? providerEntry?.iconPath,
+    iconPath: canonical.icon_url?.trim() || providerEntry?.iconPath,
     label: providerEntry?.name || provider || fallback,
     fallback,
     fallbackText: buildModelGlyph(fallback),

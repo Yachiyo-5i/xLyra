@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildBrandItems,
+  buildMarketplaceModels,
   effectiveEndpointTypesForSiteModel,
   marketplacePricingRows,
   marketplaceUnpricedCredentialRows,
+  type CanonicalModelItem,
+  type Site,
+  type SiteModel,
 } from './models'
 import { upstreamEndpointTypes } from '../lib/model-helpers'
 
@@ -171,5 +176,80 @@ describe('upstream endpoint types', () => {
 
   it('keeps non-text endpoint types unchanged', () => {
     expect(upstreamEndpointTypes({ name: 'image', enabled: true, effective_endpoint_types: ['openai-image'] })).toEqual(['openai-image'])
+  })
+})
+
+describe('marketplace model branding', () => {
+  const site: Site = {
+    id: 'site-1',
+    name: 'TypeSafe',
+    slug: 'typesafe',
+    site_type: 'typesafe',
+    base_url: 'https://api.typesafe.ai',
+    status: 'active',
+    enabled: true,
+    routing_priority: 1,
+    meta: {},
+    created_at: '',
+    updated_at: '',
+  }
+  const siteModel: SiteModel = {
+    id: 'site-model-1',
+    site_id: 'site-1',
+    canonical_model_id: 'canonical-jev-latest',
+    upstream_model_name: 'jev-latest',
+    display_name: 'Jev Latest',
+    capabilities: { supported_endpoint_types: ['typesafe-systemone'] },
+    status: 'active',
+    created_at: '',
+    updated_at: '',
+  }
+  const canonicalModel: CanonicalModelItem = {
+    id: 'canonical-jev-latest',
+    model_key: 'jev-latest',
+    display_name: 'Jev Latest',
+    provider: ' TYPESAFE ',
+    category: 'chat',
+    capabilities: {},
+    status: 'active',
+    created_at: '',
+    updated_at: '',
+    site_model_count: 1,
+    site_count: 1,
+    icon_url: '',
+    aliases: [],
+  }
+
+  it('uses the TypeSafe catalog icon when canonical icon_url is empty', () => {
+    const [model] = buildMarketplaceModels(
+      [site],
+      { 'site-1': [siteModel] },
+      [],
+      [canonicalModel],
+      {},
+      { enabled: 0, total: 0 },
+    )
+
+    expect(model).toMatchObject({
+      providerId: 'typesafe',
+      brand: 'TypeSafe',
+      iconPath: '/brand-icons/typesafe-dark.png',
+    })
+  })
+
+  it('keeps the TypeSafe icon on the brand filter when a model has no icon path', () => {
+    const items = buildBrandItems([{
+      id: 'canonical:canonical-jev-latest',
+      canonicalModelId: 'canonical-jev-latest',
+      model_key: 'jev-latest',
+      name: 'Jev Latest',
+      providerId: 'typesafe',
+      brand: 'TypeSafe',
+      supportedSites: [],
+    }])
+
+    expect(items.find((item) => item.key === 'TypeSafe')).toMatchObject({
+      iconPath: '/brand-icons/typesafe-dark.png',
+    })
   })
 })

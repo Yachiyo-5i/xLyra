@@ -59,6 +59,9 @@ func NormalizeModelEndpointTypes(values []string) []string {
 	seen := map[string]bool{}
 	for _, value := range values {
 		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "systemone" {
+			value = "typesafe-systemone"
+		}
 		if value != "" && !seen[value] {
 			result = append(result, value)
 			seen[value] = true
