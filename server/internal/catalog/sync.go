@@ -171,24 +171,7 @@ func (s *SyncService) syncCatalogModel(ctx context.Context, repo store.Canonical
 	}
 	modalities, _ := json.Marshal(m.Modalities)
 	endpoints, _ := json.Marshal(m.SupportedEndpointTypes)
-	cacheReadRatio := m.CacheReadRatio
-	cacheWriteRatio := m.CacheWriteRatio
-	cacheWrite1hRatio := m.CacheWrite1hRatio
-	if m.InputPrice != nil && *m.InputPrice > 0 {
-		if v, ok := m.Cost["cache_read"].(float64); ok && cacheReadRatio == nil {
-			x := v / *m.InputPrice
-			cacheReadRatio = &x
-		}
-		if v, ok := m.Cost["cache_write"].(float64); ok && cacheWriteRatio == nil {
-			x := v / *m.InputPrice
-			cacheWriteRatio = &x
-		}
-		if v, ok := m.Cost["cache_write_1h"].(float64); ok && cacheWrite1hRatio == nil {
-			x := v / *m.InputPrice
-			cacheWrite1hRatio = &x
-		}
-	}
-	model, err := repo.SyncUpsert(ctx, store.UpsertCanonicalModelParams{ModelKey: key, DisplayName: m.DisplayName, Provider: defaultString(m.Provider, brand), Category: defaultString(m.Category, InferCategory(key)), Capabilities: encoded, Status: defaultString(m.Status, "active"), SupportedEndpointTypes: store.JSON(endpoints), Modalities: store.JSON(modalities), InputPrice: nullFloat(m.InputPrice), OutputPrice: nullFloat(m.OutputPrice), CacheReadRatio: nullFloat(cacheReadRatio), CacheWriteRatio: nullFloat(cacheWriteRatio), CacheWrite1hRatio: nullFloat(cacheWrite1hRatio), ContextWindow: nullInt(m.ContextWindow), MaxOutputTokens: nullInt(m.MaxOutputTokens), PricingVariants: mustJSON(pricingVariants), PricingSource: store.CanonicalPricingSourceCatalog, LastPricingSyncedAt: sql.NullTime{Time: time.Now(), Valid: true}})
+	model, err := repo.SyncUpsert(ctx, store.UpsertCanonicalModelParams{ModelKey: key, DisplayName: m.DisplayName, Provider: defaultString(m.Provider, brand), Category: defaultString(m.Category, InferCategory(key)), Capabilities: encoded, Status: defaultString(m.Status, "active"), SupportedEndpointTypes: store.JSON(endpoints), Modalities: store.JSON(modalities), InputPrice: nullFloat(m.InputPrice), OutputPrice: nullFloat(m.OutputPrice), CacheReadRatio: nullFloat(m.CacheReadRatio), CacheWriteRatio: nullFloat(m.CacheWriteRatio), CacheWrite1hRatio: nullFloat(m.CacheWrite1hRatio), ContextWindow: nullInt(m.ContextWindow), MaxOutputTokens: nullInt(m.MaxOutputTokens), PricingVariants: mustJSON(pricingVariants), PricingSource: store.CanonicalPricingSourceCatalog, LastPricingSyncedAt: sql.NullTime{Time: time.Now(), Valid: true}})
 	if err != nil {
 		return err
 	}
