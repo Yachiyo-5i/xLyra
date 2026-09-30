@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.13.2...v1.14.0) (2026-09-30)
+
+
+### Features
+
+* 🎸 接入 TypeSafe Jev 决策模型并完善品牌展示 ([f00769e](https://github.com/Yachiyo-5i/xLyra/commit/f00769eaefe2526446f44dd2c18c5667eace3711))
+
+
+### Bug Fixes
+
+* 🐛 让模型缓存价格严格跟随上游目录同步 ([34dd364](https://github.com/Yachiyo-5i/xLyra/commit/34dd36498748773672f113eb948099baefd5f710))
+
 ## [1.13.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.13.1...v1.13.2) (2026-09-29)
 
 
