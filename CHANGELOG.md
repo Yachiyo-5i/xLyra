@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.14.0...v1.14.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* 🐛 修复 TypeSafe 模型协议与品牌图标无法识别的问题 ([35c6d53](https://github.com/Yachiyo-5i/xLyra/commit/35c6d539d392946ed09bd49f41a4720ed9eeb2a9))
+
 ## [1.14.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.13.2...v1.14.0) (2026-09-30)
 
 
