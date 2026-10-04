@@ -174,6 +174,67 @@ func TestDeepSeekAnthropicMessagesDropsUnsupportedPatterns(t *testing.T) {
 	}
 }
 
+func TestDeepSeekPatternCleanupAppliesOnGenericSitesWithoutRetargeting(t *testing.T) {
+	t.Parallel()
+
+	unsupported := `^(?!__.*__$)[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}"\\./[\]]{1,200}$`
+	for _, tc := range []struct {
+		siteType string
+		baseURL  string
+	}{
+		{"newapi", "https://relay.example.test"},
+		{"openai", "https://openai-relay.example.test"},
+		{"oneapi", "https://oneapi.example.test"},
+	} {
+		t.Run(tc.siteType, func(t *testing.T) {
+			t.Parallel()
+			payload := map[string]any{
+				"model":    "deepseek-v4-flash",
+				"messages": []any{map[string]any{"role": "user", "content": "hi"}},
+				"tools": []any{map[string]any{
+					"name": "Artifact",
+					"input_schema": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"name": map[string]any{"type": "string", "pattern": unsupported},
+							"slug": map[string]any{"type": "string", "pattern": "^[a-z]+$"},
+						},
+					},
+				}},
+			}
+			candidate := routeengine.Candidate{
+				Site: routeengine.CandidateSite{SiteType: tc.siteType, BaseURL: tc.baseURL},
+				Model: routeengine.CandidateModel{
+					UpstreamName:           "deepseek-v4-flash",
+					SupportedEndpointTypes: []string{"anthropic-messages"},
+				},
+			}
+			request := gatewayRequest{DownstreamPath: gatewayEndpointMessages, Payload: payload}
+			protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := protocol.ProtocolName(); got != "anthropic_messages" {
+				t.Fatalf("protocol = %q, want generic anthropic adapter", got)
+			}
+			if got := protocol.UpstreamPath(tc.baseURL); got != tc.baseURL+"/v1/messages" {
+				t.Fatalf("UpstreamPath = %q, want site messages URL", got)
+			}
+			payloadOut, err := protocol.BuildUpstreamPayload(request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			properties := payloadOut["tools"].([]any)[0].(map[string]any)["input_schema"].(map[string]any)["properties"].(map[string]any)
+			if _, ok := properties["name"].(map[string]any)["pattern"]; ok {
+				t.Fatalf("unsupported pattern kept on %s", tc.siteType)
+			}
+			if properties["slug"].(map[string]any)["pattern"] != "^[a-z]+$" {
+				t.Fatalf("supported pattern = %#v", properties["slug"])
+			}
+		})
+	}
+}
+
 func TestNonDeepSeekAnthropicMessagesPreservesUnsupportedPatterns(t *testing.T) {
 	t.Parallel()
 

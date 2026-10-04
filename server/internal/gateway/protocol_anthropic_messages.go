@@ -105,9 +105,7 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 	if request.DownstreamPath == gatewayEndpointMessages {
 		payload := clonePayload(request.Payload)
 		payload["model"] = candidate.Model.UpstreamName
-		payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
-		normalizeAnthropicThinkingBudget(payload)
-		return payload, nil
+		return finishAnthropicUpstreamPayload(payload, request, candidate), nil
 	}
 	if request.Canonical != nil {
 		if err := validateGoogleGeminiConversion(*request.Canonical, canonicalProtocolAnthropicMessages); err != nil {
@@ -124,16 +122,46 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 		if err != nil {
 			return nil, err
 		}
-		payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
-		normalizeAnthropicThinkingBudget(payload)
-		return payload, nil
+		return finishAnthropicUpstreamPayload(payload, request, candidate), nil
 	}
 	payload, err := convertRequestBetweenProtocols(canonicalProtocolAnthropicMessages, canonicalProtocolAnthropicMessages, request.Payload, stringFromPayloadModel(request.Payload), candidate)
 	if err != nil {
 		return nil, err
 	}
 	normalizeAnthropicThinkingBudget(payload)
-	return payload, nil
+	return applyDomesticAnthropicRequestBody(payload, request, candidate), nil
+}
+
+func finishAnthropicUpstreamPayload(payload map[string]any, request gatewayRequest, candidate routeengine.Candidate) map[string]any {
+	payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
+	normalizeAnthropicThinkingBudget(payload)
+	return applyDomesticAnthropicRequestBody(payload, request, candidate)
+}
+
+func applyDomesticAnthropicRequestBody(payload map[string]any, request gatewayRequest, candidate routeengine.Candidate) map[string]any {
+	if payload == nil {
+		return payload
+	}
+	provider := matchedModelProvider(candidate.Model.UpstreamName)
+	if provider == "" && payload != nil {
+		provider = matchedModelProvider(stringFromPayloadModel(payload))
+	}
+	if provider == "deepseek" {
+		payload = sanitizeDeepSeekAnthropicPatterns(payload)
+	}
+	if domesticAnthropicBodyProvider(provider) {
+		hydrateProviderAnthropicThinking(payload, candidate, request.DownstreamPath != gatewayEndpointMessages)
+	}
+	return payload
+}
+
+func domesticAnthropicBodyProvider(provider string) bool {
+	switch normalizeSpecKey(provider) {
+	case "deepseek", "zhipu", "glm_code", "minimax", "moonshot", "kimi_code", "xiaomi_mimo":
+		return true
+	default:
+		return false
+	}
 }
 
 func (anthropicMessagesProtocolAdapter) UpstreamPath(baseURL string) string {
@@ -220,10 +248,6 @@ func (a *providerAnthropicMessagesProtocolAdapter) BuildUpstreamPayload(request 
 		return nil, err
 	}
 	a.responseTools = inner.responseTools()
-	if strings.EqualFold(a.provider, "deepseek") {
-		payload = sanitizeDeepSeekAnthropicPatterns(payload)
-	}
-	hydrateProviderAnthropicThinking(payload, candidate, request.DownstreamPath != gatewayEndpointMessages)
 	return applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate), nil
 }
 

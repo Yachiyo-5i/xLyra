@@ -60,58 +60,113 @@ func TestOfficialDeepSeekResponsesInputDropsMessageIDs(t *testing.T) {
 				"role": "assistant",
 			},
 			map[string]any{
+				"type": "message",
+				"id":   "msg_keep",
+				"role": "user",
+			},
+			map[string]any{
 				"type":    "function_call",
 				"id":      "fc_item",
 				"call_id": "call_1",
 			},
+			map[string]any{
+				"type": "reasoning",
+				"id":   "rs_item",
+			},
 		},
 	}
+	candidate := routeengine.Candidate{
+		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
+		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro", SupportedEndpointTypes: []string{"openai-response"}},
+	}
 	request := gatewayRequest{DownstreamPath: gatewayEndpointResponses, Payload: payload}
-	protocol := newOpenAIResponsesProtocolAdapterForCandidate(request, routeengine.Candidate{
-		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
-		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro"},
-	})
+	protocol := newOpenAIResponsesProtocolAdapterForCandidate(request, candidate)
+	if got := protocol.UpstreamPath(candidate.Site.BaseURL); got != "https://api.deepseek.com/responses" {
+		t.Fatalf("UpstreamPath = %q, want official DeepSeek responses URL", got)
+	}
 
-	upstream, err := protocol.BuildUpstreamPayload(request, routeengine.Candidate{
-		Site:  routeengine.CandidateSite{SiteType: "deepseek", BaseURL: "https://api.deepseek.com"},
-		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro"},
-	})
+	upstream, err := protocol.BuildUpstreamPayload(request, candidate)
 	if err != nil {
 		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
 	}
 	items := upstream["input"].([]any)
 	if _, ok := items[0].(map[string]any)["id"]; ok {
-		t.Fatal("official DeepSeek message id should be removed")
+		t.Fatal("non-msg_ DeepSeek message id should be removed")
 	}
-	functionCall := items[1].(map[string]any)
+	if items[1].(map[string]any)["id"] != "msg_keep" {
+		t.Fatalf("valid msg_ id = %#v, want msg_keep", items[1].(map[string]any)["id"])
+	}
+	functionCall := items[2].(map[string]any)
 	if functionCall["id"] != "fc_item" || functionCall["call_id"] != "call_1" {
 		t.Fatalf("function call identifiers changed: %#v", functionCall)
+	}
+	if items[3].(map[string]any)["id"] != "rs_item" {
+		t.Fatalf("reasoning id = %#v, want rs_item", items[3].(map[string]any)["id"])
 	}
 	if payload["input"].([]any)[0].(map[string]any)["id"] != "item_message" {
 		t.Fatal("BuildUpstreamPayload mutated the caller payload")
 	}
 }
 
-func TestNonOfficialDeepSeekResponsesInputPreservesMessageIDs(t *testing.T) {
+func TestNonOfficialDeepSeekResponsesInputDropsNonMsgIDsWithoutRetargeting(t *testing.T) {
 	t.Parallel()
 
-	request := gatewayRequest{
-		DownstreamPath: gatewayEndpointResponses,
-		Payload: map[string]any{
-			"model": "deepseek-v4-pro",
-			"input": []any{map[string]any{"type": "message", "id": "item_message", "role": "assistant"}},
-		},
-	}
-	protocol := newOpenAIResponsesProtocolAdapter(request)
-	upstream, err := protocol.BuildUpstreamPayload(request, routeengine.Candidate{
-		Site:  routeengine.CandidateSite{SiteType: "newapi", BaseURL: "https://api.deepseek.com"},
-		Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4-pro"},
-	})
-	if err != nil {
-		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
-	}
-	if got := upstream["input"].([]any)[0].(map[string]any)["id"]; got != "item_message" {
-		t.Fatalf("non-official DeepSeek message id = %#v, want item_message", got)
+	for _, tc := range []struct {
+		siteType string
+		baseURL  string
+		wantURL  string
+	}{
+		{"newapi", "https://relay.example.test/root", "https://relay.example.test/root/v1/responses"},
+		{"openai", "https://relay.example.test", "https://relay.example.test/v1/responses"},
+		{"oneapi", "https://oneapi.example.test", "https://oneapi.example.test/v1/responses"},
+		{"openai-compatible", "https://compat.example.test", "https://compat.example.test/v1/responses"},
+		{"xlyra", "https://xlyra.example.test", "https://xlyra.example.test/v1/responses"},
+	} {
+		t.Run(tc.siteType, func(t *testing.T) {
+			t.Parallel()
+			payload := map[string]any{
+				"model": "deepseek-v4-pro",
+				"input": []any{
+					map[string]any{"type": "message", "id": "item_message", "role": "assistant"},
+					map[string]any{"type": "message", "id": "msg_keep", "role": "user"},
+					map[string]any{"type": "function_call", "id": "item_fc", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+					map[string]any{"type": "reasoning", "id": "item_rs"},
+				},
+			}
+			candidate := routeengine.Candidate{
+				Site: routeengine.CandidateSite{SiteType: tc.siteType, BaseURL: tc.baseURL},
+				Model: routeengine.CandidateModel{
+					UpstreamName:           "deepseek-v4-pro",
+					SupportedEndpointTypes: []string{"openai", "openai-response"},
+				},
+			}
+			request := gatewayRequest{DownstreamPath: gatewayEndpointResponses, Payload: payload}
+			protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := protocol.UpstreamPath(candidate.Site.BaseURL); got != tc.wantURL {
+				t.Fatalf("UpstreamPath = %q, want %q", got, tc.wantURL)
+			}
+			upstream, err := protocol.BuildUpstreamPayload(request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := upstream["input"].([]any)
+			if _, ok := items[0].(map[string]any)["id"]; ok {
+				t.Fatalf("item_ message id kept on %s: %#v", tc.siteType, items[0])
+			}
+			if items[1].(map[string]any)["id"] != "msg_keep" {
+				t.Fatalf("msg_ id = %#v, want msg_keep", items[1].(map[string]any)["id"])
+			}
+			functionCall := items[2].(map[string]any)
+			if functionCall["id"] != "item_fc" || functionCall["call_id"] != "call_1" {
+				t.Fatalf("function call identifiers changed: %#v", functionCall)
+			}
+			if items[3].(map[string]any)["id"] != "item_rs" {
+				t.Fatalf("reasoning id = %#v, want item_rs", items[3].(map[string]any)["id"])
+			}
+		})
 	}
 }
 
@@ -1136,6 +1191,123 @@ func TestMiMoAnthropicResponsesDegradesToolResultWhenThinkingCacheMissing(t *tes
 				t.Fatalf("degraded MiMo payload must not contain tool_use/tool_result blocks: %#v", messages)
 			}
 		}
+	}
+}
+
+func TestThinkingRoundtripDegradesOnGenericSitesWithoutRetargeting(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		siteType string
+		baseURL  string
+		model    string
+	}{
+		{"newapi", "https://relay.example.test", "deepseek-v4-pro"},
+		{"openai", "https://openai-relay.example.test", "deepseek-v4-pro"},
+		{"newapi", "https://relay.example.test/mimo", "mimo-v2.5-pro"},
+		{"openai", "https://openai-relay.example.test/kimi", "kimi-k2.6"},
+		{"oneapi", "https://oneapi.example.test", "minimax-m2"},
+	} {
+		t.Run(tc.siteType+"/"+tc.model, func(t *testing.T) {
+			t.Parallel()
+			callID := "call_missing_" + strings.ReplaceAll(tc.siteType, "-", "_") + "_" + strings.ReplaceAll(tc.model, ".", "_")
+			candidate := routeengine.Candidate{
+				Site: routeengine.CandidateSite{SiteType: tc.siteType, BaseURL: tc.baseURL},
+				Model: routeengine.CandidateModel{
+					UpstreamName:           tc.model,
+					SupportedEndpointTypes: []string{"anthropic-messages"},
+				},
+			}
+			request := gatewayRequest{
+				DownstreamPath: gatewayEndpointChatCompletions,
+				Canonical: &canonicalRequest{
+					SourceProtocol: canonicalProtocolOpenAIChat,
+					Messages: []canonicalMessage{
+						{Type: "message", Role: "user", Content: []canonicalContentPart{{Type: "input_text", Text: "start"}}},
+						{Type: "message", Role: "assistant", ToolCalls: []canonicalToolCall{{
+							ID:        callID,
+							Type:      "function",
+							Name:      "lookup",
+							Arguments: `{"q":"lost"}`,
+						}}},
+						{Type: "function_call_output", ToolCallID: callID, Output: "result after restart"},
+					},
+				},
+			}
+			protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := protocol.ProtocolName(); strings.Contains(got, tc.siteType) || strings.HasPrefix(got, "deepseek_") || strings.HasPrefix(got, "xiaomi_") || strings.HasPrefix(got, "minimax_") || strings.HasPrefix(got, "moonshot_") {
+				t.Fatalf("protocol = %q, want generic anthropic conversion", got)
+			}
+			if got := protocol.UpstreamPath(tc.baseURL); got != tc.baseURL+"/v1/messages" {
+				t.Fatalf("UpstreamPath = %q, want site messages URL", got)
+			}
+			payload, err := protocol.BuildUpstreamPayload(request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			messages := payload["messages"].([]any)
+			for _, rawMessage := range messages {
+				content, _ := rawMessage.(map[string]any)["content"].([]any)
+				for _, rawBlock := range content {
+					block := rawBlock.(map[string]any)
+					if block["type"] == "tool_use" || block["type"] == "tool_result" {
+						t.Fatalf("unhydrated tool round kept for %s %s: %#v", tc.siteType, tc.model, messages)
+					}
+				}
+			}
+			last := messages[len(messages)-1].(map[string]any)
+			lastContent := last["content"].([]any)
+			if !strings.Contains(lastContent[0].(map[string]any)["text"].(string), "result after restart") {
+				t.Fatalf("degraded tool result missing: %#v", messages)
+			}
+		})
+	}
+}
+
+func TestGLMThinkingHydrateOnOpenAISiteKeepsSiteURL(t *testing.T) {
+	t.Parallel()
+
+	callID := "toolu_glm_openai_site_hydrate"
+	rememberProviderAnthropicThinkingFromMessageBody([]byte(`{"content":[{"type":"thinking","thinking":"glm cached"},{"type":"tool_use","id":"` + callID + `","name":"lookup","input":{}}]}`))
+	baseURL := "https://openai-relay.example.test"
+	candidate := routeengine.Candidate{
+		Site: routeengine.CandidateSite{SiteType: "openai", BaseURL: baseURL},
+		Model: routeengine.CandidateModel{
+			UpstreamName:           "glm-5.3",
+			SupportedEndpointTypes: []string{"anthropic-messages"},
+		},
+	}
+	request := gatewayRequest{
+		DownstreamPath: gatewayEndpointMessages,
+		Payload: map[string]any{
+			"model":      "glm-5.3",
+			"max_tokens": 128,
+			"messages": []any{
+				map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "start"}}},
+				map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "tool_use", "id": callID, "name": "lookup", "input": map[string]any{}}}},
+			},
+		},
+	}
+	protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), request, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := protocol.UpstreamPath(baseURL); got != baseURL+"/v1/messages" {
+		t.Fatalf("UpstreamPath = %q, want the openai site messages URL", got)
+	}
+	payload, err := protocol.BuildUpstreamPayload(request, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := payload["messages"].([]any)[1].(map[string]any)["content"].([]any)
+	if content[0].(map[string]any)["type"] != "thinking" || content[0].(map[string]any)["thinking"] != "glm cached" {
+		t.Fatalf("thinking was not hydrated: %#v", content)
+	}
+	if content[1].(map[string]any)["type"] != "tool_use" {
+		t.Fatalf("tool_use was rewritten: %#v", content)
 	}
 }
 

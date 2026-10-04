@@ -162,7 +162,7 @@ func (a openAIResponsesProtocolAdapter) BuildUpstreamPayload(request gatewayRequ
 	if a.downstreamProtocol == canonicalProtocolOpenAIResponses || request.DownstreamPath == gatewayEndpointResponses {
 		payload := clonePayload(request.Payload)
 		payload["model"] = candidate.Model.UpstreamName
-		if isOfficialDeepSeekResponsesCandidate(candidate) {
+		if isDeepSeekResponsesModel(candidate, payload) {
 			normalizeDeepSeekResponsesInput(payload)
 		}
 		return applyRequestPolicyForCandidate(payload, canonicalProtocolOpenAIResponses, candidate), nil
@@ -180,12 +180,12 @@ func (a openAIResponsesProtocolAdapter) BuildUpstreamPayload(request gatewayRequ
 	return convertRequestBetweenProtocols(canonicalProtocolOpenAIChat, canonicalProtocolOpenAIResponses, request.Payload, stringFromPayloadModel(request.Payload), candidate)
 }
 
-func isOfficialDeepSeekResponsesCandidate(candidate routeengine.Candidate) bool {
-	if !strings.EqualFold(strings.TrimSpace(candidate.Site.SiteType), "deepseek") {
-		return false
+func isDeepSeekResponsesModel(candidate routeengine.Candidate, payload map[string]any) bool {
+	model := strings.TrimSpace(candidate.Model.UpstreamName)
+	if model == "" && payload != nil {
+		model = stringFromPayloadModel(payload)
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(candidate.Site.BaseURL), "/")
-	return baseURL == "" || strings.EqualFold(baseURL, "https://api.deepseek.com")
+	return matchedModelProvider(model) == "deepseek"
 }
 
 func normalizeDeepSeekResponsesInput(payload map[string]any) {
@@ -204,7 +204,10 @@ func normalizeDeepSeekResponsesInput(payload map[string]any) {
 		cloned := clonePayload(item)
 		itemType := strings.TrimSpace(anyString(cloned["type"]))
 		if strings.EqualFold(itemType, "message") || (itemType == "" && strings.TrimSpace(anyString(cloned["role"])) != "") {
-			delete(cloned, "id")
+			id := strings.TrimSpace(anyString(cloned["id"]))
+			if id != "" && !strings.HasPrefix(id, "msg_") {
+				delete(cloned, "id")
+			}
 		}
 		normalized[index] = cloned
 	}

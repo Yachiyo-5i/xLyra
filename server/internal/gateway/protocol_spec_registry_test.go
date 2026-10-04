@@ -787,6 +787,57 @@ func TestMoonshotChatPreservesOutputLimits(t *testing.T) {
 	}
 }
 
+func TestOpenAISiteAppliesDomesticProviderParamsWithoutRetargeting(t *testing.T) {
+	t.Parallel()
+
+	baseURL := "https://relay.example.test"
+	cases := []struct {
+		name  string
+		model string
+	}{
+		{"minimax", "minimax-m2"},
+		{"glm", "glm-5.3"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			candidate := routeengine.Candidate{
+				Site:  routeengine.CandidateSite{SiteType: "openai", BaseURL: baseURL},
+				Model: routeengine.CandidateModel{UpstreamName: tc.model, SupportedEndpointTypes: []string{"openai"}},
+			}
+			payload := map[string]any{"model": tc.model, "messages": []any{map[string]any{"role": "user", "content": "hello"}}}
+			if tc.model == "glm-5.3" {
+				payload["reasoning_effort"] = "none"
+				payload["thinking"] = map[string]any{"type": "disabled"}
+			}
+			request := gatewayRequest{DownstreamPath: gatewayEndpointChatCompletions, Payload: payload}
+			protocol, err := (openAIProtocolResolver{}).Resolve(t.Context(), request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := protocol.UpstreamPath(baseURL); got != baseURL+"/v1/chat/completions" {
+				t.Fatalf("UpstreamPath = %q, want the openai site chat URL", got)
+			}
+			got, err := protocol.BuildUpstreamPayload(request, candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if value, ok := intFromAny(got["max_tokens"]); !ok || value != 8192 {
+				t.Fatalf("max_tokens = %#v, want provider default 8192", got["max_tokens"])
+			}
+			if tc.model == "glm-5.3" {
+				if got["reasoning_effort"] != "max" {
+					t.Fatalf("reasoning_effort = %#v, want max", got["reasoning_effort"])
+				}
+				thinking, _ := got["thinking"].(map[string]any)
+				if thinking["type"] != "enabled" {
+					t.Fatalf("thinking = %#v, want enabled", got["thinking"])
+				}
+			}
+		})
+	}
+}
+
 func TestMoonshotAnthropicDefaultOutputLimit(t *testing.T) {
 	candidate := routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: "moonshot", BaseURL: "https://api.moonshot.cn"}, Model: routeengine.CandidateModel{UpstreamName: "kimi-k2.6"}}
 	for _, limit := range []int{0, 16384} {
