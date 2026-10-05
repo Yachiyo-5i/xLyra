@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.14.1...v1.14.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* 🐛 按模型应用国模请求体与参数处理 ([a8a6fce](https://github.com/Yachiyo-5i/xLyra/commit/a8a6fce2f9e20f2a529762536f5b5a1391a1e341))
+
 ## [1.14.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.14.0...v1.14.1) (2026-09-30)
 
 
