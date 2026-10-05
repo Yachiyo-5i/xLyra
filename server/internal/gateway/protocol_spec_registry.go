@@ -213,8 +213,57 @@ func effectiveProtocolSpec(protocol canonicalProtocol, candidate routeengine.Can
 	}
 	if modelPattern != "" {
 		mergeModelDefinition(&resolved, modelDef)
+		applyDomesticModelRequestPolicy(&resolved, modelDef)
 	}
 	return resolved
+}
+
+// applyDomesticModelRequestPolicy copies a domestic model's provider parameter
+// rules onto the resolved spec when the site type did not already select that
+// provider. Paths, official base URLs, and alternate protocols stay on the
+// site type so a relay is still called at its own BaseURL.
+func applyDomesticModelRequestPolicy(resolved *resolvedProtocolSpec, modelDef modelSpecDefinition) {
+	providerKey := normalizeSpecKey(modelDef.Provider)
+	if !isDomesticProtocolProvider(providerKey) || normalizeSpecKey(resolved.Provider) == providerKey {
+		return
+	}
+	config, err := loadProtocolSpecRegistry()
+	if err != nil {
+		return
+	}
+	providerDef, ok := config.Providers[providerKey]
+	if !ok {
+		return
+	}
+	mergeRequestParamPolicy(&resolved.RequestParams, providerDef.RequestParams)
+	if policy, ok := providerDef.ProtocolRequestParams[normalizeSpecKey(string(resolved.Protocol))]; ok {
+		mergeRequestParamPolicy(&resolved.RequestParams, policy)
+	}
+	if resolved.ReasoningEffort == nil && providerDef.ReasoningEffort != nil {
+		resolved.ReasoningEffort = providerDef.ReasoningEffort
+	}
+	mergeRequestParamPolicy(&resolved.RequestParams, modelDef.RequestParams)
+	if modelDef.ReasoningEffort != nil {
+		resolved.ReasoningEffort = modelDef.ReasoningEffort
+	}
+}
+
+func matchedModelProvider(model string) string {
+	config, err := loadProtocolSpecRegistry()
+	if err != nil {
+		return ""
+	}
+	_, modelDef := matchModelSpec(config.Models, model)
+	return normalizeSpecKey(modelDef.Provider)
+}
+
+func isDomesticProtocolProvider(provider string) bool {
+	switch normalizeSpecKey(provider) {
+	case "deepseek", "zhipu", "glm_code", "minimax", "moonshot", "kimi_code", "xiaomi_mimo", "dashscope":
+		return true
+	default:
+		return false
+	}
 }
 
 func protocolEventMapping(protocol canonicalProtocol, event canonicalStreamEventType, candidate routeengine.Candidate) (eventMapping, bool) {
