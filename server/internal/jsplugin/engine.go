@@ -15,10 +15,10 @@ import (
 // program is one compiled plugin module. It is safe to load from many runtimes.
 type program struct {
 	mod   *moejs.Module
-	probe moejs.Hook
+	hooks map[string]moejs.Hook
 }
 
-func compileProgram(name, source string) (*program, error) {
+func compileProgram(name, source string, hookNames ...string) (*program, error) {
 	mod, err := moejs.Compile(name, source)
 	if err != nil {
 		return nil, err
@@ -26,11 +26,15 @@ func compileProgram(name, source string) (*program, error) {
 	if requests := mod.Requests(); len(requests) > 0 {
 		return nil, fmt.Errorf("module imports %q", requests[0])
 	}
-	hook, err := mod.Hook("probe")
-	if err != nil {
-		return nil, fmt.Errorf("probe hook: %w", err)
+	hooks := make(map[string]moejs.Hook, len(hookNames))
+	for _, hookName := range hookNames {
+		hook, err := mod.Hook(hookName)
+		if err != nil {
+			return nil, fmt.Errorf("%s hook: %w", hookName, err)
+		}
+		hooks[hookName] = hook
 	}
-	return &program{mod: mod, probe: hook}, nil
+	return &program{mod: mod, hooks: hooks}, nil
 }
 
 type callLog struct {

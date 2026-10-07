@@ -8,6 +8,13 @@ const (
 	probeHookTimeout  = 200 * time.Millisecond
 	// poolWaitTimeout bounds how long a call queues for a runtime when the pool is at max.
 	poolWaitTimeout = time.Second
+
+	protocolPoolResident = 4
+	protocolPoolMax      = 16
+	// protocolHookTimeout is shorter than the probe timeout: protocol hooks run on the request path.
+	protocolHookTimeout = 50 * time.Millisecond
+	// MaxProtocolResponseBody is the largest upstream body passed to parseResponse.
+	MaxProtocolResponseBody = 4 << 20
 	// MaxProbeSteps is the number of probe hook calls, which allows at most five HTTP requests.
 	MaxProbeSteps = 6
 	// MaxProbeRequestBody is the encoded size of one probe request body.

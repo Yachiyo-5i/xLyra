@@ -14,6 +14,22 @@ type Fixture struct {
 	Ctx       fixtureContext     `json:"ctx"`
 	Responses []FixtureResponse  `json:"responses"`
 	Expect    fixtureExpectation `json:"expect"`
+	Payload   map[string]any     `json:"payload"`
+	Candidate fixtureCandidate   `json:"candidate"`
+	Response  fixtureUpstream    `json:"response"`
+}
+
+type fixtureCandidate struct {
+	SiteType      string `json:"siteType"`
+	BaseURL       string `json:"baseURL"`
+	UpstreamName  string `json:"upstreamName"`
+	UpstreamModel string `json:"upstreamModel"`
+}
+
+type fixtureUpstream struct {
+	Status int    `json:"status"`
+	Body   string `json:"body"`
+	JSON   any    `json:"json"`
 }
 
 type fixtureContext struct {
@@ -41,6 +57,9 @@ type fixtureExpectation struct {
 	Requests []FixtureMatch `json:"requests"`
 	Result   map[string]any `json:"result"`
 	Error    string         `json:"error"`
+	Decode   map[string]any `json:"decode"`
+	Request  map[string]any `json:"request"`
+	Parse    map[string]any `json:"parse"`
 }
 
 // SelfTest runs the package fixtures inside the sandbox.
@@ -49,14 +68,23 @@ func (p *Plugin) SelfTest(ctx context.Context) error {
 		return fmt.Errorf("%s: no fixtures", p.Manifest.ID)
 	}
 	for _, fixture := range p.fixtures {
-		if err := p.runFixture(ctx, fixture); err != nil {
+		var err error
+		switch p.Manifest.Kind {
+		case KindQuotaProbe:
+			err = p.runProbeFixture(ctx, fixture)
+		case KindProtocol:
+			err = p.runProtocolFixture(ctx, fixture)
+		default:
+			err = fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
+		}
+		if err != nil {
 			return fmt.Errorf("%s fixture %q: %w", p.Manifest.ID, fixture.Name, err)
 		}
 	}
 	return nil
 }
 
-func (p *Plugin) runFixture(ctx context.Context, fixture Fixture) error {
+func (p *Plugin) runProbeFixture(ctx context.Context, fixture Fixture) error {
 	probeCtx := ProbeContext{
 		SiteType:       fixture.Ctx.SiteType,
 		BaseURL:        fixture.Ctx.BaseURL,

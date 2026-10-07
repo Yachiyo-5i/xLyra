@@ -53,7 +53,7 @@ func (e *CallError) Error() string {
 
 func (e *CallError) Unwrap() error { return e.Err }
 
-func annotate(plugin *Plugin, err error, step int, durationMS int64) error {
+func annotate(plugin *Plugin, err error, hook string, step int, durationMS int64) error {
 	if err == nil {
 		return nil
 	}
@@ -68,9 +68,9 @@ func annotate(plugin *Plugin, err error, step int, durationMS int64) error {
 		call.PluginID = plugin.Manifest.ID
 		call.PluginVersion = plugin.Manifest.Version
 		call.Gen = plugin.gen
-		if call.Hook == "" {
-			call.Hook = "probe"
-		}
+	}
+	if call.Hook == "" {
+		call.Hook = hook
 	}
 	call.Step = step
 	call.DurationMS = durationMS

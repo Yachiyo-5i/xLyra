@@ -91,6 +91,9 @@ func ValidateJSPluginLists(cfg config.GeneralJSPluginConfig) error {
 			return fmt.Errorf("js_plugin: builtin quota probe %q is not loaded", probeType)
 		}
 	}
+	if _, ok := registry.ByProtocolName("typesafe_systemone"); !ok {
+		return fmt.Errorf("js_plugin: builtin protocol typesafe_systemone is not loaded")
+	}
 	return nil
 }
 

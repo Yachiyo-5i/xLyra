@@ -153,7 +153,7 @@ func TestClipUTF8BytesStaysWithinLimit(t *testing.T) {
 
 func heldPool(t *testing.T) (*pool, *session) {
 	t.Helper()
-	program, err := compileProgram("pool.js", wrapProbe(`return { result: { kind: "balance", entries: [{ label: "balance", remaining: 1 }] } };`))
+	program, err := compileProgram("pool.js", wrapProbe(`return { result: { kind: "balance", entries: [{ label: "balance", remaining: 1 }] } };`), "probe")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,15 +185,16 @@ export function probe() {
 	if err != nil {
 		t.Fatal(err)
 	}
-	one, _, _, _, err := first.call(context.Background(), time.Second, program.probe, []any{map[string]any{}, []any{}})
+	probe := program.hooks["probe"]
+	one, _, _, _, err := first.call(context.Background(), time.Second, probe, []any{map[string]any{}, []any{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	two, _, _, _, err := second.call(context.Background(), time.Second, program.probe, []any{map[string]any{}, []any{}})
+	two, _, _, _, err := second.call(context.Background(), time.Second, probe, []any{map[string]any{}, []any{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, _, _, _, err := first.call(context.Background(), time.Second, program.probe, []any{map[string]any{}, []any{}})
+	again, _, _, _, err := first.call(context.Background(), time.Second, probe, []any{map[string]any{}, []any{}})
 	if err != nil {
 		t.Fatal(err)
 	}

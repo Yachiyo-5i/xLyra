@@ -1,0 +1,22 @@
+{
+  "apiVersion": 1,
+  "description": "TypeSafe SystemOne passthrough protocol",
+  "hostApi": 1,
+  "id": "xlyra.protocol.typesafe-systemone",
+  "kind": "protocol",
+  "license": "AGPL-3.0",
+  "name": "TypeSafe SystemOne",
+  "protocol": {
+    "auth": "bearer",
+    "defaultBaseURL": "https://api.typesafe.ai",
+    "downstreamPath": "/v1/systemone",
+    "endpointType": "typesafe-systemone",
+    "method": "POST",
+    "name": "typesafe_systemone"
+  },
+  "sha256": {
+    "plugin.js": "724f32b6686cf25a9d56ee0fae0813b3d30a692ad4c14b1dffda5e78a5c409ba"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

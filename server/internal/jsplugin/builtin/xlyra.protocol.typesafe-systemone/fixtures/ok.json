@@ -1,0 +1,40 @@
+{
+  "name": "ok",
+  "payload": {
+    "model": "jev-latest",
+    "state": "hi"
+  },
+  "candidate": {
+    "siteType": "typesafe",
+    "baseURL": "https://api.typesafe.ai/",
+    "upstreamName": "jev-preview",
+    "upstreamModel": "jev-preview"
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "usage": {
+        "input_tokens": 394,
+        "output_tokens": 68
+      }
+    }
+  },
+  "expect": {
+    "decode": {
+      "model": "jev-latest"
+    },
+    "request": {
+      "path": "/v1/systemone",
+      "payload": {
+        "model": "jev-preview"
+      }
+    },
+    "parse": {
+      "passthrough": true,
+      "usage": {
+        "prompt_tokens": 394,
+        "completion_tokens": 68
+      }
+    }
+  }
+}

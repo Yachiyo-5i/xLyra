@@ -28,8 +28,15 @@ type Manifest struct {
 	Description string            `json:"description"`
 	License     string            `json:"license"`
 	QuotaProbe  QuotaProbeSection `json:"quotaProbe"`
+	Protocol    ProtocolSection   `json:"protocol"`
 	SHA256      map[string]string `json:"sha256"`
 }
+
+// Plugin kinds accepted by this build.
+const (
+	KindQuotaProbe = "quota_probe"
+	KindProtocol   = "protocol"
+)
 
 // QuotaProbeSection is the quota_probe manifest block.
 type QuotaProbeSection struct {
@@ -38,7 +45,30 @@ type QuotaProbeSection struct {
 	Replaces       string `json:"replaces,omitempty"`
 }
 
-// Plugin is a loaded, compiled quota probe.
+// ProtocolSection is the protocol manifest block. Method and Auth are applied
+// by Go; the plugin never sees the upstream credential.
+type ProtocolSection struct {
+	Name           string `json:"name"`
+	DownstreamPath string `json:"downstreamPath"`
+	EndpointType   string `json:"endpointType"`
+	Method         string `json:"method"`
+	Auth           string `json:"auth"`
+	DefaultBaseURL string `json:"defaultBaseURL,omitempty"`
+}
+
+// AuthHeader returns the header that carries the credential, or "" for auth "none".
+func (s ProtocolSection) AuthHeader() string {
+	switch {
+	case s.Auth == "bearer":
+		return "Authorization"
+	case strings.HasPrefix(s.Auth, "header:"):
+		return strings.TrimSpace(strings.TrimPrefix(s.Auth, "header:"))
+	default:
+		return ""
+	}
+}
+
+// Plugin is a loaded, compiled plugin of one kind.
 type Plugin struct {
 	Manifest Manifest
 	program  *program
@@ -53,6 +83,11 @@ func (p *Plugin) ProbeType() string {
 	return p.Manifest.QuotaProbe.Replaces
 }
 
+// ProtocolName is the gateway protocol name from the manifest.
+func (p *Plugin) ProtocolName() string {
+	return p.Manifest.Protocol.Name
+}
+
 // Fixtures returns the package samples.
 func (p *Plugin) Fixtures() []Fixture {
 	if p == nil {
@@ -63,14 +98,28 @@ func (p *Plugin) Fixtures() []Fixture {
 
 // NewPlugin compiles one module and checks its manifest. resident is the
 // number of runtimes kept warm; builtins use the default pool size.
+var kindHooks = map[string][]string{
+	KindQuotaProbe: {"probe"},
+	KindProtocol:   {"decodeRequest", "buildRequest", "parseResponse"},
+}
+
 func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident int) (*Plugin, error) {
-	if manifest.QuotaProbe.BaseURLMode == "" {
+	if manifest.Kind == KindQuotaProbe && manifest.QuotaProbe.BaseURLMode == "" {
 		manifest.QuotaProbe.BaseURLMode = "as_is"
+	}
+	if manifest.Kind == KindProtocol {
+		manifest.Protocol.Method = strings.ToUpper(strings.TrimSpace(manifest.Protocol.Method))
+		if manifest.Protocol.Method == "" {
+			manifest.Protocol.Method = "POST"
+		}
+		if manifest.Protocol.Auth == "" {
+			manifest.Protocol.Auth = "bearer"
+		}
 	}
 	if err := validateManifest(manifest, source); err != nil {
 		return nil, err
 	}
-	program, err := compileProgram(manifest.ID+".js", source)
+	program, err := compileProgram(manifest.ID+".js", source, kindHooks[manifest.Kind]...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
@@ -85,8 +134,17 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 	if err := metaMatches(manifest, meta); err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
+	maxPool := probePoolMax
+	if manifest.Kind == KindProtocol {
+		if resident == 0 {
+			resident = protocolPoolResident
+		}
+		maxPool = protocolPoolMax
+	} else if resident == 0 {
+		resident = probePoolResident
+	}
 	plugin := &Plugin{Manifest: manifest, program: program, fixtures: fixtures, gen: 1, source: source}
-	pool, err := newPool(resident, probePoolMax, func() (*session, error) {
+	pool, err := newPool(resident, maxPool, func() (*session, error) {
 		return newSession(program)
 	})
 	if err != nil {
@@ -104,17 +162,22 @@ func (p *Plugin) CallProbe(ctx context.Context, probeCtx ProbeContext, steps []P
 	started := time.Now()
 	session, err := p.pool.Acquire(ctx)
 	if err != nil {
-		return Decision{}, annotate(p, err, len(steps), time.Since(started).Milliseconds())
+		return Decision{}, annotate(p, err, "probe", len(steps), time.Since(started).Milliseconds())
 	}
-	out, logs, dropped, discard, callErr := session.call(ctx, probeHookTimeout, p.program.probe, []any{probeCtx.asMap(), stepsAsValue(steps)})
+	hook, ok := p.program.hooks["probe"]
+	if !ok {
+		p.pool.Release(session, true)
+		return Decision{}, fmt.Errorf("probe hook is missing")
+	}
+	out, logs, dropped, discard, callErr := session.call(ctx, probeHookTimeout, hook, []any{probeCtx.asMap(), stepsAsValue(steps)})
 	p.pool.Release(session, discard || fatalRuntime(callErr))
 	duration := time.Since(started).Milliseconds()
 	if callErr != nil {
-		return Decision{Logs: logs, DroppedLogs: dropped}, annotate(p, callErr, len(steps), duration)
+		return Decision{Logs: logs, DroppedLogs: dropped}, annotate(p, callErr, "probe", len(steps), duration)
 	}
 	decision, err := decodeDecision(out)
 	if err != nil {
-		return Decision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, len(steps), duration)
+		return Decision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, "probe", len(steps), duration)
 	}
 	decision.Logs = logs
 	decision.DroppedLogs = dropped
@@ -131,9 +194,6 @@ func validateManifest(manifest Manifest, source string) error {
 	if manifest.HostAPI != hostAPIVersion {
 		return fmt.Errorf("hostApi %d is not supported", manifest.HostAPI)
 	}
-	if manifest.Kind != "quota_probe" {
-		return fmt.Errorf("kind %q is not supported in this build", manifest.Kind)
-	}
 	if err := versionAllowed(manifest.XLyra, version.Current().Version); err != nil {
 		return err
 	}
@@ -141,13 +201,35 @@ func validateManifest(manifest Manifest, source string) error {
 	if !ok || !strings.EqualFold(sum, hashSource(source)) {
 		return fmt.Errorf("plugin.js sha256 does not match the manifest")
 	}
-	switch manifest.QuotaProbe.BaseURLMode {
-	case "trim_v1", "trim_v1_fold", "origin", "as_is":
+	switch manifest.Kind {
+	case KindQuotaProbe:
+		switch manifest.QuotaProbe.BaseURLMode {
+		case "trim_v1", "trim_v1_fold", "origin", "as_is":
+		default:
+			return fmt.Errorf("quotaProbe.baseURLMode %q is not supported", manifest.QuotaProbe.BaseURLMode)
+		}
+		if manifest.QuotaProbe.Replaces != "" && !strings.HasPrefix(manifest.ID, "xlyra.") {
+			return fmt.Errorf("only xlyra plugins can set quotaProbe.replaces")
+		}
+	case KindProtocol:
+		if strings.TrimSpace(manifest.Protocol.Name) == "" {
+			return fmt.Errorf("protocol.name is required")
+		}
+		if strings.TrimSpace(manifest.Protocol.DownstreamPath) == "" {
+			return fmt.Errorf("protocol.downstreamPath is required")
+		}
+		if strings.TrimSpace(manifest.Protocol.EndpointType) == "" {
+			return fmt.Errorf("protocol.endpointType is required")
+		}
+		switch manifest.Protocol.Auth {
+		case "none", "bearer":
+		default:
+			if !strings.HasPrefix(manifest.Protocol.Auth, "header:") {
+				return fmt.Errorf("protocol.auth %q is not supported", manifest.Protocol.Auth)
+			}
+		}
 	default:
-		return fmt.Errorf("quotaProbe.baseURLMode %q is not supported", manifest.QuotaProbe.BaseURLMode)
-	}
-	if manifest.QuotaProbe.Replaces != "" && !strings.HasPrefix(manifest.ID, "xlyra.") {
-		return fmt.Errorf("only xlyra plugins can set quotaProbe.replaces")
+		return fmt.Errorf("kind %q is not supported in this build", manifest.Kind)
 	}
 	return nil
 }
@@ -226,6 +308,58 @@ func semverParts(value string) [3]int {
 		out[i] = number
 	}
 	return out
+}
+
+// CallDecodeRequest runs the decodeRequest hook once.
+func (p *Plugin) CallDecodeRequest(ctx context.Context, endpointCtx ProtocolEndpointContext, payload map[string]any) (ProtocolDecodeResult, *ProtocolDecodeFailure, []LogEntry, int, error) {
+	out, logs, dropped, err := p.callHook(ctx, "decodeRequest", protocolHookTimeout, 0, endpointCtx.asMap(), payload)
+	if err != nil {
+		return ProtocolDecodeResult{}, nil, logs, dropped, err
+	}
+	result, failure, decodeErr := decodeProtocolDecode(out)
+	return result, failure, logs, dropped, decodeErr
+}
+
+// CallBuildRequest runs the buildRequest hook once.
+func (p *Plugin) CallBuildRequest(ctx context.Context, buildCtx ProtocolBuildContext, payload map[string]any) (ProtocolBuiltRequest, []LogEntry, int, error) {
+	out, logs, dropped, err := p.callHook(ctx, "buildRequest", protocolHookTimeout, 0, buildCtx.asMap(), payload)
+	if err != nil {
+		return ProtocolBuiltRequest{}, logs, dropped, err
+	}
+	built, decodeErr := decodeProtocolBuild(out)
+	return built, logs, dropped, decodeErr
+}
+
+// CallParseResponse runs the parseResponse hook once.
+func (p *Plugin) CallParseResponse(ctx context.Context, buildCtx ProtocolBuildContext, input ProtocolParseInput) (ProtocolParsedResponse, []LogEntry, int, error) {
+	out, logs, dropped, err := p.callHook(ctx, "parseResponse", protocolHookTimeout, 0, buildCtx.asMap(), parseInputAsMap(input))
+	if err != nil {
+		return ProtocolParsedResponse{}, logs, dropped, err
+	}
+	parsed, decodeErr := decodeProtocolParse(out)
+	return parsed, logs, dropped, decodeErr
+}
+
+func (p *Plugin) callHook(ctx context.Context, hookName string, timeout time.Duration, step int, args ...any) (any, []LogEntry, int, error) {
+	if p == nil || p.pool == nil {
+		return nil, nil, 0, fmt.Errorf("plugin is not loaded")
+	}
+	hook, ok := p.program.hooks[hookName]
+	if !ok {
+		return nil, nil, 0, fmt.Errorf("%s hook is missing", hookName)
+	}
+	started := time.Now()
+	session, err := p.pool.Acquire(ctx)
+	if err != nil {
+		return nil, nil, 0, annotate(p, err, hookName, step, time.Since(started).Milliseconds())
+	}
+	out, logs, dropped, discard, callErr := session.call(ctx, timeout, hook, args)
+	p.pool.Release(session, discard || fatalRuntime(callErr))
+	duration := time.Since(started).Milliseconds()
+	if callErr != nil {
+		return nil, logs, dropped, annotate(p, callErr, hookName, step, duration)
+	}
+	return out, logs, dropped, nil
 }
 
 // HashSource is the sha256 used in a manifest, exposed for tests.
