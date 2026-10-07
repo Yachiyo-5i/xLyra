@@ -1,0 +1,24 @@
+{
+  "name": "five hour and weekly",
+  "ctx": {"siteType": "kimi_code", "baseURL": "https://api.kimi.com/coding", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/usages"},
+    "status": 200,
+    "json": {
+      "user": {"region": "REGION_CN", "membership": {"level": "LEVEL_INTERMEDIATE"}},
+      "usage": {"limit": "100", "used": "90", "remaining": "10", "resetTime": "2026-07-27T02:19:14.762634Z"},
+      "limits": [{"window": {"duration": 300, "timeUnit": "TIME_UNIT_MINUTE"}, "detail": {"limit": "100", "used": "44", "resetTime": "2026-07-26T23:19:14.762634Z"}}]
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/usages"}],
+    "result": {
+      "kind": "token_plan",
+      "plan": "Allegretto",
+      "entries": [
+        {"label": "five_hour", "unit": "percent", "limit": 100, "used": 44, "remaining": 56, "resetAt": "2026-07-26T23:19:14.762634Z"},
+        {"label": "weekly", "unit": "percent", "limit": 100, "used": 90, "remaining": 10, "resetAt": "2026-07-27T02:19:14.762634Z"}
+      ]
+    }
+  }
+}

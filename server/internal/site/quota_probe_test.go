@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -786,86 +785,6 @@ func TestProbeKimiQuotaPartialEntries(t *testing.T) {
 	}
 }
 
-func TestKimiUsageDetailEntry(t *testing.T) {
-	t.Parallel()
-
-	if _, ok := kimiUsageDetailEntry("weekly", "not-a-map"); ok {
-		t.Fatal("non-map detail must not produce an entry")
-	}
-	if _, ok := kimiUsageDetailEntry("weekly", map[string]any{"used": "3"}); ok {
-		t.Fatal("detail without limit/remaining must not produce an entry")
-	}
-	entry, ok := kimiUsageDetailEntry("five_hour", map[string]any{"limit": "100", "remaining": "56"})
-	if !ok || entry.Remaining == nil || *entry.Remaining != 56 || entry.ResetAt != nil {
-		t.Fatalf("entry = %+v %v, want remaining 56 without reset_at", entry, ok)
-	}
-	exhausted, ok := kimiUsageDetailEntry("five_hour", map[string]any{"limit": "100", "used": "100"})
-	if !ok || exhausted.Remaining == nil || *exhausted.Remaining != 0 {
-		t.Fatalf("entry = %+v %v, want derived remaining 0", exhausted, ok)
-	}
-}
-
-func TestQuotaProbeKimiUsagesURL(t *testing.T) {
-	t.Parallel()
-
-	for input, want := range map[string]string{
-		"https://api.kimi.com/coding":     "https://api.kimi.com/coding/v1/usages",
-		"https://api.kimi.com/coding/":    "https://api.kimi.com/coding/v1/usages",
-		"https://api.kimi.com/coding/v1":  "https://api.kimi.com/coding/v1/usages",
-		"https://api.kimi.com/coding/v1/": "https://api.kimi.com/coding/v1/usages",
-		"":                                "https://api.kimi.com/coding/v1/usages",
-	} {
-		if got := quotaProbeKimiUsagesURL(input); got != want {
-			t.Fatalf("quotaProbeKimiUsagesURL(%q) = %q, want %q", input, got, want)
-		}
-	}
-}
-
-func TestKimiMembershipPlanName(t *testing.T) {
-	t.Parallel()
-
-	for name, tc := range map[string]struct {
-		level  string
-		region string
-		want   string
-	}{
-		"cn basic is andante":        {"LEVEL_BASIC", "REGION_CN", "Andante"},
-		"global basic is moderato":   {"LEVEL_BASIC", "REGION_GLOBAL", "Moderato"},
-		"standard is moderato":       {"LEVEL_STANDARD", "REGION_CN", "Moderato"},
-		"intermediate is allegretto": {"LEVEL_INTERMEDIATE", "REGION_CN", "Allegretto"},
-		"advanced is allegro":        {"LEVEL_ADVANCED", "REGION_CN", "Allegro"},
-		"premium is vivace":          {"LEVEL_PREMIUM", "REGION_GLOBAL", "Vivace"},
-		"empty level":                {"", "REGION_CN", ""},
-		"unknown falls back":         {"LEVEL_FUTURE_TIER", "REGION_CN", "Future tier"},
-		"lowercase tolerated":        {"level_advanced", "REGION_CN", "Allegro"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if got := kimiMembershipPlanName(tc.level, tc.region); got != tc.want {
-				t.Fatalf("kimiMembershipPlanName(%q, %q) = %q, want %q", tc.level, tc.region, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestKimiWindowIsFiveHour(t *testing.T) {
-	t.Parallel()
-
-	fiveHour := map[string]any{"duration": float64(300), "timeUnit": "TIME_UNIT_MINUTE"}
-	if !kimiWindowIsFiveHour(fiveHour) {
-		t.Fatal("300 minutes window should be recognized as five-hour")
-	}
-	for _, window := range []map[string]any{
-		{"duration": float64(10080), "timeUnit": "TIME_UNIT_MINUTE"},
-		{"duration": float64(7), "timeUnit": "TIME_UNIT_DAY"},
-		{"duration": float64(300)},
-		nil,
-	} {
-		if kimiWindowIsFiveHour(window) {
-			t.Fatalf("window %+v must not be recognized as five-hour", window)
-		}
-	}
-}
-
 func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 	t.Parallel()
 
@@ -1215,24 +1134,6 @@ func TestProbeGLMQuotaRejectsMCPOnlyResponse(t *testing.T) {
 	result := probeQuota(context.Background(), server.Client(), QuotaProbeTypeGLM, server.URL, "sk-glm")
 	if result.Status != "error" {
 		t.Fatalf("result = %+v, missing chat quota must not be treated as quota recovery", result)
-	}
-}
-
-func TestGLMPlanName(t *testing.T) {
-	t.Parallel()
-
-	if got := glmPlanName("pro"); got != "Pro" {
-		t.Fatalf("glmPlanName(pro) = %q, want Pro", got)
-	}
-	if got := glmPlanName("  MAX "); got != "Max" {
-		t.Fatalf("glmPlanName(\"  MAX \") = %q, want Max", got)
-	}
-	if got := glmPlanName(""); got != "" {
-		t.Fatalf("glmPlanName(\"\") = %q, want empty", got)
-	}
-	// 非 ASCII level 不应切出半个多字节字符（无效 UTF-8）
-	if got := glmPlanName("旗舰版"); !utf8.ValidString(got) || got == "" {
-		t.Fatalf("glmPlanName(旗舰版) = %q, want valid non-empty UTF-8", got)
 	}
 }
 
@@ -1619,19 +1520,3 @@ func TestProbeMoonshotBalanceRejectsErrorCode(t *testing.T) {
 	}
 }
 
-func TestQuotaProbeMoonshotBalanceURL(t *testing.T) {
-	cases := []struct {
-		baseURL string
-		want    string
-	}{
-		{"", "https://api.moonshot.cn/v1/users/me/balance"},
-		{"https://api.moonshot.cn", "https://api.moonshot.cn/v1/users/me/balance"},
-		{"https://api.moonshot.cn/", "https://api.moonshot.cn/v1/users/me/balance"},
-		{"https://api.moonshot.cn/v1", "https://api.moonshot.cn/v1/users/me/balance"},
-	}
-	for _, tc := range cases {
-		if got := quotaProbeMoonshotBalanceURL(tc.baseURL); got != tc.want {
-			t.Fatalf("quotaProbeMoonshotBalanceURL(%q) = %q, want %q", tc.baseURL, got, tc.want)
-		}
-	}
-}

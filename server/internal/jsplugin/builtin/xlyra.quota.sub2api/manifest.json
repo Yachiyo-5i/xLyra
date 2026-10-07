@@ -1,0 +1,18 @@
+{
+  "apiVersion": 1,
+  "description": "Sub2API usage",
+  "hostApi": 1,
+  "id": "xlyra.quota.sub2api",
+  "kind": "quota_probe",
+  "license": "AGPL-3.0",
+  "name": "Sub2API quota",
+  "quotaProbe": {
+    "baseURLMode": "as_is",
+    "replaces": "sub2api"
+  },
+  "sha256": {
+    "plugin.js": "b4c9abf21cda1d5b5fa8c2275492d3b3ed9385b859cd8620b9d30828152a4d29"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

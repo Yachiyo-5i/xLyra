@@ -1,0 +1,18 @@
+{
+  "apiVersion": 1,
+  "description": "xLyra user balance",
+  "hostApi": 1,
+  "id": "xlyra.quota.xlyra",
+  "kind": "quota_probe",
+  "license": "AGPL-3.0",
+  "name": "xLyra quota",
+  "quotaProbe": {
+    "baseURLMode": "as_is",
+    "replaces": "xlyra"
+  },
+  "sha256": {
+    "plugin.js": "ddde08d349c9ae9250803045661a60cfe37f30673725097cbac130cc3b2d46b2"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

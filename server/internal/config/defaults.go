@@ -24,6 +24,10 @@ func Defaults() map[string]any {
 				"security": map[string]any{
 					"session_lifetime_hours": 24,
 				},
+				"js_plugin": map[string]any{
+					"quota_probes": []string{},
+					"protocols":    []string{},
+				},
 			},
 		},
 		"network": map[string]any{

@@ -1,0 +1,13 @@
+{
+  "name": "invalid key response",
+  "ctx": {"siteType": "sub2api", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/usage"},
+    "status": 200,
+    "json": {"isValid": false, "mode": "quota_limited", "quota": {"limit": 20, "used": 5, "remaining": 15, "unit": "USD"}}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/usage"}],
+    "error": "usage endpoint reported invalid API key"
+  }
+}

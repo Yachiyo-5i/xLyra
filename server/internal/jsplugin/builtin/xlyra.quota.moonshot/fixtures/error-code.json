@@ -1,0 +1,13 @@
+{
+  "name": "non-zero code is an error",
+  "ctx": {"siteType": "moonshot", "baseURL": "https://api.moonshot.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/users/me/balance"},
+    "status": 200,
+    "json": {"code": 1001, "data": {"available_balance": 10}, "scode": "0x0", "status": false}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/users/me/balance"}],
+    "error": "balance endpoint returned code 1001"
+  }
+}

@@ -16,11 +16,14 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"log/slog"
+
 	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/credential"
 	"xlyra/server/internal/httpclient"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/modelcapabilities"
 	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/store"
@@ -43,6 +46,7 @@ type Service struct {
 	confFile    *config.ConfigFile
 	timeZone    config.TimeZone
 	siteLocks   *siteRefreshLocks
+	jsPlugins   *jsplugin.Registry
 }
 
 type CreateSiteParams struct {
@@ -135,6 +139,13 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	httpClients := httpclient.NewManager(confFile)
+	plugins, err := jsplugin.LoadBuiltins()
+	if err != nil {
+		slog.Warn("builtin js plugins", "error", err)
+	}
+	if err := ValidateJSPluginLists(config.ReadGeneralConfig(confFile).JSPlugin); err != nil {
+		slog.Warn("js plugin list ignored", "error", err)
+	}
 	return &Service{
 		db:          db,
 		credentials: credential.NewService(masterKey),
@@ -145,6 +156,7 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		confFile:    confFile,
 		timeZone:    timeZone,
 		siteLocks:   newSiteRefreshLocks(),
+		jsPlugins:   plugins,
 	}
 }
 

@@ -1,0 +1,241 @@
+package jsplugin
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"xlyra/server/internal/version"
+)
+
+var pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
+
+// Manifest is the plugin package manifest.
+type Manifest struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Version     string            `json:"version"`
+	APIVersion  int               `json:"apiVersion"`
+	HostAPI     int               `json:"hostApi"`
+	XLyra       string            `json:"xlyra"`
+	Kind        string            `json:"kind"`
+	Description string            `json:"description"`
+	License     string            `json:"license"`
+	QuotaProbe  QuotaProbeSection `json:"quotaProbe"`
+	SHA256      map[string]string `json:"sha256"`
+}
+
+// QuotaProbeSection is the quota_probe manifest block.
+type QuotaProbeSection struct {
+	BaseURLMode    string `json:"baseURLMode"`
+	DefaultBaseURL string `json:"defaultBaseURL,omitempty"`
+	Replaces       string `json:"replaces,omitempty"`
+}
+
+// Plugin is a loaded, compiled quota probe.
+type Plugin struct {
+	Manifest Manifest
+	program  *program
+	pool     *pool
+	fixtures []Fixture
+	gen      int64
+	source   string
+}
+
+// ProbeType is the Go probe type this plugin replaces, such as "kimi".
+func (p *Plugin) ProbeType() string {
+	return p.Manifest.QuotaProbe.Replaces
+}
+
+// Fixtures returns the package samples.
+func (p *Plugin) Fixtures() []Fixture {
+	if p == nil {
+		return nil
+	}
+	return append([]Fixture(nil), p.fixtures...)
+}
+
+// NewPlugin compiles one module and checks its manifest. resident is the
+// number of runtimes kept warm; builtins use the default pool size.
+func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident int) (*Plugin, error) {
+	if manifest.QuotaProbe.BaseURLMode == "" {
+		manifest.QuotaProbe.BaseURLMode = "as_is"
+	}
+	if err := validateManifest(manifest, source); err != nil {
+		return nil, err
+	}
+	program, err := compileProgram(manifest.ID+".js", source)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	loaded, err := newSession(program)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	meta, err := loaded.exportMeta()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	if err := metaMatches(manifest, meta); err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	plugin := &Plugin{Manifest: manifest, program: program, fixtures: fixtures, gen: 1, source: source}
+	pool, err := newPool(resident, probePoolMax, func() (*session, error) {
+		return newSession(program)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	plugin.pool = pool
+	return plugin, nil
+}
+
+// CallProbe runs the probe hook once.
+func (p *Plugin) CallProbe(ctx context.Context, probeCtx ProbeContext, steps []ProbeStep) (Decision, error) {
+	if p == nil || p.pool == nil {
+		return Decision{}, fmt.Errorf("plugin is not loaded")
+	}
+	started := time.Now()
+	session, err := p.pool.Acquire(ctx)
+	if err != nil {
+		return Decision{}, annotate(p, err, len(steps), time.Since(started).Milliseconds())
+	}
+	out, logs, dropped, discard, callErr := session.call(ctx, probeHookTimeout, p.program.probe, []any{probeCtx.asMap(), stepsAsValue(steps)})
+	p.pool.Release(session, discard || fatalRuntime(callErr))
+	duration := time.Since(started).Milliseconds()
+	if callErr != nil {
+		return Decision{Logs: logs, DroppedLogs: dropped}, annotate(p, callErr, len(steps), duration)
+	}
+	decision, err := decodeDecision(out)
+	if err != nil {
+		return Decision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, len(steps), duration)
+	}
+	decision.Logs = logs
+	decision.DroppedLogs = dropped
+	return decision, nil
+}
+
+func validateManifest(manifest Manifest, source string) error {
+	if !pluginIDPattern.MatchString(manifest.ID) || len(manifest.ID) < 3 || len(manifest.ID) > 64 {
+		return fmt.Errorf("invalid plugin id %q", manifest.ID)
+	}
+	if manifest.APIVersion != hookAPIVersion {
+		return fmt.Errorf("apiVersion %d is not supported", manifest.APIVersion)
+	}
+	if manifest.HostAPI != hostAPIVersion {
+		return fmt.Errorf("hostApi %d is not supported", manifest.HostAPI)
+	}
+	if manifest.Kind != "quota_probe" {
+		return fmt.Errorf("kind %q is not supported in this build", manifest.Kind)
+	}
+	if err := versionAllowed(manifest.XLyra, version.Current().Version); err != nil {
+		return err
+	}
+	sum, ok := manifest.SHA256["plugin.js"]
+	if !ok || !strings.EqualFold(sum, hashSource(source)) {
+		return fmt.Errorf("plugin.js sha256 does not match the manifest")
+	}
+	switch manifest.QuotaProbe.BaseURLMode {
+	case "trim_v1", "trim_v1_fold", "origin", "as_is":
+	default:
+		return fmt.Errorf("quotaProbe.baseURLMode %q is not supported", manifest.QuotaProbe.BaseURLMode)
+	}
+	if manifest.QuotaProbe.Replaces != "" && !strings.HasPrefix(manifest.ID, "xlyra.") {
+		return fmt.Errorf("only xlyra plugins can set quotaProbe.replaces")
+	}
+	return nil
+}
+
+func metaMatches(manifest Manifest, meta map[string]any) error {
+	if got, _ := meta["id"].(string); got != manifest.ID {
+		return fmt.Errorf("meta.id %q does not match manifest", got)
+	}
+	if got, _ := meta["kind"].(string); got != manifest.Kind {
+		return fmt.Errorf("meta.kind %q does not match manifest", got)
+	}
+	if !metaVersion(meta["apiVersion"], int64(manifest.APIVersion)) {
+		return fmt.Errorf("meta.apiVersion does not match manifest")
+	}
+	return nil
+}
+
+func metaVersion(value any, want int64) bool {
+	switch typed := value.(type) {
+	case int64:
+		return typed == want
+	case int:
+		return int64(typed) == want
+	case float64:
+		return typed == float64(want)
+	default:
+		return false
+	}
+}
+
+func hashSource(source string) string {
+	sum := sha256.Sum256([]byte(source))
+	return hex.EncodeToString(sum[:])
+}
+
+func versionAllowed(constraint, current string) error {
+	current = strings.TrimSpace(current)
+	if current == "" || current == "dev" {
+		return nil
+	}
+	constraint = strings.TrimSpace(constraint)
+	if constraint == "" {
+		return nil
+	}
+	for _, part := range strings.Fields(constraint) {
+		if !strings.HasPrefix(part, ">=") {
+			return fmt.Errorf("unsupported xlyra constraint %q", part)
+		}
+		if semverLess(current, strings.TrimPrefix(part, ">=")) {
+			return fmt.Errorf("xlyra %s does not satisfy %s", current, constraint)
+		}
+	}
+	return nil
+}
+
+func semverLess(current, minimum string) bool {
+	left := semverParts(current)
+	right := semverParts(minimum)
+	for i := 0; i < 3; i++ {
+		if left[i] != right[i] {
+			return left[i] < right[i]
+		}
+	}
+	return false
+}
+
+func semverParts(value string) [3]int {
+	value, _, _ = strings.Cut(value, "-")
+	parts := strings.Split(value, ".")
+	var out [3]int
+	for i := 0; i < len(parts) && i < 3; i++ {
+		number, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return [3]int{}
+		}
+		out[i] = number
+	}
+	return out
+}
+
+// HashSource is the sha256 used in a manifest, exposed for tests.
+func HashSource(source string) string { return hashSource(source) }
+
+// ParseManifest decodes a manifest JSON document.
+func ParseManifest(raw []byte) (Manifest, error) {
+	var manifest Manifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}

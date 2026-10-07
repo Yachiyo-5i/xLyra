@@ -1,0 +1,29 @@
+{
+  "name": "five hour exhausted with MCP monthly exhausted",
+  "ctx": {"siteType": "glm_code", "baseURL": "https://open.bigmodel.cn", "credentialType": "api_key", "now": 1789819200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/api/monitor/usage/quota/limit"},
+    "status": 200,
+    "json": {
+      "code": 200,
+      "data": {
+        "limits": [
+          {"type": "CREDIT_LIMIT", "unit": 3, "number": 5, "usage": 12000, "currentValue": 12000, "nextResetTime": 1789822800000},
+          {"type": "CREDIT_LIMIT", "unit": 6, "number": 1, "usage": 60000, "currentValue": 6000, "nextResetTime": 1790078400000},
+          {"type": "TIME_LIMIT", "usage": 1000, "currentValue": 1000, "nextResetTime": 1792411200000}
+        ]
+      }
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/api/monitor/usage/quota/limit"}],
+    "result": {
+      "kind": "token_plan",
+      "entries": [
+        {"label": "five_hour", "unit": "percent", "limit": 100, "used": 100, "remaining": 0, "resetAt": "2026-09-19T13:00:00Z"},
+        {"label": "weekly", "unit": "percent", "limit": 100, "used": 10, "remaining": 90, "resetAt": "2026-09-22T12:00:00Z"},
+        {"label": "monthly", "unit": "percent", "limit": 100, "used": 100, "remaining": 0}
+      ]
+    }
+  }
+}

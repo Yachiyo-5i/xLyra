@@ -1,0 +1,30 @@
+{
+  "name": "token windows",
+  "ctx": {"siteType": "glm_code", "baseURL": "https://open.bigmodel.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/api/monitor/usage/quota/limit"},
+    "status": 200,
+    "json": {
+      "code": 200,
+      "msg": "操作成功",
+      "data": {
+        "level": "pro",
+        "limits": [
+          {"type": "TOKENS_LIMIT", "unit": 3, "number": 5, "percentage": 0},
+          {"type": "TOKENS_LIMIT", "unit": 6, "number": 1, "percentage": 100}
+        ]
+      }
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/api/monitor/usage/quota/limit"}],
+    "result": {
+      "kind": "token_plan",
+      "plan": "Pro",
+      "entries": [
+        {"label": "five_hour", "unit": "percent", "limit": 100, "used": 0, "remaining": 100},
+        {"label": "weekly", "unit": "percent", "limit": 100, "used": 100, "remaining": 0}
+      ]
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "no windows",
+  "ctx": {
+    "siteType": "kimi_code",
+    "baseURL": "https://api.kimi.com/coding",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/v1/usages"
+      },
+      "status": 200,
+      "json": {
+        "limits": [],
+        "usage": {}
+      }
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/v1/usages"
+      }
+    ],
+    "error": "usages endpoint did not contain quota data"
+  }
+}

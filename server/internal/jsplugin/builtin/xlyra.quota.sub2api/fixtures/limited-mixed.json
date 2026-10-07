@@ -1,0 +1,24 @@
+{
+  "name": "quota limited with rate windows",
+  "ctx": {"siteType": "sub2api", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/usage"},
+    "status": 200,
+    "json": {
+      "mode": "quota_limited",
+      "quota": {"limit": 20, "used": 7.5, "remaining": 12.5, "unit": "USD"},
+      "remaining": 12.5,
+      "rate_limits": [{"window": "5h", "limit": 100, "used": 3, "remaining": 97}]
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/usage"}],
+    "result": {
+      "kind": "mixed",
+      "entries": [
+        {"label": "balance", "unit": "usd", "limit": 20, "used": 7.5, "remaining": 12.5},
+        {"label": "5h", "unit": "requests", "limit": 100, "used": 3, "remaining": 97}
+      ]
+    }
+  }
+}

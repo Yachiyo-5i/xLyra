@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const GeneralConfigPath = "global.general"
@@ -41,6 +42,13 @@ type GeneralSecurityConfig struct {
 	SessionLifetimeHours int `json:"session_lifetime_hours"`
 }
 
+// GeneralJSPluginConfig selects which built-in hooks run in the JS runtime.
+// Both lists default to empty, which keeps today's Go implementations.
+type GeneralJSPluginConfig struct {
+	QuotaProbes []string `json:"quota_probes"`
+	Protocols   []string `json:"protocols"`
+}
+
 type GeneralConfig struct {
 	Tasks       GeneralTaskConfig        `json:"tasks"`
 	IPWhitelist GeneralIPWhitelistConfig `json:"ip_whitelist"`
@@ -48,6 +56,7 @@ type GeneralConfig struct {
 	Data        GeneralDataConfig        `json:"data"`
 	Cache       GeneralCacheConfig       `json:"cache"`
 	Security    GeneralSecurityConfig    `json:"security"`
+	JSPlugin    GeneralJSPluginConfig    `json:"js_plugin"`
 }
 
 func DefaultGeneralConfig() GeneralConfig {
@@ -77,6 +86,10 @@ func DefaultGeneralConfig() GeneralConfig {
 		},
 		Security: GeneralSecurityConfig{
 			SessionLifetimeHours: 24,
+		},
+		JSPlugin: GeneralJSPluginConfig{
+			QuotaProbes: []string{},
+			Protocols:   []string{},
 		},
 	}
 }
@@ -125,6 +138,10 @@ func GeneralConfigFromRaw(raw any) GeneralConfig {
 	if security, ok := root["security"].(map[string]any); ok {
 		cfg.Security.SessionLifetimeHours = intFromMap(security, "session_lifetime_hours", cfg.Security.SessionLifetimeHours)
 	}
+	if jsPlugin, ok := root["js_plugin"].(map[string]any); ok {
+		cfg.JSPlugin.QuotaProbes = stringSliceFromMap(jsPlugin, "quota_probes", cfg.JSPlugin.QuotaProbes)
+		cfg.JSPlugin.Protocols = stringSliceFromMap(jsPlugin, "protocols", cfg.JSPlugin.Protocols)
+	}
 	return NormalizeGeneralConfig(cfg)
 }
 
@@ -164,6 +181,8 @@ func NormalizeGeneralConfig(cfg GeneralConfig) GeneralConfig {
 	if cfg.Cache.ObservationHistoryLimit == 0 {
 		cfg.Cache.ObservationHistoryLimit = defaults.Cache.ObservationHistoryLimit
 	}
+	cfg.JSPlugin.QuotaProbes = normalizeNameList(cfg.JSPlugin.QuotaProbes)
+	cfg.JSPlugin.Protocols = normalizeNameList(cfg.JSPlugin.Protocols)
 	return cfg
 }
 
@@ -201,7 +220,68 @@ func ValidateGeneralConfig(cfg GeneralConfig) error {
 	if cfg.Security.SessionLifetimeHours < 0 || cfg.Security.SessionLifetimeHours > 720 {
 		return fmt.Errorf("security.session_lifetime_hours must be between 0 and 720")
 	}
+	if err := validateJSPluginShape(cfg.JSPlugin); err != nil {
+		return err
+	}
+	if err := runGeneralValidator(cfg); err != nil {
+		return err
+	}
 	return nil
+}
+
+var (
+	generalValidatorMu sync.Mutex
+	generalValidator   func(GeneralConfig) error
+)
+
+// RegisterGeneralValidator adds a check that runs after format validation.
+// The site package registers the probe-list check so config does not import the JS runtime.
+func RegisterGeneralValidator(fn func(GeneralConfig) error) {
+	generalValidatorMu.Lock()
+	generalValidator = fn
+	generalValidatorMu.Unlock()
+}
+
+func runGeneralValidator(cfg GeneralConfig) error {
+	generalValidatorMu.Lock()
+	fn := generalValidator
+	generalValidatorMu.Unlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(cfg)
+}
+
+func validateJSPluginShape(cfg GeneralJSPluginConfig) error {
+	if err := duplicateNames("js_plugin.quota_probes", cfg.QuotaProbes); err != nil {
+		return err
+	}
+	return duplicateNames("js_plugin.protocols", cfg.Protocols)
+}
+
+func duplicateNames(field string, names []string) error {
+	seen := map[string]struct{}{}
+	for _, name := range names {
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("%s: duplicate name %q", field, name)
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
+}
+
+func normalizeNameList(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.ToLower(strings.TrimSpace(value))
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func GeneralConfigToMap(cfg GeneralConfig) map[string]any {
@@ -231,6 +311,10 @@ func GeneralConfigToMap(cfg GeneralConfig) map[string]any {
 		},
 		"security": map[string]any{
 			"session_lifetime_hours": cfg.Security.SessionLifetimeHours,
+		},
+		"js_plugin": map[string]any{
+			"quota_probes": cfg.JSPlugin.QuotaProbes,
+			"protocols":    cfg.JSPlugin.Protocols,
 		},
 	}
 }

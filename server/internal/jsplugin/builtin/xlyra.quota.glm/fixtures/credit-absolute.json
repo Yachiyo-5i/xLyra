@@ -1,0 +1,31 @@
+{
+  "name": "credit plan uses absolute values over rounded percentage",
+  "ctx": {"siteType": "glm_code", "baseURL": "https://open.bigmodel.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/api/monitor/usage/quota/limit"},
+    "status": 200,
+    "json": {
+      "code": 200,
+      "msg": "操作成功",
+      "data": {
+        "level": "pro",
+        "limits": [
+          {"type": "CREDIT_LIMIT", "unit": 3, "number": 5, "usage": 12000, "currentValue": 1711, "remaining": 10288, "percentage": 14, "nextResetTime": 1789717705754},
+          {"type": "CREDIT_LIMIT", "unit": 6, "number": 1, "usage": 60000, "currentValue": 15892, "remaining": 44107, "percentage": 26, "nextResetTime": 1790232772960}
+        ]
+      },
+      "success": true
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/api/monitor/usage/quota/limit"}],
+    "result": {
+      "kind": "token_plan",
+      "plan": "Pro",
+      "entries": [
+        {"label": "five_hour", "unit": "percent", "limit": 100, "used": 14.258333333333335},
+        {"label": "weekly", "unit": "percent", "limit": 100, "used": 26.486666666666665, "resetAt": "2026-09-24T06:52:52Z"}
+      ]
+    }
+  }
+}

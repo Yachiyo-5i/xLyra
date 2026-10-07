@@ -1,0 +1,19 @@
+{
+  "name": "weekly only without membership",
+  "ctx": {"siteType": "kimi_code", "baseURL": "https://api.kimi.com/coding", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/usages"},
+    "status": 200,
+    "json": {
+      "usage": {"limit": "100", "used": "10", "remaining": "90", "resetTime": "2026-07-27T02:19:14Z"},
+      "limits": []
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/usages"}],
+    "result": {
+      "kind": "token_plan",
+      "entries": [{"label": "weekly", "unit": "percent", "limit": 100, "used": 10, "remaining": 90, "resetAt": "2026-07-27T02:19:14Z"}]
+    }
+  }
+}

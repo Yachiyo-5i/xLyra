@@ -93,6 +93,9 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)
 		}
 		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		config.RegisterGeneralValidator(func(cfg config.GeneralConfig) error {
+			return site.ValidateJSPluginLists(cfg.JSPlugin)
+		})
 		catalogService = catalog.NewService(db, confFile)
 		dashboardService = dashboard.NewService(db, appTimeZone)
 		analyticsService = analytics.NewService(db, appTimeZone)

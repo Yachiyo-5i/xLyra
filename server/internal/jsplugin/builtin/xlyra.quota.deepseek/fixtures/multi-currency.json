@@ -1,0 +1,23 @@
+{
+  "name": "one entry per currency",
+  "ctx": {"siteType": "deepseek", "baseURL": "https://api.deepseek.com", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/user/balance"},
+    "status": 200,
+    "json": {"is_available": true, "balance_infos": [
+      {"currency": "CNY", "total_balance": "10.00", "granted_balance": "0.00", "topped_up_balance": "10.00"},
+      {"currency": "USD", "total_balance": "2.50", "granted_balance": "1.00", "topped_up_balance": "1.50"}
+    ]}
+  }],
+  "expect": {
+    "requests": [{"path": "/user/balance"}],
+    "result": {
+      "kind": "balance",
+      "isAvailable": true,
+      "entries": [
+        {"label": "balance", "unit": "cny", "remaining": 10, "grantedBalance": 0, "toppedUpBalance": 10},
+        {"label": "balance", "unit": "usd", "remaining": 2.5, "grantedBalance": 1, "toppedUpBalance": 1.5}
+      ]
+    }
+  }
+}

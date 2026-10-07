@@ -1,0 +1,17 @@
+{
+  "name": "balance",
+  "ctx": {"siteType": "deepseek", "baseURL": "https://api.deepseek.com", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/user/balance"},
+    "status": 200,
+    "json": {"is_available": true, "balance_infos": [{"currency": "CNY", "total_balance": "47.44", "granted_balance": "0.00", "topped_up_balance": "47.44"}]}
+  }],
+  "expect": {
+    "requests": [{"path": "/user/balance"}],
+    "result": {
+      "kind": "balance",
+      "isAvailable": true,
+      "entries": [{"label": "balance", "unit": "cny", "remaining": 47.44, "grantedBalance": 0, "toppedUpBalance": 47.44}]
+    }
+  }
+}

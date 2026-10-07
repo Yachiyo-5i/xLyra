@@ -1,0 +1,26 @@
+{
+  "name": "same window in two encodings keeps the tightest",
+  "ctx": {"siteType": "glm_code", "baseURL": "https://open.bigmodel.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/api/monitor/usage/quota/limit"},
+    "status": 200,
+    "json": {
+      "code": 200,
+      "data": {
+        "level": "pro",
+        "limits": [
+          {"type": "TOKENS_LIMIT", "unit": 3, "number": 5, "percentage": 10},
+          {"type": "TOKENS_LIMIT", "unit": 5, "number": 300, "percentage": 40}
+        ]
+      },
+      "success": true
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/api/monitor/usage/quota/limit"}],
+    "result": {
+      "kind": "token_plan",
+      "entries": [{"label": "five_hour", "unit": "percent", "limit": 100, "used": 40, "remaining": 60}]
+    }
+  }
+}

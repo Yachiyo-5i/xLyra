@@ -1,0 +1,19 @@
+{
+  "apiVersion": 1,
+  "description": "GLM Coding Plan quota",
+  "hostApi": 1,
+  "id": "xlyra.quota.glm",
+  "kind": "quota_probe",
+  "license": "AGPL-3.0",
+  "name": "GLM quota",
+  "quotaProbe": {
+    "baseURLMode": "origin",
+    "defaultBaseURL": "https://open.bigmodel.cn",
+    "replaces": "glm"
+  },
+  "sha256": {
+    "plugin.js": "e6b01f48d0b093fbd399617e488091f6dd9866d5f7389c8f9dcbe9b4293f8eca"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

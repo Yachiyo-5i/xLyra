@@ -1,0 +1,27 @@
+{
+  "name": "array json",
+  "ctx": {
+    "siteType": "kimi_code",
+    "baseURL": "https://api.kimi.com/coding",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/v1/usages"
+      },
+      "status": 200,
+      "body": "[1,2]"
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/v1/usages"
+      }
+    ],
+    "error": "invalid JSON response"
+  }
+}

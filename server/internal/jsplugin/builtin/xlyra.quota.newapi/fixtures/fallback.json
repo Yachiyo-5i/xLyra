@@ -1,0 +1,85 @@
+{
+  "name": "billing fallback",
+  "ctx": {
+    "siteType": "newapi",
+    "baseURL": "https://relay.example",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/api/usage/token"
+      },
+      "status": 404,
+      "body": "missing"
+    },
+    {
+      "match": {
+        "method": "GET",
+        "path": "/v1/dashboard/billing/subscription"
+      },
+      "status": 404,
+      "body": "missing"
+    },
+    {
+      "match": {
+        "method": "GET",
+        "path": "/dashboard/billing/subscription"
+      },
+      "status": 200,
+      "json": {
+        "hard_limit_usd": 10
+      }
+    },
+    {
+      "match": {
+        "method": "GET",
+        "path": "/v1/dashboard/billing/usage"
+      },
+      "status": 404,
+      "body": "missing"
+    },
+    {
+      "match": {
+        "pathPrefix": "/dashboard/billing/usage"
+      },
+      "status": 200,
+      "json": {
+        "total_usage": 100
+      }
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/api/usage/token"
+      },
+      {
+        "path": "/v1/dashboard/billing/subscription"
+      },
+      {
+        "path": "/dashboard/billing/subscription"
+      },
+      {
+        "path": "/v1/dashboard/billing/usage"
+      },
+      {
+        "pathPrefix": "/dashboard/billing/usage"
+      }
+    ],
+    "result": {
+      "kind": "balance",
+      "entries": [
+        {
+          "label": "balance",
+          "unit": "usd",
+          "limit": 10,
+          "used": 1,
+          "remaining": 9
+        }
+      ]
+    }
+  }
+}

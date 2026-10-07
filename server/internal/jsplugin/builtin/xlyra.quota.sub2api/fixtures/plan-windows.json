@@ -1,0 +1,33 @@
+{
+  "name": "plan subscription percentage windows",
+  "ctx": {"siteType": "sub2api", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/usage"},
+    "status": 200,
+    "json": {
+      "isValid": true,
+      "mode": "unrestricted",
+      "planName": "待宵计划",
+      "subscription": {
+        "daily": {"percentage": 0, "resets_at": "2026-08-19T00:00:00+08:00"},
+        "weekly": {"percentage": 25.5, "resets_at": "2026-08-25T17:12:24.203076+08:00"},
+        "monthly": {"percentage": 100, "resets_at": "2026-09-18T17:12:24.203076+08:00"},
+        "expires_at": "2026-09-17T17:12:24.203076+08:00"
+      },
+      "unit": "%"
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/usage"}],
+    "result": {
+      "kind": "subscription_plan",
+      "plan": "待宵计划",
+      "expiresAt": "2026-09-17T17:12:24.203076+08:00",
+      "entries": [
+        {"label": "daily", "unit": "percent", "limit": 100, "used": 0, "remaining": 100, "resetAt": "2026-08-19T00:00:00+08:00"},
+        {"label": "weekly", "unit": "percent", "limit": 100, "used": 25.5, "remaining": 74.5, "resetAt": "2026-08-25T17:12:24.203076+08:00"},
+        {"label": "monthly", "unit": "percent", "limit": 100, "used": 100, "remaining": 0, "resetAt": "2026-09-18T17:12:24.203076+08:00"}
+      ]
+    }
+  }
+}
