@@ -6,6 +6,11 @@ import (
 	"fmt"
 )
 
+var (
+	// ErrVersionEnabled is returned when a delete targets the active enabled version.
+	ErrVersionEnabled = errors.New("enabled plugin version cannot be deleted")
+)
+
 const (
 	KindTimeout          = "js_timeout"
 	KindShape            = "js_shape_error"

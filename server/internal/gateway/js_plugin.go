@@ -2,22 +2,19 @@ package gateway
 
 import (
 	"strings"
-	"sync"
 
 	"xlyra/server/internal/jsplugin"
 )
 
-var (
-	jsBuiltinOnce sync.Once
-	jsBuiltinReg  *jsplugin.Registry
-	jsBuiltinErr  error
-)
-
 func jsBuiltinRegistry() (*jsplugin.Registry, error) {
-	jsBuiltinOnce.Do(func() {
-		jsBuiltinReg, jsBuiltinErr = jsplugin.LoadBuiltins()
-	})
-	return jsBuiltinReg, jsBuiltinErr
+	registry := jsplugin.DefaultCatalog().Registry()
+	if registry == nil {
+		if err := jsplugin.DefaultCatalog().InitBuiltins(); err != nil {
+			return nil, err
+		}
+		registry = jsplugin.DefaultCatalog().Registry()
+	}
+	return registry, nil
 }
 
 func gatewayRequestStreams(request gatewayRequest) bool {

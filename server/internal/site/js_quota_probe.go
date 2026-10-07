@@ -13,18 +13,24 @@ import (
 	"strings"
 	"time"
 
-	"xlyra/server/internal/config"
 	"xlyra/server/internal/jsplugin"
 )
 
 func (s *Service) probeQuota(ctx context.Context, client *http.Client, probeType, siteType, credentialType, baseURL, secret string) QuotaProbeResult {
-	if s == nil || s.jsPlugins == nil {
+	registry := s.activeJSRegistry()
+	if registry == nil {
 		return quotaProbeUnavailable("js plugin registry is not available")
 	}
 	if !jsplugin.HeapLimitAvailable() {
 		return quotaProbeUnavailable("js plugin allocation budget is not available")
 	}
-	plugin, ok := s.jsPlugins.ByProbeType(probeType)
+	var plugin *jsplugin.Plugin
+	var ok bool
+	if strings.HasPrefix(probeType, QuotaProbePluginPrefix) {
+		plugin, ok = registry.ByPluginID(strings.TrimPrefix(probeType, QuotaProbePluginPrefix))
+	} else {
+		plugin, ok = registry.ByProbeType(probeType)
+	}
 	if !ok {
 		return quotaProbeUnavailable(fmt.Sprintf("quota probe %q is not loaded", probeType))
 	}
@@ -72,16 +78,18 @@ func quotaProbeSiteType(probeType string) string {
 	}
 }
 
-// ValidateJSPluginLists ensures built-in js plugins can run. Legacy quota_probes and
-// protocols lists in config are ignored; builtins are always used when loaded.
-func ValidateJSPluginLists(cfg config.GeneralJSPluginConfig) error {
-	_ = cfg
+// ValidateJSPluginRuntime checks that builtin quota probes and systemone are loaded and the heap budget is available.
+func ValidateJSPluginRuntime() error {
 	if !jsplugin.HeapLimitAvailable() {
 		return fmt.Errorf("js_plugin: allocation budget is not available")
 	}
-	registry, err := jsplugin.LoadBuiltins()
-	if err != nil {
-		return err
+	registry := jsplugin.DefaultCatalog().Registry()
+	if registry == nil {
+		loaded, err := jsplugin.LoadBuiltins()
+		if err != nil {
+			return err
+		}
+		registry = loaded
 	}
 	for _, probeType := range []string{
 		QuotaProbeTypeSub2API, QuotaProbeTypeNewAPI, QuotaProbeTypeXLyra,
@@ -99,6 +107,11 @@ func ValidateJSPluginLists(cfg config.GeneralJSPluginConfig) error {
 
 func probeQuotaJS(ctx context.Context, client *http.Client, plugin *jsplugin.Plugin, siteType, credentialType, baseURL, secret string) QuotaProbeResult {
 	result := QuotaProbeResult{Status: "error", FetchedAt: time.Now().UTC()}
+	defer func() {
+		if breaker := jsplugin.DefaultCatalog().Breaker(); breaker != nil {
+			breaker.RecordProbeResult(plugin, result.Status == "ok")
+		}
+	}()
 	canonical, err := canonicalQuotaBase(plugin, baseURL)
 	if err != nil {
 		result.Error = err.Error()

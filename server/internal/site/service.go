@@ -139,12 +139,15 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	httpClients := httpclient.NewManager(confFile)
-	plugins, err := jsplugin.LoadBuiltins()
-	if err != nil {
-		slog.Warn("builtin js plugins", "error", err)
+	plugins := jsplugin.DefaultCatalog().Registry()
+	if plugins == nil {
+		if err := jsplugin.DefaultCatalog().InitBuiltins(); err != nil {
+			slog.Warn("builtin js plugins", "error", err)
+		}
+		plugins = jsplugin.DefaultCatalog().Registry()
 	}
-	if err := ValidateJSPluginLists(config.ReadGeneralConfig(confFile).JSPlugin); err != nil {
-		slog.Warn("js plugin list ignored", "error", err)
+	if err := ValidateJSPluginRuntime(); err != nil {
+		slog.Warn("builtin js plugins unavailable", "error", err)
 	}
 	return &Service{
 		db:          db,
@@ -158,6 +161,16 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		siteLocks:   newSiteRefreshLocks(),
 		jsPlugins:   plugins,
 	}
+}
+
+func (s *Service) activeJSRegistry() *jsplugin.Registry {
+	if registry := jsplugin.DefaultCatalog().Registry(); registry != nil {
+		return registry
+	}
+	if s == nil {
+		return nil
+	}
+	return s.jsPlugins
 }
 
 func (s *Service) List(ctx context.Context) ([]store.Site, error) {

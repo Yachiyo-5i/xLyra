@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -15,31 +16,46 @@ var builtinFS embed.FS
 
 //go:generate go run ./genbuiltins
 
-// Registry holds the built-in plugins loaded for this process.
+// Registry holds compiled plugins for one generation.
 type Registry struct {
-	probes    map[string]*Plugin
-	protocols map[string]*Plugin
+	probes         map[string]*Plugin
+	protocols      map[string]*Plugin
+	byID           map[string]*Plugin
+	protocolSlugs  map[string]*Plugin
 }
 
-// NewRegistry maps plugins by probe type and protocol name.
+// NewRegistry maps plugins by probe type, protocol name, manifest id, and slug.
 func NewRegistry(plugins ...*Plugin) *Registry {
-	registry := &Registry{probes: map[string]*Plugin{}, protocols: map[string]*Plugin{}}
+	registry := &Registry{
+		probes:        map[string]*Plugin{},
+		protocols:     map[string]*Plugin{},
+		byID:          map[string]*Plugin{},
+		protocolSlugs: map[string]*Plugin{},
+	}
 	for _, plugin := range plugins {
-		if plugin == nil {
-			continue
-		}
-		switch plugin.Manifest.Kind {
-		case KindQuotaProbe:
-			if replaces := plugin.ProbeType(); replaces != "" {
-				registry.probes[replaces] = plugin
-			}
-		case KindProtocol:
-			if name := plugin.ProtocolName(); name != "" {
-				registry.protocols[name] = plugin
-			}
-		}
+		registry.add(plugin, "")
 	}
 	return registry
+}
+
+func (r *Registry) add(plugin *Plugin, protocolSlug string) {
+	if r == nil || plugin == nil {
+		return
+	}
+	r.byID[plugin.Manifest.ID] = plugin
+	switch plugin.Manifest.Kind {
+	case KindQuotaProbe:
+		if replaces := plugin.ProbeType(); replaces != "" {
+			r.probes[replaces] = plugin
+		}
+	case KindProtocol:
+		if name := plugin.ProtocolName(); name != "" {
+			r.protocols[name] = plugin
+		}
+		if slug := strings.TrimSpace(protocolSlug); slug != "" {
+			r.protocolSlugs[slug] = plugin
+		}
+	}
 }
 
 // ByProbeType returns the built-in quota probe for a probe type such as "kimi".
@@ -60,6 +76,67 @@ func (r *Registry) ByProtocolName(name string) (*Plugin, bool) {
 	return plugin, ok
 }
 
+// Plugins returns every plugin in the registry sorted by manifest id.
+func (r *Registry) Plugins() []*Plugin {
+	if r == nil || len(r.byID) == 0 {
+		return nil
+	}
+	out := make([]*Plugin, 0, len(r.byID))
+	for _, plugin := range r.byID {
+		out = append(out, plugin)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Manifest.ID < out[j].Manifest.ID
+	})
+	return out
+}
+
+// ByPluginID returns a plugin by manifest id.
+func (r *Registry) ByPluginID(id string) (*Plugin, bool) {
+	if r == nil {
+		return nil, false
+	}
+	plugin, ok := r.byID[id]
+	return plugin, ok
+}
+
+// ProtocolBySlug returns an enabled third-party protocol binding.
+func (r *Registry) ProtocolBySlug(slug string) (*Plugin, bool) {
+	if r == nil {
+		return nil, false
+	}
+	plugin, ok := r.protocolSlugs[slug]
+	return plugin, ok
+}
+
+// Generation is the registry generation counter exposed to logs.
+func (r *Registry) cloneWithSlugs(slugs map[string]string) *Registry {
+	if r == nil {
+		return NewRegistry()
+	}
+	out := &Registry{
+		probes:        map[string]*Plugin{},
+		protocols:     map[string]*Plugin{},
+		byID:          map[string]*Plugin{},
+		protocolSlugs: map[string]*Plugin{},
+	}
+	for key, plugin := range r.probes {
+		out.probes[key] = plugin
+	}
+	for key, plugin := range r.protocols {
+		out.protocols[key] = plugin
+	}
+	for key, plugin := range r.byID {
+		out.byID[key] = plugin
+	}
+	for slug, pluginID := range slugs {
+		if plugin, ok := r.byID[pluginID]; ok {
+			out.protocolSlugs[slug] = plugin
+		}
+	}
+	return out
+}
+
 var (
 	builtinOnce sync.Once
 	builtinReg  *Registry
@@ -76,12 +153,12 @@ func LoadBuiltins() (*Registry, error) {
 }
 
 func loadBuiltinFS() (*Registry, error) {
-	registry := &Registry{probes: map[string]*Plugin{}, protocols: map[string]*Plugin{}}
 	entries, err := fs.ReadDir(builtinFS, "builtin")
 	if err != nil {
-		return registry, err
+		return NewRegistry(), err
 	}
 	var failures []string
+	var plugins []*Plugin
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), "_") {
 			continue
@@ -93,27 +170,25 @@ func loadBuiltinFS() (*Registry, error) {
 		}
 		switch plugin.Manifest.Kind {
 		case KindQuotaProbe:
-			replaces := plugin.Manifest.QuotaProbe.Replaces
-			if replaces == "" {
+			if plugin.Manifest.QuotaProbe.Replaces == "" {
 				failures = append(failures, plugin.Manifest.ID+": missing quotaProbe.replaces")
 				continue
 			}
-			registry.probes[replaces] = plugin
 		case KindProtocol:
-			name := plugin.Manifest.Protocol.Name
-			if name == "" {
+			if plugin.Manifest.Protocol.Name == "" {
 				failures = append(failures, plugin.Manifest.ID+": missing protocol.name")
 				continue
 			}
-			registry.protocols[name] = plugin
 		default:
 			failures = append(failures, plugin.Manifest.ID+": unsupported kind "+plugin.Manifest.Kind)
+			continue
 		}
+		plugins = append(plugins, plugin)
 	}
 	if len(failures) > 0 {
-		return registry, fmt.Errorf("builtin plugins: %s", strings.Join(failures, "; "))
+		return NewRegistry(), fmt.Errorf("builtin plugins: %s", strings.Join(failures, "; "))
 	}
-	return registry, nil
+	return NewRegistry(plugins...), nil
 }
 
 func loadBuiltinDir(dir string) (*Plugin, error) {

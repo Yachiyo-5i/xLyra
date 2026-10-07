@@ -192,8 +192,8 @@ export function probe() { return { request: { path: "/v1/again" } }; }`
 	}
 }
 
-func TestJSProbeListValidation(t *testing.T) {
-	if err := ValidateJSPluginLists(config.DefaultGeneralConfig().JSPlugin); err != nil {
+func TestJSPluginRuntimeValidation(t *testing.T) {
+	if err := ValidateJSPluginRuntime(); err != nil {
 		t.Fatalf("builtins: %v", err)
 	}
 }
@@ -308,9 +308,6 @@ export function probe() { for (;;) {} }`
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := confFile.Set(config.GeneralConfigPath+".js_plugin.quota_probes", []any{QuotaProbeTypeKimi}); err != nil {
-		t.Fatal(err)
-	}
 
 	siteID := uuid.New()
 	remaining := 42.0
@@ -357,7 +354,13 @@ export function probe() { for (;;) {} }`
 		},
 	})
 	service.confFile = confFile
-	service.jsPlugins = jsplugin.NewRegistry(plugin)
+	prevCatalog := jsplugin.DefaultCatalog().Current()
+	jsplugin.DefaultCatalog().Replace(&jsplugin.Snapshot{Gen: 999, Registry: jsplugin.NewRegistry(plugin)})
+	defer func() {
+		if prevCatalog != nil {
+			jsplugin.DefaultCatalog().Replace(prevCatalog)
+		}
+	}()
 
 	service.runQuotaProbes(context.Background(), item)
 

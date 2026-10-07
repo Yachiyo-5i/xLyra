@@ -19,6 +19,8 @@ const (
 	QuotaProbeTypeGLM      = "glm"
 	QuotaProbeTypeDeepSeek = "deepseek"
 	QuotaProbeTypeMoonshot = "moonshot"
+
+	QuotaProbePluginPrefix = "plugin:"
 )
 
 type GatewayConfig struct {
@@ -59,6 +61,13 @@ func NormalizeQuotaProbeType(value string) (string, error) {
 	case QuotaProbeTypeDeepSeek:
 		return QuotaProbeTypeDeepSeek, nil
 	default:
+		if strings.HasPrefix(value, QuotaProbePluginPrefix) {
+			id := strings.TrimSpace(strings.TrimPrefix(value, QuotaProbePluginPrefix))
+			if id == "" || strings.Contains(id, " ") {
+				return "", fmt.Errorf("unsupported quota_probe type %q", value)
+			}
+			return QuotaProbePluginPrefix + id, nil
+		}
 		return "", fmt.Errorf("unsupported quota_probe type %q", value)
 	}
 }

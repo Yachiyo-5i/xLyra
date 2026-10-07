@@ -340,7 +340,8 @@ func TestMoejsImportOnlyInEngine(t *testing.T) {
 
 func mustTestPlugin(t *testing.T, id, source string) *Plugin {
 	t.Helper()
-	plugin, err := NewPlugin(testManifest(id, source), source, []Fixture{{Name: "unused"}}, 0)
+	// Pool behavior tests assume a single warm runtime unless they configure the pool further.
+	plugin, err := NewPlugin(testManifest(id, source), source, []Fixture{{Name: "unused"}}, 1)
 	if err != nil {
 		t.Fatalf("new plugin: %v", err)
 	}
