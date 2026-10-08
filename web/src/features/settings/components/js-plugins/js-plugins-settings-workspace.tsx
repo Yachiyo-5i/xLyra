@@ -26,7 +26,12 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   bindJSPluginProtocolSlug,
+  bindJSPluginSite,
   bindJSPluginSiteQuotaProbe,
+  GLOBAL_KINDS,
+  previewJSPluginPricing,
+  SITE_BOUND_KINDS,
+  unbindJSPluginSite,
   createJSPluginTrustedKey,
   deleteJSPluginTrustedKey,
   deleteJSPluginVersion,
@@ -158,6 +163,8 @@ export function JSPluginsSettingsWorkspace() {
   const [tryResult, setTryResult] = useState<JSPluginTryResult | null>(null)
   const [protocolSlug, setProtocolSlug] = useState('')
   const [bindSiteId, setBindSiteId] = useState('')
+  const [pricingPreview, setPricingPreview] = useState<{ items: number; groups: number } | null>(null)
+  const [pricingReviewed, setPricingReviewed] = useState(false)
 
   const builtinsQuery = useQuery({
     queryKey: jsPluginQueryKeys.builtins(),
@@ -178,7 +185,9 @@ export function JSPluginsSettingsWorkspace() {
       const result = await listSites({ oauth: 'all' })
       return result.items ?? []
     },
-    enabled: managePlugin != null && managePlugin.kind === 'quota_probe',
+    enabled:
+      managePlugin != null &&
+      (managePlugin.kind === 'quota_probe' || (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? '')),
   })
 
   const invalidateAll = () => {
@@ -361,7 +370,46 @@ export function JSPluginsSettingsWorkspace() {
     },
   })
 
+  const bindSiteMutation = useMutation({
+    mutationFn: ({ pluginId, version, siteId, reviewed }: { pluginId: string; version: string; siteId: string; reviewed: boolean }) =>
+      bindJSPluginSite(pluginId, version, siteId, { confirmPricingReviewed: reviewed }),
+    onSuccess: () => {
+      toast.success(t('settings:jsPlugins.bindSiteSuccess'))
+      void queryClient.invalidateQueries({ queryKey: sitesQueryKeys.all })
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.bindSiteFailed'))
+    },
+  })
+
+  const unbindSiteMutation = useMutation({
+    mutationFn: ({ pluginId, siteId, kind }: { pluginId: string; siteId: string; kind: string }) =>
+      unbindJSPluginSite(pluginId, siteId, kind),
+    onSuccess: () => {
+      toast.success(t('settings:jsPlugins.unbindSiteSuccess'))
+      void queryClient.invalidateQueries({ queryKey: sitesQueryKeys.all })
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.bindSiteFailed'))
+    },
+  })
+
+  const previewPricingMutation = useMutation({
+    mutationFn: ({ pluginId, siteId }: { pluginId: string; siteId: string }) => previewJSPluginPricing(pluginId, siteId),
+    onSuccess: (preview) => {
+      setPricingPreview({ items: preview.items?.length ?? 0, groups: preview.groups?.length ?? 0 })
+      setPricingReviewed(false)
+    },
+    onError: (error: unknown) => {
+      setPricingPreview(null)
+      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.previewPricingFailed'))
+    },
+  })
+
   const busy =
+    bindSiteMutation.isPending ||
+    unbindSiteMutation.isPending ||
+    previewPricingMutation.isPending ||
     uploadMutation.isPending ||
     enableMutation.isPending ||
     disableMutation.isPending ||
@@ -838,6 +886,96 @@ export function JSPluginsSettingsWorkspace() {
                       </div>
                     </FormField>
                   </div>
+                ) : null}
+
+                {enabledVersionRow && managePlugin && (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? '') ? (
+                  <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
+                    <FormField
+                      label={t('settings:jsPlugins.bindSiteTitle')}
+                      description={t(`settings:jsPlugins.bindSiteHint.${managePlugin.kind}`)}
+                    >
+                      <div className="flex flex-wrap items-end gap-2">
+                        <FormField label={t('settings:jsPlugins.bindQuotaSite')} className="min-w-[220px] flex-1">
+                          <Select
+                            value={bindSiteId}
+                            onValueChange={(value) => {
+                              setBindSiteId(value)
+                              setPricingPreview(null)
+                              setPricingReviewed(false)
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('settings:jsPlugins.bindQuotaSitePlaceholder')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(sitesQuery.data ?? []).map((site) => (
+                                <SelectItem key={site.id} value={site.id}>
+                                  {site.name} ({site.slug})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormField>
+                        {managePlugin.kind === 'pricing_parse' ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy || !bindSiteId}
+                            onClick={() => previewPricingMutation.mutate({ pluginId: managePlugin.id, siteId: bindSiteId })}
+                          >
+                            {t('settings:jsPlugins.previewPricing')}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={busy || !bindSiteId || (managePlugin.kind === 'pricing_parse' && !(pricingPreview && pricingReviewed))}
+                          onClick={() =>
+                            bindSiteMutation.mutate({
+                              pluginId: managePlugin.id,
+                              version: enabledVersionRow.version,
+                              siteId: bindSiteId,
+                              reviewed: pricingReviewed,
+                            })
+                          }
+                        >
+                          {t('settings:jsPlugins.bindSite')}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || !bindSiteId}
+                          onClick={() =>
+                            unbindSiteMutation.mutate({ pluginId: managePlugin.id, siteId: bindSiteId, kind: managePlugin.kind ?? '' })
+                          }
+                        >
+                          {t('settings:jsPlugins.unbindSite')}
+                        </Button>
+                      </div>
+                    </FormField>
+                    {managePlugin.kind === 'pricing_parse' && pricingPreview ? (
+                      <div className="space-y-2 text-sm">
+                        <p>{t('settings:jsPlugins.pricingPreviewSummary', pricingPreview)}</p>
+                        <label className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={pricingReviewed}
+                            onChange={(event) => setPricingReviewed(event.target.checked)}
+                          />
+                          <span>{t('settings:jsPlugins.pricingReviewConfirm')}</span>
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {enabledVersionRow && managePlugin && (GLOBAL_KINDS as readonly string[]).includes(managePlugin.kind ?? '') ? (
+                  <p className="rounded-lg border border-[hsl(var(--glass-border))] p-4 text-sm text-muted-foreground">
+                    {t(`settings:jsPlugins.globalKindHint.${managePlugin.kind}`)}
+                  </p>
                 ) : null}
               </>
             )}

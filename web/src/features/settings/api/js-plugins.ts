@@ -169,3 +169,40 @@ export async function bindJSPluginSiteQuotaProbe(pluginId: string, version: stri
     { method: 'POST', body: { site_id: siteId } },
   )
 }
+
+export const SITE_BOUND_KINDS = ['model_list', 'credential_check', 'error_classifier', 'pricing_parse'] as const
+export const GLOBAL_KINDS = ['site_detect', 'model_metadata'] as const
+
+export type JSPluginPricingPreview = {
+  groups: unknown[] | null
+  items: unknown[] | null
+}
+
+export async function bindJSPluginSite(
+  pluginId: string,
+  version: string,
+  siteId: string,
+  options?: { confirmPricingReviewed?: boolean },
+) {
+  return apiFetch<{ ok: boolean; kind: string }>(
+    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}/bind-site`,
+    {
+      method: 'POST',
+      body: { site_id: siteId, confirm_pricing_reviewed: options?.confirmPricingReviewed ?? false },
+    },
+  )
+}
+
+export async function unbindJSPluginSite(pluginId: string, siteId: string, kind: string) {
+  return apiFetch<{ ok: boolean }>(`/api/v1/js-plugins/${encodeURIComponent(pluginId)}/unbind-site`, {
+    method: 'POST',
+    body: { site_id: siteId, kind },
+  })
+}
+
+export async function previewJSPluginPricing(pluginId: string, siteId: string) {
+  return apiFetch<JSPluginPricingPreview>(`/api/v1/js-plugins/${encodeURIComponent(pluginId)}/preview-pricing`, {
+    method: 'POST',
+    body: { site_id: siteId },
+  })
+}
