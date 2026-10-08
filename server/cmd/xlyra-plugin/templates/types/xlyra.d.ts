@@ -92,6 +92,8 @@ export interface DetectContext {
 
 export interface SiteDetectResult {
   matched: boolean;
+  /** Required when matched: which xLyra site type this site is, such as newapi. It must be a type xLyra already supports. */
+  siteType?: string;
   /** 0 to 1. */
   confidence?: number;
   features?: JsonObject;

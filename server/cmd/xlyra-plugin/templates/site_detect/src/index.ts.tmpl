@@ -10,5 +10,7 @@ export function detect(_ctx: DetectContext, steps: ProbeStep[]): SiteDetectDecis
   }
   const resp = steps[0].response;
   const matched = resp.status === 200 && resp.json?.system_name === "Acme Relay";
-  return { result: { matched, confidence: matched ? 0.95 : 0, features: matched ? { version: String(resp.json.version ?? "") } : undefined } };
+  if (!matched) return { result: { matched: false } };
+  // siteType must be a type xLyra already supports; it tells xLyra how to talk to the site.
+  return { result: { matched: true, siteType: "newapi", confidence: 0.95, features: { version: String(resp.json.version ?? "") } } };
 }

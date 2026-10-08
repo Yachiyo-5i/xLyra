@@ -1,6 +1,6 @@
 {
   "name": "@yachiyo-5i/xlyra-plugin-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript types for writing xLyra JS plugins (apiVersion 1, hostApi 1). Types only, no runtime code.",
   "types": "index.d.ts",
   "files": [
