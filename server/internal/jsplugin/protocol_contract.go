@@ -7,20 +7,20 @@ import (
 
 // ProtocolEndpointContext is passed to decodeRequest.
 type ProtocolEndpointContext struct {
-	DownstreamPath string
+	DownstreamPath string `ts:"downstreamPath"`
 }
 
 // ProtocolCandidateContext is the candidate block inside build/parse ctx.
 type ProtocolCandidateContext struct {
-	SiteType      string
-	BaseURL       string
-	UpstreamName  string
-	UpstreamModel string
+	SiteType      string `ts:"siteType"`
+	BaseURL       string `ts:"baseURL"`
+	UpstreamName  string `ts:"upstreamName"`
+	UpstreamModel string `ts:"upstreamModel"`
 }
 
 // ProtocolBuildContext is passed to buildRequest and parseResponse.
 type ProtocolBuildContext struct {
-	Candidate ProtocolCandidateContext
+	Candidate ProtocolCandidateContext `ts:"candidate"`
 }
 
 // ProtocolDecodeResult is a successful decodeRequest return.
@@ -37,17 +37,17 @@ type ProtocolDecodeFailure struct {
 
 // ProtocolBuiltRequest is the cached buildRequest return.
 type ProtocolBuiltRequest struct {
-	Path    string
-	Headers map[string]string
-	Payload map[string]any
+	Path    string            `ts:"path"`
+	Headers map[string]string `ts:"headers,optional"`
+	Payload map[string]any    `ts:"payload"`
 }
 
 // ProtocolParseInput is the resp object for parseResponse.
 type ProtocolParseInput struct {
-	Status  int
-	Headers map[string]string
-	Body    string
-	JSON    any
+	Status  int               `ts:"status"`
+	Headers map[string]string `ts:"headers"`
+	Body    string            `ts:"body"`
+	JSON    any               `ts:"json"`
 }
 
 // ProtocolParsedResponse is a successful parseResponse return.
@@ -62,9 +62,9 @@ type ProtocolParsedResponse struct {
 
 // ProtocolUsage maps plugin usage fields to gateway usage.
 type ProtocolUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
+	PromptTokens     int `ts:"prompt_tokens,optional"`
+	CompletionTokens int `ts:"completion_tokens,optional"`
+	TotalTokens      int `ts:"total_tokens,optional"`
 }
 
 func (pc ProtocolEndpointContext) asMap() map[string]any {

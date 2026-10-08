@@ -12,58 +12,58 @@ var probeMethods = map[string]struct{}{
 
 // ProbeContext is the credential-free object passed to a quota probe hook.
 type ProbeContext struct {
-	SiteType       string
-	BaseURL        string
-	CredentialType string
-	Now            int64
+	SiteType       string `ts:"siteType"`
+	BaseURL        string `ts:"baseURL"`
+	CredentialType string `ts:"credentialType"`
+	Now            int64  `ts:"now,doc=Unix time in milliseconds."`
 }
 
 // ProbeStep is one finished HTTP exchange, shown back to the plugin.
 type ProbeStep struct {
-	Request  ProbeRequest
-	Response ProbeResponse
+	Request  ProbeRequest  `ts:"request"`
+	Response ProbeResponse `ts:"response"`
 }
 
 // ProbeRequest is a plugin-authored HTTP request before the host joins the URL.
 type ProbeRequest struct {
-	Method  string
-	Path    string
-	Headers map[string]string
-	Query   map[string]string
-	Body    any
+	Method  string            `ts:"method,type=ProbeMethod"`
+	Path    string            `ts:"path,doc=Path under the site base URL. Absolute URLs are rejected."`
+	Headers map[string]string `ts:"headers,optional"`
+	Query   map[string]string `ts:"query,optional"`
+	Body    any               `ts:"body,optional,type=Json"`
 }
 
 // ProbeResponse is the HTTP result shown to the plugin. JSON is nil when the body is not JSON.
 type ProbeResponse struct {
-	Status  int
-	Headers map[string]string
-	Body    string
-	JSON    any
-	Error   string
+	Status  int               `ts:"status"`
+	Headers map[string]string `ts:"headers"`
+	Body    string            `ts:"body"`
+	JSON    any               `ts:"json,doc=Parsed body, or null when the body is not JSON."`
+	Error   string            `ts:"error,optional"`
 }
 
 // ProbeEntry is one quota window. Field names match the hook contract.
 type ProbeEntry struct {
-	Label           string
-	Unit            string
-	Remaining       *float64
-	Limit           *float64
-	Used            *float64
-	Unlimited       bool
-	ResetAt         string
-	CashBalance     *float64
-	VoucherBalance  *float64
-	GrantedBalance  *float64
-	ToppedUpBalance *float64
+	Label           string   `ts:"label"`
+	Unit            string   `ts:"unit,optional"`
+	Remaining       *float64 `ts:"remaining"`
+	Limit           *float64 `ts:"limit"`
+	Used            *float64 `ts:"used"`
+	Unlimited       bool     `ts:"unlimited,optional"`
+	ResetAt         string   `ts:"resetAt,optional"`
+	CashBalance     *float64 `ts:"cashBalance"`
+	VoucherBalance  *float64 `ts:"voucherBalance"`
+	GrantedBalance  *float64 `ts:"grantedBalance"`
+	ToppedUpBalance *float64 `ts:"toppedUpBalance"`
 }
 
 // ProbeResult is a successful probe payload. Status and fetched_at stay in Go.
 type ProbeResult struct {
-	Kind        string
-	Plan        string
-	ExpiresAt   string
-	IsAvailable *bool
-	Entries     []ProbeEntry
+	Kind        string       `ts:"kind"`
+	Plan        string       `ts:"plan,optional"`
+	ExpiresAt   string       `ts:"expiresAt,optional"`
+	IsAvailable *bool        `ts:"isAvailable"`
+	Entries     []ProbeEntry `ts:"entries"`
 }
 
 // Decision is one hook return: the next request, the final result, or a probe error.
