@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -362,7 +361,7 @@ func (h Handler) forwardSiteModelTestRequest(
 	endpoint := protocol.UpstreamPath(candidate.Site.BaseURL)
 	result.upstreamPath = endpointPath(endpoint)
 	result.upstreamURL = endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := newUpstreamHTTPRequest(ctx, protocol, endpoint, body)
 	if err != nil {
 		result.statusCode = http.StatusBadGateway
 		result.errorType = "upstream_request_build_failed"
@@ -371,13 +370,9 @@ func (h Handler) forwardSiteModelTestRequest(
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
 		return result
 	}
-	req.Header.Set("Authorization", "Bearer "+upstreamKey)
+	applyUpstreamAuth(req, protocol, upstreamKey)
 	req.Header.Set("Content-Type", "application/json")
-	if upstreamStream {
-		req.Header.Set("Accept", "text/event-stream")
-	} else {
-		req.Header.Set("Accept", "application/json")
-	}
+	setUpstreamAccept(req, upstreamStream)
 	if isCodexSite(candidate.Site.SiteType) {
 		applyCodexGatewayHeaders(req, accountID, upstreamStream)
 	}
@@ -672,6 +667,13 @@ func siteModelTestDownstreamPath(endpointTypes []string) (string, error) {
 	}
 	if supportsText {
 		return gatewayEndpointChatCompletions, nil
+	}
+	for _, endpointType := range endpointTypes {
+		if strings.HasPrefix(normalizeEndpointType(endpointType), "plugin:") {
+			if path, ok := siteModelTestDownstreamPathForEndpointType(endpointType); ok {
+				return path, nil
+			}
+		}
 	}
 	return "", siteModelTestError(http.StatusBadRequest, "image_model_not_supported", "image-only models are not supported by the minimal text test")
 }

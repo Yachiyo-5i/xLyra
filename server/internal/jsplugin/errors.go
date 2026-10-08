@@ -9,6 +9,8 @@ import (
 var (
 	// ErrVersionEnabled is returned when a delete targets the active enabled version.
 	ErrVersionEnabled = errors.New("enabled plugin version cannot be deleted")
+	// ErrUnsignedRequiresConfirmation is returned when enable requires confirm_unsigned.
+	ErrUnsignedRequiresConfirmation = errors.New("unsigned package requires confirm_unsigned")
 )
 
 const (

@@ -5,12 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	"xlyra/server/internal/store"
 )
+
+const quotaProbePluginPrefix = "plugin:"
+
+// EnableOptions controls optional enable-time checks.
+type EnableOptions struct {
+	ConfirmUnsigned bool
+}
 
 // Manager loads uploaded plugins and swaps catalog generations.
 type Manager struct {
@@ -107,6 +116,7 @@ func (m *Manager) Upload(ctx context.Context, adminID string, raw []byte) (store
 		Manifest:      store.JSON(manifestJSON),
 		Package:       raw,
 		PackageSHA256: pkg.SHA256,
+		Signer:        pkg.Signer,
 		Status:        store.JSPluginStatusVerified,
 		SelfTest:      store.JSON(mustJSON(selftest)),
 	}
@@ -121,10 +131,13 @@ func (m *Manager) Upload(ctx context.Context, adminID string, raw []byte) (store
 	return row, nil
 }
 
-func (m *Manager) Enable(ctx context.Context, pluginID, version string) error {
+func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts EnableOptions) error {
 	row, err := m.repo.GetVersion(ctx, pluginID, version)
 	if err != nil {
 		return err
+	}
+	if packageRequiresUnsignedConfirmation(row.Signer) && !opts.ConfirmUnsigned {
+		return ErrUnsignedRequiresConfirmation
 	}
 	pkg, err := ReadPackage(row.Package, true)
 	if err != nil {
@@ -171,6 +184,102 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 		return err
 	}
 	return nil
+}
+
+func (m *Manager) BindSiteQuotaProbe(ctx context.Context, pluginID, version, siteID string) error {
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return fmt.Errorf("site_id is required")
+	}
+	row, err := m.repo.GetVersion(ctx, pluginID, version)
+	if err != nil {
+		return err
+	}
+	if row.Status != store.JSPluginStatusEnabled {
+		return fmt.Errorf("plugin version must be enabled before binding")
+	}
+	pkg, err := ReadPackage(row.Package, true)
+	if err != nil {
+		return err
+	}
+	if pkg.Manifest.Kind != KindQuotaProbe {
+		return fmt.Errorf("only quota_probe plugins can bind to sites")
+	}
+	return m.repo.UpsertBinding(ctx, store.JSPluginBinding{
+		PluginID:   pluginID,
+		Version:    version,
+		TargetKind: store.JSPluginBindingQuotaProbe,
+		TargetID:   siteID,
+	})
+}
+
+func (m *Manager) SyncSiteQuotaProbeFromConfig(ctx context.Context, siteID string, quotaProbe string) error {
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return fmt.Errorf("site_id is required")
+	}
+	probe := strings.TrimSpace(quotaProbe)
+	if !strings.HasPrefix(probe, quotaProbePluginPrefix) {
+		return m.repo.DeleteBinding(ctx, store.JSPluginBindingQuotaProbe, siteID)
+	}
+	pluginID := strings.TrimSpace(strings.TrimPrefix(probe, quotaProbePluginPrefix))
+	if pluginID == "" {
+		return m.repo.DeleteBinding(ctx, store.JSPluginBindingQuotaProbe, siteID)
+	}
+	versions, err := m.repo.ListVersions(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	var enabledVersion string
+	for _, row := range versions {
+		if row.Status == store.JSPluginStatusEnabled {
+			enabledVersion = row.Version
+			break
+		}
+	}
+	if enabledVersion == "" {
+		return m.repo.DeleteBinding(ctx, store.JSPluginBindingQuotaProbe, siteID)
+	}
+	return m.repo.UpsertBinding(ctx, store.JSPluginBinding{
+		PluginID:   pluginID,
+		Version:    enabledVersion,
+		TargetKind: store.JSPluginBindingQuotaProbe,
+		TargetID:   siteID,
+	})
+}
+
+func (m *Manager) TryVersion(ctx context.Context, pluginID, version string) (map[string]any, error) {
+	row, err := m.repo.GetVersion(ctx, pluginID, version)
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := ReadPackage(row.Package, true)
+	if err != nil {
+		return nil, err
+	}
+	plugin, err := CompilePackage(pkg)
+	if err != nil {
+		return nil, err
+	}
+	started := time.Now()
+	err = plugin.SelfTest(ctx)
+	out := map[string]any{
+		"plugin_id": pluginID,
+		"version":   version,
+		"ok":        err == nil,
+		"duration_ms": time.Since(started).Milliseconds(),
+	}
+	if err != nil {
+		out["error"] = err.Error()
+	}
+	return out, nil
+}
+
+func (m *Manager) Metrics(pluginID, version string) PluginMetricsWindow {
+	if m == nil || m.catalog == nil || m.catalog.breaker == nil {
+		return PluginMetricsWindow{}
+	}
+	return m.catalog.breaker.Metrics(pluginID, version)
 }
 
 func (m *Manager) BindProtocolSlug(ctx context.Context, pluginID, version, slug string) error {

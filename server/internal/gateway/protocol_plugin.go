@@ -104,6 +104,7 @@ func (a *jsProtocolAdapter) UpstreamPath(baseURL string) string {
 func (a *jsProtocolAdapter) TransformBufferedResponse(statusCode int, headers http.Header, body []byte) (gatewayBufferedResponse, error) {
 	contentType := strings.TrimSpace(headers.Get("Content-Type"))
 	if statusCode < 200 || statusCode >= 300 {
+		a.recordProtocolResult(true, false)
 		return gatewayBufferedResponse{StatusCode: statusCode, ContentType: contentType, Body: body}, nil
 	}
 	if len(body) > jsplugin.MaxProtocolResponseBody {
@@ -120,6 +121,7 @@ func (a *jsProtocolAdapter) TransformBufferedResponse(statusCode int, headers ht
 	parsed, logs, dropped, err := a.plugin.CallParseResponse(a.ctx, a.buildContext(), input)
 	jsplugin.EmitLogs(a.ctx, a.plugin, "parseResponse", 0, logs, dropped)
 	if err != nil {
+		a.recordProtocolResult(true, false)
 		return gatewayBufferedResponse{}, pluginFailure(err)
 	}
 	response := gatewayBufferedResponse{
@@ -147,7 +149,17 @@ func (a *jsProtocolAdapter) TransformBufferedResponse(statusCode int, headers ht
 			TotalTokens:      parsed.Usage.TotalTokens,
 		}
 	}
+	a.recordProtocolResult(false, false)
 	return response, nil
+}
+
+func (a *jsProtocolAdapter) recordProtocolResult(failed bool, interrupted bool) {
+	if a == nil || a.plugin == nil {
+		return
+	}
+	if breaker := jsplugin.DefaultCatalog().Breaker(); breaker != nil {
+		breaker.RecordProtocolCall(a.plugin, failed, interrupted)
+	}
 }
 
 func (a *jsProtocolAdapter) ProxyStream(_ context.Context, _ http.ResponseWriter, _ *http.Response, _ time.Time, _ routeengine.Candidate) (streamCaptureState, bool, error) {

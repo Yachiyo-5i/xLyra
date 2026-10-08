@@ -109,6 +109,18 @@ func (r *Registry) ProtocolBySlug(slug string) (*Plugin, bool) {
 	return plugin, ok
 }
 
+// ProtocolSlugs returns slug to plugin bindings for enabled third-party protocols.
+func (r *Registry) ProtocolSlugs() map[string]*Plugin {
+	if r == nil || len(r.protocolSlugs) == 0 {
+		return nil
+	}
+	out := make(map[string]*Plugin, len(r.protocolSlugs))
+	for slug, plugin := range r.protocolSlugs {
+		out[slug] = plugin
+	}
+	return out
+}
+
 // Generation is the registry generation counter exposed to logs.
 func (r *Registry) cloneWithSlugs(slugs map[string]string) *Registry {
 	if r == nil {

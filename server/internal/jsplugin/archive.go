@@ -21,6 +21,7 @@ type Package struct {
 	Source   string
 	Fixtures []Fixture
 	SHA256   string
+	Signer   string
 }
 
 // ReadPackage validates and decodes a plugin zip archive.
@@ -38,6 +39,7 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 	var manifestRaw []byte
 	var source []byte
 	var fixtures []Fixture
+	var signatureRaw []byte
 	for _, file := range reader.File {
 		if file.FileInfo().IsDir() {
 			continue
@@ -51,6 +53,11 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 			}
 		case name == "plugin.js":
 			source, err = readZipEntry(file, MaxMergedSourceKiB<<10)
+			if err != nil {
+				return Package{}, err
+			}
+		case name == "signature" || name == "SIGNATURE":
+			signatureRaw, err = readZipEntry(file, 4096)
 			if err != nil {
 				return Package{}, err
 			}
@@ -86,11 +93,23 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 	if err := validateManifest(manifest, string(source)); err != nil {
 		return Package{}, err
 	}
+	signer := ""
+	if len(signatureRaw) > 0 {
+		sig, err := parsePackageSignature(string(signatureRaw))
+		if err != nil {
+			return Package{}, fmt.Errorf("signature: %w", err)
+		}
+		if err := verifyPackageSignature(sum, sig); err != nil {
+			return Package{}, err
+		}
+		signer = sig.Signer
+	}
 	return Package{
 		Manifest: manifest,
 		Source:   string(source),
 		Fixtures: fixtures,
 		SHA256:   sum,
+		Signer:   signer,
 	}, nil
 }
 

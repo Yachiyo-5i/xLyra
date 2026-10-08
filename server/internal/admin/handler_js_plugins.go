@@ -2,17 +2,20 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/auth"
 	"xlyra/server/internal/httpx"
 	"xlyra/server/internal/jsplugin"
+	sitepkg "xlyra/server/internal/site"
 	"xlyra/server/internal/store"
 )
 
@@ -44,18 +47,38 @@ func (h Handler) ListJSPlugins(w http.ResponseWriter, r *http.Request) {
 	for _, plugin := range plugins {
 		versions, _ := repo.ListVersions(r.Context(), plugin.ID)
 		enabled := ""
+		var enabledRow store.JSPluginVersion
 		for _, row := range versions {
 			if row.Status == store.JSPluginStatusEnabled {
 				enabled = row.Version
+				enabledRow = row
 				break
 			}
 		}
-		items = append(items, map[string]any{
+		if enabled == "" && len(versions) > 0 {
+			enabledRow = versions[0]
+		}
+		item := map[string]any{
 			"id":              plugin.ID,
 			"source":          plugin.Source,
 			"enabled_version": enabled,
 			"version_count":   len(versions),
-		})
+		}
+		if meta := jsPluginManifestSummary(enabledRow.Manifest); meta != nil {
+			for key, value := range meta {
+				item[key] = value
+			}
+		}
+		if enabled != "" && h.jsPlugins != nil {
+			metrics := h.jsPlugins.Metrics(plugin.ID, enabled)
+			item["metrics_24h"] = map[string]any{
+				"calls":       metrics.Calls,
+				"errors":      metrics.Errors,
+				"error_rate":  metrics.ErrorRate,
+				"window_ends": metrics.WindowEnds,
+			}
+		}
+		items = append(items, item)
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
@@ -111,9 +134,18 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
 	version := strings.TrimSpace(chi.URLParam(r, "version"))
-	if err := h.jsPlugins.Enable(r.Context(), pluginID, version); err != nil {
-		h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, "js_plugin_enable_failed", map[string]any{"version": version})
-		h.writeError(w, r, http.StatusBadRequest, "js_plugin_enable_failed", err.Error())
+	var body struct {
+		ConfirmUnsigned bool `json:"confirm_unsigned"`
+	}
+	_ = httpx.DecodeJSONBody(r, &body)
+	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUnsigned: body.ConfirmUnsigned}); err != nil {
+		code := "js_plugin_enable_failed"
+		status := http.StatusBadRequest
+		if errors.Is(err, jsplugin.ErrUnsignedRequiresConfirmation) {
+			code = "js_plugin_unsigned"
+		}
+		h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version})
+		h.writeError(w, r, status, code, err.Error())
 		return
 	}
 	gen := h.jsPlugins.Catalog().Generation()
@@ -187,6 +219,106 @@ func (h Handler) BindJSPluginProtocolSlug(w http.ResponseWriter, r *http.Request
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+func (h Handler) TryJSPlugin(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := httpx.DecodeJSONBody(r, &body); err != nil && r.ContentLength > 0 {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	version := strings.TrimSpace(body.Version)
+	if version == "" && h.trafficDB != nil {
+		repo := store.NewJSPluginRepository(h.trafficDB.DB())
+		versions, err := repo.ListVersions(r.Context(), pluginID)
+		if err == nil {
+			for _, row := range versions {
+				if row.Status == store.JSPluginStatusEnabled {
+					version = row.Version
+					break
+				}
+			}
+		}
+	}
+	if version == "" {
+		h.writeError(w, r, http.StatusBadRequest, "version_required", "version is required when no enabled version exists")
+		return
+	}
+	result, err := h.jsPlugins.TryVersion(r.Context(), pluginID, version)
+	if err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.try", pluginID, false, "js_plugin_try_failed", map[string]any{"version": version})
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_try_failed", err.Error())
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.try", pluginID, true, "", map[string]any{"version": version, "ok": result["ok"]})
+	httpx.JSON(w, http.StatusOK, result)
+}
+
+func (h Handler) BindJSPluginSiteQuotaProbe(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil || h.sites == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	version := strings.TrimSpace(chi.URLParam(r, "version"))
+	var body struct {
+		SiteID string `json:"site_id"`
+	}
+	if err := httpx.DecodeJSONBody(r, &body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	siteID := strings.TrimSpace(body.SiteID)
+	if siteID == "" {
+		h.writeError(w, r, http.StatusBadRequest, "site_id_required", "site_id is required")
+		return
+	}
+	if err := h.jsPlugins.BindSiteQuotaProbe(r.Context(), pluginID, version, siteID); err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.bind_quota_probe", pluginID, false, "js_plugin_bind_quota_failed", map[string]any{"version": version, "site_id": siteID})
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_bind_quota_failed", err.Error())
+		return
+	}
+	probeValue := sitepkg.QuotaProbePluginPrefix + pluginID
+	siteUUID, err := uuid.Parse(siteID)
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_site_id", "site_id must be a uuid")
+		return
+	}
+	if _, err := h.sites.PatchGatewayQuotaProbe(r.Context(), siteUUID, probeValue); err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.bind_quota_probe", pluginID, false, "site_quota_probe_patch_failed", map[string]any{"version": version, "site_id": siteID})
+		h.writeError(w, r, http.StatusBadRequest, "site_quota_probe_patch_failed", err.Error())
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.bind_quota_probe", pluginID, true, "", map[string]any{"version": version, "site_id": siteID})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "quota_probe": probeValue})
+}
+
+func jsPluginManifestSummary(raw store.JSON) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return nil
+	}
+	out := map[string]any{}
+	if name, ok := manifest["name"].(string); ok && strings.TrimSpace(name) != "" {
+		out["name"] = strings.TrimSpace(name)
+	}
+	if kind, ok := manifest["kind"].(string); ok && strings.TrimSpace(kind) != "" {
+		out["kind"] = strings.TrimSpace(kind)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func jsPluginBuiltinPayload(plugin *jsplugin.Plugin) map[string]any {
 	if plugin == nil {
 		return map[string]any{}
@@ -214,7 +346,7 @@ func jsPluginBuiltinPayload(plugin *jsplugin.Plugin) map[string]any {
 }
 
 func jsPluginVersionPayload(row store.JSPluginVersion) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"plugin_id":      row.PluginID,
 		"version":        row.Version,
 		"status":         row.Status,
@@ -223,6 +355,13 @@ func jsPluginVersionPayload(row store.JSPluginVersion) map[string]any {
 		"selftest":       row.SelfTest,
 		"created_at":     row.CreatedAt,
 	}
+	if strings.TrimSpace(row.Signer) != "" {
+		payload["signer"] = row.Signer
+		payload["signed"] = true
+	} else {
+		payload["signed"] = false
+	}
+	return payload
 }
 
 func jsPluginAuditMeta(pluginID, version, sha string) map[string]any {

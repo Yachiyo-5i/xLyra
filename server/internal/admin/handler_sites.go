@@ -133,6 +133,7 @@ func (h Handler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.syncJSPluginSiteQuotaBinding(r, created.ID, payload.Gateway.toSiteGatewayConfig())
 	h.logInfo("site created", "site_id", created.ID, "slug", created.Slug, "site_type", created.SiteType, "enabled", created.Enabled)
 	h.invalidateGatewayModelsCache()
 	h.writePayload(w, http.StatusAccepted, map[string]any{
@@ -190,6 +191,7 @@ func (h Handler) UpdateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.syncJSPluginSiteQuotaBinding(r, updated.ID, payload.Gateway.toSiteGatewayConfig())
 	h.logInfo("site updated", "site_id", updated.ID, "slug", updated.Slug, "site_type", updated.SiteType, "enabled", updated.Enabled)
 	if payload.SkipRefresh {
 		h.invalidateGatewayModelsCache()
@@ -2457,4 +2459,15 @@ func siteTypeIconURL(siteType string) string {
 	default:
 		return ""
 	}
+}
+
+func (h Handler) syncJSPluginSiteQuotaBinding(r *http.Request, siteID uuid.UUID, cfg *sitepkg.GatewayConfig) {
+	if h.jsPlugins == nil || siteID == uuid.Nil {
+		return
+	}
+	probe := ""
+	if cfg != nil && cfg.QuotaProbe != nil {
+		probe = *cfg.QuotaProbe
+	}
+	_ = h.jsPlugins.SyncSiteQuotaProbeFromConfig(r.Context(), siteID.String(), probe)
 }

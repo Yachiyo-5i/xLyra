@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldCheck,
   ShieldEllipsis,
+  Puzzle,
   Waypoints,
   type LucideIcon,
 } from 'lucide-react'
@@ -160,6 +161,12 @@ export function getAppNavSections(t: TFunction, features: NavFeatures = {}): App
               label: t('nav.modelsPrice'),
               icon: BadgeDollarSign,
               description: 'Review and maintain upstream model prices.',
+            },
+            {
+              to: '/settings/developer',
+              label: t('nav.developer'),
+              icon: Puzzle,
+              description: 'Sandboxed gateway extensions: built-in hooks plus uploaded .xlp packages.',
             },
             {
               to: '/settings/backup',

@@ -21,10 +21,25 @@ type breakerKey struct {
 
 // Breaker tracks failures per plugin version for automatic disable.
 type Breaker struct {
-	mu      sync.Mutex
-	probe   map[breakerKey]int
+	mu       sync.Mutex
+	probe    map[breakerKey]int
 	protocol map[breakerKey]*protocolBreakerState
-	onTrip  func(pluginID, version string, reason string)
+	metrics  map[breakerKey]*pluginMetricsWindow
+	onTrip   func(pluginID, version string, reason string)
+}
+
+// PluginMetricsWindow summarizes recent plugin activity for admin list APIs.
+type PluginMetricsWindow struct {
+	Calls      int
+	Errors     int
+	ErrorRate  float64
+	WindowEnds time.Time
+}
+
+type pluginMetricsWindow struct {
+	windowStart time.Time
+	calls       int
+	errors      int
 }
 
 type protocolBreakerState struct {
@@ -38,7 +53,51 @@ func NewBreaker(onTrip func(pluginID, version string, reason string)) *Breaker {
 	return &Breaker{
 		probe:    map[breakerKey]int{},
 		protocol: map[breakerKey]*protocolBreakerState{},
+		metrics:  map[breakerKey]*pluginMetricsWindow{},
 		onTrip:   onTrip,
+	}
+}
+
+const pluginMetricsWindowDuration = 24 * time.Hour
+
+func (b *Breaker) Metrics(pluginID, version string) PluginMetricsWindow {
+	if b == nil {
+		return PluginMetricsWindow{}
+	}
+	key := breakerKey{pluginID: pluginID, version: version}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	state := b.metrics[key]
+	if state == nil {
+		return PluginMetricsWindow{WindowEnds: time.Now().UTC().Add(pluginMetricsWindowDuration)}
+	}
+	if time.Since(state.windowStart) > pluginMetricsWindowDuration {
+		return PluginMetricsWindow{WindowEnds: time.Now().UTC().Add(pluginMetricsWindowDuration)}
+	}
+	rate := 0.0
+	if state.calls > 0 {
+		rate = float64(state.errors) / float64(state.calls)
+	}
+	return PluginMetricsWindow{
+		Calls:      state.calls,
+		Errors:     state.errors,
+		ErrorRate:  rate,
+		WindowEnds: state.windowStart.Add(pluginMetricsWindowDuration).UTC(),
+	}
+}
+
+func (b *Breaker) recordMetricsLocked(key breakerKey, failed bool, now time.Time) {
+	if b == nil {
+		return
+	}
+	state := b.metrics[key]
+	if state == nil || now.Sub(state.windowStart) > pluginMetricsWindowDuration {
+		state = &pluginMetricsWindow{windowStart: now}
+		b.metrics[key] = state
+	}
+	state.calls++
+	if failed {
+		state.errors++
 	}
 }
 
@@ -50,8 +109,10 @@ func (b *Breaker) RecordProbeResult(plugin *Plugin, success bool) {
 		return
 	}
 	key := breakerKey{pluginID: plugin.Manifest.ID, version: plugin.Manifest.Version}
+	now := time.Now()
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.recordMetricsLocked(key, !success, now)
 	if success {
 		b.probe[key] = 0
 		return
@@ -83,6 +144,7 @@ func (b *Breaker) RecordProtocolCall(plugin *Plugin, failed bool, interrupted bo
 	if failed {
 		state.errors++
 	}
+	b.recordMetricsLocked(key, failed, now)
 	if interrupted {
 		state.interrupts = append(state.interrupts, now)
 	}
