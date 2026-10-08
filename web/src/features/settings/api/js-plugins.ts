@@ -30,6 +30,8 @@ export type JSPluginListItem = {
   metrics_24h?: JSPluginMetrics24h
 }
 
+export type JSPluginTrust = 'trusted' | 'untrusted_signer' | 'unsigned'
+
 export type JSPluginVersion = {
   plugin_id: string
   version: string
@@ -37,8 +39,17 @@ export type JSPluginVersion = {
   package_sha256?: string
   signed?: boolean
   signer?: string
+  trust?: JSPluginTrust
   manifest?: Record<string, unknown>
   selftest?: { ok?: boolean; error?: string }
+  created_at?: string
+}
+
+export type JSPluginTrustedKey = {
+  id: string
+  name: string
+  public_key: string
+  fingerprint: string
   created_at?: string
 }
 
@@ -55,11 +66,14 @@ export type JSPluginTryResult = {
   error?: string
 }
 
+export const JS_PLUGIN_MAX_PACKAGE_BYTES = 2 << 20
+
 export const jsPluginQueryKeys = {
   all: ['settings', 'js-plugins'] as const,
   builtins: () => [...jsPluginQueryKeys.all, 'builtins'] as const,
   uploaded: () => [...jsPluginQueryKeys.all, 'uploaded'] as const,
   detail: (id: string) => [...jsPluginQueryKeys.all, 'detail', id] as const,
+  trustedKeys: () => [...jsPluginQueryKeys.all, 'trusted-keys'] as const,
 }
 
 export async function listBuiltinJSPlugins(signal?: AbortSignal) {
@@ -86,10 +100,25 @@ export async function uploadJSPlugin(file: File) {
   })
 }
 
+export async function listJSPluginTrustedKeys(signal?: AbortSignal) {
+  const result = await apiFetch<{ items: JSPluginTrustedKey[] }>('/api/v1/js-plugin-trusted-keys', { signal })
+  return result.items ?? []
+}
+
+export async function createJSPluginTrustedKey(body: { name: string; public_key: string }) {
+  return apiFetch<JSPluginTrustedKey>('/api/v1/js-plugin-trusted-keys', { method: 'POST', body })
+}
+
+export async function deleteJSPluginTrustedKey(id: string) {
+  return apiFetch<{ ok: boolean }>(`/api/v1/js-plugin-trusted-keys/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function enableJSPluginVersion(
   pluginId: string,
   version: string,
-  options?: { confirm_unsigned?: boolean },
+  options?: { confirm_untrusted?: boolean },
 ) {
   return apiFetch<{ ok: boolean; generation?: number }>(
     `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}/enable`,

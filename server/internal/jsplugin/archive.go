@@ -11,9 +11,13 @@ import (
 )
 
 const (
-	MaxPackageBytes   = 2 << 20
+	MaxPackageBytes    = 2 << 20
 	MaxMergedSourceKiB = 512
 )
+
+var reservedPluginIDs = map[string]bool{
+	"builtins": true,
+}
 
 // Package is a decoded .xlp upload before compile.
 type Package struct {
@@ -36,48 +40,32 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 	if err != nil {
 		return Package{}, fmt.Errorf("package is not a zip archive: %w", err)
 	}
-	var manifestRaw []byte
-	var source []byte
-	var fixtures []Fixture
-	var signatureRaw []byte
-	for _, file := range reader.File {
-		if file.FileInfo().IsDir() {
-			continue
-		}
-		name := path.Clean(strings.TrimPrefix(file.Name, "/"))
-		switch {
-		case name == "manifest.json":
-			manifestRaw, err = readZipEntry(file, MaxPackageBytes)
-			if err != nil {
-				return Package{}, err
-			}
-		case name == "plugin.js":
-			source, err = readZipEntry(file, MaxMergedSourceKiB<<10)
-			if err != nil {
-				return Package{}, err
-			}
-		case name == "signature" || name == "SIGNATURE":
-			signatureRaw, err = readZipEntry(file, 4096)
-			if err != nil {
-				return Package{}, err
-			}
-		case strings.HasPrefix(name, "fixtures/") && strings.HasSuffix(name, ".json"):
-			rawFixture, err := readZipEntry(file, MaxPackageBytes)
-			if err != nil {
-				return Package{}, err
-			}
-			var fixture Fixture
-			if err := json.Unmarshal(rawFixture, &fixture); err != nil {
-				return Package{}, fmt.Errorf("%s: %w", name, err)
-			}
-			fixtures = append(fixtures, fixture)
-		}
+	files, err := readPackageFiles(reader)
+	if err != nil {
+		return Package{}, err
 	}
+	digest, err := CanonicalPackageDigest(files)
+	if err != nil {
+		return Package{}, err
+	}
+	manifestRaw := files["manifest.json"]
+	source := files["plugin.js"]
 	if len(manifestRaw) == 0 {
 		return Package{}, fmt.Errorf("manifest.json is required")
 	}
 	if len(source) == 0 {
 		return Package{}, fmt.Errorf("plugin.js is required")
+	}
+	var fixtures []Fixture
+	for name, rawFixture := range files {
+		if !strings.HasPrefix(name, "fixtures/") || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		var fixture Fixture
+		if err := json.Unmarshal(rawFixture, &fixture); err != nil {
+			return Package{}, fmt.Errorf("%s: %w", name, err)
+		}
+		fixtures = append(fixtures, fixture)
 	}
 	if requireFixtures && len(fixtures) == 0 {
 		return Package{}, fmt.Errorf("at least one fixtures/*.json is required")
@@ -89,31 +77,63 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 	if err := validateUploadedManifest(manifest); err != nil {
 		return Package{}, err
 	}
-	sum := hashSource(string(source))
 	if err := validateManifest(manifest, string(source)); err != nil {
 		return Package{}, err
 	}
 	signer := ""
-	if len(signatureRaw) > 0 {
-		sig, err := parsePackageSignature(string(signatureRaw))
+	if sigRaw := files[signatureFileName]; len(sigRaw) > 0 {
+		verified, err := verifySignatureFile(digest, sigRaw)
 		if err != nil {
 			return Package{}, fmt.Errorf("signature: %w", err)
 		}
-		if err := verifyPackageSignature(sum, sig); err != nil {
-			return Package{}, err
-		}
-		signer = sig.Signer
+		signer = verified.Fingerprint
 	}
 	return Package{
 		Manifest: manifest,
 		Source:   string(source),
 		Fixtures: fixtures,
-		SHA256:   sum,
+		SHA256:   digest,
 		Signer:   signer,
 	}, nil
 }
 
+func readPackageFiles(reader *zip.Reader) (map[string][]byte, error) {
+	files := make(map[string][]byte)
+	for _, file := range reader.File {
+		if file.FileInfo().IsDir() {
+			continue
+		}
+		name := normalizeZipPath(file.Name)
+		if name == "" || name == "." || strings.HasPrefix(name, "../") || strings.Contains(name, "/../") {
+			return nil, fmt.Errorf("invalid path %q", file.Name)
+		}
+		if _, exists := files[name]; exists {
+			return nil, fmt.Errorf("duplicate path %q", name)
+		}
+		if len(files) >= maxPackageFiles {
+			return nil, fmt.Errorf("package exceeds %d files", maxPackageFiles)
+		}
+		data, err := readZipEntry(file, MaxPackageBytes)
+		if err != nil {
+			return nil, err
+		}
+		files[name] = data
+	}
+	return files, nil
+}
+
+func normalizeZipPath(name string) string {
+	name = path.Clean(strings.TrimPrefix(name, "/"))
+	if name == "." {
+		return ""
+	}
+	return name
+}
+
 func validateUploadedManifest(manifest Manifest) error {
+	if reservedPluginIDs[manifest.ID] {
+		return fmt.Errorf("plugin id %q is reserved", manifest.ID)
+	}
 	if strings.HasPrefix(manifest.ID, "xlyra.") {
 		return fmt.Errorf("uploaded plugins cannot use the xlyra. prefix")
 	}

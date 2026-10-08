@@ -191,8 +191,11 @@ func validateManifest(manifest Manifest, source string) error {
 	if manifest.APIVersion != hookAPIVersion {
 		return fmt.Errorf("apiVersion %d is not supported", manifest.APIVersion)
 	}
-	if manifest.HostAPI != hostAPIVersion {
+	if manifest.HostAPI > hostAPIVersion {
 		return fmt.Errorf("hostApi %d is not supported", manifest.HostAPI)
+	}
+	if manifest.HostAPI < 1 {
+		return fmt.Errorf("hostApi must be at least 1")
 	}
 	if err := versionAllowed(manifest.XLyra, version.Current().Version); err != nil {
 		return err

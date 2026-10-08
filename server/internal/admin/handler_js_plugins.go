@@ -95,17 +95,28 @@ func (h Handler) UploadJSPlugin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(raw) > jsplugin.MaxPackageBytes {
-		h.writeError(w, r, http.StatusBadRequest, "package_too_large", "package exceeds size limit")
+		h.recordJSPluginAudit(r, "js_plugin.upload", "", false, "request_body_too_large", nil)
+		h.writeError(w, r, http.StatusRequestEntityTooLarge, "request_body_too_large", "package exceeds size limit")
 		return
 	}
 	row, err := h.jsPlugins.Upload(r.Context(), adminID, raw)
 	if err != nil {
-		h.recordJSPluginAudit(r, "js_plugin.upload", "", false, "js_plugin_upload_failed", nil)
-		h.writeError(w, r, http.StatusBadRequest, "js_plugin_upload_failed", err.Error())
+		status, code, message := http.StatusInternalServerError, "js_plugin_upload_failed", "failed to store plugin package"
+		var invalid *jsplugin.InvalidPackageError
+		switch {
+		case errors.As(err, &invalid):
+			status, code, message = http.StatusBadRequest, "js_plugin_package_invalid", invalid.Error()
+		case errors.Is(err, jsplugin.ErrVersionContentMismatch):
+			status, code, message = http.StatusConflict, "js_plugin_version_conflict", err.Error()
+		default:
+			h.logError("js plugin upload failed", "error", err)
+		}
+		h.recordJSPluginAudit(r, "js_plugin.upload", "", false, code, nil)
+		h.writeError(w, r, status, code, message)
 		return
 	}
 	h.recordJSPluginAudit(r, "js_plugin.upload", row.PluginID, true, "", jsPluginAuditMeta(row.PluginID, row.Version, row.PackageSHA256))
-	httpx.JSON(w, http.StatusOK, jsPluginVersionPayload(row))
+	httpx.JSON(w, http.StatusOK, h.enrichJSPluginVersion(r.Context(), row))
 }
 
 func (h Handler) GetJSPlugin(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +133,7 @@ func (h Handler) GetJSPlugin(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]map[string]any, 0, len(versions))
 	for _, row := range versions {
-		items = append(items, jsPluginVersionPayload(row))
+		items = append(items, h.enrichJSPluginVersion(r.Context(), row))
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"id": pluginID, "versions": items})
 }
@@ -135,14 +146,20 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
 	version := strings.TrimSpace(chi.URLParam(r, "version"))
 	var body struct {
-		ConfirmUnsigned bool `json:"confirm_unsigned"`
+		ConfirmUntrusted bool `json:"confirm_untrusted"`
+		ConfirmUnsigned  bool `json:"confirm_unsigned"`
 	}
 	_ = httpx.DecodeJSONBody(r, &body)
-	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUnsigned: body.ConfirmUnsigned}); err != nil {
+	confirm := body.ConfirmUntrusted || body.ConfirmUnsigned
+	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUntrusted: confirm}); err != nil {
 		code := "js_plugin_enable_failed"
 		status := http.StatusBadRequest
-		if errors.Is(err, jsplugin.ErrUnsignedRequiresConfirmation) {
-			code = "js_plugin_unsigned"
+		var confirmErr *jsplugin.ConfirmRequiredError
+		if errors.As(err, &confirmErr) {
+			code = "js_plugin_confirm_required"
+			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version, "trust": confirmErr.Trust})
+			h.writeError(w, r, status, code, err.Error())
+			return
 		}
 		h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version})
 		h.writeError(w, r, status, code, err.Error())
@@ -360,6 +377,17 @@ func jsPluginVersionPayload(row store.JSPluginVersion) map[string]any {
 		payload["signed"] = true
 	} else {
 		payload["signed"] = false
+	}
+	return payload
+}
+
+func (h Handler) enrichJSPluginVersion(ctx context.Context, row store.JSPluginVersion) map[string]any {
+	payload := jsPluginVersionPayload(row)
+	if h.jsPlugins != nil {
+		trust, err := h.jsPlugins.TrustStatus(ctx, row.Signer)
+		if err == nil {
+			payload["trust"] = string(trust)
+		}
 	}
 	return payload
 }

@@ -41,6 +41,17 @@ type JSPluginVersion struct {
 	CreatedAt     time.Time
 }
 
+type JSPluginTrustedKey struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	Name        string
+	PublicKey   string
+	Fingerprint string
+	CreatedBy   uuid.NullUUID
+	CreatedAt   time.Time
+}
+
+func (JSPluginTrustedKey) TableName() string { return "js_plugin_trusted_keys" }
+
 type JSPluginBinding struct {
 	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	PluginID    string
@@ -69,6 +80,17 @@ func (r JSPluginRepository) UpsertPlugin(ctx context.Context, id, source string)
 
 func (r JSPluginRepository) CreateVersion(ctx context.Context, version JSPluginVersion) error {
 	return r.db.WithContext(ctx).Create(&version).Error
+}
+
+// CreatePluginVersion upserts the parent plugin and inserts the version atomically.
+func (r JSPluginRepository) CreatePluginVersion(ctx context.Context, version JSPluginVersion, source string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := JSPluginRepository{db: tx}
+		if err := repo.UpsertPlugin(ctx, version.PluginID, source); err != nil {
+			return err
+		}
+		return repo.CreateVersion(ctx, version)
+	})
 }
 
 func (r JSPluginRepository) GetVersion(ctx context.Context, pluginID, ver string) (JSPluginVersion, error) {
@@ -176,10 +198,37 @@ func (r JSPluginRepository) EnableVersion(ctx context.Context, pluginID, version
 	})
 }
 
-func (r JSPluginRepository) FindByPackageSHA(ctx context.Context, sha string) (JSPluginVersion, error) {
-	var item JSPluginVersion
-	err := r.db.WithContext(ctx).Where("package_sha256 = ?", sha).First(&item).Error
+func (r JSPluginRepository) ListTrustedKeys(ctx context.Context) ([]JSPluginTrustedKey, error) {
+	var items []JSPluginTrustedKey
+	err := r.db.WithContext(ctx).Order("created_at DESC").Find(&items).Error
+	return items, err
+}
+
+func (r JSPluginRepository) CreateTrustedKey(ctx context.Context, row *JSPluginTrustedKey) error {
+	return r.db.WithContext(ctx).Create(row).Error
+}
+
+func (r JSPluginRepository) GetTrustedKeyByFingerprint(ctx context.Context, fingerprint string) (JSPluginTrustedKey, error) {
+	var item JSPluginTrustedKey
+	err := r.db.WithContext(ctx).Where("fingerprint = ?", fingerprint).First(&item).Error
 	return item, err
+}
+
+func (r JSPluginRepository) IsTrustedFingerprint(ctx context.Context, fingerprint string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&JSPluginTrustedKey{}).Where("fingerprint = ?", fingerprint).Count(&count).Error
+	return count > 0, err
+}
+
+func (r JSPluginRepository) DeleteTrustedKey(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Where("id = ?", id).Delete(&JSPluginTrustedKey{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func EnabledPluginCompileError(pluginID, version string, err error) error {

@@ -9,9 +9,29 @@ import (
 var (
 	// ErrVersionEnabled is returned when a delete targets the active enabled version.
 	ErrVersionEnabled = errors.New("enabled plugin version cannot be deleted")
-	// ErrUnsignedRequiresConfirmation is returned when enable requires confirm_unsigned.
-	ErrUnsignedRequiresConfirmation = errors.New("unsigned package requires confirm_unsigned")
+	// ErrVersionContentMismatch is returned when the same version already exists with different bytes.
+	ErrVersionContentMismatch = errors.New("plugin version already exists with different package content")
+	// ErrTrustedKeyExists is returned when the public key is already trusted.
+	ErrTrustedKeyExists = errors.New("public key is already trusted")
 )
+
+// InvalidPackageError marks upload failures caused by the package itself rather than the server.
+type InvalidPackageError struct {
+	Err error
+}
+
+func (e *InvalidPackageError) Error() string { return e.Err.Error() }
+
+func (e *InvalidPackageError) Unwrap() error { return e.Err }
+
+// InvalidTrustedKeyError marks trusted-key input that failed validation.
+type InvalidTrustedKeyError struct {
+	Err error
+}
+
+func (e *InvalidTrustedKeyError) Error() string { return e.Err.Error() }
+
+func (e *InvalidTrustedKeyError) Unwrap() error { return e.Err }
 
 const (
 	KindTimeout          = "js_timeout"

@@ -3,6 +3,7 @@ package jsplugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"xlyra/server/internal/store"
 )
@@ -18,7 +20,7 @@ const quotaProbePluginPrefix = "plugin:"
 
 // EnableOptions controls optional enable-time checks.
 type EnableOptions struct {
-	ConfirmUnsigned bool
+	ConfirmUntrusted bool
 }
 
 // Manager loads uploaded plugins and swaps catalog generations.
@@ -88,23 +90,29 @@ func (m *Manager) Reload(ctx context.Context) error {
 func (m *Manager) Upload(ctx context.Context, adminID string, raw []byte) (store.JSPluginVersion, error) {
 	pkg, err := ReadPackage(raw, true)
 	if err != nil {
-		return store.JSPluginVersion{}, err
+		return store.JSPluginVersion{}, &InvalidPackageError{Err: err}
 	}
 	plugin, err := CompilePackage(pkg)
 	if err != nil {
-		return store.JSPluginVersion{}, err
+		return store.JSPluginVersion{}, &InvalidPackageError{Err: err}
 	}
 	selftestErr := plugin.SelfTest(ctx)
 	selftest := map[string]any{"ok": selftestErr == nil}
 	if selftestErr != nil {
 		selftest["error"] = selftestErr.Error()
 	}
-	if err := m.repo.UpsertPlugin(ctx, pkg.Manifest.ID, store.JSPluginSourceUploaded); err != nil {
-		return store.JSPluginVersion{}, err
-	}
-	existing, findErr := m.repo.FindByPackageSHA(ctx, pkg.SHA256)
+	existing, findErr := m.repo.GetVersion(ctx, pkg.Manifest.ID, pkg.Manifest.Version)
 	if findErr == nil {
-		return existing, nil
+		existingPkg, readErr := ReadPackage(existing.Package, true)
+		if readErr != nil {
+			return store.JSPluginVersion{}, fmt.Errorf("%s@%s: %w", existing.PluginID, existing.Version, readErr)
+		}
+		if existingPkg.SHA256 == pkg.SHA256 {
+			return existing, nil
+		}
+		return store.JSPluginVersion{}, ErrVersionContentMismatch
+	} else if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		return store.JSPluginVersion{}, findErr
 	}
 	manifestJSON, err := json.Marshal(pkg.Manifest)
 	if err != nil {
@@ -125,7 +133,10 @@ func (m *Manager) Upload(ctx context.Context, adminID string, raw []byte) (store
 			row.UploadedBy = uuid.NullUUID{UUID: id, Valid: true}
 		}
 	}
-	if err := m.repo.CreateVersion(ctx, row); err != nil {
+	if err := m.repo.CreatePluginVersion(ctx, row, store.JSPluginSourceUploaded); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return store.JSPluginVersion{}, ErrVersionContentMismatch
+		}
 		return store.JSPluginVersion{}, err
 	}
 	return row, nil
@@ -136,8 +147,12 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 	if err != nil {
 		return err
 	}
-	if packageRequiresUnsignedConfirmation(row.Signer) && !opts.ConfirmUnsigned {
-		return ErrUnsignedRequiresConfirmation
+	trust, err := m.TrustStatus(ctx, row.Signer)
+	if err != nil {
+		return err
+	}
+	if trust != TrustTrusted && !opts.ConfirmUntrusted {
+		return &ConfirmRequiredError{Trust: trust}
 	}
 	pkg, err := ReadPackage(row.Package, true)
 	if err != nil {

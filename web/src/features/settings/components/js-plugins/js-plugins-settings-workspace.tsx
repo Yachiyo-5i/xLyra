@@ -1,12 +1,17 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { FlaskConical, LoaderCircle, Package, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { FlaskConical, KeyRound, LoaderCircle, Package, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { DataTable } from '@/components/common/data-table'
+import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
+import { TableToolbar } from '@/components/common/table-toolbar'
+import { defaultTableColumnWidths } from '@/lib/table-column-widths'
+import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -22,19 +27,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   bindJSPluginProtocolSlug,
   bindJSPluginSiteQuotaProbe,
+  createJSPluginTrustedKey,
+  deleteJSPluginTrustedKey,
   deleteJSPluginVersion,
   disableJSPlugin,
   enableJSPluginVersion,
   getJSPlugin,
+  JS_PLUGIN_MAX_PACKAGE_BYTES,
   jsPluginQueryKeys,
   listBuiltinJSPlugins,
+  listJSPluginTrustedKeys,
   listUploadedJSPlugins,
   tryJSPlugin,
   uploadJSPlugin,
   type JSPluginBuiltin,
   type JSPluginListItem,
   type JSPluginMetrics24h,
+  type JSPluginTrust,
   type JSPluginTryResult,
+  type JSPluginTrustedKey,
   type JSPluginVersion,
 } from '@/features/settings/api/js-plugins'
 import { listSites, sitesQueryKeys } from '@/features/sites/api/sites'
@@ -82,6 +93,10 @@ function shortSha256(sha?: string) {
   return `${sha.slice(0, 8)}…${sha.slice(-6)}`
 }
 
+function builtinDisplayName(plugin: JSPluginBuiltin) {
+  return (plugin.name?.trim() || plugin.id).trim()
+}
+
 function formatMetrics24h(t: TFunction, metrics?: JSPluginMetrics24h) {
   if (!metrics || metrics.calls <= 0) {
     return t('settings:jsPlugins.metricsEmpty')
@@ -94,14 +109,41 @@ function formatMetrics24h(t: TFunction, metrics?: JSPluginMetrics24h) {
   })
 }
 
+type BuiltinKindFilter = 'all' | 'quota_probe' | 'protocol'
+
+const BUILTIN_COLUMN_SIZING = {
+  storageKey: 'xlyra:js-plugins:builtin-table-column-widths:v1',
+  defaultWidths: defaultTableColumnWidths([22, 28, 10, 14, 26]),
+  minimumWidths: [10, 12, 6, 8, 10],
+}
+
+const UPLOADED_COLUMN_SIZING = {
+  storageKey: 'xlyra:js-plugins:uploaded-table-column-widths:v1',
+  defaultWidths: defaultTableColumnWidths([18, 22, 12, 12, 16, 20]),
+  minimumWidths: [8, 10, 6, 6, 8, 12],
+}
+
 export function JSPluginsSettingsWorkspace() {
-  const { t } = useTranslation(['settings', 'common'])
+  const { t, i18n } = useTranslation(['settings', 'common'])
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [managePlugin, setManagePlugin] = useState<JSPluginListItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ pluginId: string; version: string } | null>(null)
-  const [unsignedEnable, setUnsignedEnable] = useState<{ pluginId: string; version: string } | null>(null)
-  const [unsignedConfirmed, setUnsignedConfirmed] = useState(false)
+  const [enableConfirm, setEnableConfirm] = useState<{
+    pluginId: string
+    version: string
+    trust: JSPluginTrust
+    signer?: string
+  } | null>(null)
+  const [enableConfirmed, setEnableConfirmed] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadDragging, setUploadDragging] = useState(false)
+  const [trustedKeysOpen, setTrustedKeysOpen] = useState(false)
+  const [trustedKeyAddOpen, setTrustedKeyAddOpen] = useState(false)
+  const [trustedKeyName, setTrustedKeyName] = useState('')
+  const [trustedKeyPublic, setTrustedKeyPublic] = useState('')
+  const [builtinSearch, setBuiltinSearch] = useState('')
+  const [builtinKindFilter, setBuiltinKindFilter] = useState<BuiltinKindFilter>('all')
   const [tryResult, setTryResult] = useState<JSPluginTryResult | null>(null)
   const [protocolSlug, setProtocolSlug] = useState('')
   const [bindSiteId, setBindSiteId] = useState('')
@@ -136,10 +178,28 @@ export function JSPluginsSettingsWorkspace() {
     mutationFn: uploadJSPlugin,
     onSuccess: (row) => {
       toast.success(t('settings:jsPlugins.uploadSuccess', { id: row.plugin_id, version: row.version }))
+      setUploadOpen(false)
+      setUploadDragging(false)
       invalidateAll()
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.uploadFailed'))
+      if (!(error instanceof APIError)) {
+        toast.error(t('settings:jsPlugins.uploadFailed'))
+        return
+      }
+      switch (error.code) {
+        case 'js_plugin_version_conflict':
+          toast.error(t('settings:jsPlugins.uploadVersionConflict'))
+          return
+        case 'request_body_too_large':
+          toast.error(t('settings:jsPlugins.uploadTooLarge'))
+          return
+        case 'js_plugin_package_invalid':
+          toast.error(t('settings:jsPlugins.uploadInvalid', { message: error.message }))
+          return
+        default:
+          toast.error(t('settings:jsPlugins.uploadFailed'))
+      }
     },
   })
 
@@ -147,27 +207,74 @@ export function JSPluginsSettingsWorkspace() {
     mutationFn: ({
       pluginId,
       version,
-      confirmUnsigned,
+      confirmUntrusted,
     }: {
       pluginId: string
       version: string
-      confirmUnsigned?: boolean
-    }) => enableJSPluginVersion(pluginId, version, { confirm_unsigned: confirmUnsigned }),
+      confirmUntrusted?: boolean
+    }) =>
+      enableJSPluginVersion(pluginId, version, { confirm_untrusted: confirmUntrusted }),
     onSuccess: () => {
       toast.success(t('settings:jsPlugins.enableSuccess'))
-      setUnsignedEnable(null)
-      setUnsignedConfirmed(false)
+      setEnableConfirm(null)
+      setEnableConfirmed(false)
       invalidateAll()
       if (managePlugin) {
         void queryClient.invalidateQueries({ queryKey: jsPluginQueryKeys.detail(managePlugin.id) })
       }
     },
     onError: (error: unknown, variables) => {
-      if (error instanceof APIError && error.code === 'js_plugin_unsigned') {
-        setUnsignedEnable({ pluginId: variables.pluginId, version: variables.version })
+      if (error instanceof APIError && error.code === 'js_plugin_confirm_required') {
+        const row = detailQuery.data?.versions.find((item) => item.version === variables.version)
+        setEnableConfirm({
+          pluginId: variables.pluginId,
+          version: variables.version,
+          trust: row?.signer ? 'untrusted_signer' : 'unsigned',
+          signer: row?.signer,
+        })
+        setEnableConfirmed(false)
         return
       }
       toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.enableFailed'))
+    },
+  })
+
+  const addTrustedKeyMutation = useMutation({
+    mutationFn: () =>
+      createJSPluginTrustedKey({
+        name: trustedKeyName.trim(),
+        public_key: trustedKeyPublic.trim(),
+      }),
+    onSuccess: () => {
+      toast.success(t('settings:jsPlugins.trustedKeyAddSuccess'))
+      setTrustedKeyName('')
+      setTrustedKeyPublic('')
+      setTrustedKeyAddOpen(false)
+      void queryClient.invalidateQueries({ queryKey: jsPluginQueryKeys.trustedKeys() })
+      invalidateAll()
+    },
+    onError: (error: unknown) => {
+      if (error instanceof APIError && error.code === 'js_plugin_trusted_key_exists') {
+        toast.error(t('settings:jsPlugins.trustedKeyExists'))
+        return
+      }
+      if (error instanceof APIError && error.code === 'js_plugin_trusted_key_invalid') {
+        toast.error(error.message)
+        return
+      }
+      toast.error(t('settings:jsPlugins.trustedKeyAddFailed'))
+    },
+  })
+
+  const deleteTrustedKeyMutation = useMutation({
+    mutationFn: (id: string) => deleteJSPluginTrustedKey(id),
+    onSuccess: () => {
+      toast.success(t('settings:jsPlugins.trustedKeyDeleteSuccess'))
+      void queryClient.invalidateQueries({ queryKey: jsPluginQueryKeys.trustedKeys() })
+      invalidateAll()
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.trustedKeyDeleteFailed'))
     },
   })
 
@@ -246,20 +353,34 @@ export function JSPluginsSettingsWorkspace() {
     deleteMutation.isPending ||
     tryMutation.isPending ||
     bindProtocolMutation.isPending ||
-    bindQuotaMutation.isPending
+    bindQuotaMutation.isPending ||
+    addTrustedKeyMutation.isPending ||
+    deleteTrustedKeyMutation.isPending
 
-  const onPickFile = () => fileInputRef.current?.click()
+  const submitUploadFile = (file: File | null | undefined) => {
+    if (!file || uploadMutation.isPending) return
+    if (!/\.(xlp|zip)$/i.test(file.name)) {
+      toast.error(t('settings:jsPlugins.uploadWrongType'))
+      return
+    }
+    if (file.size > JS_PLUGIN_MAX_PACKAGE_BYTES) {
+      toast.error(t('settings:jsPlugins.uploadTooLarge'))
+      return
+    }
+    uploadMutation.mutate(file)
+  }
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file) return
-    uploadMutation.mutate(file)
+    submitUploadFile(file)
   }
 
-  const refresh = () => {
-    void builtinsQuery.refetch()
-    void uploadedQuery.refetch()
+  const onUploadDrop = (event: DragEvent) => {
+    event.preventDefault()
+    setUploadDragging(false)
+    const file = event.dataTransfer.files?.[0]
+    submitUploadFile(file)
   }
 
   const uploadedUnavailable =
@@ -267,13 +388,191 @@ export function JSPluginsSettingsWorkspace() {
     uploadedQuery.error instanceof APIError &&
     uploadedQuery.error.code === 'js_plugin_unavailable'
 
-  const openManage = (plugin: JSPluginListItem) => {
+  const trustedKeysQuery = useQuery({
+    queryKey: jsPluginQueryKeys.trustedKeys(),
+    queryFn: ({ signal }) => listJSPluginTrustedKeys(signal),
+    enabled: !uploadedUnavailable,
+  })
+
+  const trustedKeyCount = trustedKeysQuery.data?.length ?? 0
+
+  const refresh = () => {
+    void builtinsQuery.refetch()
+    void uploadedQuery.refetch()
+    if (!uploadedUnavailable) {
+      void trustedKeysQuery.refetch()
+    }
+  }
+
+  const openManage = useCallback((plugin: JSPluginListItem) => {
     setManagePlugin(plugin)
     setProtocolSlug('')
     setBindSiteId('')
-  }
+  }, [])
 
   const enabledVersionRow = (detailQuery.data?.versions ?? []).find((row) => row.status === 'enabled')
+
+  const filteredBuiltins = useMemo(() => {
+    const query = builtinSearch.trim().toLowerCase()
+    const items = [...(builtinsQuery.data ?? [])].sort((a, b) =>
+      builtinDisplayName(a).localeCompare(builtinDisplayName(b), i18n.language, { sensitivity: 'base' }),
+    )
+    return items.filter((plugin) => {
+      if (builtinKindFilter !== 'all' && plugin.kind !== builtinKindFilter) {
+        return false
+      }
+      if (!query) return true
+      const haystack = [
+        builtinDisplayName(plugin),
+        plugin.id,
+        plugin.kind,
+        plugin.replaces ?? '',
+        plugin.protocol ?? '',
+        plugin.description ?? '',
+      ]
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [builtinKindFilter, builtinSearch, builtinsQuery.data, i18n.language])
+
+  const builtinColumns = useMemo<ColumnDef<JSPluginBuiltin>[]>(
+    () => [
+      {
+        id: 'name',
+        header: t('settings:jsPlugins.columns.name'),
+        cell: ({ row }) => (
+          <div className="truncate font-medium text-foreground" title={builtinDisplayName(row.original)}>
+            {builtinDisplayName(row.original)}
+          </div>
+        ),
+        meta: { cellClassName: 'min-w-0' },
+      },
+      {
+        id: 'id',
+        header: t('settings:jsPlugins.columns.id'),
+        cell: ({ row }) => (
+          <div className="truncate font-mono text-xs text-muted-soft" title={row.original.id}>
+            {row.original.id}
+          </div>
+        ),
+        meta: { cellClassName: 'min-w-0' },
+      },
+      {
+        id: 'version',
+        header: t('settings:jsPlugins.columns.version'),
+        cell: ({ row }) => <span className="text-sm tabular-nums">{row.original.version}</span>,
+        meta: { align: 'center' },
+      },
+      {
+        id: 'kind',
+        header: t('settings:jsPlugins.columns.kind'),
+        cell: ({ row }) => <span className="text-sm">{kindLabel(t, row.original.kind)}</span>,
+        meta: { align: 'center' },
+      },
+      {
+        id: 'role',
+        header: t('settings:jsPlugins.columns.role'),
+        cell: ({ row }) => (
+          <div className="truncate text-sm text-muted-soft" title={builtinDetail(row.original, t)}>
+            {builtinDetail(row.original, t)}
+          </div>
+        ),
+        meta: { cellClassName: 'min-w-0' },
+      },
+    ],
+    [t],
+  )
+
+  const disablePlugin = disableMutation.mutate
+
+  const uploadedColumns = useMemo<ColumnDef<JSPluginListItem>[]>(
+    () => [
+      {
+        id: 'name',
+        header: t('settings:jsPlugins.columns.name'),
+        cell: ({ row }) => (
+          <div className="truncate font-medium text-foreground" title={row.original.name}>
+            {row.original.name || '—'}
+          </div>
+        ),
+        meta: { cellClassName: 'min-w-0' },
+      },
+      {
+        id: 'id',
+        header: t('settings:jsPlugins.columns.id'),
+        cell: ({ row }) => (
+          <div className="truncate font-mono text-xs text-muted-soft" title={row.original.id}>
+            {row.original.id}
+          </div>
+        ),
+        meta: { cellClassName: 'min-w-0' },
+      },
+      {
+        id: 'kind',
+        header: t('settings:jsPlugins.columns.kind'),
+        cell: ({ row }) => <span className="text-sm">{kindLabel(t, row.original.kind ?? '')}</span>,
+        meta: { align: 'center' },
+      },
+      {
+        id: 'enabled_version',
+        header: t('settings:jsPlugins.columns.enabledVersion'),
+        cell: ({ row }) =>
+          row.original.enabled_version ? (
+            <StatusBadge status="success">{row.original.enabled_version}</StatusBadge>
+          ) : (
+            <span className="text-sm text-muted-soft">—</span>
+          ),
+        meta: { align: 'center' },
+      },
+      {
+        id: 'metrics_24h',
+        header: t('settings:jsPlugins.columns.metrics24h'),
+        cell: ({ row }) => (
+          <span className="text-sm tabular-nums text-muted-soft">{formatMetrics24h(t, row.original.metrics_24h)}</span>
+        ),
+        meta: { align: 'center' },
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => openManage(row.original)}>
+              {t('settings:jsPlugins.manageVersions')}
+            </Button>
+            {row.original.enabled_version ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => disablePlugin(row.original.id)}
+              >
+                {t('settings:jsPlugins.disable')}
+              </Button>
+            ) : null}
+          </div>
+        ),
+        meta: { align: 'right' },
+      },
+    ],
+    [t, busy, openManage, disablePlugin],
+  )
+
+  const requestEnable = (row: JSPluginVersion) => {
+    if (row.trust && row.trust !== 'trusted') {
+      setEnableConfirm({
+        pluginId: row.plugin_id,
+        version: row.version,
+        trust: row.trust,
+        signer: row.signer,
+      })
+      setEnableConfirmed(false)
+      return
+    }
+    enableMutation.mutate({ pluginId: row.plugin_id, version: row.version })
+  }
 
   return (
     <div className="max-w-5xl space-y-7">
@@ -282,29 +581,15 @@ export function JSPluginsSettingsWorkspace() {
         title={t('settings:jsPlugins.title')}
         description={t('settings:jsPlugins.description')}
         actions={
-          <>
-            <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={busy}>
-              <RefreshCw
-                className={cn('mr-2 h-4 w-4', (builtinsQuery.isFetching || uploadedQuery.isFetching) && 'animate-spin')}
-              />
-              {t('common:actions.refresh')}
-            </Button>
-            <Button type="button" size="sm" onClick={onPickFile} disabled={busy || uploadedUnavailable}>
-              {uploadMutation.isPending ? (
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="mr-2 h-4 w-4" />
+          <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={busy}>
+            <RefreshCw
+              className={cn(
+                'mr-2 h-4 w-4',
+                (builtinsQuery.isFetching || uploadedQuery.isFetching || trustedKeysQuery.isFetching) && 'animate-spin',
               )}
-              {t('settings:jsPlugins.upload')}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlp,application/zip,application/octet-stream"
-              className="hidden"
-              onChange={onFileChange}
             />
-          </>
+            {t('common:actions.refresh')}
+          </Button>
         }
       />
 
@@ -314,104 +599,97 @@ export function JSPluginsSettingsWorkspace() {
           <h3 className="text-sm font-semibold text-foreground">{t('settings:jsPlugins.builtinsTitle')}</h3>
         </div>
         <p className="text-sm text-muted-soft">{t('settings:jsPlugins.builtinsHint')}</p>
-        <Card className="overflow-hidden border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-surface))]">
-          {builtinsQuery.isLoading ? (
-            <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-soft">
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-              {t('settings:jsPlugins.loading')}
-            </div>
-          ) : builtinsQuery.isError ? (
-            <p className="p-6 text-sm text-destructive">{t('settings:jsPlugins.loadFailed')}</p>
-          ) : (
-            <table className="w-full min-w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-[hsl(var(--glass-border))] text-muted-soft">
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.name')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.id')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.version')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.kind')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.role')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(builtinsQuery.data ?? []).map((plugin) => (
-                  <tr key={plugin.id} className="border-b border-[hsl(var(--glass-border))]/60 last:border-0">
-                    <td className="px-4 py-3 font-medium">{plugin.name || plugin.id}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-soft">{plugin.id}</td>
-                    <td className="px-4 py-3">{plugin.version}</td>
-                    <td className="px-4 py-3">{kindLabel(t, plugin.kind)}</td>
-                    <td className="px-4 py-3 text-muted-soft">{builtinDetail(plugin, t)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <TableToolbar
+          searchValue={builtinSearch}
+          onSearchChange={(event) => setBuiltinSearch(event.target.value)}
+          searchPlaceholder={t('settings:jsPlugins.builtinSearchPlaceholder')}
+          searchClassName="flex-none md:w-52"
+          filtersClassName="flex min-w-0 flex-1 flex-wrap items-center gap-3 md:flex md:auto-cols-auto"
+          filters={(
+            <Select
+              value={builtinKindFilter}
+              onValueChange={(value) => setBuiltinKindFilter(value as BuiltinKindFilter)}
+            >
+              <SelectTrigger
+                variant="filter"
+                filterLabel={t('settings:jsPlugins.builtinKindFilter.label')}
+                active={builtinKindFilter !== 'all'}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent searchable={false} widthMode="content">
+                <SelectItem value="all">{t('settings:jsPlugins.builtinKindFilter.all')}</SelectItem>
+                <SelectItem value="quota_probe">{t('settings:jsPlugins.kind.quotaProbe')}</SelectItem>
+                <SelectItem value="protocol">{t('settings:jsPlugins.kind.protocol')}</SelectItem>
+              </SelectContent>
+            </Select>
           )}
-        </Card>
+        />
+        <DataTable
+          columnSizing={BUILTIN_COLUMN_SIZING}
+          columns={builtinColumns}
+          data={builtinsQuery.isError ? [] : filteredBuiltins}
+          getRowId={(plugin) => plugin.id}
+          emptyState={
+            <EmptyState
+              title={
+                builtinsQuery.isLoading
+                  ? t('settings:jsPlugins.loading')
+                  : builtinsQuery.isError
+                    ? t('settings:jsPlugins.loadFailed')
+                    : t('settings:jsPlugins.builtinFilterEmpty')
+              }
+              description={t('settings:jsPlugins.builtinFilterEmptyHint')}
+            />
+          }
+          hideHeaderWhenEmpty
+        />
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">{t('settings:jsPlugins.uploadedTitle')}</h3>
-        <p className="text-sm text-muted-soft">{t('settings:jsPlugins.uploadedHint')}</p>
-        <Card className="overflow-hidden border-[hsl(var(--glass-border))] bg-[hsl(var(--glass-surface))]">
-          {uploadedUnavailable ? (
-            <p className="p-6 text-sm text-muted-soft">{t('settings:jsPlugins.unavailable')}</p>
-          ) : uploadedQuery.isLoading ? (
-            <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-soft">
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-              {t('settings:jsPlugins.loading')}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <h3 className="text-sm font-semibold text-foreground">{t('settings:jsPlugins.uploadedTitle')}</h3>
+            <p className="text-sm text-muted-soft">{t('settings:jsPlugins.uploadedHint')}</p>
+          </div>
+          {!uploadedUnavailable ? (
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => setTrustedKeysOpen(true)}
+              >
+                <KeyRound className="mr-2 h-4 w-4" />
+                {t('settings:jsPlugins.trustedKeysButton', { count: trustedKeyCount })}
+              </Button>
+              <Button type="button" size="sm" onClick={() => setUploadOpen(true)} disabled={busy}>
+                <Upload className="mr-2 h-4 w-4" />
+                {t('settings:jsPlugins.upload')}
+              </Button>
             </div>
-          ) : (uploadedQuery.data ?? []).length === 0 ? (
-            <p className="p-6 text-sm text-muted-soft">{t('settings:jsPlugins.emptyUploaded')}</p>
-          ) : (
-            <table className="w-full min-w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-[hsl(var(--glass-border))] text-muted-soft">
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.name')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.id')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.kind')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.enabledVersion')}</th>
-                  <th className="px-4 py-3 font-medium">{t('settings:jsPlugins.columns.metrics24h')}</th>
-                  <th className="px-4 py-3 text-right font-medium">{t('settings:jsPlugins.columns.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(uploadedQuery.data ?? []).map((plugin) => (
-                  <tr key={plugin.id} className="border-b border-[hsl(var(--glass-border))]/60 last:border-0">
-                    <td className="px-4 py-3 font-medium">{plugin.name || '—'}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{plugin.id}</td>
-                    <td className="px-4 py-3">{kindLabel(t, plugin.kind ?? '')}</td>
-                    <td className="px-4 py-3">
-                      {plugin.enabled_version ? (
-                        <StatusBadge status="success">{plugin.enabled_version}</StatusBadge>
-                      ) : (
-                        <span className="text-muted-soft">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-soft">{formatMetrics24h(t, plugin.metrics_24h)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button type="button" variant="outline" size="sm" onClick={() => openManage(plugin)}>
-                          {t('settings:jsPlugins.manageVersions')}
-                        </Button>
-                        {plugin.enabled_version ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => disableMutation.mutate(plugin.id)}
-                          >
-                            {t('settings:jsPlugins.disable')}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
+          ) : null}
+        </div>
+        <DataTable
+          columnSizing={UPLOADED_COLUMN_SIZING}
+          columns={uploadedColumns}
+          data={uploadedUnavailable ? [] : uploadedQuery.data ?? []}
+          getRowId={(plugin) => plugin.id}
+          emptyState={
+            <EmptyState
+              title={
+                uploadedUnavailable
+                  ? t('settings:jsPlugins.unavailable')
+                  : uploadedQuery.isLoading
+                    ? t('settings:jsPlugins.loading')
+                    : t('settings:jsPlugins.emptyUploaded')
+              }
+              description={t('settings:jsPlugins.emptyUploadedHint')}
+            />
+          }
+          hideHeaderWhenEmpty
+        />
       </section>
 
       <Dialog
@@ -466,7 +744,7 @@ export function JSPluginsSettingsWorkspace() {
                         row={row}
                         busy={busy}
                         tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
-                        onEnable={() => enableMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
+                        onEnable={() => requestEnable(row)}
                         onTry={() => tryMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
                         onDelete={() => setDeleteTarget({ pluginId: row.plugin_id, version: row.version })}
                         t={t}
@@ -477,54 +755,58 @@ export function JSPluginsSettingsWorkspace() {
 
                 {enabledVersionRow && managePlugin?.kind === 'protocol' ? (
                   <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
-                    <p className="text-sm font-medium">{t('settings:jsPlugins.bindProtocolTitle')}</p>
-                    <p className="text-xs text-muted-soft">{t('settings:jsPlugins.bindProtocolHint')}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Input
-                        className="max-w-xs font-mono text-sm"
-                        placeholder={t('settings:jsPlugins.protocolSlugPlaceholder')}
-                        value={protocolSlug}
-                        onChange={(e) => setProtocolSlug(e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={busy || !protocolSlug.trim()}
-                        onClick={() =>
-                          bindProtocolMutation.mutate({
-                            pluginId: managePlugin.id,
-                            version: enabledVersionRow.version,
-                            slug: protocolSlug.trim(),
-                          })
-                        }
-                      >
-                        {t('settings:jsPlugins.bindProtocol')}
-                      </Button>
-                    </div>
+                    <FormField
+                      label={t('settings:jsPlugins.bindProtocolTitle')}
+                      description={t('settings:jsPlugins.bindProtocolHint')}
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <Input
+                          className="max-w-xs font-mono text-sm"
+                          placeholder={t('settings:jsPlugins.protocolSlugPlaceholder')}
+                          value={protocolSlug}
+                          onChange={(e) => setProtocolSlug(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={busy || !protocolSlug.trim()}
+                          onClick={() =>
+                            bindProtocolMutation.mutate({
+                              pluginId: managePlugin.id,
+                              version: enabledVersionRow.version,
+                              slug: protocolSlug.trim(),
+                            })
+                          }
+                        >
+                          {t('settings:jsPlugins.bindProtocol')}
+                        </Button>
+                      </div>
+                    </FormField>
                   </div>
                 ) : null}
 
                 {enabledVersionRow && managePlugin?.kind === 'quota_probe' ? (
                   <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
-                    <p className="text-sm font-medium">{t('settings:jsPlugins.bindQuotaTitle')}</p>
-                    <p className="text-xs text-muted-soft">{t('settings:jsPlugins.bindQuotaHint')}</p>
-                    <div className="flex flex-wrap items-end gap-2">
-                      <div className="min-w-[220px] flex-1 space-y-1">
-                        <span className="text-xs font-medium">{t('settings:jsPlugins.bindQuotaSite')}</span>
-                        <Select value={bindSiteId} onValueChange={setBindSiteId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('settings:jsPlugins.bindQuotaSitePlaceholder')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(sitesQuery.data ?? []).map((site) => (
-                              <SelectItem key={site.id} value={site.id}>
-                                {site.name} ({site.slug})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
+                    <FormField
+                      label={t('settings:jsPlugins.bindQuotaTitle')}
+                      description={t('settings:jsPlugins.bindQuotaHint')}
+                    >
+                      <div className="flex flex-wrap items-end gap-2">
+                        <FormField label={t('settings:jsPlugins.bindQuotaSite')} className="min-w-[220px] flex-1">
+                          <Select value={bindSiteId} onValueChange={setBindSiteId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('settings:jsPlugins.bindQuotaSitePlaceholder')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(sitesQuery.data ?? []).map((site) => (
+                                <SelectItem key={site.id} value={site.id}>
+                                  {site.name} ({site.slug})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormField>
+                        <Button
                         type="button"
                         size="sm"
                         disabled={busy || !bindSiteId}
@@ -536,9 +818,10 @@ export function JSPluginsSettingsWorkspace() {
                           })
                         }
                       >
-                        {t('settings:jsPlugins.bindQuota')}
-                      </Button>
-                    </div>
+                          {t('settings:jsPlugins.bindQuota')}
+                        </Button>
+                      </div>
+                    </FormField>
                   </div>
                 ) : null}
               </>
@@ -549,6 +832,194 @@ export function JSPluginsSettingsWorkspace() {
               {t('common:actions.close')}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={trustedKeysOpen}
+        onOpenChange={(open) => {
+          setTrustedKeysOpen(open)
+          if (!open) setTrustedKeyAddOpen(false)
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('settings:jsPlugins.trustedKeysDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('settings:jsPlugins.trustedKeysHint')}</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            {trustedKeysQuery.isLoading ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-soft">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                {t('settings:jsPlugins.loading')}
+              </div>
+            ) : (trustedKeysQuery.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-soft">{t('settings:jsPlugins.trustedKeysEmpty')}</p>
+            ) : (
+              <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
+                {(trustedKeysQuery.data ?? []).map((key: JSPluginTrustedKey) => (
+                  <li
+                    key={key.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[hsl(var(--glass-border))]/60 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium">{key.name}</div>
+                      <div className="truncate font-mono text-xs text-muted-soft" title={key.fingerprint}>
+                        {key.fingerprint}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => deleteTrustedKeyMutation.mutate(key.id)}
+                    >
+                      {t('common:actions.delete')}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setTrustedKeysOpen(false)}>
+              {t('common:actions.close')}
+            </Button>
+            <Button type="button" size="sm" disabled={busy} onClick={() => setTrustedKeyAddOpen(true)}>
+              {t('settings:jsPlugins.trustedKeyAdd')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={uploadOpen}
+        onOpenChange={(open) => {
+          setUploadOpen(open)
+          if (!open) setUploadDragging(false)
+        }}
+      >
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>{t('settings:jsPlugins.uploadDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('settings:jsPlugins.uploadedHint')}</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  fileInputRef.current?.click()
+                }
+              }}
+              onDrop={onUploadDrop}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setUploadDragging(true)
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault()
+                setUploadDragging(false)
+              }}
+              onClick={() => !uploadMutation.isPending && fileInputRef.current?.click()}
+              className={cn(
+                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-10 text-center transition-colors',
+                uploadMutation.isPending && 'pointer-events-none opacity-70',
+                uploadDragging
+                  ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))]/5'
+                  : 'border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] hover:border-[hsl(var(--accent))]/50 hover:bg-[hsl(var(--surface-subtle))]',
+              )}
+            >
+              {uploadMutation.isPending ? (
+                <LoaderCircle className="h-8 w-8 animate-spin text-muted-soft" />
+              ) : (
+                <Upload className="h-8 w-8 text-muted-soft" />
+              )}
+              <div className="text-sm font-medium text-foreground">{t('settings:jsPlugins.uploadDropzone')}</div>
+              <div className="text-xs text-muted-soft">{t('settings:jsPlugins.uploadFileHint')}</div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlp,application/zip,application/octet-stream"
+                className="hidden"
+                onChange={onFileChange}
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setUploadOpen(false)} disabled={uploadMutation.isPending}>
+              {t('common:actions.cancel')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={trustedKeyAddOpen}
+        onOpenChange={(open) => {
+          setTrustedKeyAddOpen(open)
+          if (!open) {
+            setTrustedKeyName('')
+            setTrustedKeyPublic('')
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('settings:jsPlugins.trustedKeyAddDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('settings:jsPlugins.trustedKeysHint')}</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <FormField
+              label={t('settings:jsPlugins.trustedKeyNameLabel')}
+              htmlFor="js-plugin-trusted-key-name"
+              required
+            >
+              <Input
+                id="js-plugin-trusted-key-name"
+                placeholder={t('settings:jsPlugins.trustedKeyNamePlaceholder')}
+                value={trustedKeyName}
+                onChange={(e) => setTrustedKeyName(e.target.value)}
+              />
+            </FormField>
+            <FormField
+              label={t('settings:jsPlugins.trustedKeyPublicLabel')}
+              description={t('settings:jsPlugins.trustedKeyPublicHint')}
+              htmlFor="js-plugin-trusted-key-public"
+              required
+            >
+              <Input
+                id="js-plugin-trusted-key-public"
+                className="font-mono text-xs"
+                placeholder={t('settings:jsPlugins.trustedKeyPublicPlaceholder')}
+                value={trustedKeyPublic}
+                onChange={(e) => setTrustedKeyPublic(e.target.value)}
+              />
+            </FormField>
+          </DialogBody>
+          <DialogFooter
+            cancel={
+              <Button type="button" variant="outline" onClick={() => setTrustedKeyAddOpen(false)}>
+                {t('common:actions.cancel')}
+              </Button>
+            }
+            confirm={
+              <Button
+                type="button"
+                disabled={busy || !trustedKeyName.trim() || !trustedKeyPublic.trim() || addTrustedKeyMutation.isPending}
+                onClick={() => addTrustedKeyMutation.mutate()}
+              >
+                {addTrustedKeyMutation.isPending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  t('common:actions.save')
+                )}
+              </Button>
+            }
+          />
         </DialogContent>
       </Dialog>
 
@@ -585,38 +1056,49 @@ export function JSPluginsSettingsWorkspace() {
       </Dialog>
 
       <Dialog
-        open={unsignedEnable != null}
+        open={enableConfirm != null}
         onOpenChange={(open) => {
           if (!open) {
-            setUnsignedEnable(null)
-            setUnsignedConfirmed(false)
+            setEnableConfirm(null)
+            setEnableConfirmed(false)
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('settings:jsPlugins.unsignedTitle')}</DialogTitle>
-            <DialogDescription>{t('settings:jsPlugins.unsignedBody')}</DialogDescription>
+            <DialogTitle>
+              {enableConfirm?.trust === 'untrusted_signer'
+                ? t('settings:jsPlugins.untrustedTitle')
+                : t('settings:jsPlugins.unsignedTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {enableConfirm?.trust === 'untrusted_signer'
+                ? t('settings:jsPlugins.untrustedBody')
+                : t('settings:jsPlugins.unsignedBody')}
+              {enableConfirm?.signer ? (
+                <span className="mt-2 block font-mono text-xs">{enableConfirm.signer}</span>
+              ) : null}
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <label className="flex items-start gap-3 text-sm">
-              <Checkbox checked={unsignedConfirmed} onCheckedChange={(v) => setUnsignedConfirmed(v === true)} />
-              <span>{t('settings:jsPlugins.unsignedConfirm')}</span>
+              <Checkbox checked={enableConfirmed} onCheckedChange={(v) => setEnableConfirmed(v === true)} />
+              <span>{t('settings:jsPlugins.enableConfirm')}</span>
             </label>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setUnsignedEnable(null)}>
+            <Button type="button" variant="outline" onClick={() => setEnableConfirm(null)}>
               {t('common:actions.cancel')}
             </Button>
             <Button
               type="button"
-              disabled={!unsignedConfirmed || !unsignedEnable || enableMutation.isPending}
+              disabled={!enableConfirmed || !enableConfirm || enableMutation.isPending}
               onClick={() =>
-                unsignedEnable &&
+                enableConfirm &&
                 enableMutation.mutate({
-                  pluginId: unsignedEnable.pluginId,
-                  version: unsignedEnable.version,
-                  confirmUnsigned: true,
+                  pluginId: enableConfirm.pluginId,
+                  version: enableConfirm.version,
+                  confirmUntrusted: true,
                 })
               }
             >
@@ -690,8 +1172,12 @@ function VersionRow({
       <td className="px-3 py-2">{versionStatusBadge(row.status)}</td>
       <td className="px-3 py-2 text-xs">
         <div>
-          {row.signed ? (
-            <StatusBadge status="success">{t('settings:jsPlugins.signed')}</StatusBadge>
+          {row.trust === 'trusted' ? (
+            <StatusBadge status="success">{t('settings:jsPlugins.trustTrusted')}</StatusBadge>
+          ) : row.trust === 'untrusted_signer' ? (
+            <StatusBadge status="warning">{t('settings:jsPlugins.trustUntrusted')}</StatusBadge>
+          ) : row.signed ? (
+            <StatusBadge status="idle">{t('settings:jsPlugins.signed')}</StatusBadge>
           ) : (
             <StatusBadge status="idle">{t('settings:jsPlugins.unsigned')}</StatusBadge>
           )}

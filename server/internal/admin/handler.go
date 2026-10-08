@@ -105,6 +105,12 @@ func (h Handler) logWarn(message string, args ...any) {
 	}
 }
 
+func (h Handler) logError(message string, args ...any) {
+	if h.logger != nil {
+		h.logger.Error(message, append([]any{"scope", "admin"}, args...)...)
+	}
+}
+
 func (h Handler) invalidateGatewayModelsCache() {
 	if h.gateway != nil {
 		h.gateway.InvalidateModelsCache()

@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func TestReadPackageRejectsReservedPluginID(t *testing.T) {
+	t.Parallel()
+	manifest := validTestManifest("builtins", "quota_probe")
+	source := `export const meta = { apiVersion: 1, id: "builtins", kind: "quota_probe" };
+export function probe() { return { error: "empty" }; }`
+	sum := HashSource(source)
+	manifest = manifestWithHash(manifest, sum)
+	raw := testPackageZip(manifest, source)
+	_, err := ReadPackage(raw, true)
+	if err == nil {
+		t.Fatal("expected reserved id rejection")
+	}
+}
+
 func TestReadPackageRejectsBuiltinPrefix(t *testing.T) {
 	t.Parallel()
 	raw := testPackageZip(manifestJSON(`{
