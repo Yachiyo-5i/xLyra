@@ -724,6 +724,7 @@
     "uploadWrongType": "仅支持 .xlp（或 .zip）插件包。",
     "uploadInvalid": "插件包无效：{{message}}",
     "trustedKeyExists": "该公钥已在受信列表中。",
+    "kindNotConnected": "这种类型的插件已定义，但 xLyra 尚未接入，暂时无法启用。",
     "enableSuccess": "已启用该版本",
     "enableFailed": "启用失败",
     "disableSuccess": "已停用插件",
@@ -739,7 +740,13 @@
     "builtinProtocol": "协议：{{name}}",
     "kind": {
       "quotaProbe": "额度探测",
-      "protocol": "协议"
+      "protocol": "协议",
+      "modelList": "模型列表",
+      "credentialCheck": "密钥校验",
+      "siteDetect": "站点识别",
+      "errorClassifier": "错误分类",
+      "modelMetadata": "模型元数据",
+      "pricingParse": "价格解析"
     },
     "metricsEmpty": "暂无调用",
     "metricsSummary": "{{errors}}/{{calls}} 失败（{{rate}}%）",

@@ -724,6 +724,7 @@
     "uploadWrongType": ".xlp（または .zip）パッケージのみ対応しています。",
     "uploadInvalid": "無効なパッケージ: {{message}}",
     "trustedKeyExists": "この公開鍵は既に信頼済みです。",
+    "kindNotConnected": "この種類のプラグインは定義済みですが、xLyra にはまだ接続されていないため有効化できません。",
     "enableSuccess": "バージョンを有効化しました",
     "enableFailed": "有効化に失敗しました",
     "disableSuccess": "プラグインを無効化しました",
@@ -739,7 +740,13 @@
     "builtinProtocol": "プロトコル: {{name}}",
     "kind": {
       "quotaProbe": "クォータプローブ",
-      "protocol": "プロトコル"
+      "protocol": "プロトコル",
+      "modelList": "モデル一覧",
+      "credentialCheck": "キー検証",
+      "siteDetect": "サイト判別",
+      "errorClassifier": "エラー分類",
+      "modelMetadata": "モデルメタデータ",
+      "pricingParse": "価格解析"
     },
     "metricsEmpty": "呼び出しなし",
     "metricsSummary": "失敗 {{errors}}/{{calls}}（{{rate}}%）",

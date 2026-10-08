@@ -1,6 +1,15 @@
 import { apiFetch } from '@/lib/http'
 
-export type JSPluginKind = 'quota_probe' | 'protocol' | string
+export type JSPluginKind =
+  | 'quota_probe'
+  | 'protocol'
+  | 'model_list'
+  | 'credential_check'
+  | 'site_detect'
+  | 'error_classifier'
+  | 'model_metadata'
+  | 'pricing_parse'
+  | string
 
 export type JSPluginMetrics24h = {
   calls: number

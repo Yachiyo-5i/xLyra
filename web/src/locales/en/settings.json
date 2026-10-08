@@ -724,6 +724,7 @@
     "uploadWrongType": "Only .xlp (or .zip) packages are supported.",
     "uploadInvalid": "Invalid package: {{message}}",
     "trustedKeyExists": "This public key is already trusted.",
+    "kindNotConnected": "This plugin type is defined but not connected to xLyra yet, so it cannot be enabled.",
     "enableSuccess": "Plugin version enabled",
     "enableFailed": "Enable failed",
     "disableSuccess": "Plugin disabled",
@@ -739,7 +740,13 @@
     "builtinProtocol": "Protocol: {{name}}",
     "kind": {
       "quotaProbe": "Quota probe",
-      "protocol": "Protocol"
+      "protocol": "Protocol",
+      "modelList": "Model list",
+      "credentialCheck": "Credential check",
+      "siteDetect": "Site detection",
+      "errorClassifier": "Error classifier",
+      "modelMetadata": "Model metadata",
+      "pricingParse": "Pricing parser"
     },
     "metricsEmpty": "No calls yet",
     "metricsSummary": "{{errors}}/{{calls}} failed ({{rate}}%)",

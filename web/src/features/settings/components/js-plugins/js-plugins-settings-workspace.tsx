@@ -66,9 +66,20 @@ function versionStatusBadge(status: string) {
   }
 }
 
+const KIND_LABEL_KEYS: Record<string, string> = {
+  quota_probe: 'quotaProbe',
+  protocol: 'protocol',
+  model_list: 'modelList',
+  credential_check: 'credentialCheck',
+  site_detect: 'siteDetect',
+  error_classifier: 'errorClassifier',
+  model_metadata: 'modelMetadata',
+  pricing_parse: 'pricingParse',
+}
+
 function kindLabel(t: TFunction, kind: string) {
-  if (kind === 'quota_probe') return t('settings:jsPlugins.kind.quotaProbe')
-  if (kind === 'protocol') return t('settings:jsPlugins.kind.protocol')
+  const key = KIND_LABEL_KEYS[kind]
+  if (key) return t(`settings:jsPlugins.kind.${key}`)
   return kind || '—'
 }
 
@@ -233,6 +244,10 @@ export function JSPluginsSettingsWorkspace() {
           signer: row?.signer,
         })
         setEnableConfirmed(false)
+        return
+      }
+      if (error instanceof APIError && error.code === 'js_plugin_kind_not_connected') {
+        toast.error(t('settings:jsPlugins.kindNotConnected'))
         return
       }
       toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.enableFailed'))
