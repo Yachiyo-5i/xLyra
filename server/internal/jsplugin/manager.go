@@ -158,6 +158,9 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 	if err != nil {
 		return err
 	}
+	if spec, ok := lookupKind(pkg.Manifest.Kind); ok && !spec.Connected {
+		return &KindNotConnectedError{Kind: pkg.Manifest.Kind}
+	}
 	plugin, err := CompilePackage(pkg)
 	if err != nil {
 		return err

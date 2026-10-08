@@ -15,6 +15,7 @@ type Fixture struct {
 	Responses []FixtureResponse  `json:"responses"`
 	Expect    fixtureExpectation `json:"expect"`
 	Payload   map[string]any     `json:"payload"`
+	Input     any                `json:"input"`
 	Candidate fixtureCandidate   `json:"candidate"`
 	Response  fixtureUpstream    `json:"response"`
 }
@@ -83,9 +84,18 @@ func (p *Plugin) RunFixture(ctx context.Context, fixture Fixture) error {
 		return p.runProbeFixture(ctx, fixture)
 	case KindProtocol:
 		return p.runProtocolFixture(ctx, fixture)
-	default:
+	}
+	spec, ok := lookupKind(p.Manifest.Kind)
+	if !ok {
 		return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
 	}
+	switch spec.Family {
+	case FamilyStepped:
+		return p.runSteppedFixture(ctx, fixture)
+	case FamilyOneShot:
+		return p.runOneShotFixture(ctx, fixture)
+	}
+	return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
 }
 
 func (p *Plugin) runProbeFixture(ctx context.Context, fixture Fixture) error {
@@ -298,6 +308,10 @@ func asFloat(value any) (float64, bool) {
 	case float64:
 		return typed, true
 	case int64:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case int32:
 		return float64(typed), true
 	case json.Number:
 		number, err := typed.Float64()

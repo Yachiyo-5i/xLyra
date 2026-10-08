@@ -1,4 +1,5 @@
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+export type JsonObject = Record<string, Json>;
 
 // ---- hook return values ----
 
@@ -7,6 +8,16 @@ export type ProbeDecision =
   | { request: ProbeRequest; result?: never; error?: never }
   | { result: ProbeResult; request?: never; error?: never }
   | { error: string; request?: never; result?: never };
+
+/** Return exactly one of request, result, or error. R is the kind's result type. */
+export type SteppedDecision<R> =
+  | { request: ProbeRequest; result?: never; error?: never }
+  | { result: R; request?: never; error?: never }
+  | { error: string; request?: never; result?: never };
+
+export type ModelListDecision = SteppedDecision<ModelListResult>;
+export type CredentialCheckDecision = SteppedDecision<CredentialCheckResult>;
+export type SiteDetectDecision = SteppedDecision<SiteDetectResult>;
 
 export type ProtocolDecodeResult =
   | { model: string; error?: never }

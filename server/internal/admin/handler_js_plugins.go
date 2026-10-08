@@ -161,6 +161,10 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, r, status, code, err.Error())
 			return
 		}
+		var notConnected *jsplugin.KindNotConnectedError
+		if errors.As(err, &notConnected) {
+			code = "js_plugin_kind_not_connected"
+		}
 		h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version})
 		h.writeError(w, r, status, code, err.Error())
 		return

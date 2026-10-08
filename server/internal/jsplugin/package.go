@@ -28,21 +28,31 @@ type Manifest struct {
 	Description string            `json:"description"`
 	License     string            `json:"license"`
 	QuotaProbe  QuotaProbeSection `json:"quotaProbe"`
+	Site        SiteSection       `json:"site"`
 	Protocol    ProtocolSection   `json:"protocol"`
 	SHA256      map[string]string `json:"sha256"`
 }
-
-// Plugin kinds accepted by this build.
-const (
-	KindQuotaProbe = "quota_probe"
-	KindProtocol   = "protocol"
-)
 
 // QuotaProbeSection is the quota_probe manifest block.
 type QuotaProbeSection struct {
 	BaseURLMode    string `json:"baseURLMode"`
 	DefaultBaseURL string `json:"defaultBaseURL,omitempty"`
 	Replaces       string `json:"replaces,omitempty"`
+}
+
+// SiteSection is the manifest block for the site-facing kinds other than
+// quota_probe (model_list, credential_check, site_detect).
+type SiteSection struct {
+	BaseURLMode    string `json:"baseURLMode,omitempty"`
+	DefaultBaseURL string `json:"defaultBaseURL,omitempty"`
+}
+
+// BaseURLSettings returns how the site address is prepared for the plugin.
+func (m Manifest) BaseURLSettings() (mode, defaultBase string) {
+	if m.Kind == KindQuotaProbe {
+		return m.QuotaProbe.BaseURLMode, m.QuotaProbe.DefaultBaseURL
+	}
+	return m.Site.BaseURLMode, m.Site.DefaultBaseURL
 }
 
 // ProtocolSection is the protocol manifest block. Method and Auth are applied
@@ -98,14 +108,12 @@ func (p *Plugin) Fixtures() []Fixture {
 
 // NewPlugin compiles one module and checks its manifest. resident is the
 // number of runtimes kept warm; builtins use the default pool size.
-var kindHooks = map[string][]string{
-	KindQuotaProbe: {"probe"},
-	KindProtocol:   {"decodeRequest", "buildRequest", "parseResponse"},
-}
-
 func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident int) (*Plugin, error) {
 	if manifest.Kind == KindQuotaProbe && manifest.QuotaProbe.BaseURLMode == "" {
 		manifest.QuotaProbe.BaseURLMode = "as_is"
+	}
+	if spec, ok := lookupKind(manifest.Kind); ok && spec.Section == "site" && manifest.Site.BaseURLMode == "" {
+		manifest.Site.BaseURLMode = "as_is"
 	}
 	if manifest.Kind == KindProtocol {
 		manifest.Protocol.Method = strings.ToUpper(strings.TrimSpace(manifest.Protocol.Method))
@@ -119,7 +127,7 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 	if err := validateManifest(manifest, source); err != nil {
 		return nil, err
 	}
-	program, err := compileProgram(manifest.ID+".js", source, kindHooks[manifest.Kind]...)
+	program, err := compileProgram(manifest.ID+".js", source, kindHooksOf(manifest.Kind)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
@@ -135,7 +143,7 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
 	maxPool := probePoolMax
-	if manifest.Kind == KindProtocol {
+	if spec, _ := lookupKind(manifest.Kind); spec.HotPath {
 		if resident == 0 {
 			resident = protocolPoolResident
 		}
@@ -184,6 +192,19 @@ func (p *Plugin) CallProbe(ctx context.Context, probeCtx ProbeContext, steps []P
 	return decision, nil
 }
 
+func kindHooksOf(kind string) []string {
+	spec, _ := lookupKind(kind)
+	return spec.Hooks
+}
+
+func validateBaseURLMode(mode string) error {
+	switch mode {
+	case "trim_v1", "trim_v1_fold", "origin", "as_is":
+		return nil
+	}
+	return fmt.Errorf("baseURLMode %q is not supported", mode)
+}
+
 func validateManifest(manifest Manifest, source string) error {
 	if !pluginIDPattern.MatchString(manifest.ID) || len(manifest.ID) < 3 || len(manifest.ID) > 64 {
 		return fmt.Errorf("invalid plugin id %q", manifest.ID)
@@ -206,10 +227,8 @@ func validateManifest(manifest Manifest, source string) error {
 	}
 	switch manifest.Kind {
 	case KindQuotaProbe:
-		switch manifest.QuotaProbe.BaseURLMode {
-		case "trim_v1", "trim_v1_fold", "origin", "as_is":
-		default:
-			return fmt.Errorf("quotaProbe.baseURLMode %q is not supported", manifest.QuotaProbe.BaseURLMode)
+		if err := validateBaseURLMode(manifest.QuotaProbe.BaseURLMode); err != nil {
+			return fmt.Errorf("quotaProbe.%w", err)
 		}
 		if manifest.QuotaProbe.Replaces != "" && !strings.HasPrefix(manifest.ID, "xlyra.") {
 			return fmt.Errorf("only xlyra plugins can set quotaProbe.replaces")
@@ -231,8 +250,16 @@ func validateManifest(manifest Manifest, source string) error {
 				return fmt.Errorf("protocol.auth %q is not supported", manifest.Protocol.Auth)
 			}
 		}
+	case KindModelList, KindCredentialCheck, KindSiteDetect:
+		if mode := manifest.Site.BaseURLMode; mode != "" {
+			if err := validateBaseURLMode(mode); err != nil {
+				return fmt.Errorf("site.%w", err)
+			}
+		}
+	case KindErrorClassifier, KindModelMetadata, KindPricingParse:
+		// No manifest section: these kinds are pure functions of their input.
 	default:
-		return fmt.Errorf("kind %q is not supported in this build", manifest.Kind)
+		return unsupportedKindError(manifest.Kind)
 	}
 	return nil
 }

@@ -16,6 +16,13 @@ type tsType struct {
 	value   any
 	name    string
 	section string
+	// enum, when set, is a string union declared just before this type.
+	enum *tsEnum
+}
+
+type tsEnum struct {
+	name   string
+	values []string
 }
 
 // tsTypes lists the contract structs in output order. Field names, optional
@@ -24,18 +31,34 @@ type tsType struct {
 //	ts:"name[,optional][,type=TSType][,doc=text]"   doc must come last
 //	ts:"-"                                          skip the field
 var tsTypes = []tsType{
-	{ProbeContext{}, "ProbeContext", "quota_probe"},
-	{ProbeRequest{}, "ProbeRequest", ""},
-	{ProbeResponse{}, "ProbeResponse", ""},
-	{ProbeStep{}, "ProbeStep", ""},
-	{ProbeEntry{}, "ProbeEntry", ""},
-	{ProbeResult{}, "ProbeResult", ""},
-	{ProtocolEndpointContext{}, "ProtocolEndpointContext", "protocol"},
-	{ProtocolCandidateContext{}, "ProtocolCandidateContext", ""},
-	{ProtocolBuildContext{}, "ProtocolBuildContext", ""},
-	{ProtocolBuiltRequest{}, "ProtocolBuiltRequest", ""},
-	{ProtocolParseInput{}, "ProtocolResponse", ""},
-	{ProtocolUsage{}, "ProtocolUsage", ""},
+	{value: ProbeContext{}, name: "ProbeContext", section: "quota_probe"},
+	{value: ProbeRequest{}, name: "ProbeRequest"},
+	{value: ProbeResponse{}, name: "ProbeResponse"},
+	{value: ProbeStep{}, name: "ProbeStep"},
+	{value: ProbeEntry{}, name: "ProbeEntry"},
+	{value: ProbeResult{}, name: "ProbeResult"},
+	{value: ModelListEntry{}, name: "ModelListEntry", section: "model_list"},
+	{value: ModelListResult{}, name: "ModelListResult"},
+	{value: CredentialCheckResult{}, name: "CredentialCheckResult", section: "credential_check", enum: &tsEnum{"CredentialStatus", CredentialStatuses}},
+	{value: DetectContext{}, name: "DetectContext", section: "site_detect"},
+	{value: SiteDetectResult{}, name: "SiteDetectResult"},
+	{value: ProtocolEndpointContext{}, name: "ProtocolEndpointContext", section: "protocol"},
+	{value: ProtocolCandidateContext{}, name: "ProtocolCandidateContext"},
+	{value: ProtocolBuildContext{}, name: "ProtocolBuildContext"},
+	{value: ProtocolBuiltRequest{}, name: "ProtocolBuiltRequest"},
+	{value: ProtocolParseInput{}, name: "ProtocolResponse"},
+	{value: ProtocolUsage{}, name: "ProtocolUsage"},
+	{value: ErrorClassifyContext{}, name: "ErrorClassifyContext", section: "error_classifier", enum: &tsEnum{"FailureClass", FailureClasses}},
+	{value: ErrorClassifyInput{}, name: "ErrorClassifyInput"},
+	{value: ErrorClassifyResult{}, name: "ErrorClassifyResult"},
+	{value: ModelMetadataContext{}, name: "ModelMetadataContext", section: "model_metadata"},
+	{value: ModelMetadataInput{}, name: "ModelMetadataInput"},
+	{value: ModelMetadataEntry{}, name: "ModelMetadataEntry"},
+	{value: ModelMetadataResult{}, name: "ModelMetadataResult"},
+	{value: PricingParseContext{}, name: "PricingParseContext", section: "pricing_parse"},
+	{value: PricingGroupEntry{}, name: "PricingGroupEntry"},
+	{value: PricingItemEntry{}, name: "PricingItemEntry"},
+	{value: PricingParseResult{}, name: "PricingParseResult"},
 }
 
 // TypeDeclarations renders the plugin SDK .d.ts: interfaces generated from the
@@ -57,6 +80,13 @@ func TypeDeclarations() (string, error) {
 	for _, item := range tsTypes {
 		if item.section != "" {
 			fmt.Fprintf(&out, "// ---- %s ----\n\n", item.section)
+		}
+		if item.enum != nil {
+			quoted := make([]string, len(item.enum.values))
+			for i, value := range item.enum.values {
+				quoted[i] = fmt.Sprintf("%q", value)
+			}
+			fmt.Fprintf(&out, "export type %s = %s;\n\n", item.enum.name, strings.Join(quoted, " | "))
 		}
 		if item.name == "ProbeRequest" {
 			fmt.Fprintf(&out, "export type ProbeMethod = %s;\n\n", strings.Join(methods, " | "))
