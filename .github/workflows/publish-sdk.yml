@@ -1,0 +1,43 @@
+name: Publish plugin SDK
+
+# Manual only. Normal commits, tags and releases never publish this package.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack and verify only; do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Check SDK types match the CLI templates
+        working-directory: server
+        run: go test ./cmd/xlyra-plugin -run TestSDKTypesInSync -count=1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Show package contents
+        working-directory: sdk/js
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        working-directory: sdk/js
+        run: npm publish
