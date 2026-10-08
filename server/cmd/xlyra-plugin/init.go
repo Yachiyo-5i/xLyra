@@ -4,7 +4,9 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,7 +28,7 @@ var idSanitize = regexp.MustCompile(`[^a-z0-9.-]+`)
 
 func runInit(args []string) {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
-	kind := fs.String("kind", jsplugin.KindQuotaProbe, "plugin kind: quota_probe or protocol")
+	kind := fs.String("kind", jsplugin.KindQuotaProbe, "plugin kind; run `xlyra-plugin kinds` to list them")
 	id := fs.String("id", "", "plugin id (default: derived from the directory name)")
 	name := fs.String("name", "", "display name (default: the id)")
 	_ = fs.Parse(args)
@@ -46,8 +48,8 @@ func runInit(args []string) {
 
 // scaffold writes a new plugin project into dir, which must be empty or missing.
 func scaffold(dir, kind, pluginID, name string) error {
-	if kind != jsplugin.KindQuotaProbe && kind != jsplugin.KindProtocol {
-		return fmt.Errorf("unsupported kind %q", kind)
+	if !validKind(kind) {
+		return fmt.Errorf("unsupported kind %q (run `xlyra-plugin kinds` to list them)", kind)
 	}
 	if err := jsplugin.ValidateUploadedID(pluginID); err != nil {
 		return fmt.Errorf("%w (use --id)", err)
@@ -60,12 +62,19 @@ func scaffold(dir, kind, pluginID, name string) error {
 		data.Name = pluginID
 	}
 	files := map[string]string{
-		"manifest.json":         kind + "/manifest.json.tmpl",
-		"src/index.ts":          kind + "/src/index.ts.tmpl",
-		"fixtures/example.json": kind + "/fixtures/example.json.tmpl",
-		"tsconfig.json":         "common/tsconfig.json",
-		"types/xlyra.d.ts":      "types/xlyra.d.ts",
-		".gitignore":            "",
+		"manifest.json":    kind + "/manifest.json.tmpl",
+		"src/index.ts":     kind + "/src/index.ts.tmpl",
+		"tsconfig.json":    "common/tsconfig.json",
+		"types/xlyra.d.ts": "types/xlyra.d.ts",
+		".gitignore":       "",
+	}
+	fixtureFiles, err := fs.Glob(templates, "templates/"+kind+"/fixtures/*.tmpl")
+	if err != nil || len(fixtureFiles) == 0 {
+		return fmt.Errorf("no fixture template for kind %q", kind)
+	}
+	for _, file := range fixtureFiles {
+		name := strings.TrimSuffix(path.Base(file), ".tmpl")
+		files["fixtures/"+name] = strings.TrimPrefix(file, "templates/")
 	}
 	for target, source := range files {
 		var content []byte
@@ -110,4 +119,13 @@ func renderTemplate(source string, data initData) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(out.String()), nil
+}
+
+func validKind(kind string) bool {
+	for _, info := range jsplugin.SupportedKinds() {
+		if info.Name == kind {
+			return true
+		}
+	}
+	return false
 }

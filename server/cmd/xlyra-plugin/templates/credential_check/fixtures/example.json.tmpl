@@ -1,0 +1,11 @@
+{
+  "name": "key rejected",
+  "ctx": { "siteType": "custom", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000 },
+  "responses": [
+    { "match": { "path": "/api/me" }, "status": 401, "body": "unauthorized" }
+  ],
+  "expect": {
+    "requests": [{ "path": "/api/me" }],
+    "result": { "status": "invalid" }
+  }
+}

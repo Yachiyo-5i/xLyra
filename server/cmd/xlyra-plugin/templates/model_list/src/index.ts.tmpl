@@ -1,0 +1,17 @@
+import type { ModelListDecision, ProbeContext, ProbeStep } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "model_list" };
+
+// Called once per step, like a quota probe: return the next request, the final
+// result, or an error. The host sends the requests and adds the credential.
+export function listModels(_ctx: ProbeContext, steps: ProbeStep[]): ModelListDecision {
+  if (steps.length === 0) {
+    return { request: { method: "GET", path: "/api/models" } };
+  }
+  const resp = steps[0].response;
+  if (resp.status !== 200 || !Array.isArray(resp.json?.data)) {
+    return { error: `models endpoint returned ${resp.status}` };
+  }
+  const models = resp.json.data.map((m: any) => ({ name: String(m.id), displayName: m.title ? String(m.title) : undefined }));
+  return { result: { models } };
+}

@@ -1,0 +1,11 @@
+{
+  "name": "recognised",
+  "ctx": { "baseURL": "https://relay.example", "now": 1791331200000 },
+  "responses": [
+    { "match": { "path": "/api/status" }, "status": 200, "json": { "system_name": "Acme Relay", "version": "1.2.3" } }
+  ],
+  "expect": {
+    "requests": [{ "path": "/api/status" }],
+    "result": { "matched": true, "confidence": 0.95, "features": { "version": "1.2.3" } }
+  }
+}

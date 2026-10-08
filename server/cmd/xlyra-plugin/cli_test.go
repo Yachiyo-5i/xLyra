@@ -21,9 +21,11 @@ func newProject(t *testing.T, kind, id string) string {
 }
 
 // A freshly scaffolded project must pass its own fixtures and the server's
-// upload checks, for every kind init can create.
+// upload checks, for every kind this build supports. A new kind without a
+// working template fails here.
 func TestScaffoldedProjectsPassVerify(t *testing.T) {
-	for _, kind := range []string{jsplugin.KindQuotaProbe, jsplugin.KindProtocol} {
+	for _, info := range jsplugin.SupportedKinds() {
+		kind := info.Name
 		t.Run(kind, func(t *testing.T) {
 			dir := newProject(t, kind, "acme-"+strings.ReplaceAll(kind, "_", "-"))
 			built, err := buildProject(dir)

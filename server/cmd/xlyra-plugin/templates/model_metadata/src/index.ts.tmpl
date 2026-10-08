@@ -1,0 +1,15 @@
+import type { ModelMetadataContext, ModelMetadataInput, ModelMetadataResult } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "model_metadata" };
+
+// Describe the upstream model names xLyra gives you. Every id in the result
+// must be one of the input names.
+export function describeModels(_ctx: ModelMetadataContext, input: ModelMetadataInput): ModelMetadataResult {
+  return {
+    models: input.models.map((id) => ({
+      id,
+      name: id.replace(/-/g, " "),
+      capabilities: { vision: id.includes("vision") },
+    })),
+  };
+}

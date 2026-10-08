@@ -27,20 +27,13 @@ const (
 func runRun(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	baseURL := fs.String("base-url", "", "site base URL (default: manifest quotaProbe.defaultBaseURL)")
-	keyEnv := fs.String("key-env", "", "environment variable holding the API key")
+	keyEnv := fs.String("key-env", "", "environment variable holding the API key (not needed for site_detect)")
 	siteType := fs.String("site-type", "custom", "ctx.siteType passed to the plugin")
 	credType := fs.String("credential-type", "api_key", "ctx.credentialType passed to the plugin")
 	_ = fs.Parse(args)
 	dir := "."
 	if fs.NArg() > 0 {
 		dir = fs.Arg(0)
-	}
-	if *keyEnv == "" {
-		fatal(fmt.Errorf("--key-env is required"))
-	}
-	secret := os.Getenv(*keyEnv)
-	if secret == "" {
-		fatal(fmt.Errorf("environment variable %s is empty", *keyEnv))
 	}
 	built, err := buildProject(dir)
 	if err != nil {
@@ -50,16 +43,29 @@ func runRun(args []string) {
 	if err != nil {
 		fatal(err)
 	}
-	if pkg.Manifest.Kind != jsplugin.KindQuotaProbe {
-		fatal(fmt.Errorf("run supports quota_probe plugins only, got %q", pkg.Manifest.Kind))
+	kind := pkg.Manifest.Kind
+	spec := findKind(kind)
+	if spec == nil || spec.Family != jsplugin.FamilyStepped {
+		fatal(fmt.Errorf("run supports the kinds that fetch from a site (quota_probe, model_list, credential_check, site_detect), not %q", kind))
 	}
-	canonical, err := canonicalBase(pkg.Manifest.QuotaProbe, *baseURL)
+	// site_detect talks to public endpoints only, so it takes no key.
+	secret := ""
+	if spec.Credential == "api_key" {
+		if *keyEnv == "" {
+			fatal(fmt.Errorf("--key-env is required"))
+		}
+		if secret = os.Getenv(*keyEnv); secret == "" {
+			fatal(fmt.Errorf("environment variable %s is empty", *keyEnv))
+		}
+	}
+	mode, defaultBase := pkg.Manifest.BaseURLSettings()
+	canonical, err := canonicalBase(mode, defaultBase, *baseURL)
 	if err != nil {
 		fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	result, err := driveProbe(ctx, plugin, jsplugin.ProbeContext{
+	result, err := driveSteps(ctx, steppedCaller(plugin, kind), jsplugin.ProbeContext{
 		SiteType:       *siteType,
 		BaseURL:        canonical,
 		CredentialType: *credType,
@@ -68,11 +74,49 @@ func runRun(args []string) {
 	if err != nil {
 		fatal(err)
 	}
-	out, _ := json.MarshalIndent(resultMap(result), "", "  ")
+	out, _ := json.MarshalIndent(result, "", "  ")
 	fmt.Fprintln(os.Stdout, string(out))
 }
 
-func driveProbe(ctx context.Context, plugin *jsplugin.Plugin, probeCtx jsplugin.ProbeContext, secret string) (*jsplugin.ProbeResult, error) {
+func findKind(name string) *jsplugin.KindInfo {
+	for _, info := range jsplugin.SupportedKinds() {
+		if info.Name == name {
+			return &info
+		}
+	}
+	return nil
+}
+
+// stepOutcome is one hook return, whatever the kind.
+type stepOutcome struct {
+	Request *jsplugin.ProbeRequest
+	Result  any
+	Error   string
+	Logs    []jsplugin.LogEntry
+}
+
+type stepCaller func(ctx context.Context, probeCtx jsplugin.ProbeContext, steps []jsplugin.ProbeStep) (stepOutcome, error)
+
+func steppedCaller(plugin *jsplugin.Plugin, kind string) stepCaller {
+	return func(ctx context.Context, probeCtx jsplugin.ProbeContext, steps []jsplugin.ProbeStep) (stepOutcome, error) {
+		if kind == jsplugin.KindQuotaProbe {
+			decision, err := plugin.CallProbe(ctx, probeCtx, steps)
+			outcome := stepOutcome{Request: decision.Request, Error: decision.Error, Logs: decision.Logs}
+			if decision.Result != nil {
+				outcome.Result = resultMap(decision.Result)
+			}
+			return outcome, err
+		}
+		decision, err := plugin.CallStepped(ctx, probeCtx, steps)
+		outcome := stepOutcome{Request: decision.Request, Error: decision.Error, Logs: decision.Logs}
+		if decision.Result != nil {
+			outcome.Result = jsplugin.ResultToMap(decision.Result)
+		}
+		return outcome, err
+	}
+}
+
+func driveSteps(ctx context.Context, call stepCaller, probeCtx jsplugin.ProbeContext, secret string) (any, error) {
 	client := http.Client{Timeout: runRequestTimeout}
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
@@ -82,10 +126,10 @@ func driveProbe(ctx context.Context, plugin *jsplugin.Plugin, probeCtx jsplugin.
 	}
 	var steps []jsplugin.ProbeStep
 	for step := 0; step < jsplugin.MaxProbeSteps; step++ {
-		decision, err := plugin.CallProbe(ctx, probeCtx, steps)
-		logs := decision.Logs
-		if call, ok := err.(*jsplugin.CallError); ok {
-			logs = call.Logs
+		outcome, err := call(ctx, probeCtx, steps)
+		logs := outcome.Logs
+		if callErr, ok := err.(*jsplugin.CallError); ok {
+			logs = callErr.Logs
 		}
 		for _, entry := range logs {
 			fmt.Fprintf(os.Stderr, "[plugin %s] %s %v\n", entry.Level, entry.Message, entry.Fields)
@@ -93,25 +137,25 @@ func driveProbe(ctx context.Context, plugin *jsplugin.Plugin, probeCtx jsplugin.
 		if err != nil {
 			return nil, err
 		}
-		if decision.Error != "" {
-			return nil, fmt.Errorf("probe error: %s", decision.Error)
+		if outcome.Error != "" {
+			return nil, fmt.Errorf("plugin error: %s", outcome.Error)
 		}
-		if decision.Result != nil {
-			return decision.Result, nil
+		if outcome.Result != nil {
+			return outcome.Result, nil
 		}
-		if decision.Request == nil {
+		if outcome.Request == nil {
 			return nil, fmt.Errorf("hook returned an empty decision")
 		}
 		if step == jsplugin.MaxProbeSteps-1 {
 			break
 		}
-		response, err := doRequest(ctx, &client, probeCtx.BaseURL, secret, decision.Request)
+		response, err := doRequest(ctx, &client, probeCtx.BaseURL, secret, outcome.Request)
 		if err != nil {
 			return nil, err
 		}
-		steps = append(steps, jsplugin.ProbeStep{Request: *decision.Request, Response: response})
+		steps = append(steps, jsplugin.ProbeStep{Request: *outcome.Request, Response: response})
 	}
-	return nil, fmt.Errorf("probe exceeded %d steps", jsplugin.MaxProbeSteps)
+	return nil, fmt.Errorf("hook exceeded %d steps", jsplugin.MaxProbeSteps)
 }
 
 func doRequest(ctx context.Context, client *http.Client, base, secret string, request *jsplugin.ProbeRequest) (jsplugin.ProbeResponse, error) {
@@ -143,7 +187,9 @@ func doRequest(ctx context.Context, client *http.Client, base, secret string, re
 	for key, value := range headers {
 		httpReq.Header.Set(key, value)
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+secret)
+	if secret != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+secret)
+	}
 	if httpReq.Header.Get("Accept") == "" {
 		httpReq.Header.Set("Accept", "application/json")
 	}
@@ -195,10 +241,10 @@ func encodeBody(body any) ([]byte, error) {
 
 // canonicalBase mirrors the server's baseURLMode handling for the modes a
 // manifest can declare.
-func canonicalBase(section jsplugin.QuotaProbeSection, baseURL string) (string, error) {
+func canonicalBase(mode, defaultBase, baseURL string) (string, error) {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
-		base = strings.TrimRight(strings.TrimSpace(section.DefaultBaseURL), "/")
+		base = strings.TrimRight(strings.TrimSpace(defaultBase), "/")
 	}
 	if base == "" {
 		return "", fmt.Errorf("--base-url is required (the manifest has no defaultBaseURL)")
@@ -207,7 +253,7 @@ func canonicalBase(section jsplugin.QuotaProbeSection, baseURL string) (string, 
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", fmt.Errorf("invalid base URL %q", base)
 	}
-	switch section.BaseURLMode {
+	switch mode {
 	case "origin":
 		return parsed.Scheme + "://" + parsed.Host, nil
 	case "trim_v1":

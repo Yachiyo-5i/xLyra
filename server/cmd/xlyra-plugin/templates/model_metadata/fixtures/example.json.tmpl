@@ -1,0 +1,13 @@
+{
+  "name": "vision model",
+  "ctx": { "siteType": "custom" },
+  "input": { "models": ["acme-vision-1", "acme-chat-1"] },
+  "expect": {
+    "result": {
+      "models": [
+        { "id": "acme-vision-1", "name": "acme vision 1", "capabilities": { "vision": true } },
+        { "id": "acme-chat-1", "name": "acme chat 1", "capabilities": { "vision": false } }
+      ]
+    }
+  }
+}

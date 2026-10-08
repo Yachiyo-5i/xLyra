@@ -59,6 +59,44 @@ export interface ProbeResult {
   entries: ProbeEntry[];
 }
 
+// ---- model_list ----
+
+export interface ModelListEntry {
+  /** Upstream model name, as clients must send it. */
+  name: string;
+  displayName?: string;
+  capabilities?: JsonObject;
+}
+
+export interface ModelListResult {
+  models: ModelListEntry[];
+}
+
+// ---- credential_check ----
+
+export type CredentialStatus = "ok" | "invalid" | "unavailable";
+
+export interface CredentialCheckResult {
+  /** ok: the key works. invalid: the key is rejected. unavailable: the site could not answer, so the key is unknown. */
+  status: CredentialStatus;
+  message?: string;
+}
+
+// ---- site_detect ----
+
+export interface DetectContext {
+  baseURL: string;
+  /** Unix time in milliseconds. */
+  now: number;
+}
+
+export interface SiteDetectResult {
+  matched: boolean;
+  /** 0 to 1. */
+  confidence?: number;
+  features?: JsonObject;
+}
+
 // ---- protocol ----
 
 export interface ProtocolEndpointContext {
@@ -95,7 +133,93 @@ export interface ProtocolUsage {
   total_tokens?: number;
 }
 
+// ---- error_classifier ----
+
+export type FailureClass = "unknown" | "limited" | "subscription_limit" | "transient" | "credential_invalid";
+
+export interface ErrorClassifyContext {
+  siteType: string;
+}
+
+export interface ErrorClassifyInput {
+  status: number;
+  /** Error code from the upstream body, if any. */
+  code?: string;
+  /** Error type from the upstream body, if any. */
+  type?: string;
+  /** Error message, cut to 1024 bytes. */
+  message?: string;
+}
+
+export interface ErrorClassifyResult {
+  class: FailureClass;
+  /** Short note for logs, at most 200 bytes. */
+  reason?: string;
+}
+
+// ---- model_metadata ----
+
+export interface ModelMetadataContext {
+  siteType: string;
+}
+
+export interface ModelMetadataInput {
+  models: string[];
+}
+
+export interface ModelMetadataEntry {
+  /** Must be one of the input model names. */
+  id: string;
+  /** Official display name. */
+  name?: string;
+  capabilities?: JsonObject;
+}
+
+export interface ModelMetadataResult {
+  models: ModelMetadataEntry[];
+}
+
+// ---- pricing_parse ----
+
+export interface PricingParseContext {
+  siteType: string;
+}
+
+export interface PricingGroupEntry {
+  name: string;
+  displayName?: string;
+  ratio?: number;
+  auto?: boolean;
+}
+
+export interface PricingItemEntry {
+  model: string;
+  displayName?: string;
+  group?: string;
+  billingType?: string;
+  currency?: string;
+  groupRatio?: number;
+  modelRatio?: number;
+  completionRatio?: number;
+  cacheRatio?: number;
+  createCacheRatio?: number;
+  createCache1hRatio?: number;
+  imageRatio?: number;
+  audioRatio?: number;
+  audioCompletionRatio?: number;
+  modelPrice?: number;
+  inputValue?: number;
+  outputValue?: number;
+  perRequestValue?: number;
+}
+
+export interface PricingParseResult {
+  groups?: PricingGroupEntry[];
+  items: PricingItemEntry[];
+}
+
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+export type JsonObject = Record<string, Json>;
 
 // ---- hook return values ----
 
@@ -104,6 +228,16 @@ export type ProbeDecision =
   | { request: ProbeRequest; result?: never; error?: never }
   | { result: ProbeResult; request?: never; error?: never }
   | { error: string; request?: never; result?: never };
+
+/** Return exactly one of request, result, or error. R is the kind's result type. */
+export type SteppedDecision<R> =
+  | { request: ProbeRequest; result?: never; error?: never }
+  | { result: R; request?: never; error?: never }
+  | { error: string; request?: never; result?: never };
+
+export type ModelListDecision = SteppedDecision<ModelListResult>;
+export type CredentialCheckDecision = SteppedDecision<CredentialCheckResult>;
+export type SiteDetectDecision = SteppedDecision<SiteDetectResult>;
 
 export type ProtocolDecodeResult =
   | { model: string; error?: never }

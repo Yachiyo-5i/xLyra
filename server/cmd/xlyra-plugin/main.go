@@ -32,6 +32,8 @@ func main() {
 		runPack(os.Args[2:])
 	case "verify":
 		runVerify(os.Args[2:])
+	case "kinds":
+		runKinds()
 	case "version", "--version", "-version":
 		runVersion()
 	case "keygen":
@@ -52,6 +54,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin test [--watch] [dir]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin pack [--sign key.pem] [--out file.xlp] [dir]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin verify <package.xlp>\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin kinds\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin --version\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin keygen [--out key.pem]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin sign <package.xlp> --key key.pem [--out signed.xlp]\n")
