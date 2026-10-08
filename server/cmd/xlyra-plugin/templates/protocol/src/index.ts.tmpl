@@ -1,0 +1,34 @@
+import type {
+  ProtocolBuildContext,
+  ProtocolBuiltRequest,
+  ProtocolDecodeResult,
+  ProtocolEndpointContext,
+  ProtocolParsedResponse,
+  ProtocolResponse,
+} from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "protocol" };
+
+// Read the model name the client asked for.
+export function decodeRequest(_ctx: ProtocolEndpointContext, payload: Record<string, any>): ProtocolDecodeResult {
+  const model = String(payload.model ?? "").trim();
+  if (!model) return { error: { status: 400, code: "invalid_model", message: "model is required" } };
+  return { model };
+}
+
+// Describe the upstream request. The host sends it and adds the credential.
+export function buildRequest(ctx: ProtocolBuildContext, payload: Record<string, any>): ProtocolBuiltRequest {
+  return { path: "/v1/generate", headers: {}, payload: { ...payload, model: ctx.candidate.upstreamName } };
+}
+
+// Pass the upstream body through and report token usage.
+export function parseResponse(_ctx: ProtocolBuildContext, resp: ProtocolResponse): ProtocolParsedResponse {
+  const usage = resp.json?.usage ?? {};
+  return {
+    passthrough: true,
+    usage: {
+      prompt_tokens: Number(usage.input_tokens) || 0,
+      completion_tokens: Number(usage.output_tokens) || 0,
+    },
+  };
+}

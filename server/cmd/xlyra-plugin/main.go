@@ -12,12 +12,28 @@ import (
 	"xlyra/server/internal/jsplugin"
 )
 
+//go:generate go run ../../internal/jsplugin/gentypes -out templates/types/xlyra.d.ts -out ../../../sdk/js/index.d.ts
+
 func main() {
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
 	}
 	switch os.Args[1] {
+	case "init":
+		runInit(os.Args[2:])
+	case "build":
+		runBuild(os.Args[2:])
+	case "run":
+		runRun(os.Args[2:])
+	case "test":
+		runTest(os.Args[2:])
+	case "pack":
+		runPack(os.Args[2:])
+	case "verify":
+		runVerify(os.Args[2:])
+	case "version", "--version", "-version":
+		runVersion()
 	case "keygen":
 		runKeygen(os.Args[2:])
 	case "sign":
@@ -30,6 +46,13 @@ func main() {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin init [--kind quota_probe|protocol] [--id ID] [--name NAME] <dir>\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin build [--out dist] [dir]\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin run --key-env VAR [--base-url URL] [--site-type T] [dir]\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin test [--watch] [dir]\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin pack [--sign key.pem] [--out file.xlp] [dir]\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin verify <package.xlp>\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin --version\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin keygen [--out key.pem]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin sign <package.xlp> --key key.pem [--out signed.xlp]\n")
 }

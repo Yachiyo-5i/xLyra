@@ -1,0 +1,26 @@
+import type { ProbeContext, ProbeDecision, ProbeStep } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "quota_probe" };
+
+// The host calls probe() once per step. Return the next request, the final
+// result, or an error. Credentials are added by the host and never visible here.
+export function probe(_ctx: ProbeContext, steps: ProbeStep[]): ProbeDecision {
+  if (steps.length === 0) {
+    return { request: { method: "GET", path: "/api/usage" } };
+  }
+  const resp = steps[0].response;
+  if (resp.status !== 200 || resp.json == null) {
+    return { error: `usage endpoint returned ${resp.status}` };
+  }
+  const limit = Number(resp.json.total);
+  const used = Number(resp.json.used);
+  if (!Number.isFinite(limit) || !Number.isFinite(used)) {
+    return { error: "usage endpoint did not contain quota data" };
+  }
+  return {
+    result: {
+      kind: "balance",
+      entries: [{ label: "balance", unit: "usd", limit, used, remaining: Math.max(0, limit - used) }],
+    },
+  };
+}

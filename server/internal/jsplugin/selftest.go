@@ -68,20 +68,24 @@ func (p *Plugin) SelfTest(ctx context.Context) error {
 		return fmt.Errorf("%s: no fixtures", p.Manifest.ID)
 	}
 	for _, fixture := range p.fixtures {
-		var err error
-		switch p.Manifest.Kind {
-		case KindQuotaProbe:
-			err = p.runProbeFixture(ctx, fixture)
-		case KindProtocol:
-			err = p.runProtocolFixture(ctx, fixture)
-		default:
-			err = fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
-		}
-		if err != nil {
+		if err := p.RunFixture(ctx, fixture); err != nil {
 			return fmt.Errorf("%s fixture %q: %w", p.Manifest.ID, fixture.Name, err)
 		}
 	}
 	return nil
+}
+
+// RunFixture runs one fixture and returns the first mismatch. The developer
+// CLI uses it to report fixtures one by one; SelfTest stops at the first failure.
+func (p *Plugin) RunFixture(ctx context.Context, fixture Fixture) error {
+	switch p.Manifest.Kind {
+	case KindQuotaProbe:
+		return p.runProbeFixture(ctx, fixture)
+	case KindProtocol:
+		return p.runProtocolFixture(ctx, fixture)
+	default:
+		return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
+	}
 }
 
 func (p *Plugin) runProbeFixture(ctx context.Context, fixture Fixture) error {

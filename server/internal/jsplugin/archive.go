@@ -163,3 +163,34 @@ func readZipEntry(file *zip.File, limit int) ([]byte, error) {
 func CompilePackage(pkg Package) (*Plugin, error) {
 	return NewPlugin(pkg.Manifest, pkg.Source, pkg.Fixtures, 0)
 }
+
+// Contract versions this build supports; the developer CLI prints them.
+const (
+	HookAPIVersion = hookAPIVersion
+	HostAPIVersion = hostAPIVersion
+)
+
+// BuildPackage zips package files into a .xlp. It rejects archives that
+// ReadPackage would refuse for size or file count, so pack fails early.
+func BuildPackage(files map[string][]byte) ([]byte, error) {
+	if _, err := CanonicalPackageDigest(files); err != nil {
+		return nil, err
+	}
+	raw, err := writePackageZip(files)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > MaxPackageBytes {
+		return nil, fmt.Errorf("package exceeds %d bytes", MaxPackageBytes)
+	}
+	return raw, nil
+}
+
+// ValidateUploadedID applies the id rules for uploaded plugins, so the CLI
+// can reject a bad id at init time instead of at upload.
+func ValidateUploadedID(id string) error {
+	if !pluginIDPattern.MatchString(id) || len(id) < 3 || len(id) > 64 {
+		return fmt.Errorf("invalid plugin id %q (3-64 chars of a-z, 0-9, '.', '-')", id)
+	}
+	return validateUploadedManifest(Manifest{ID: id})
+}

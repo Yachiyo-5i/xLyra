@@ -21,6 +21,8 @@ require (
 	gorm.io/gorm v1.31.1
 )
 
+require github.com/evanw/esbuild v0.28.2
+
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect

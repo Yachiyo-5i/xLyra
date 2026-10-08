@@ -1,0 +1,11 @@
+{
+  "name": "passthrough",
+  "payload": { "model": "my-model", "prompt": "hi" },
+  "candidate": { "siteType": "custom", "baseURL": "https://relay.example", "upstreamName": "upstream-model", "upstreamModel": "upstream-model" },
+  "response": { "status": 200, "json": { "usage": { "input_tokens": 10, "output_tokens": 5 } } },
+  "expect": {
+    "decode": { "model": "my-model" },
+    "request": { "path": "/v1/generate", "payload": { "model": "upstream-model" } },
+    "parse": { "passthrough": true, "usage": { "prompt_tokens": 10, "completion_tokens": 5 } }
+  }
+}
