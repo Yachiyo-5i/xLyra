@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/store"
 	"xlyra/server/internal/upstream"
 )
@@ -265,6 +266,10 @@ func (s *Service) runSiteHealthCheck(ctx context.Context, item store.Site) siteH
 		check.errorType = "unsupported_site_type"
 		check.message = fmt.Sprintf("unsupported site_type %q", item.SiteType)
 		return check
+	}
+
+	if plugin, ok := s.boundSitePlugin(item, jsplugin.KindCredentialCheck); ok {
+		return s.runPluginHealthCheck(ctx, item, plugin, start, check)
 	}
 
 	if probe, ok := adapter.AsHealthProbe(module); ok {

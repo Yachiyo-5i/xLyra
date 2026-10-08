@@ -102,7 +102,7 @@ func (b *Breaker) recordMetricsLocked(key breakerKey, failed bool, now time.Time
 }
 
 func (b *Breaker) RecordProbeResult(plugin *Plugin, success bool) {
-	if b == nil || plugin == nil || plugin.Manifest.Kind != KindQuotaProbe {
+	if b == nil || plugin == nil || !coldPathKind(plugin.Manifest.Kind) {
 		return
 	}
 	if stringsHasPrefixBuiltin(plugin.Manifest.ID) {
@@ -125,7 +125,7 @@ func (b *Breaker) RecordProbeResult(plugin *Plugin, success bool) {
 }
 
 func (b *Breaker) RecordProtocolCall(plugin *Plugin, failed bool, interrupted bool) {
-	if b == nil || plugin == nil || plugin.Manifest.Kind != KindProtocol {
+	if b == nil || plugin == nil || !hotPathKind(plugin.Manifest.Kind) {
 		return
 	}
 	if stringsHasPrefixBuiltin(plugin.Manifest.ID) {
@@ -178,4 +178,18 @@ func (b *Breaker) trip(key breakerKey, reason string) {
 
 func stringsHasPrefixBuiltin(id string) bool {
 	return len(id) >= 6 && id[:6] == "xlyra."
+}
+
+// coldPathKind reports whether a kind runs in the background, where a plugin
+// is stopped only after many failures in a row.
+func coldPathKind(kind string) bool {
+	spec, ok := lookupKind(kind)
+	return ok && !spec.HotPath
+}
+
+// hotPathKind reports whether a kind runs while a client request waits, where
+// the error rate in a short window decides.
+func hotPathKind(kind string) bool {
+	spec, ok := lookupKind(kind)
+	return ok && spec.HotPath
 }

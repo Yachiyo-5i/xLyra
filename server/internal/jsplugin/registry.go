@@ -91,6 +91,22 @@ func (r *Registry) Plugins() []*Plugin {
 	return out
 }
 
+// ByKind returns the enabled plugins of one kind, ordered by id so that the
+// outcome does not depend on map order.
+func (r *Registry) ByKind(kind string) []*Plugin {
+	if r == nil {
+		return nil
+	}
+	var out []*Plugin
+	for _, plugin := range r.byID {
+		if plugin.Manifest.Kind == kind {
+			out = append(out, plugin)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Manifest.ID < out[j].Manifest.ID })
+	return out
+}
+
 // ByPluginID returns a plugin by manifest id.
 func (r *Registry) ByPluginID(id string) (*Plugin, bool) {
 	if r == nil {

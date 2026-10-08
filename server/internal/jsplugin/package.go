@@ -45,6 +45,9 @@ type QuotaProbeSection struct {
 type SiteSection struct {
 	BaseURLMode    string `json:"baseURLMode,omitempty"`
 	DefaultBaseURL string `json:"defaultBaseURL,omitempty"`
+	// PricingPath is where xLyra fetches the site's price table for a
+	// pricing_parse plugin. Required for that kind, ignored by the others.
+	PricingPath string `json:"pricingPath,omitempty"`
 }
 
 // BaseURLSettings returns how the site address is prepared for the plugin.
@@ -256,7 +259,16 @@ func validateManifest(manifest Manifest, source string) error {
 				return fmt.Errorf("site.%w", err)
 			}
 		}
-	case KindErrorClassifier, KindModelMetadata, KindPricingParse:
+	case KindPricingParse:
+		if mode := manifest.Site.BaseURLMode; mode != "" {
+			if err := validateBaseURLMode(mode); err != nil {
+				return fmt.Errorf("site.%w", err)
+			}
+		}
+		if err := validatePluginPath(manifest.Site.PricingPath); err != nil {
+			return fmt.Errorf("site.pricingPath: %w", err)
+		}
+	case KindErrorClassifier, KindModelMetadata:
 		// No manifest section: these kinds are pure functions of their input.
 	default:
 		return unsupportedKindError(manifest.Kind)

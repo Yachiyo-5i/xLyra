@@ -231,6 +231,48 @@ func (m *Manager) BindSiteQuotaProbe(ctx context.Context, pluginID, version, sit
 	})
 }
 
+// BindSitePlugin records that an enabled plugin serves one site. It applies to
+// the kinds that act per site (model_list, credential_check, error_classifier,
+// pricing_parse) and returns the plugin's kind.
+func (m *Manager) BindSitePlugin(ctx context.Context, pluginID, version, siteID string) (string, error) {
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return "", fmt.Errorf("site_id is required")
+	}
+	row, err := m.repo.GetVersion(ctx, pluginID, version)
+	if err != nil {
+		return "", err
+	}
+	if row.Status != store.JSPluginStatusEnabled {
+		return "", fmt.Errorf("plugin version must be enabled before binding")
+	}
+	pkg, err := ReadPackage(row.Package, true)
+	if err != nil {
+		return "", err
+	}
+	kind := pkg.Manifest.Kind
+	if !SiteBound(kind) {
+		return "", fmt.Errorf("kind %q is not bound to a site", kind)
+	}
+	if err := m.repo.UpsertBinding(ctx, store.JSPluginBinding{
+		PluginID:   pluginID,
+		Version:    version,
+		TargetKind: store.JSPluginBindingSitePlugin + kind,
+		TargetID:   siteID,
+	}); err != nil {
+		return "", err
+	}
+	return kind, nil
+}
+
+// UnbindSitePlugin removes the binding of one kind from a site.
+func (m *Manager) UnbindSitePlugin(ctx context.Context, kind, siteID string) error {
+	if !SiteBound(kind) {
+		return fmt.Errorf("kind %q is not bound to a site", kind)
+	}
+	return m.repo.DeleteBinding(ctx, store.JSPluginBindingSitePlugin+kind, strings.TrimSpace(siteID))
+}
+
 func (m *Manager) SyncSiteQuotaProbeFromConfig(ctx context.Context, siteID string, quotaProbe string) error {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {

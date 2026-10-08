@@ -246,7 +246,9 @@ func doProbeHTTP(ctx context.Context, client *http.Client, canonical, secret str
 	for key, value := range headers {
 		httpReq.Header.Set(key, value)
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+secret)
+	if secret != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+secret)
+	}
 	if httpReq.Header.Get("Accept") == "" {
 		httpReq.Header.Set("Accept", "application/json")
 	}

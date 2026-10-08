@@ -48,17 +48,21 @@ type kindSpec struct {
 	Connected bool
 	// Section is the manifest block that carries the site address settings, if any.
 	Section string
+	// Binding says what makes a plugin of this kind take effect once enabled:
+	// "site" needs an admin to bind it to a site, "global" applies to every
+	// site, "slug" gets a downstream path, "quota" is set in the site's quota probe.
+	Binding string
 }
 
 var kindSpecs = []kindSpec{
-	{Name: KindQuotaProbe, Family: FamilyStepped, Hooks: []string{"probe"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "quotaProbe"},
-	{Name: KindProtocol, Family: FamilyProtocol, Hooks: []string{"decodeRequest", "buildRequest", "parseResponse"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "api_key", Connected: true},
-	{Name: KindModelList, Family: FamilyStepped, Hooks: []string{"listModels"}, Timeout: probeHookTimeout, Credential: "api_key", Section: "site"},
-	{Name: KindCredentialCheck, Family: FamilyStepped, Hooks: []string{"check"}, Timeout: probeHookTimeout, Credential: "api_key", Section: "site"},
-	{Name: KindSiteDetect, Family: FamilyStepped, Hooks: []string{"detect"}, Timeout: probeHookTimeout, Credential: "none", Section: "site"},
-	{Name: KindErrorClassifier, Family: FamilyOneShot, Hooks: []string{"classify"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "none"},
-	{Name: KindModelMetadata, Family: FamilyOneShot, Hooks: []string{"describeModels"}, Timeout: probeHookTimeout, Credential: "none"},
-	{Name: KindPricingParse, Family: FamilyOneShot, Hooks: []string{"parsePricing"}, Timeout: probeHookTimeout, Credential: "none"},
+	{Name: KindQuotaProbe, Family: FamilyStepped, Hooks: []string{"probe"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "quotaProbe", Binding: "quota"},
+	{Name: KindProtocol, Family: FamilyProtocol, Hooks: []string{"decodeRequest", "buildRequest", "parseResponse"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "api_key", Connected: true, Binding: "slug"},
+	{Name: KindModelList, Family: FamilyStepped, Hooks: []string{"listModels"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
+	{Name: KindCredentialCheck, Family: FamilyStepped, Hooks: []string{"check"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
+	{Name: KindSiteDetect, Family: FamilyStepped, Hooks: []string{"detect"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Section: "site", Binding: "global"},
+	{Name: KindErrorClassifier, Family: FamilyOneShot, Hooks: []string{"classify"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "none", Connected: true, Binding: "site"},
+	{Name: KindModelMetadata, Family: FamilyOneShot, Hooks: []string{"describeModels"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Binding: "global"},
+	{Name: KindPricingParse, Family: FamilyOneShot, Hooks: []string{"parsePricing"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
 }
 
 func lookupKind(name string) (kindSpec, bool) {
@@ -77,6 +81,7 @@ type KindInfo struct {
 	Hooks      []string
 	Credential string
 	Connected  bool
+	Binding    string
 }
 
 // SupportedKinds lists every kind this build accepts in a manifest.
@@ -89,6 +94,7 @@ func SupportedKinds() []KindInfo {
 			Hooks:      append([]string(nil), spec.Hooks...),
 			Credential: spec.Credential,
 			Connected:  spec.Connected,
+			Binding:    spec.Binding,
 		})
 	}
 	return out
@@ -109,4 +115,17 @@ func unsupportedKindError(kind string) error {
 		names = append(names, spec.Name)
 	}
 	return fmt.Errorf("kind %q is not supported in this build (supported: %s)", kind, strings.Join(names, ", "))
+}
+
+// SiteBound reports whether plugins of this kind take effect only on sites an
+// admin binds them to (as opposed to applying everywhere).
+func SiteBound(kind string) bool {
+	spec, ok := lookupKind(kind)
+	return ok && spec.Binding == "site"
+}
+
+// GlobalKind reports whether an enabled plugin of this kind applies to every site.
+func GlobalKind(kind string) bool {
+	spec, ok := lookupKind(kind)
+	return ok && spec.Binding == "global"
 }

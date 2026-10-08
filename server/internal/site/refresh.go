@@ -721,6 +721,14 @@ func (s *Service) refreshModelOnlyState(ctx context.Context, item store.Site) (R
 	pricingSnapshot := adapter.PricingSnapshot{}
 	pricingGroups := []store.SitePricingGroup{}
 	modelPricings := []store.SiteModelPricing{}
+	if snapshot, groups, pricings, bound, pricingErr := s.syncPluginPricing(ctx, item, result.Models, now); bound {
+		if pricingErr != nil {
+			syncStatus = "partial"
+			syncMessage = appendSyncMessage(syncMessage, pricingErr.Error())
+		} else {
+			pricingSnapshot, pricingGroups, modelPricings = snapshot, groups, pricings
+		}
+	}
 
 	state, err := store.NewSiteStateRepository(s.db.DB()).Upsert(ctx, store.UpsertSiteStateParams{
 		SiteID:            item.ID,
@@ -1100,7 +1108,7 @@ func (s *Service) RefreshSingleAPIKey(ctx context.Context, siteID uuid.UUID, cre
 		return RefreshSingleAPIKeyResult{}, fmt.Errorf("unsupported site_type %q", site.SiteType)
 	}
 	summaryFetcher, hasSummary := adapter.AsAPIKeySummaryFetcher(module)
-	modelLister, hasModelLister := adapter.AsGatewayModelLister(module)
+	modelLister, hasModelLister := s.modelListerFor(site, module)
 	if !hasSummary && !hasModelLister {
 		return RefreshSingleAPIKeyResult{}, fmt.Errorf("site_type %q does not support api key refresh", site.SiteType)
 	}
@@ -2410,4 +2418,12 @@ func (s *Service) PropagateCanonicalPricing(ctx context.Context, canonical store
 			}
 		}
 	}
+}
+
+// appendSyncMessage adds a note to the sync message, which is nil or a string.
+func appendSyncMessage(existing any, extra string) any {
+	if text, ok := existing.(string); ok && text != "" {
+		return text + "; " + extra
+	}
+	return extra
 }

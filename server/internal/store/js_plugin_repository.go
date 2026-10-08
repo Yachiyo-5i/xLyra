@@ -19,6 +19,9 @@ const (
 
 	JSPluginBindingQuotaProbe   = "site_quota_probe"
 	JSPluginBindingProtocolSlug = "protocol_endpoint"
+	// JSPluginBindingSitePlugin is the prefix of per-site bindings for kinds such
+	// as model_list; the kind follows it, e.g. "site_plugin:model_list".
+	JSPluginBindingSitePlugin = "site_plugin:"
 )
 
 type JSPlugin struct {

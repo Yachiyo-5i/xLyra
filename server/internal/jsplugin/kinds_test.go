@@ -12,6 +12,7 @@ func kindPlugin(t *testing.T, kind, id, source string) *Plugin {
 	t.Helper()
 	manifest := Manifest{
 		ID: id, Name: id, Version: "1.0.0", APIVersion: 1, HostAPI: 1, Kind: kind,
+		Site:   SiteSection{PricingPath: "/api/pricing"},
 		SHA256: map[string]string{"plugin.js": hashSource(source)},
 	}
 	plugin, err := NewPlugin(manifest, source, nil, 1)
@@ -54,12 +55,18 @@ func TestUnknownKindListsSupportedKinds(t *testing.T) {
 	}
 }
 
-// Only quota_probe and protocol are wired into xLyra today.
-func TestOnlyConnectedKindsCanBeEnabled(t *testing.T) {
-	want := map[string]bool{KindQuotaProbe: true, KindProtocol: true}
+// Every kind is wired into xLyra and says how it takes effect.
+func TestEveryKindIsConnectedAndBound(t *testing.T) {
+	bindings := map[string]string{
+		KindQuotaProbe: "quota", KindProtocol: "slug", KindModelList: "site", KindCredentialCheck: "site",
+		KindSiteDetect: "global", KindErrorClassifier: "site", KindModelMetadata: "global", KindPricingParse: "site",
+	}
 	for _, spec := range kindSpecs {
-		if spec.Connected != want[spec.Name] {
-			t.Errorf("kind %s Connected = %v, want %v", spec.Name, spec.Connected, want[spec.Name])
+		if !spec.Connected {
+			t.Errorf("kind %s is not connected", spec.Name)
+		}
+		if spec.Binding != bindings[spec.Name] {
+			t.Errorf("kind %s Binding = %q, want %q", spec.Name, spec.Binding, bindings[spec.Name])
 		}
 	}
 }
@@ -116,7 +123,7 @@ func TestSiteDetectContextHasNoCredentialFields(t *testing.T) {
 	source := meta("acme-detect", KindSiteDetect) + `
 export function detect(ctx) {
   const keys = Object.keys(ctx).sort().join(",");
-  return { result: { matched: keys === "baseURL,now", confidence: 0.9 } };
+  return { result: { matched: keys === "baseURL,now", siteType: "newapi", confidence: 0.9 } };
 }`
 	plugin := kindPlugin(t, KindSiteDetect, "acme-detect", source)
 	decision, err := plugin.CallStepped(context.Background(), ProbeContext{SiteType: "x", BaseURL: "https://x.example", CredentialType: "api_key", Now: 5}, nil)
@@ -130,7 +137,7 @@ export function detect(ctx) {
 
 func TestSiteDetectConfidenceBounds(t *testing.T) {
 	source := meta("acme-detect", KindSiteDetect) + `
-export function detect() { return { result: { matched: true, confidence: 2 } }; }`
+export function detect() { return { result: { matched: true, siteType: "newapi", confidence: 2 } }; }`
 	plugin := kindPlugin(t, KindSiteDetect, "acme-detect", source)
 	if _, err := plugin.CallStepped(context.Background(), ProbeContext{}, nil); err == nil {
 		t.Fatal("confidence 2 accepted")

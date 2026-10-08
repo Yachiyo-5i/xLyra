@@ -418,3 +418,124 @@ func adminIDFromContext(ctx context.Context) string {
 	}
 	return id.String()
 }
+
+// BindJSPluginSite binds an enabled plugin to one site, for the kinds that act
+// per site: model_list, credential_check, error_classifier and pricing_parse.
+// Binding a pricing_parse plugin needs confirm_pricing_reviewed, because it
+// changes the prices xLyra shows for that site.
+func (h Handler) BindJSPluginSite(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil || h.sites == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	version := strings.TrimSpace(chi.URLParam(r, "version"))
+	var body struct {
+		SiteID                 string `json:"site_id"`
+		ConfirmPricingReviewed bool   `json:"confirm_pricing_reviewed"`
+	}
+	if err := httpx.DecodeJSONBody(r, &body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	siteUUID, err := uuid.Parse(strings.TrimSpace(body.SiteID))
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_site_id", "site_id must be a uuid")
+		return
+	}
+	meta := map[string]any{"version": version, "site_id": siteUUID.String()}
+	kind, err := h.jsPlugins.BindSitePlugin(r.Context(), pluginID, version, siteUUID.String())
+	if err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "js_plugin_bind_site_failed", meta)
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_bind_site_failed", err.Error())
+		return
+	}
+	meta["kind"] = kind
+	if kind == jsplugin.KindPricingParse && !body.ConfirmPricingReviewed {
+		_ = h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String())
+		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "js_plugin_pricing_review_required", meta)
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_pricing_review_required", "preview the parsed prices and confirm them before binding a pricing plugin")
+		return
+	}
+	if _, err := h.sites.PatchGatewayPlugin(r.Context(), siteUUID, kind, pluginID); err != nil {
+		_ = h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String())
+		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "site_plugin_patch_failed", meta)
+		h.writeError(w, r, http.StatusBadRequest, "site_plugin_patch_failed", err.Error())
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, true, "", meta)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "kind": kind})
+}
+
+// UnbindJSPluginSite removes a site's plugin of one kind, returning the site to
+// the default behavior.
+func (h Handler) UnbindJSPluginSite(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil || h.sites == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	var body struct {
+		SiteID string `json:"site_id"`
+		Kind   string `json:"kind"`
+	}
+	if err := httpx.DecodeJSONBody(r, &body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	siteUUID, err := uuid.Parse(strings.TrimSpace(body.SiteID))
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_site_id", "site_id must be a uuid")
+		return
+	}
+	kind := strings.TrimSpace(body.Kind)
+	meta := map[string]any{"kind": kind, "site_id": siteUUID.String()}
+	if err := h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String()); err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "js_plugin_unbind_site_failed", meta)
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_unbind_site_failed", err.Error())
+		return
+	}
+	if _, err := h.sites.PatchGatewayPlugin(r.Context(), siteUUID, kind, ""); err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "site_plugin_patch_failed", meta)
+		h.writeError(w, r, http.StatusBadRequest, "site_plugin_patch_failed", err.Error())
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, true, "", meta)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// PreviewJSPluginPricing fetches a site's price table and shows how an enabled
+// pricing_parse plugin reads it, without saving anything.
+func (h Handler) PreviewJSPluginPricing(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil || h.sites == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	var body struct {
+		SiteID string `json:"site_id"`
+	}
+	if err := httpx.DecodeJSONBody(r, &body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	siteUUID, err := uuid.Parse(strings.TrimSpace(body.SiteID))
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_site_id", "site_id must be a uuid")
+		return
+	}
+	registry := h.jsPlugins.Catalog().Registry()
+	plugin, ok := registry.ByPluginID(pluginID)
+	if !ok || plugin.Manifest.Kind != jsplugin.KindPricingParse {
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_not_pricing", "an enabled pricing_parse plugin is required")
+		return
+	}
+	snapshot, err := h.sites.PreviewPluginPricing(r.Context(), siteUUID, plugin)
+	if err != nil {
+		h.recordJSPluginAudit(r, "js_plugin.preview_pricing", pluginID, false, "js_plugin_preview_failed", map[string]any{"site_id": siteUUID.String()})
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_preview_failed", err.Error())
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.preview_pricing", pluginID, true, "", map[string]any{"site_id": siteUUID.String()})
+	httpx.JSON(w, http.StatusOK, map[string]any{"groups": snapshot.Groups, "items": snapshot.Items})
+}

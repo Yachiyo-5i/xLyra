@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"xlyra/server/internal/jsplugin"
 )
 
 const (
@@ -40,6 +42,34 @@ type GatewayConfig struct {
 	ImpersonateCodexClient         *bool    `json:"impersonate_codex_client,omitempty"`
 	ImpersonateClaudeCodeClient    *bool    `json:"impersonate_claude_code_client,omitempty"`
 	QuotaProbe                     *string  `json:"quota_probe,omitempty"`
+	// Plugins maps a per-site plugin kind (model_list, credential_check,
+	// error_classifier, pricing_parse) to the plugin id an admin bound to this site.
+	Plugins map[string]string `json:"plugins,omitempty"`
+}
+
+// SitePluginKinds are the plugin kinds that take effect per site.
+var SitePluginKinds = []string{
+	jsplugin.KindModelList, jsplugin.KindCredentialCheck, jsplugin.KindErrorClassifier, jsplugin.KindPricingParse,
+}
+
+// normalizeSitePlugins keeps the known kinds with a usable plugin id and drops
+// the rest, so a stale or hand-edited entry can never break reading the config.
+func normalizeSitePlugins(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for _, kind := range SitePluginKinds {
+		id := strings.TrimSpace(in[kind])
+		if id == "" || strings.ContainsAny(id, " \t\r\n") {
+			continue
+		}
+		out[kind] = id
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func NormalizeQuotaProbeType(value string) (string, error) {
@@ -105,6 +135,7 @@ func NormalizeGatewayConfig(input *GatewayConfig) (*GatewayConfig, error) {
 		}
 		normalized.QuotaProbe = &probeType
 	}
+	normalized.Plugins = normalizeSitePlugins(normalized.Plugins)
 	for _, field := range []struct {
 		name  string
 		value *int
@@ -232,6 +263,9 @@ func MergeSiteGatewayConfig(existingRaw []byte, gateway *GatewayConfig) ([]byte,
 	if err != nil {
 		return nil, err
 	}
+	// Normalizing drops empty plugin ids, but in a patch an empty id means
+	// "remove this binding", so the merge must see it.
+	normalized.Plugins = gateway.Plugins
 
 	root := map[string]any{}
 	if len(existingRaw) > 0 {
@@ -290,6 +324,7 @@ func mergeGatewayConfig(existing *GatewayConfig, patch *GatewayConfig) *GatewayC
 		return existing
 	}
 	if existing == nil {
+		patch.Plugins = normalizeSitePlugins(patch.Plugins)
 		return patch
 	}
 	merged := *existing
@@ -334,6 +369,24 @@ func mergeGatewayConfig(existing *GatewayConfig, patch *GatewayConfig) *GatewayC
 	}
 	if patch.ImpersonateClaudeCodeClient != nil {
 		merged.ImpersonateClaudeCodeClient = patch.ImpersonateClaudeCodeClient
+	}
+	if patch.Plugins != nil {
+		merged.Plugins = map[string]string{}
+		for kind, id := range existing.Plugins {
+			merged.Plugins[kind] = id
+		}
+		for _, kind := range SitePluginKinds {
+			id, present := patch.Plugins[kind]
+			if !present {
+				continue
+			}
+			if strings.TrimSpace(id) == "" {
+				delete(merged.Plugins, kind)
+			} else {
+				merged.Plugins[kind] = strings.TrimSpace(id)
+			}
+		}
+		merged.Plugins = normalizeSitePlugins(merged.Plugins)
 	}
 	if patch.QuotaProbe != nil {
 		if value, err := NormalizeQuotaProbeType(*patch.QuotaProbe); err == nil {

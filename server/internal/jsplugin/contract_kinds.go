@@ -42,6 +42,7 @@ type CredentialCheckResult struct {
 // SiteDetectResult is the final result of a site_detect plugin.
 type SiteDetectResult struct {
 	Matched    bool           `ts:"matched"`
+	SiteType   string         `ts:"siteType,optional,doc=Required when matched: which xLyra site type this site is, such as newapi. It must be a type xLyra already supports."`
 	Confidence *float64       `ts:"confidence,doc=0 to 1." min:"0" max:"1"`
 	Features   map[string]any `ts:"features,optional,type=JsonObject" max:"32"`
 }

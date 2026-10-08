@@ -446,6 +446,9 @@ func (s *Service) DetectSiteType(ctx context.Context, baseURL string) (DetectRes
 			best = result
 		}
 	}
+	if pluginBest, ok := s.detectWithPlugins(ctx, baseURL); ok && (!best.Matched || pluginBest.Confidence > best.Confidence) {
+		best = pluginBest
+	}
 	if best.Matched {
 		return best, nil
 	}
@@ -1130,7 +1133,7 @@ func (s *Service) Validate(ctx context.Context, siteID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	validator, ok := adapter.AsCredentialValidator(module)
+	validator, ok := s.credentialValidatorFor(site, module)
 	if !ok {
 		return fmt.Errorf("site_type %q does not support credential validation", site.SiteType)
 	}
@@ -1156,7 +1159,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 	if !ok {
 		return SyncResult{}, fmt.Errorf("unsupported site_type %q", site.SiteType)
 	}
-	modelLister, ok := adapter.AsGatewayModelLister(module)
+	modelLister, ok := s.modelListerFor(site, module)
 	if !ok {
 		return SyncResult{}, fmt.Errorf("site_type %q does not support model sync", site.SiteType)
 	}
@@ -2574,6 +2577,11 @@ func coalesceModelCapabilities(existing adapter.Model, next adapter.Model, keyNa
 }
 
 func (s *Service) enrichModelCapabilities(ctx context.Context, site store.Site, model adapter.Model) adapter.Model {
+	model = s.enrichModelCapabilitiesBase(ctx, site, model)
+	return s.applyModelMetadataPlugins(ctx, site, model)
+}
+
+func (s *Service) enrichModelCapabilitiesBase(ctx context.Context, site store.Site, model adapter.Model) adapter.Model {
 	model = applyModelNameEndpointTypes(site, model)
 	if s == nil || s.modelCaps == nil {
 		return model
