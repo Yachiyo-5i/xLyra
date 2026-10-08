@@ -1,0 +1,23 @@
+{
+  "name": "@yachiyo-5i/xlyra-plugin-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript types for writing xLyra JS plugins (apiVersion 1, hostApi 1). Types only, no runtime code.",
+  "types": "index.d.ts",
+  "files": [
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yachiyo-5i/xLyra.git",
+    "directory": "sdk/js"
+  },
+  "homepage": "https://github.com/Yachiyo-5i/xLyra/tree/main/sdk/js#readme"
+}
