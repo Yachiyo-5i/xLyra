@@ -61,6 +61,10 @@ type fixtureExpectation struct {
 	Decode   map[string]any `json:"decode"`
 	Request  map[string]any `json:"request"`
 	Parse    map[string]any `json:"parse"`
+	// Sign is compared with the signRequest result (stringToSign, algorithm, header, ...).
+	Sign map[string]any `json:"sign"`
+	// ParseError is compared with the parseError result (contentType, body).
+	ParseError map[string]any `json:"parseError"`
 }
 
 // SelfTest runs the package fixtures inside the sandbox.

@@ -13,7 +13,7 @@ export function buildRequest(ctx, payload) { ... }
 export function parseResponse(ctx, resp) { ... }
 ```
 
-三个钩子都必须导出。
+前三个钩子必须导出。另有两个可选钩子 `signRequest`、`parseError`，不导出就按默认行为处理，见后文。
 
 ## decodeRequest(ctx, payload)
 
@@ -70,6 +70,59 @@ HTTP 方法不由插件决定，取自清单的 `protocol.method`。
 
 用量由 xLyra 记录。插件**不能决定价格或计费**，只负责如实报告上游给出的 token 数。
 
+## signRequest(ctx, req)（可选）
+
+上游要求对请求做签名时使用。**插件只决定"签什么"，签名由 xLyra 用站点密钥计算**，密钥不会进入 JS。
+
+- `ctx` 与 `buildRequest` 相同。
+- `req`：即将发出的请求，`method`、`url`（含查询串）、`headers`（不含鉴权和 Cookie）、`body`（实际发出的请求体文本，最大 1 MiB）。
+- 调用发生在所有请求头都就位之后，所以签名覆盖的就是真正发出的内容。
+
+返回：
+
+| 字段 | 说明 |
+| --- | --- |
+| `stringToSign` | 必填，要签名的文本，最大 64 KiB |
+| `algorithm` | 必填，`hmac-sha256`、`hmac-sha1`、`hmac-sha512` 之一 |
+| `encoding` | 可选，`hex`（默认）或 `base64` |
+| `header` | 必填，写入签名的请求头，例如 `Authorization`、`X-Signature`。不能是 `Host`、`Cookie`、`Content-Length` 等 |
+| `prefix` | 可选，写在签名前面的文字，例如 `HMAC-SHA256 ` |
+| `headers` | 可选，要一起带上的非机密头，例如时间戳、随机数。不能与 `header` 同名 |
+
+也可以返回 `{ error: "message" }`。
+
+规则：
+
+- 导出 `signRequest` 的插件，清单里必须写 `"auth": "none"`。这样站点密钥只会用于签名，不会同时以明文放进请求头。
+- 签名失败（钩子报错、返回格式不对、请求体超过 1 MiB）时，这次上游调用以 `upstream_sign_failed` 失败，不会不带签名就发出去。
+- 管理员配置的自定义请求头先写入，签名头最后写入，所以签名头不会被覆盖。
+- 密钥整个作为 HMAC 的密钥使用。需要把密钥拆成多段（如 AK/SK）的场景目前不支持。
+
+```ts
+export function signRequest(ctx, req) {
+  const stamp = String(Math.floor(Date.now() / 1000));
+  return {
+    stringToSign: [req.method, req.url, stamp, req.body].join("\n"),
+    algorithm: "hmac-sha256",
+    header: "X-Signature",
+    headers: { "X-Timestamp": stamp },
+  };
+}
+```
+
+## parseError(ctx, resp)（可选）
+
+上游返回非 2xx 时，`parseResponse` 不会被调用，默认原样把错误转给客户端。导出 `parseError` 后，可以改写错误响应体，让客户端看到统一的错误格式。
+
+- `resp` 与 `parseResponse` 的相同：`status`、`headers`、`body`、`json`。
+- 返回 `{ body, contentType? }`。`body` 必填，是字符串。
+
+规则：
+
+- **状态码保持上游给的值**，不能通过这个钩子改。重试、冷却、熔断等判断仍按真实状态码走。要影响冷却分类，请用 [`error_classifier`](./error-classifier.md)。
+- 钩子报错或返回格式不对时，客户端仍看到上游原始响应，不会因此多出一个错误。
+- 超过 4 MiB 的错误响应不会调用该钩子。
+
 ## 清单里的协议部分
 
 ```json
@@ -90,4 +143,4 @@ HTTP 方法不由插件决定，取自清单的 `protocol.method`。
 
 ## 样本
 
-协议插件的 fixtures 格式见 [fixtures](./fixtures.md)。注意：目前协议样本只比对**请求路径、`payload.model`、`passthrough` 和用量的 prompt/completion**，其余字段不会被检查。
+协议插件的 fixtures 格式见 [fixtures](./fixtures.md)。注意：`expect.request`、`expect.parse` 的比对范围很窄，`signRequest` 和 `parseError` 则按字段逐项比对。

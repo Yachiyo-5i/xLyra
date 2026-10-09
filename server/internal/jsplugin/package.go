@@ -134,6 +134,14 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
+	if spec, ok := lookupKind(manifest.Kind); ok {
+		if err := program.addOptionalHooks(spec.OptionalHooks); err != nil {
+			return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+		}
+	}
+	if _, signs := program.hooks[HookSignRequest]; signs && manifest.Protocol.Auth != "none" {
+		return nil, fmt.Errorf("%s: signRequest needs protocol.auth \"none\", so the credential is only used for signing", manifest.ID)
+	}
 	loaded, err := newSession(program)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
@@ -370,6 +378,35 @@ func (p *Plugin) CallBuildRequest(ctx context.Context, buildCtx ProtocolBuildCon
 	}
 	built, decodeErr := decodeProtocolBuild(out)
 	return built, logs, dropped, decodeErr
+}
+
+// HasHook reports whether the plugin exports the hook (optional hooks may be absent).
+func (p *Plugin) HasHook(name string) bool {
+	if p == nil || p.program == nil {
+		return false
+	}
+	_, ok := p.program.hooks[name]
+	return ok
+}
+
+// CallSignRequest runs the optional signRequest hook once.
+func (p *Plugin) CallSignRequest(ctx context.Context, buildCtx ProtocolBuildContext, input ProtocolSignInput) (ProtocolSignResult, []LogEntry, int, error) {
+	out, logs, dropped, err := p.callHook(ctx, HookSignRequest, protocolHookTimeout, 0, buildCtx.asMap(), signInputAsMap(input))
+	if err != nil {
+		return ProtocolSignResult{}, logs, dropped, err
+	}
+	signed, decodeErr := decodeProtocolSign(out)
+	return signed, logs, dropped, decodeErr
+}
+
+// CallParseError runs the optional parseError hook once.
+func (p *Plugin) CallParseError(ctx context.Context, buildCtx ProtocolBuildContext, input ProtocolErrorInput) (ProtocolErrorResult, []LogEntry, int, error) {
+	out, logs, dropped, err := p.callHook(ctx, HookParseError, protocolHookTimeout, 0, buildCtx.asMap(), parseInputAsMap(input))
+	if err != nil {
+		return ProtocolErrorResult{}, logs, dropped, err
+	}
+	parsed, decodeErr := decodeProtocolError(out)
+	return parsed, logs, dropped, decodeErr
 }
 
 // CallParseResponse runs the parseResponse hook once.

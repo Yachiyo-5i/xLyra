@@ -417,6 +417,14 @@ func (h Handler) forwardGatewayRequest(
 		if isClaudeCodeSite(candidate.Site.SiteType) {
 			applyClaudeCodeOAuthGatewayHeaders(req, upstreamKey)
 		}
+		if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "upstream_sign_failed"
+			result.errorMessage = err.Error()
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result = recordCredentialAttempt(result, nil, false)
+			return result
+		}
 
 		releaseConcurrency, err := h.acquireUpstreamConcurrency(ctx, candidate, selectedCredential.Credential.ID, siteConfig)
 		if err != nil {

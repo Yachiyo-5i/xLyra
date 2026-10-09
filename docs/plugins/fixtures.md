@@ -95,7 +95,7 @@ fixtures 是放在 `fixtures/*.json` 里的录制样本：给定上游的响应�
 }
 ```
 
-流程：先用 `payload` 调 `decodeRequest`，再用 `candidate` 调 `buildRequest`，如果有 `response.status`（非 0）再调 `parseResponse`。
+流程：先用 `payload` 调 `decodeRequest`，再用 `candidate` 调 `buildRequest`，如果有 `response.status`（非 0）再调 `parseResponse`（非 2xx 时改调 `parseError`）。如果插件导出了 `signRequest`，在 `buildRequest` 之后会调用它。
 
 | 字段 | 说明 |
 | --- | --- |
@@ -106,6 +106,12 @@ fixtures 是放在 `fixtures/*.json` 里的录制样本：给定上游的响应�
 | `expect.decode.model` | 期望解析出的模型名 |
 | `expect.request` | 期望的上游请求 |
 | `expect.parse` | 期望的解析结果 |
+| `expect.sign` | 插件导出了 `signRequest` 时，期望的签名结果 |
+| `expect.parseError` | `response.status` 为非 2xx 且插件导出了 `parseError` 时，期望的错误改写结果 |
+
+`expect.sign` 可以写 `stringToSign`、`algorithm`、`encoding`、`header`、`prefix`、`headers` 中的任意几项，写了就逐项精确比对，写了不认识的字段会报错。样本里请求体按键名排序的 JSON 给出，和 xLyra 实际发送的一致；请求头是 `buildRequest` 返回的头再加 `Content-Type: application/json`。样本里没写 `expect.sign` 时，`signRequest` 仍会被调用，只检查返回格式是否合法。
+
+`expect.parseError` 可以写 `body`、`contentType`。插件没有导出对应钩子却写了 `expect.sign` 或 `expect.parseError`，样本会失败，避免期望被悄悄忽略。
 
 **目前协议样本的比对范围很窄**，只检查这几项，其余字段写了也不会被验证：
 

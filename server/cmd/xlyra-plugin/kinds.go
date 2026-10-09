@@ -21,7 +21,11 @@ func runKinds() {
 			effect = "not connected yet"
 			anyOffline = true
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Name, info.Family, strings.Join(info.Hooks, ", "), info.Credential, effect)
+		hooks := strings.Join(info.Hooks, ", ")
+		if len(info.OptionalHooks) > 0 {
+			hooks += " (optional: " + strings.Join(info.OptionalHooks, ", ") + ")"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Name, info.Family, hooks, info.Credential, effect)
 	}
 	_ = w.Flush()
 	if anyOffline {

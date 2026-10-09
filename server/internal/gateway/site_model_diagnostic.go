@@ -396,6 +396,14 @@ func (h Handler) forwardSiteModelTestRequest(
 	if isClaudeCodeSite(candidate.Site.SiteType) {
 		applyClaudeCodeOAuthGatewayHeaders(req, upstreamKey)
 	}
+	if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "upstream_sign_failed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
 
 	upstreamStartedAt := time.Now()
 	resp, err := upstreamClient.Do(req)

@@ -32,11 +32,22 @@ const (
 	FamilyOneShot KindFamily = "one_shot"
 )
 
+// Optional protocol hooks.
+const (
+	// HookSignRequest decides what to sign for an upstream request; Go signs it.
+	HookSignRequest = "signRequest"
+	// HookParseError rewrites the error body of a non-2xx upstream response.
+	HookParseError = "parseError"
+)
+
 // kindSpec describes one kind: what it exports, how it is called and what it may touch.
 type kindSpec struct {
 	Name   string
 	Family KindFamily
 	Hooks  []string
+	// OptionalHooks may be exported on top of Hooks. A plugin that omits one gets
+	// the default behaviour; the host only calls a hook the plugin exports.
+	OptionalHooks []string
 	// Timeout is the budget of one hook call.
 	Timeout time.Duration
 	// HotPath kinds run while a client request is waiting and use the larger runtime pool.
@@ -56,7 +67,7 @@ type kindSpec struct {
 
 var kindSpecs = []kindSpec{
 	{Name: KindQuotaProbe, Family: FamilyStepped, Hooks: []string{"probe"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "quotaProbe", Binding: "quota"},
-	{Name: KindProtocol, Family: FamilyProtocol, Hooks: []string{"decodeRequest", "buildRequest", "parseResponse"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "api_key", Connected: true, Binding: "slug"},
+	{Name: KindProtocol, Family: FamilyProtocol, Hooks: []string{"decodeRequest", "buildRequest", "parseResponse"}, OptionalHooks: []string{HookSignRequest, HookParseError}, Timeout: protocolHookTimeout, HotPath: true, Credential: "api_key", Connected: true, Binding: "slug"},
 	{Name: KindModelList, Family: FamilyStepped, Hooks: []string{"listModels"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
 	{Name: KindCredentialCheck, Family: FamilyStepped, Hooks: []string{"check"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
 	{Name: KindSiteDetect, Family: FamilyStepped, Hooks: []string{"detect"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Section: "site", Binding: "global"},
@@ -76,12 +87,14 @@ func lookupKind(name string) (kindSpec, bool) {
 
 // KindInfo is the public description of a kind, for the CLI and the admin API.
 type KindInfo struct {
-	Name       string
-	Family     KindFamily
-	Hooks      []string
-	Credential string
-	Connected  bool
-	Binding    string
+	Name   string
+	Family KindFamily
+	Hooks  []string
+	// OptionalHooks are exports a plugin may add; the CLI and docs list them.
+	OptionalHooks []string
+	Credential    string
+	Connected     bool
+	Binding       string
 }
 
 // SupportedKinds lists every kind this build accepts in a manifest.
@@ -89,12 +102,13 @@ func SupportedKinds() []KindInfo {
 	out := make([]KindInfo, 0, len(kindSpecs))
 	for _, spec := range kindSpecs {
 		out = append(out, KindInfo{
-			Name:       spec.Name,
-			Family:     spec.Family,
-			Hooks:      append([]string(nil), spec.Hooks...),
-			Credential: spec.Credential,
-			Connected:  spec.Connected,
-			Binding:    spec.Binding,
+			Name:          spec.Name,
+			Family:        spec.Family,
+			Hooks:         append([]string(nil), spec.Hooks...),
+			OptionalHooks: append([]string(nil), spec.OptionalHooks...),
+			Credential:    spec.Credential,
+			Connected:     spec.Connected,
+			Binding:       spec.Binding,
 		})
 	}
 	return out

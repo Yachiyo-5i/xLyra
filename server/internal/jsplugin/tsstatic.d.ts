@@ -23,6 +23,9 @@ export type ProtocolDecodeResult =
   | { model: string; error?: never }
   | { error: { status: number; code: string; message: string }; model?: never };
 
+export type SignAlgorithm = "hmac-sha256" | "hmac-sha1" | "hmac-sha512";
+export type SignEncoding = "hex" | "base64";
+
 export interface ProtocolParsedResponse {
   /** Send the upstream body to the client unchanged. */
   passthrough?: boolean;

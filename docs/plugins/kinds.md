@@ -13,7 +13,7 @@ xlyra-plugin kinds
 | kind | 解决什么问题 | 导出的函数 | 凭据 | 管理员怎么让它生效 |
 | --- | --- | --- | --- | --- |
 | [`quota_probe`](./quota-probe.md) | 查余额、额度、套餐 | `probe` | 站点 API Key | 启用后绑定到站点的额度探测 |
-| [`protocol`](./protocol.md) | 接入接口格式非标准的上游（仅非流式） | `decodeRequest`、`buildRequest`、`parseResponse` | 站点 API Key | 启用后分配 `/v1/plugins/<slug>` |
+| [`protocol`](./protocol.md) | 接入接口格式非标准的上游（仅非流式） | `decodeRequest`、`buildRequest`、`parseResponse`；可选 `signRequest`、`parseError` | 站点 API Key | 启用后分配 `/v1/plugins/<slug>` |
 | [`model_list`](./model-list.md) | 站点拉模型列表的接口格式特殊 | `listModels` | 站点 API Key | 启用后绑定到站点 |
 | [`credential_check`](./credential-check.md) | 判断密钥是否有效、站点是否可用 | `check` | 站点 API Key | 启用后绑定到站点 |
 | [`site_detect`](./site-detect.md) | 根据地址识别是不是某类站点 | `detect` | 无 | 启用即对所有站点的识别生效 |

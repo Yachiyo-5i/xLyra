@@ -38,6 +38,9 @@ func (p *Plugin) runProtocolFixture(ctx context.Context, fixture Fixture) error 
 	if err := matchProtocolRequest(built, fixture.Expect.Request); err != nil {
 		return err
 	}
+	if err := p.runSignFixture(ctx, buildCtx, built, fixture); err != nil {
+		return err
+	}
 	if fixture.Response.Status == 0 {
 		return nil
 	}
@@ -54,6 +57,9 @@ func (p *Plugin) runProtocolFixture(ctx context.Context, fixture Fixture) error 
 		Body:    body,
 		JSON:    fixture.Response.JSON,
 		Headers: map[string]string{},
+	}
+	if fixture.Response.Status < 200 || fixture.Response.Status >= 300 {
+		return p.runParseErrorFixture(ctx, buildCtx, input, fixture)
 	}
 	parsed, _, _, err := p.CallParseResponse(ctx, buildCtx, input)
 	if err != nil {
@@ -104,4 +110,105 @@ func matchProtocolParse(got ProtocolParsedResponse, want map[string]any) error {
 		}
 	}
 	return nil
+}
+
+// runSignFixture shows signRequest the request buildRequest produced, in the
+// form the host sends it: the plugin's headers and the body as sorted-key JSON.
+func (p *Plugin) runSignFixture(ctx context.Context, buildCtx ProtocolBuildContext, built ProtocolBuiltRequest, fixture Fixture) error {
+	if !p.HasHook(HookSignRequest) {
+		if fixture.Expect.Sign != nil {
+			return fmt.Errorf("expect.sign is set but the plugin does not export %s", HookSignRequest)
+		}
+		return nil
+	}
+	body, err := json.Marshal(built.Payload)
+	if err != nil {
+		return err
+	}
+	base := buildCtx.Candidate.BaseURL
+	if base == "" {
+		base = p.Manifest.Protocol.DefaultBaseURL
+	}
+	url, err := ResolveProbeURL(base, built.Path, nil)
+	if err != nil {
+		return err
+	}
+	headers, err := FilterRequestHeaders(built.Headers)
+	if err != nil {
+		return err
+	}
+	if headers == nil {
+		headers = map[string]string{}
+	}
+	headers["Content-Type"] = "application/json"
+	signed, _, _, err := p.CallSignRequest(ctx, buildCtx, ProtocolSignInput{
+		Method: p.Manifest.Protocol.Method, URL: url, Headers: headers, Body: string(body),
+	})
+	if err != nil {
+		return err
+	}
+	return matchProtocolSign(signed, fixture.Expect.Sign)
+}
+
+func matchProtocolSign(got ProtocolSignResult, want map[string]any) error {
+	for key, expected := range want {
+		var actual any
+		switch key {
+		case "stringToSign":
+			actual = got.StringToSign
+		case "algorithm":
+			actual = got.Algorithm
+		case "encoding":
+			actual = got.Encoding
+		case "header":
+			actual = got.Header
+		case "prefix":
+			actual = got.Prefix
+		case "headers":
+			if !equalJSON(got.Headers, expected) {
+				return fmt.Errorf("sign headers = %v, want %v", got.Headers, expected)
+			}
+			continue
+		default:
+			return fmt.Errorf("expect.sign: unknown field %q", key)
+		}
+		if actual != expected {
+			return fmt.Errorf("sign %s = %q, want %q", key, actual, expected)
+		}
+	}
+	return nil
+}
+
+func (p *Plugin) runParseErrorFixture(ctx context.Context, buildCtx ProtocolBuildContext, input ProtocolParseInput, fixture Fixture) error {
+	if !p.HasHook(HookParseError) {
+		if fixture.Expect.ParseError != nil {
+			return fmt.Errorf("expect.parseError is set but the plugin does not export %s", HookParseError)
+		}
+		return nil
+	}
+	parsed, _, _, err := p.CallParseError(ctx, buildCtx, input)
+	if err != nil {
+		return err
+	}
+	for key, expected := range fixture.Expect.ParseError {
+		switch key {
+		case "body":
+			if parsed.Body != expected {
+				return fmt.Errorf("parseError body = %q, want %q", parsed.Body, expected)
+			}
+		case "contentType":
+			if parsed.ContentType != expected {
+				return fmt.Errorf("parseError contentType = %q, want %q", parsed.ContentType, expected)
+			}
+		default:
+			return fmt.Errorf("expect.parseError: unknown field %q", key)
+		}
+	}
+	return nil
+}
+
+func equalJSON(a, b any) bool {
+	left, errA := json.Marshal(a)
+	right, errB := json.Marshal(b)
+	return errA == nil && errB == nil && string(left) == string(right)
 }

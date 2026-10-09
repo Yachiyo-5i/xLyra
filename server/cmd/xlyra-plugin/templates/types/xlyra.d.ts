@@ -135,6 +135,36 @@ export interface ProtocolUsage {
   total_tokens?: number;
 }
 
+export interface ProtocolSignInput {
+  method: string;
+  /** Full upstream URL including the query string. */
+  url: string;
+  /** Headers about to be sent, without credentials. */
+  headers: Record<string, string>;
+  /** The exact request body that will be sent (at most 1 MiB). */
+  body: string;
+}
+
+export interface ProtocolSignResult {
+  /** The exact text to sign. At most 64 KiB. */
+  stringToSign: string;
+  algorithm: SignAlgorithm;
+  /** Defaults to hex. */
+  encoding?: SignEncoding;
+  /** Header that carries the signature, such as Authorization or X-Signature. */
+  header: string;
+  /** Text put before the encoded signature, such as 'HMAC-SHA256 '. */
+  prefix?: string;
+  /** Extra non-secret headers to send, such as a timestamp or nonce. */
+  headers?: Record<string, string>;
+}
+
+export interface ProtocolErrorResult {
+  contentType?: string;
+  /** The error body returned to the client. */
+  body: string;
+}
+
 // ---- error_classifier ----
 
 export type FailureClass = "unknown" | "limited" | "subscription_limit" | "transient" | "credential_invalid";
@@ -244,6 +274,9 @@ export type SiteDetectDecision = SteppedDecision<SiteDetectResult>;
 export type ProtocolDecodeResult =
   | { model: string; error?: never }
   | { error: { status: number; code: string; message: string }; model?: never };
+
+export type SignAlgorithm = "hmac-sha256" | "hmac-sha1" | "hmac-sha512";
+export type SignEncoding = "hex" | "base64";
 
 export interface ProtocolParsedResponse {
   /** Send the upstream body to the client unchanged. */

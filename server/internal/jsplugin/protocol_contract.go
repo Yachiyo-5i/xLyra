@@ -2,8 +2,22 @@ package jsplugin
 
 import (
 	"encoding/json"
+	"net/textproto"
 	"strings"
 )
+
+// MaxSignBodyBytes is the largest upstream request body shown to signRequest.
+const MaxSignBodyBytes = 1 << 20
+
+// MaxStringToSignBytes bounds the string a signRequest hook asks Go to sign.
+const MaxStringToSignBytes = 64 << 10
+
+// SignAlgorithms are the HMAC algorithms Go signs with. The key is the site
+// credential and never leaves Go.
+var SignAlgorithms = []string{"hmac-sha256", "hmac-sha1", "hmac-sha512"}
+
+// SignEncodings are how the signature bytes are written into the header.
+var SignEncodings = []string{"hex", "base64"}
 
 // ProtocolEndpointContext is passed to decodeRequest.
 type ProtocolEndpointContext struct {
@@ -65,6 +79,36 @@ type ProtocolUsage struct {
 	PromptTokens     int `ts:"prompt_tokens,optional"`
 	CompletionTokens int `ts:"completion_tokens,optional"`
 	TotalTokens      int `ts:"total_tokens,optional"`
+}
+
+// ProtocolSignInput is the final upstream request shown to signRequest. The
+// credential and cookies are not in it; the plugin decides what to sign and Go
+// signs it with the credential.
+type ProtocolSignInput struct {
+	Method  string            `ts:"method"`
+	URL     string            `ts:"url,doc=Full upstream URL including the query string."`
+	Headers map[string]string `ts:"headers,doc=Headers about to be sent, without credentials."`
+	Body    string            `ts:"body,doc=The exact request body that will be sent (at most 1 MiB)."`
+}
+
+// ProtocolSignResult tells Go what to sign and where to put the signature.
+type ProtocolSignResult struct {
+	StringToSign string            `ts:"stringToSign,doc=The exact text to sign. At most 64 KiB."`
+	Algorithm    string            `ts:"algorithm,type=SignAlgorithm"`
+	Encoding     string            `ts:"encoding,optional,type=SignEncoding,doc=Defaults to hex."`
+	Header       string            `ts:"header,doc=Header that carries the signature, such as Authorization or X-Signature."`
+	Prefix       string            `ts:"prefix,optional,doc=Text put before the encoded signature, such as 'HMAC-SHA256 '."`
+	Headers      map[string]string `ts:"headers,optional,doc=Extra non-secret headers to send, such as a timestamp or nonce."`
+}
+
+// ProtocolErrorInput is the non-2xx upstream response shown to parseError.
+type ProtocolErrorInput = ProtocolParseInput
+
+// ProtocolErrorResult replaces the body the client sees for an upstream error.
+// The status is kept as the upstream sent it, so failure handling is unchanged.
+type ProtocolErrorResult struct {
+	ContentType string `ts:"contentType,optional"`
+	Body        string `ts:"body,doc=The error body returned to the client."`
 }
 
 func (pc ProtocolEndpointContext) asMap() map[string]any {
@@ -325,4 +369,115 @@ func intField(value any, path string) (int, error) {
 		return 0, shapeError("%s: expected number", path)
 	}
 	return number, nil
+}
+
+func signInputAsMap(input ProtocolSignInput) map[string]any {
+	headers := input.Headers
+	if headers == nil {
+		headers = map[string]string{}
+	}
+	return map[string]any{"method": input.Method, "url": input.URL, "headers": headers, "body": input.Body}
+}
+
+// forbiddenSignHeaders can never carry a plugin-chosen signature or extra value.
+var forbiddenSignHeaders = map[string]struct{}{
+	"host": {}, "content-length": {}, "transfer-encoding": {}, "connection": {},
+	"cookie": {}, "proxy-authorization": {}, "content-type": {}, "accept": {},
+}
+
+func validSignHeaderName(name string) bool {
+	if name == "" || len(name) > 128 {
+		return false
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	_, forbidden := forbiddenSignHeaders[strings.ToLower(name)]
+	return !forbidden
+}
+
+func decodeProtocolSign(value any) (ProtocolSignResult, error) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return ProtocolSignResult{}, shapeError("signRequest return value: expected object")
+	}
+	for key := range object {
+		switch key {
+		case "stringToSign", "algorithm", "encoding", "header", "prefix", "headers", "error":
+		default:
+			return ProtocolSignResult{}, shapeError("signRequest return value: unknown field %q", key)
+		}
+	}
+	if raw, ok := object["error"]; ok && raw != nil {
+		message, _ := raw.(string)
+		if strings.TrimSpace(message) == "" {
+			message = "signRequest failed"
+		}
+		return ProtocolSignResult{}, shapeError("%s", strings.TrimSpace(message))
+	}
+	var out ProtocolSignResult
+	text, ok := object["stringToSign"].(string)
+	if !ok || text == "" {
+		return out, shapeError("stringToSign: expected non-empty string")
+	}
+	if len(text) > MaxStringToSignBytes {
+		return out, shapeError("stringToSign: longer than %d bytes", MaxStringToSignBytes)
+	}
+	out.StringToSign = text
+	algorithm, _ := object["algorithm"].(string)
+	if !contains(SignAlgorithms, algorithm) {
+		return out, shapeError("algorithm: %q is not one of %s", algorithm, strings.Join(SignAlgorithms, ","))
+	}
+	out.Algorithm = algorithm
+	out.Encoding = "hex"
+	if raw, ok := object["encoding"]; ok && raw != nil {
+		encoding, _ := raw.(string)
+		if !contains(SignEncodings, encoding) {
+			return out, shapeError("encoding: %q is not one of %s", encoding, strings.Join(SignEncodings, ","))
+		}
+		out.Encoding = encoding
+	}
+	header, _ := object["header"].(string)
+	header = strings.TrimSpace(header)
+	if !validSignHeaderName(header) {
+		return out, shapeError("header: %q is not allowed", header)
+	}
+	out.Header = textproto.CanonicalMIMEHeaderKey(header)
+	if raw, ok := object["prefix"]; ok && raw != nil {
+		prefix, ok := raw.(string)
+		if !ok || len(prefix) > 128 || strings.ContainsAny(prefix, "\r\n") {
+			return out, shapeError("prefix: expected a short single-line string")
+		}
+		out.Prefix = prefix
+	}
+	extra, err := stringMap(object["headers"], "headers")
+	if err != nil {
+		return out, err
+	}
+	for name, value := range extra {
+		if !validSignHeaderName(name) || strings.EqualFold(name, header) {
+			return out, shapeError("headers.%s: not allowed", name)
+		}
+		if strings.ContainsAny(value, "\r\n") {
+			return out, shapeError("headers.%s: must be a single line", name)
+		}
+	}
+	out.Headers = extra
+	return out, nil
+}
+
+func decodeProtocolError(value any) (ProtocolErrorResult, error) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return ProtocolErrorResult{}, shapeError("parseError return value: expected object")
+	}
+	var out ProtocolErrorResult
+	if err := decodeInto(object, &out, ""); err != nil {
+		return ProtocolErrorResult{}, err
+	}
+	return out, nil
 }

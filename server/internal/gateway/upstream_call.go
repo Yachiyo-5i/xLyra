@@ -13,6 +13,21 @@ type gatewayUpstreamCallAdapter interface {
 	ApplyUpstreamAuth(req *http.Request, upstreamKey string)
 }
 
+// gatewayUpstreamSigner signs the finished upstream request. It runs after every
+// header is in place, so the signature covers what is actually sent. The key is
+// only handed to Go code.
+type gatewayUpstreamSigner interface {
+	SignUpstreamRequest(req *http.Request, body []byte, upstreamKey string) error
+}
+
+// signUpstreamRequest is a no-op for protocols that do not sign.
+func signUpstreamRequest(req *http.Request, protocol gatewayProtocolAdapter, body []byte, upstreamKey string) error {
+	if signer, ok := protocol.(gatewayUpstreamSigner); ok {
+		return signer.SignUpstreamRequest(req, body, upstreamKey)
+	}
+	return nil
+}
+
 func upstreamHTTPMethod(protocol gatewayProtocolAdapter) string {
 	if call, ok := protocol.(gatewayUpstreamCallAdapter); ok {
 		if method := strings.TrimSpace(call.UpstreamMethod()); method != "" {

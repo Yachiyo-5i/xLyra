@@ -18,6 +18,22 @@ type program struct {
 	hooks map[string]moejs.Hook
 }
 
+// addOptionalHooks resolves the hooks a kind allows but does not require. A
+// hook the module does not export is simply absent from p.hooks.
+func (p *program) addOptionalHooks(names []string) error {
+	for _, name := range names {
+		hook, err := p.mod.Hook(name)
+		if errors.Is(err, moejs.ErrHookNotFound) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("%s hook: %w", name, err)
+		}
+		p.hooks[name] = hook
+	}
+	return nil
+}
+
 func compileProgram(name, source string, hookNames ...string) (*program, error) {
 	mod, err := moejs.Compile(name, source)
 	if err != nil {
