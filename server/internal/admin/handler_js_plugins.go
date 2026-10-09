@@ -386,7 +386,7 @@ func (h Handler) BindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := map[string]any{"version": version, "site_id": siteUUID.String()}
-	kind, err := h.jsPlugins.BindSitePlugin(r.Context(), pluginID, version, siteUUID.String())
+	kind, err := h.jsPlugins.CheckSiteBinding(r.Context(), pluginID, version)
 	if err != nil {
 		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "js_plugin_bind_site_failed", meta)
 		h.writeError(w, r, http.StatusBadRequest, "js_plugin_bind_site_failed", err.Error())
@@ -394,7 +394,6 @@ func (h Handler) BindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 	}
 	meta["kind"] = kind
 	if kind == jsplugin.KindPricingParse && !body.ConfirmPricingReviewed {
-		_ = h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String())
 		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "js_plugin_pricing_review_required", meta)
 		h.writeError(w, r, http.StatusBadRequest, "js_plugin_pricing_review_required", "preview the parsed prices and confirm them before binding a pricing plugin")
 		return
@@ -408,7 +407,6 @@ func (h Handler) BindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 		_, patchErr = h.sites.PatchGatewayPlugin(r.Context(), siteUUID, kind, pluginID)
 	}
 	if err := patchErr; err != nil {
-		_ = h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String())
 		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "site_plugin_patch_failed", meta)
 		h.writeError(w, r, http.StatusBadRequest, "site_plugin_patch_failed", err.Error())
 		return
@@ -453,11 +451,6 @@ func (h Handler) UnbindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, r, http.StatusConflict, "js_plugin_not_bound", "this site is not bound to this plugin")
 			return
 		}
-		if err := h.jsPlugins.SyncSiteQuotaProbeFromConfig(r.Context(), siteUUID.String(), ""); err != nil {
-			h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "js_plugin_unbind_site_failed", meta)
-			h.writeError(w, r, http.StatusBadRequest, "js_plugin_unbind_site_failed", err.Error())
-			return
-		}
 		if _, err := h.sites.PatchGatewayQuotaProbe(r.Context(), siteUUID, ""); err != nil {
 			h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "site_plugin_patch_failed", meta)
 			h.writeError(w, r, http.StatusBadRequest, "site_plugin_patch_failed", err.Error())
@@ -469,11 +462,6 @@ func (h Handler) UnbindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 	}
 	if sitepkg.SitePluginID(cfg, kind) != pluginID {
 		h.writeError(w, r, http.StatusConflict, "js_plugin_not_bound", "this site is not bound to this plugin")
-		return
-	}
-	if err := h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String()); err != nil {
-		h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "js_plugin_unbind_site_failed", meta)
-		h.writeError(w, r, http.StatusBadRequest, "js_plugin_unbind_site_failed", err.Error())
 		return
 	}
 	if _, err := h.sites.PatchGatewayPlugin(r.Context(), siteUUID, kind, ""); err != nil {

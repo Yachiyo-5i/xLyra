@@ -18,11 +18,10 @@ const (
 	JSPluginStatusDisabled = "disabled"
 	JSPluginStatusBroken   = "broken"
 
-	// A binding mounts a plugin version on a scope. ScopeSite is one site,
-	// ScopeEndpoint is a downstream path (/v1/plugins/<slug>).
-	JSPluginScopeSite     = "site"
-	JSPluginScopeEndpoint = "endpoint"
-	// JSPluginScopeOAuthConnection is the subject of automation bindings.
+	// A binding mounts a plugin version on a scope: a downstream path
+	// (/v1/plugins/<slug>) or, for automation, an OAuth account. Which plugin
+	// serves a site lives in the site's gateway config, not here.
+	JSPluginScopeEndpoint        = "endpoint"
 	JSPluginScopeOAuthConnection = "oauth_connection"
 )
 

@@ -60,7 +60,7 @@ func TestDevPostgresMigrationsInitializeNewSchema(t *testing.T) {
 	if !migrator.HasTable(&CacheObservation{}) {
 		t.Fatal("cache_observations table was not created")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
 }
 
 func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
@@ -89,7 +89,7 @@ func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
 	if !db.Migrator().HasColumn(&OAuthConnection{}, "RefreshLeaseID") {
 		t.Fatal("refresh lease column was not added by upgrade migration")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
 }
 
 func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
@@ -103,7 +103,7 @@ func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
 	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
 		t.Fatalf("second migration run: %v", err)
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
 }
 
 func TestDevPostgresFailedMigrationIsNotRecordedAndCanRetry(t *testing.T) {
@@ -259,9 +259,9 @@ func assertAppliedMigrationVersions(t *testing.T, db *gorm.DB, want []int64) {
 	}
 }
 
-// Bindings mount a plugin on a scope in a slot. Every site kind must be accepted
-// without touching the table (the old CHECK had to be widened per kind), a scope
-// holds one plugin per slot, and an unknown scope type is rejected.
+// Bindings mount a plugin on a scope in a slot: a scope holds one plugin per
+// slot, a rebind replaces it, and a scope type the table does not own (a site
+// lives in its gateway config) is rejected.
 func TestJSPluginBindingsMountOnScopes(t *testing.T) {
 	db, cfg, cleanup := openTemporaryMigrationStore(t)
 	defer cleanup()
@@ -270,66 +270,57 @@ func TestJSPluginBindingsMountOnScopes(t *testing.T) {
 		t.Fatalf("initialize schema migrations: %v", err)
 	}
 	for _, statement := range []string{
-		`INSERT INTO js_plugins (id, source) VALUES ('acme-models', 'uploaded')`,
+		`INSERT INTO js_plugins (id, source) VALUES ('acme-proto', 'uploaded'), ('acme-other', 'uploaded')`,
 		`INSERT INTO js_plugin_versions (plugin_id, version, manifest, package, package_sha256, status, selftest)
-		 VALUES ('acme-models', '1.0.0', '{}', '\x00', 'sha', 'enabled', '{}')`,
+		 VALUES ('acme-proto', '1.0.0', '{}', '\x00', 'sha', 'enabled', '{}'),
+		        ('acme-other', '1.0.0', '{}', '\x00', 'sha2', 'enabled', '{}')`,
 	} {
 		if err := db.Exec(statement).Error; err != nil {
 			t.Fatalf("seed plugin: %v", err)
 		}
 	}
 	repo := NewJSPluginRepository(db)
-	siteID := uuid.NewString()
-	for _, kind := range []string{"quota_probe", "model_list", "credential_check", "error_classifier", "pricing_parse"} {
+	bind := func(plugin string) error {
 		// No ID or slot, like the real callers: bindings must not collide on a default one.
-		err := repo.UpsertBinding(ctx, JSPluginBinding{
-			PluginID: "acme-models", Version: "1.0.0",
-			Kind: kind, ScopeType: JSPluginScopeSite, ScopeID: siteID,
+		return repo.UpsertBinding(ctx, JSPluginBinding{
+			PluginID: plugin, Version: "1.0.0",
+			Kind: "protocol", ScopeType: JSPluginScopeEndpoint, ScopeID: "acme",
+			Config: JSON(`{"mode":"strict"}`),
 		})
-		if err != nil {
-			t.Fatalf("bind %s: %v", kind, err)
-		}
 	}
-	// Binding the same slot again replaces the mount instead of adding a second.
-	if err := repo.UpsertBinding(ctx, JSPluginBinding{
-		PluginID: "acme-models", Version: "1.0.0",
-		Kind: "model_list", ScopeType: JSPluginScopeSite, ScopeID: siteID,
-		Config: JSON(`{"mode":"strict"}`),
-	}); err != nil {
-		t.Fatalf("rebind model_list: %v", err)
+	if err := bind("acme-proto"); err != nil {
+		t.Fatalf("bind endpoint: %v", err)
+	}
+	// Binding the same path again replaces the mount instead of adding a second.
+	if err := bind("acme-other"); err != nil {
+		t.Fatalf("rebind endpoint: %v", err)
 	}
 	bindings, err := repo.ListBindings(ctx)
 	if err != nil {
 		t.Fatalf("list bindings: %v", err)
 	}
-	if len(bindings) != 5 {
-		t.Fatalf("bindings = %d, want 5 (one per slot)", len(bindings))
-	}
-	for _, binding := range bindings {
-		if binding.Kind == "model_list" && string(binding.Config) != `{"mode": "strict"}` {
-			t.Fatalf("model_list config = %s, want the rebind's config", binding.Config)
-		}
-	}
-	if err := repo.UpsertBinding(ctx, JSPluginBinding{
-		PluginID: "acme-models", Version: "1.0.0", Kind: "model_list", ScopeType: "made_up", ScopeID: siteID,
-	}); err == nil {
-		t.Fatal("an unknown scope type was accepted")
-	}
-	if err := repo.UpsertBinding(ctx, JSPluginBinding{
-		PluginID: "acme-models", Version: "1.0.0", Kind: "protocol", ScopeType: JSPluginScopeEndpoint, ScopeID: "acme",
-	}); err != nil {
-		t.Fatalf("bind endpoint: %v", err)
+	if len(bindings) != 1 || bindings[0].PluginID != "acme-other" || string(bindings[0].Config) != `{"mode": "strict"}` {
+		t.Fatalf("bindings = %+v, want one mount held by the plugin bound last", bindings)
 	}
 	slugs, err := repo.ProtocolSlugMap(ctx)
-	if err != nil || slugs["acme"] != "acme-models" || len(slugs) != 1 {
+	if err != nil || slugs["acme"] != "acme-other" || len(slugs) != 1 {
 		t.Fatalf("protocol slug map = %v, %v", slugs, err)
 	}
-	if err := repo.DeleteBinding(ctx, JSPluginScopeSite, siteID, "model_list"); err != nil {
+	for _, scope := range []string{"site", "made_up"} {
+		if err := repo.UpsertBinding(ctx, JSPluginBinding{
+			PluginID: "acme-proto", Version: "1.0.0", Kind: "model_list", ScopeType: scope, ScopeID: "x",
+		}); err == nil {
+			t.Fatalf("scope type %q was accepted", scope)
+		}
+	}
+	if err := repo.DeleteBinding(ctx, JSPluginScopeEndpoint, "acme", "protocol"); err != nil {
 		t.Fatalf("unbind: %v", err)
 	}
 }
 
-// The mount migration rewrites bindings written under the old target_kind scheme.
+// The mount migration rewrites bindings written under the old target_kind
+// scheme, and the site rows it carried are dropped: a site's plugins live in its
+// gateway config.
 func TestJSPluginBindingMigrationConvertsLegacyRows(t *testing.T) {
 	db, cfg, cleanup := openTemporaryMigrationStore(t)
 	defer cleanup()
@@ -362,13 +353,14 @@ func TestJSPluginBindingMigrationConvertsLegacyRows(t *testing.T) {
 		t.Fatalf("apply mount migration: %v", err)
 	}
 	_ = cfg
-	got := map[string]string{}
+	// After 00009 every legacy row is converted, site rows included.
+	converted := map[string]string{}
 	bindings, err := NewJSPluginRepository(db).ListBindings(ctx)
 	if err != nil {
 		t.Fatalf("list bindings: %v", err)
 	}
 	for _, binding := range bindings {
-		got[binding.Kind] = binding.ScopeType + ":" + binding.ScopeID + ":" + binding.Slot
+		converted[binding.Kind] = binding.ScopeType + ":" + binding.ScopeID + ":" + binding.Slot
 	}
 	want := map[string]string{
 		"quota_probe": "site:site-1:quota_probe",
@@ -376,9 +368,20 @@ func TestJSPluginBindingMigrationConvertsLegacyRows(t *testing.T) {
 		"model_list":  "site:site-1:model_list",
 	}
 	for kind, value := range want {
-		if got[kind] != value {
-			t.Fatalf("binding %s = %q, want %q (all: %v)", kind, got[kind], value, got)
+		if converted[kind] != value {
+			t.Fatalf("binding %s = %q, want %q (all: %v)", kind, converted[kind], value, converted)
 		}
+	}
+	// 00011 then leaves only the rows this table owns.
+	if _, err := provider.UpTo(ctx, 11); err != nil {
+		t.Fatalf("apply the remaining migrations: %v", err)
+	}
+	left, err := NewJSPluginRepository(db).ListBindings(ctx)
+	if err != nil {
+		t.Fatalf("list bindings: %v", err)
+	}
+	if len(left) != 1 || left[0].Kind != "protocol" || left[0].ScopeType != JSPluginScopeEndpoint {
+		t.Fatalf("bindings after the site rows were dropped = %+v", left)
 	}
 }
 

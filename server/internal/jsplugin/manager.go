@@ -16,8 +16,6 @@ import (
 	"xlyra/server/internal/store"
 )
 
-const quotaProbePluginPrefix = "plugin:"
-
 // EnableOptions controls optional enable-time checks.
 type EnableOptions struct {
 	ConfirmUntrusted bool
@@ -241,14 +239,11 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 	return nil
 }
 
-// BindSitePlugin records that an enabled plugin serves one site. It applies to
-// every kind with site scope (quota_probe, model_list, credential_check,
-// error_classifier, pricing_parse) and returns the plugin's kind.
-func (m *Manager) BindSitePlugin(ctx context.Context, pluginID, version, siteID string) (string, error) {
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return "", fmt.Errorf("site_id is required")
-	}
+// CheckSiteBinding checks that an enabled plugin version may be bound to a
+// site, and returns its kind. Which plugin serves which site is kept in the
+// site's gateway config, which routing and the site pages already read, so this
+// only validates; there is no second copy to keep in step.
+func (m *Manager) CheckSiteBinding(ctx context.Context, pluginID, version string) (string, error) {
 	row, err := m.repo.GetVersion(ctx, pluginID, version)
 	if err != nil {
 		return "", err
@@ -264,60 +259,7 @@ func (m *Manager) BindSitePlugin(ctx context.Context, pluginID, version, siteID 
 	if !SiteBound(kind) {
 		return "", fmt.Errorf("kind %q is not bound to a site", kind)
 	}
-	if err := m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:  pluginID,
-		Version:   version,
-		Kind:      kind,
-		ScopeType: store.JSPluginScopeSite,
-		ScopeID:   siteID,
-	}); err != nil {
-		return "", err
-	}
 	return kind, nil
-}
-
-// UnbindSitePlugin removes the binding of one kind from a site.
-func (m *Manager) UnbindSitePlugin(ctx context.Context, kind, siteID string) error {
-	if !SiteBound(kind) {
-		return fmt.Errorf("kind %q is not bound to a site", kind)
-	}
-	return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, strings.TrimSpace(siteID), kind)
-}
-
-func (m *Manager) SyncSiteQuotaProbeFromConfig(ctx context.Context, siteID string, quotaProbe string) error {
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return fmt.Errorf("site_id is required")
-	}
-	probe := strings.TrimSpace(quotaProbe)
-	if !strings.HasPrefix(probe, quotaProbePluginPrefix) {
-		return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, siteID, KindQuotaProbe)
-	}
-	pluginID := strings.TrimSpace(strings.TrimPrefix(probe, quotaProbePluginPrefix))
-	if pluginID == "" {
-		return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, siteID, KindQuotaProbe)
-	}
-	versions, err := m.repo.ListVersions(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	var enabledVersion string
-	for _, row := range versions {
-		if row.Status == store.JSPluginStatusEnabled {
-			enabledVersion = row.Version
-			break
-		}
-	}
-	if enabledVersion == "" {
-		return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, siteID, KindQuotaProbe)
-	}
-	return m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:  pluginID,
-		Version:   enabledVersion,
-		Kind:      KindQuotaProbe,
-		ScopeType: store.JSPluginScopeSite,
-		ScopeID:   siteID,
-	})
 }
 
 func (m *Manager) TryVersion(ctx context.Context, pluginID, version string) (map[string]any, error) {
