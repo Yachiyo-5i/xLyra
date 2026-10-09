@@ -835,15 +835,19 @@ func (s *Service) refreshConnectionLocked(ctx context.Context, repo store.OAuthC
 	if err != nil {
 		return CodexConnection{}, err
 	}
-	connectionMeta := map[string]any{
-		"plan_type":                         strings.TrimSpace(claims.AuthInfo.ChatGPTPlanType),
-		"chatgpt_user_id":                   strings.TrimSpace(claims.AuthInfo.ChatGPTUserID),
-		"user_id":                           strings.TrimSpace(claims.AuthInfo.UserID),
-		"chatgpt_subscription_active_start": claims.AuthInfo.ChatGPTSubscriptionActiveStart,
-		"chatgpt_subscription_active_until": claims.AuthInfo.ChatGPTSubscriptionActiveUntil,
-		"refreshable":                       true,
-		"token_mode":                        "oauth_refresh",
+	connectionMeta := map[string]any{}
+	if len(connection.Metadata) > 0 {
+		_ = json.Unmarshal(connection.Metadata, &connectionMeta)
 	}
+	connectionMeta["plan_type"] = strings.TrimSpace(claims.AuthInfo.ChatGPTPlanType)
+	connectionMeta["chatgpt_user_id"] = strings.TrimSpace(claims.AuthInfo.ChatGPTUserID)
+	connectionMeta["user_id"] = strings.TrimSpace(claims.AuthInfo.UserID)
+	connectionMeta["chatgpt_subscription_active_start"] = claims.AuthInfo.ChatGPTSubscriptionActiveStart
+	connectionMeta["chatgpt_subscription_active_until"] = claims.AuthInfo.ChatGPTSubscriptionActiveUntil
+	connectionMeta["refreshable"] = true
+	connectionMeta["token_mode"] = "oauth_refresh"
+	delete(connectionMeta, "last_error")
+	delete(connectionMeta, "last_error_at")
 	connection.Metadata = jsonBytes(connectionMeta)
 	connection.RawProfile = jsonBytes(rawClaims)
 	connection.Email = strings.TrimSpace(claims.Email)
