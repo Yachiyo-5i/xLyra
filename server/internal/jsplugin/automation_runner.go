@@ -84,6 +84,7 @@ func (m *Manager) StartAutomation(ctx context.Context, host AutomationHost) {
 		defer ticker.Stop()
 		lastPurge := time.Time{}
 		for {
+			m.queueTicks(ctx)
 			for m.processDue(ctx, host) >= automationBatch {
 			}
 			if time.Since(lastPurge) > time.Hour {
@@ -100,6 +101,68 @@ func (m *Manager) StartAutomation(ctx context.Context, host AutomationHost) {
 			}
 		}
 	}()
+}
+
+// tickRetry is how long a binding whose plugin is not loaded waits before it is
+// looked at again.
+const tickRetry = 5 * time.Minute
+
+// queueTicks emits schedule.tick for the bindings that are due. After downtime a
+// binding gets one tick, not one per missed interval.
+func (m *Manager) queueTicks(ctx context.Context) {
+	due, err := m.repo.DueTickBindings(ctx, time.Now(), automationBatch)
+	if err != nil {
+		if ctx.Err() == nil {
+			slog.Warn("js plugin tick poll failed", "error", err)
+		}
+		return
+	}
+	for _, binding := range due {
+		plugin, ok := m.catalog.Registry().ByPluginID(binding.PluginID)
+		if !ok || plugin.Manifest.Kind != KindAutomation || plugin.Manifest.Automation.Schedule.EveryMinutes <= 0 {
+			_ = m.repo.PostponeTick(ctx, binding.ID, time.Now().Add(tickRetry))
+			continue
+		}
+		payload, err := m.tickPayload(ctx, binding)
+		if err != nil {
+			slog.Warn("js plugin tick skipped", "binding_id", binding.ID.String(), "error", err)
+			_ = m.repo.PostponeTick(ctx, binding.ID, time.Now().Add(tickRetry))
+			continue
+		}
+		next := time.Now().Add(time.Duration(plugin.Manifest.Automation.Schedule.EveryMinutes) * time.Minute)
+		if err := m.repo.QueueTick(ctx, binding.ID, EventScheduleTick, payload, next); err != nil && ctx.Err() == nil {
+			slog.Warn("js plugin tick not queued", "binding_id", binding.ID.String(), "error", err)
+		}
+	}
+}
+
+// tickPayload describes the subject as it is now: for an OAuth account, its
+// status and the quota last synced.
+func (m *Manager) tickPayload(ctx context.Context, binding store.JSPluginBinding) (store.JSON, error) {
+	id, err := uuid.Parse(binding.ScopeID)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := store.NewOAuthConnectionRepository(m.db.DB()).GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	meta := jsonObject(conn.Metadata)
+	current := map[string]any{"now": time.Now().UnixMilli(), "status": conn.Status}
+	if quota, ok := meta["quota"]; ok {
+		current["quota"] = quota
+	}
+	if conn.LastSyncAt.Valid {
+		current["last_sync_at"] = conn.LastSyncAt.Time.UTC().Format(time.RFC3339)
+	}
+	raw, err := json.Marshal(map[string]any{
+		"type": EventScheduleTick,
+		"subject": encodeValue(AutomationSubject{
+			Type: binding.ScopeType, ID: binding.ScopeID, Provider: conn.Provider, Label: conn.Email,
+		}),
+		"current": current,
+	})
+	return raw, err
 }
 
 // processDue handles the events that are due and returns how many it took.

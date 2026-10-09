@@ -54,6 +54,18 @@ func TestAutomationManifestRules(t *testing.T) {
 		"nested config": func(s *AutomationSection) {
 			s.Binding.Config = map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "object"}}}
 		},
+		"tick without schedule": func(s *AutomationSection) {
+			s.Subscribes = []string{EventScheduleTick}
+		},
+		"tick too often": func(s *AutomationSection) {
+			s.Subscribes = []string{EventScheduleTick}
+			s.Schedule.EveryMinutes = 1
+		},
+		"tick too rarely": func(s *AutomationSection) {
+			s.Subscribes = []string{EventScheduleTick}
+			s.Schedule.EveryMinutes = MaxScheduleMinutes + 1
+		},
+		"schedule without tick": func(s *AutomationSection) { s.Schedule.EveryMinutes = 60 },
 		"bad default": func(s *AutomationSection) {
 			s.Binding.Config = map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "integer", "default": "high"}}}
 		},
@@ -67,6 +79,12 @@ func TestAutomationManifestRules(t *testing.T) {
 	}
 	if err := validateAutomationSection(automationSection()); err != nil {
 		t.Fatalf("valid section rejected: %v", err)
+	}
+	ticking := automationSection()
+	ticking.Subscribes = []string{"oauth.quota_synced", EventScheduleTick}
+	ticking.Schedule.EveryMinutes = 60
+	if err := validateAutomationSection(ticking); err != nil {
+		t.Fatalf("a schedule with ticks rejected: %v", err)
 	}
 }
 

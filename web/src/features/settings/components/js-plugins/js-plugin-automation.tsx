@@ -222,6 +222,11 @@ export function JSPluginAutomationSection({
         <div className="min-w-0 space-y-1">
           <h4 className="text-sm font-semibold text-foreground">{t('settings:jsPlugins.automation.title')}</h4>
           <p className="text-xs text-muted-soft">{t('settings:jsPlugins.automation.hint')}</p>
+          {manifest.schedule?.everyMinutes ? (
+            <p className="text-xs text-muted-soft">
+              {t('settings:jsPlugins.automation.schedule', { minutes: manifest.schedule.everyMinutes })}
+            </p>
+          ) : null}
         </div>
         {form == null ? (
           <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={startAdd}>

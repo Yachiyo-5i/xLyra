@@ -51,12 +51,16 @@ export function handle(ctx, event) { ... }
 | `binding.target.type` | 看动作 | 可操作的对象类型，目前只有 `api_key`。声明了 `apikey.reset_usage` 就必须写 |
 | `binding.target.requires` | 否 | 对每个目标的要求。`finite_total_quota`：必须设置了有限的总额度 |
 | `binding.config` | 否 | 管理员要填的参数，见下文 |
+| `schedule.everyMinutes` | 订阅 `schedule.tick` 时必填 | 定时事件的间隔，5 到 10080 分钟。没有订阅定时事件时不能写 |
 
 ### 事件
 
 | 事件 | 对象 | 何时发生 |
 | --- | --- | --- |
 | `oauth.quota_synced` | `oauth_connection` | 一个 OAuth 账号的额度同步并保存之后 |
+| `schedule.tick` | 任意（跟随绑定的对象） | 按 `schedule.everyMinutes` 对每条绑定定时发出，不管有没有变化 |
+
+`schedule.tick` 适合"到点就检查"的事，而不是"某件事变了才做"的事。它的 `current` 是对象此刻的样子：对 OAuth 账号来说是 `now`（Unix 毫秒）、`status`、`last_sync_at` 和最近一次同步保存的 `quota`，没有 `previous`。它是轮询，不是精确的定时器；xLyra 停机之后重启，每条绑定只会补发**一次**，不会把错过的间隔都补上。
 
 ### 权限与动作
 

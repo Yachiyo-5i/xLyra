@@ -80,6 +80,10 @@ func (r JSPluginRepository) CreateAutomationBinding(ctx context.Context, binding
 		binding.Events = JSON("[]")
 	}
 	binding.State = JSON("{}")
+	if jsonArrayHas(binding.Events, "schedule.tick") {
+		now := time.Now()
+		binding.NextTickAt = &now
+	}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&binding).Error; err != nil {
 			return err
@@ -178,9 +182,40 @@ func (r JSPluginRepository) SetAutomationEvents(ctx context.Context, pluginID st
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Exec(
-		`UPDATE js_plugin_bindings SET events = ?::jsonb WHERE plugin_id = ? AND scope_type = ?`,
-		string(raw), pluginID, JSPluginScopeOAuthConnection).Error
+	// A binding that now subscribes to ticks is due at once; one that no longer
+	// does has nothing scheduled.
+	return r.db.WithContext(ctx).Exec(`
+		UPDATE js_plugin_bindings SET events = ?::jsonb,
+			next_tick_at = CASE WHEN jsonb_exists(?::jsonb, 'schedule.tick') THEN COALESCE(next_tick_at, NOW()) ELSE NULL END
+		WHERE plugin_id = ? AND scope_type = ?`,
+		string(raw), string(raw), pluginID, JSPluginScopeOAuthConnection).Error
+}
+
+// DueTickBindings returns the bindings whose schedule.tick is due.
+func (r JSPluginRepository) DueTickBindings(ctx context.Context, now time.Time, limit int) ([]JSPluginBinding, error) {
+	var items []JSPluginBinding
+	err := r.db.WithContext(ctx).
+		Where("scope_type = ? AND next_tick_at IS NOT NULL AND next_tick_at <= ? AND jsonb_exists(events, ?)",
+			JSPluginScopeOAuthConnection, now, "schedule.tick").
+		Order("next_tick_at ASC").Limit(limit).Find(&items).Error
+	return items, err
+}
+
+// QueueTick queues one event for one binding and schedules its next tick, in
+// one transaction, so a tick is never queued twice for the same slot of time.
+func (r JSPluginRepository) QueueTick(ctx context.Context, bindingID uuid.UUID, eventType string, payload JSON, next time.Time) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`INSERT INTO js_plugin_events (binding_id, event_type, payload) VALUES (?, ?, ?::jsonb)`,
+			bindingID, eventType, string(payload)).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`UPDATE js_plugin_bindings SET next_tick_at = ? WHERE id = ?`, next, bindingID).Error
+	})
+}
+
+// PostponeTick moves a binding's next tick without queueing anything.
+func (r JSPluginRepository) PostponeTick(ctx context.Context, bindingID uuid.UUID, next time.Time) error {
+	return r.db.WithContext(ctx).Exec(`UPDATE js_plugin_bindings SET next_tick_at = ? WHERE id = ?`, next, bindingID).Error
 }
 
 func (r JSPluginRepository) SaveBindingState(ctx context.Context, id uuid.UUID, state JSON) error {
@@ -285,4 +320,18 @@ func (r JSPluginRepository) ListActionLog(ctx context.Context, pluginID string, 
 	var items []JSPluginActionLog
 	err := r.db.WithContext(ctx).Where("plugin_id = ?", pluginID).Order("id DESC").Limit(limit).Find(&items).Error
 	return items, err
+}
+
+// jsonArrayHas reports whether a JSON array of strings contains want.
+func jsonArrayHas(raw JSON, want string) bool {
+	var items []string
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return false
+	}
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

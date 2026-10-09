@@ -15,7 +15,22 @@ import (
 // subject type its bindings attach to.
 var AutomationEventSubjects = map[string]string{
 	"oauth.quota_synced": "oauth_connection",
+	EventScheduleTick:    anySubject,
 }
+
+// EventScheduleTick is emitted for each binding on the interval the plugin
+// declares in automation.schedule, whether or not anything changed. It suits
+// work that depends on time rather than on a change.
+const EventScheduleTick = "schedule.tick"
+
+// anySubject marks an event that is not about one kind of object.
+const anySubject = "*"
+
+// Bounds of automation.schedule.everyMinutes: a tick is a poll, not a timer.
+const (
+	MinScheduleMinutes = 5
+	MaxScheduleMinutes = 7 * 24 * 60
+)
 
 // Automation action types. A plugin must declare each one it returns in
 // automation.permissions, and an admin must grant it when enabling the version.
@@ -137,6 +152,13 @@ type AutomationSection struct {
 	// them when enabling a version.
 	Permissions []string          `json:"permissions,omitempty"`
 	Binding     AutomationBinding `json:"binding"`
+	// Schedule is required when the plugin subscribes to schedule.tick, and only then.
+	Schedule AutomationSchedule `json:"schedule,omitempty"`
+}
+
+// AutomationSchedule says how often schedule.tick is emitted per binding.
+type AutomationSchedule struct {
+	EveryMinutes int `json:"everyMinutes,omitempty"`
 }
 
 // AutomationBinding describes what an admin picks when binding the plugin.
@@ -182,13 +204,20 @@ func validateAutomationSection(section AutomationSection) error {
 		if !ok {
 			return fmt.Errorf("automation.subscribes: unknown event %q (supported: %s)", event, strings.Join(automationEventNames(), ", "))
 		}
-		if want != subject {
+		if want != anySubject && want != subject {
 			return fmt.Errorf("automation.subscribes: event %q is about %s, not %s", event, want, subject)
 		}
 		if seen[event] {
 			return fmt.Errorf("automation.subscribes: duplicate event %q", event)
 		}
 		seen[event] = true
+	}
+	ticks := seen[EventScheduleTick]
+	switch {
+	case ticks && (section.Schedule.EveryMinutes < MinScheduleMinutes || section.Schedule.EveryMinutes > MaxScheduleMinutes):
+		return fmt.Errorf("automation.schedule.everyMinutes must be between %d and %d when subscribing to %s", MinScheduleMinutes, MaxScheduleMinutes, EventScheduleTick)
+	case !ticks && section.Schedule.EveryMinutes != 0:
+		return fmt.Errorf("automation.schedule only applies to %s, which is not in automation.subscribes", EventScheduleTick)
 	}
 	for _, permission := range section.Permissions {
 		if !contains(AutomationPermissions, permission) {

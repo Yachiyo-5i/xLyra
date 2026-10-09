@@ -73,9 +73,11 @@ type JSPluginBinding struct {
 	Config    JSON `gorm:"type:jsonb"`
 	// Events and State belong to automation bindings: the events the binding
 	// is called for, and what its plugin saved last time.
-	Events    JSON `gorm:"type:jsonb"`
-	State     JSON `gorm:"type:jsonb"`
-	CreatedAt time.Time
+	Events JSON `gorm:"type:jsonb"`
+	State  JSON `gorm:"type:jsonb"`
+	// NextTickAt is when a binding that subscribes to schedule.tick is next due.
+	NextTickAt *time.Time
+	CreatedAt  time.Time
 }
 
 type JSPluginRepository struct {

@@ -212,6 +212,8 @@ export type JSPluginConfigSchema = {
 export type JSPluginAutomationManifest = {
   subscribes: string[]
   permissions: string[]
+  /** Present when the plugin subscribes to schedule.tick. */
+  schedule?: { everyMinutes?: number }
   binding: {
     subject: { type: string; providers?: string[] }
     target?: { type?: string; requires?: string }
@@ -225,6 +227,7 @@ export function automationManifest(manifest?: Record<string, unknown>): JSPlugin
   return {
     subscribes: raw.subscribes ?? [],
     permissions: raw.permissions ?? [],
+    schedule: raw.schedule,
     binding: raw.binding ?? { subject: { type: '' } },
   }
 }

@@ -785,6 +785,7 @@
     "automation": {
       "title": "Automations",
       "hint": "Choose the OAuth account it watches and the API keys it may act on. When that account has an event the plugin subscribes to, the plugin decides what to do and xLyra carries it out.",
+      "schedule": "It also runs on its own every {{minutes}} minutes, whether or not anything changed.",
       "add": "Add automation",
       "edit": "Edit",
       "delete": "Delete",

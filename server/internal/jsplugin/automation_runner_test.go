@@ -259,3 +259,111 @@ func mustParse(t *testing.T, raw string) uuid.UUID {
 	}
 	return id
 }
+
+const tickPlugin = `export const meta = { apiVersion: 1, id: "acme-tick", kind: "automation" };
+export function handle(ctx, event) {
+  if (event.type !== "schedule.tick") return { actions: [] };
+  const weekly = event.current.quota && event.current.quota.weekly;
+  return {
+    actions: [{ type: "notify", level: "warn", message: "weekly remaining " + (weekly ? weekly.remaining_percent : "unknown") + "% for " + event.subject.label }],
+    state: { ticks: ((ctx.state && ctx.state.ticks) || 0) + 1 },
+  };
+}
+`
+
+func tickPackage(t *testing.T) []byte {
+	t.Helper()
+	manifest := `{
+  "id": "acme-tick", "name": "Tick", "version": "1.0.0", "apiVersion": 1, "hostApi": 1, "kind": "automation",
+  "automation": {
+    "subscribes": ["schedule.tick"],
+    "permissions": ["notify"],
+    "schedule": { "everyMinutes": 60 },
+    "binding": { "subject": { "type": "oauth_connection" } }
+  },
+  "sha256": { "plugin.js": "` + hashSource(tickPlugin) + `" }
+}`
+	fixture := `{"name":"tick","ctx":{"now":1},"input":{"type":"schedule.tick","subject":{"type":"oauth_connection","id":"c","label":"a@b"},"current":{"quota":{"weekly":{"remaining_percent":40}}},"targets":[]},"expect":{"result":{"actions":[{"type":"notify","level":"warn","message":"weekly remaining 40% for a@b"}],"state":{"ticks":1}}}}`
+	raw, err := BuildPackage(map[string][]byte{
+		"manifest.json":     []byte(manifest),
+		"plugin.js":         []byte(tickPlugin),
+		"fixtures/one.json": []byte(fixture),
+	})
+	if err != nil {
+		t.Fatalf("build package: %v", err)
+	}
+	return raw
+}
+
+// A plugin that subscribes to schedule.tick is called on its own interval with
+// the account as it is now, once per interval however long xLyra was down.
+func TestAutomationScheduleTick(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	manager := NewManager(st, &Catalog{})
+	conn, err := store.NewOAuthConnectionRepository(st.DB()).Save(ctx, store.OAuthConnection{
+		Provider: "codex", Email: "owner@example.com", Status: "connected", RawProfile: store.JSON("{}"),
+		Metadata: store.JSON(`{"quota":{"weekly":{"remaining_percent":40}}}`),
+	})
+	if err != nil {
+		t.Fatalf("seed connection: %v", err)
+	}
+	if _, err := manager.Upload(ctx, "", tickPackage(t)); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if err := manager.Enable(ctx, "acme-tick", "1.0.0", EnableOptions{ConfirmUntrusted: true, GrantPermissions: []string{ActionNotify}}); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	binding, err := manager.CreateAutomation(ctx, "acme-tick", AutomationBindingInput{SubjectID: conn.ID.String()})
+	if err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+	if binding.NextTickAt == nil {
+		t.Fatal("a ticking binding must be due at once")
+	}
+
+	manager.queueTicks(ctx)
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events WHERE event_type = 'schedule.tick' AND status = 'pending'`); n != 1 {
+		t.Fatalf("queued ticks = %d, want 1", n)
+	}
+	// Not due again for an hour, however often the loop looks.
+	manager.queueTicks(ctx)
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events`); n != 1 {
+		t.Fatalf("a tick was queued twice: %d", n)
+	}
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_bindings WHERE next_tick_at > NOW() + INTERVAL '59 minutes'`); n != 1 {
+		t.Fatalf("the next tick was not pushed an interval ahead")
+	}
+
+	manager.processDue(ctx, &fakeHost{})
+	log, err := manager.ActionLog(ctx, "acme-tick", 10)
+	if err != nil || len(log) != 1 || log[0].Status != store.JSPluginActionApplied {
+		t.Fatalf("action log = %+v, %v", log, err)
+	}
+	views, err := manager.ListAutomations(ctx, "acme-tick")
+	if err != nil || len(views) != 1 || views[0].State["ticks"] != float64(1) {
+		t.Fatalf("views = %+v, %v", views, err)
+	}
+
+	// After downtime the binding gets one tick, not one per missed interval.
+	st.DB().Exec(`UPDATE js_plugin_bindings SET next_tick_at = NOW() - INTERVAL '3 days'`)
+	manager.queueTicks(ctx)
+	manager.queueTicks(ctx)
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events WHERE status = 'pending'`); n != 1 {
+		t.Fatalf("after downtime queued %d ticks, want 1", n)
+	}
+
+	// A plugin that is switched off stops ticking: the binding is only postponed.
+	if err := manager.Disable(ctx, "acme-tick"); err != nil {
+		t.Fatal(err)
+	}
+	st.DB().Exec(`UPDATE js_plugin_bindings SET next_tick_at = NOW() - INTERVAL '1 minute'`)
+	st.DB().Exec(`DELETE FROM js_plugin_events`)
+	manager.queueTicks(ctx)
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events`); n != 0 {
+		t.Fatalf("a disabled plugin was ticked")
+	}
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_bindings WHERE next_tick_at > NOW()`); n != 1 {
+		t.Fatal("a disabled plugin's binding was not postponed")
+	}
+}
