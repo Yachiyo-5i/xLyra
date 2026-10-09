@@ -40,6 +40,20 @@ const (
 	HookParseError = "parseError"
 )
 
+// Scope says where a plugin of a kind takes effect once enabled. It is also the
+// scope_type of the bindings an admin makes.
+type Scope string
+
+const (
+	// ScopeGlobal applies to every site and needs no binding.
+	ScopeGlobal Scope = "global"
+	// ScopeSite needs an admin to bind the plugin to a site. A site holds one
+	// plugin per kind.
+	ScopeSite Scope = "site"
+	// ScopeEndpoint gets a downstream path, /v1/plugins/<slug>.
+	ScopeEndpoint Scope = "endpoint"
+)
+
 // kindSpec describes one kind: what it exports, how it is called and what it may touch.
 type kindSpec struct {
 	Name   string
@@ -59,21 +73,19 @@ type kindSpec struct {
 	Connected bool
 	// Section is the manifest block that carries the site address settings, if any.
 	Section string
-	// Binding says what makes a plugin of this kind take effect once enabled:
-	// "site" needs an admin to bind it to a site, "global" applies to every
-	// site, "slug" gets a downstream path, "quota" is set in the site's quota probe.
-	Binding string
+	// Scope says where an enabled plugin of this kind takes effect.
+	Scope Scope
 }
 
 var kindSpecs = []kindSpec{
-	{Name: KindQuotaProbe, Family: FamilyStepped, Hooks: []string{"probe"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "quotaProbe", Binding: "quota"},
-	{Name: KindProtocol, Family: FamilyProtocol, Hooks: []string{"decodeRequest", "buildRequest", "parseResponse"}, OptionalHooks: []string{HookSignRequest, HookParseError}, Timeout: protocolHookTimeout, HotPath: true, Credential: "api_key", Connected: true, Binding: "slug"},
-	{Name: KindModelList, Family: FamilyStepped, Hooks: []string{"listModels"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
-	{Name: KindCredentialCheck, Family: FamilyStepped, Hooks: []string{"check"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
-	{Name: KindSiteDetect, Family: FamilyStepped, Hooks: []string{"detect"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Section: "site", Binding: "global"},
-	{Name: KindErrorClassifier, Family: FamilyOneShot, Hooks: []string{"classify"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "none", Connected: true, Binding: "site"},
-	{Name: KindModelMetadata, Family: FamilyOneShot, Hooks: []string{"describeModels"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Binding: "global"},
-	{Name: KindPricingParse, Family: FamilyOneShot, Hooks: []string{"parsePricing"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Binding: "site"},
+	{Name: KindQuotaProbe, Family: FamilyStepped, Hooks: []string{"probe"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "quotaProbe", Scope: ScopeSite},
+	{Name: KindProtocol, Family: FamilyProtocol, Hooks: []string{"decodeRequest", "buildRequest", "parseResponse"}, OptionalHooks: []string{HookSignRequest, HookParseError}, Timeout: protocolHookTimeout, HotPath: true, Credential: "api_key", Connected: true, Scope: ScopeEndpoint},
+	{Name: KindModelList, Family: FamilyStepped, Hooks: []string{"listModels"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Scope: ScopeSite},
+	{Name: KindCredentialCheck, Family: FamilyStepped, Hooks: []string{"check"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Scope: ScopeSite},
+	{Name: KindSiteDetect, Family: FamilyStepped, Hooks: []string{"detect"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Section: "site", Scope: ScopeGlobal},
+	{Name: KindErrorClassifier, Family: FamilyOneShot, Hooks: []string{"classify"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "none", Connected: true, Scope: ScopeSite},
+	{Name: KindModelMetadata, Family: FamilyOneShot, Hooks: []string{"describeModels"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Scope: ScopeGlobal},
+	{Name: KindPricingParse, Family: FamilyOneShot, Hooks: []string{"parsePricing"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Scope: ScopeSite},
 }
 
 func lookupKind(name string) (kindSpec, bool) {
@@ -94,7 +106,7 @@ type KindInfo struct {
 	OptionalHooks []string
 	Credential    string
 	Connected     bool
-	Binding       string
+	Scope         Scope
 }
 
 // SupportedKinds lists every kind this build accepts in a manifest.
@@ -108,7 +120,7 @@ func SupportedKinds() []KindInfo {
 			OptionalHooks: append([]string(nil), spec.OptionalHooks...),
 			Credential:    spec.Credential,
 			Connected:     spec.Connected,
-			Binding:       spec.Binding,
+			Scope:         spec.Scope,
 		})
 	}
 	return out
@@ -131,15 +143,23 @@ func unsupportedKindError(kind string) error {
 	return fmt.Errorf("kind %q is not supported in this build (supported: %s)", kind, strings.Join(names, ", "))
 }
 
+// ScopeOf returns where plugins of a kind take effect; it is empty for an
+// unknown kind.
+func ScopeOf(kind string) Scope {
+	spec, ok := lookupKind(kind)
+	if !ok {
+		return ""
+	}
+	return spec.Scope
+}
+
 // SiteBound reports whether plugins of this kind take effect only on sites an
 // admin binds them to (as opposed to applying everywhere).
 func SiteBound(kind string) bool {
-	spec, ok := lookupKind(kind)
-	return ok && spec.Binding == "site"
+	return ScopeOf(kind) == ScopeSite
 }
 
 // GlobalKind reports whether an enabled plugin of this kind applies to every site.
 func GlobalKind(kind string) bool {
-	spec, ok := lookupKind(kind)
-	return ok && spec.Binding == "global"
+	return ScopeOf(kind) == ScopeGlobal
 }

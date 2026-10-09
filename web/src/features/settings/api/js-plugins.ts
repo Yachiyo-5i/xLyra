@@ -11,6 +11,9 @@ export type JSPluginKind =
   | 'pricing_parse'
   | string
 
+/** site: bind to sites; endpoint: gets a downstream path; global: applies everywhere. */
+export type JSPluginScope = 'site' | 'endpoint' | 'global'
+
 export type JSPluginMetrics24h = {
   calls: number
   errors: number
@@ -25,6 +28,8 @@ export type JSPluginListItem = {
   version_count: number
   name?: string
   kind?: JSPluginKind
+  /** Where the kind takes effect; the server decides, so new kinds need no UI change. */
+  scope?: JSPluginScope
   metrics_24h?: JSPluginMetrics24h
 }
 
@@ -146,16 +151,6 @@ export async function bindJSPluginProtocolSlug(pluginId: string, version: string
     { method: 'POST', body: { slug } },
   )
 }
-
-export async function bindJSPluginSiteQuotaProbe(pluginId: string, version: string, siteId: string) {
-  return apiFetch<{ ok: boolean; quota_probe?: string }>(
-    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}/bind-quota-probe`,
-    { method: 'POST', body: { site_id: siteId } },
-  )
-}
-
-export const SITE_BOUND_KINDS = ['model_list', 'credential_check', 'error_classifier', 'pricing_parse'] as const
-export const GLOBAL_KINDS = ['site_detect', 'model_metadata'] as const
 
 export type JSPluginPricingPreview = {
   groups: unknown[] | null

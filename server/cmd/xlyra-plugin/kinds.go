@@ -16,7 +16,7 @@ func runKinds() {
 	fmt.Fprintln(w, "KIND\tFAMILY\tHOOKS\tCREDENTIAL\tTAKES EFFECT")
 	anyOffline := false
 	for _, info := range jsplugin.SupportedKinds() {
-		effect := bindingText(info.Binding)
+		effect := scopeText(info.Scope)
 		if !info.Connected {
 			effect = "not connected yet"
 			anyOffline = true
@@ -33,17 +33,15 @@ func runKinds() {
 	}
 }
 
-// bindingText says what an admin has to do for an enabled plugin to be used.
-func bindingText(binding string) string {
-	switch binding {
-	case "site":
+// scopeText says what an admin has to do for an enabled plugin to be used.
+func scopeText(scope jsplugin.Scope) string {
+	switch scope {
+	case jsplugin.ScopeSite:
 		return "enable, then bind to a site"
-	case "global":
+	case jsplugin.ScopeGlobal:
 		return "enable (applies to every site)"
-	case "quota":
-		return "enable, then bind to a site's quota probe"
-	case "slug":
+	case jsplugin.ScopeEndpoint:
 		return "enable, then assign a /v1/plugins/<slug> path"
 	}
-	return binding
+	return string(scope)
 }

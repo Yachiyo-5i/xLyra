@@ -335,7 +335,6 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Post("/js-plugins/{id}/disable", adminHandler.DisableJSPlugin)
 				protected.Delete("/js-plugins/{id}/versions/{version}", adminHandler.DeleteJSPluginVersion)
 				protected.Post("/js-plugins/{id}/versions/{version}/bind-protocol", adminHandler.BindJSPluginProtocolSlug)
-				protected.Post("/js-plugins/{id}/versions/{version}/bind-quota-probe", adminHandler.BindJSPluginSiteQuotaProbe)
 				protected.Post("/js-plugins/{id}/try", adminHandler.TryJSPlugin)
 				protected.Post("/js-plugins/{id}/versions/{version}/bind-site", adminHandler.BindJSPluginSite)
 				protected.Post("/js-plugins/{id}/unbind-site", adminHandler.UnbindJSPluginSite)

@@ -204,37 +204,9 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 	return nil
 }
 
-func (m *Manager) BindSiteQuotaProbe(ctx context.Context, pluginID, version, siteID string) error {
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return fmt.Errorf("site_id is required")
-	}
-	row, err := m.repo.GetVersion(ctx, pluginID, version)
-	if err != nil {
-		return err
-	}
-	if row.Status != store.JSPluginStatusEnabled {
-		return fmt.Errorf("plugin version must be enabled before binding")
-	}
-	pkg, err := ReadPackage(row.Package, true)
-	if err != nil {
-		return err
-	}
-	if pkg.Manifest.Kind != KindQuotaProbe {
-		return fmt.Errorf("only quota_probe plugins can bind to sites")
-	}
-	return m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:  pluginID,
-		Version:   version,
-		Kind:      KindQuotaProbe,
-		ScopeType: store.JSPluginScopeSite,
-		ScopeID:   siteID,
-	})
-}
-
 // BindSitePlugin records that an enabled plugin serves one site. It applies to
-// the kinds that act per site (model_list, credential_check, error_classifier,
-// pricing_parse) and returns the plugin's kind.
+// every kind with site scope (quota_probe, model_list, credential_check,
+// error_classifier, pricing_parse) and returns the plugin's kind.
 func (m *Manager) BindSitePlugin(ctx context.Context, pluginID, version, siteID string) (string, error) {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {

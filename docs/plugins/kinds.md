@@ -10,21 +10,24 @@ xlyra-plugin kinds
 
 ## 当前支持的类型
 
-| kind | 解决什么问题 | 导出的函数 | 凭据 | 管理员怎么让它生效 |
+| kind | 解决什么问题 | 导出的函数 | 凭据 | 作用域与生效方式 |
 | --- | --- | --- | --- | --- |
-| [`quota_probe`](./quota-probe.md) | 查余额、额度、套餐 | `probe` | 站点 API Key | 启用后绑定到站点的额度探测 |
-| [`protocol`](./protocol.md) | 接入接口格式非标准的上游（仅非流式） | `decodeRequest`、`buildRequest`、`parseResponse`；可选 `signRequest`、`parseError` | 站点 API Key | 启用后分配 `/v1/plugins/<slug>` |
-| [`model_list`](./model-list.md) | 站点拉模型列表的接口格式特殊 | `listModels` | 站点 API Key | 启用后绑定到站点 |
-| [`credential_check`](./credential-check.md) | 判断密钥是否有效、站点是否可用 | `check` | 站点 API Key | 启用后绑定到站点 |
-| [`site_detect`](./site-detect.md) | 根据地址识别是不是某类站点 | `detect` | 无 | 启用即对所有站点的识别生效 |
-| [`error_classifier`](./error-classifier.md) | 上游错误格式特殊，需要告诉 xLyra 这是哪一类失败 | `classify` | 无 | 启用后绑定到站点 |
-| [`model_metadata`](./model-metadata.md) | 上游模型名对应的名称与能力 xLyra 不认识 | `describeModels` | 无 | 启用即对所有站点生效 |
-| [`pricing_parse`](./pricing-parse.md) | 站点公布的价格表格式特殊 | `parsePricing` | 站点 API Key（由 xLyra 取价格表） | 启用后预览核对，再绑定到站点 |
+| [`quota_probe`](./quota-probe.md) | 查余额、额度、套餐 | `probe` | 站点 API Key | 站点：启用后绑定到站点 |
+| [`protocol`](./protocol.md) | 接入接口格式非标准的上游（仅非流式） | `decodeRequest`、`buildRequest`、`parseResponse`；可选 `signRequest`、`parseError` | 站点 API Key | 下游路径：启用后分配 `/v1/plugins/<slug>` |
+| [`model_list`](./model-list.md) | 站点拉模型列表的接口格式特殊 | `listModels` | 站点 API Key | 站点：启用后绑定到站点 |
+| [`credential_check`](./credential-check.md) | 判断密钥是否有效、站点是否可用 | `check` | 站点 API Key | 站点：启用后绑定到站点 |
+| [`site_detect`](./site-detect.md) | 根据地址识别是不是某类站点 | `detect` | 无 | 全局：启用即对所有站点的识别生效 |
+| [`error_classifier`](./error-classifier.md) | 上游错误格式特殊，需要告诉 xLyra 这是哪一类失败 | `classify` | 无 | 站点：启用后绑定到站点 |
+| [`model_metadata`](./model-metadata.md) | 上游模型名对应的名称与能力 xLyra 不认识 | `describeModels` | 无 | 全局：启用即对所有站点生效 |
+| [`pricing_parse`](./pricing-parse.md) | 站点公布的价格表格式特殊 | `parsePricing` | 站点 API Key（由 xLyra 取价格表） | 站点：启用后预览核对，再绑定到站点 |
 
-### 绑定是什么意思
+### 作用域是什么意思
 
-- **绑定到站点**：只对管理员选定的那个站点生效，其他站点完全不受影响。没有绑定时，一切和没有这个插件时一样。
-- **启用即生效**：对所有站点生效。这两种类型（`site_detect`、`model_metadata`）都只会"补充"：识别时只能指向 xLyra 已有的站点类型，模型元数据只补充缺失的字段、不覆盖已有的值。
+每种类型都有一个固定的作用域，由 xLyra 决定，开发者不能改。
+
+- **站点**：只对管理员选定的站点生效，其他站点完全不受影响。一个站点同一种类型最多绑定一个插件，选另一个插件会替换它。没有绑定时，一切和没有这个插件时一样。
+- **下游路径**：启用后由管理员分配 `/v1/plugins/<slug>`，客户端访问这个路径时才会走该插件。
+- **全局**：启用即对所有站点生效。这两种类型（`site_detect`、`model_metadata`）都只会"补充"：识别时只能指向 xLyra 已有的站点类型，模型元数据只补充缺失的字段、不覆盖已有的值。
 - 插件被停用或卸载后，对应的绑定自动失效，站点回到默认行为，不需要手动清理。
 
 ## 我该选哪一个

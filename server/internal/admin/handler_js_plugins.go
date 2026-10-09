@@ -56,6 +56,10 @@ func (h Handler) ListJSPlugins(w http.ResponseWriter, r *http.Request) {
 			for key, value := range meta {
 				item[key] = value
 			}
+			if kind, ok := meta["kind"].(string); ok {
+				// Where the kind takes effect, so the admin UI need not hard-code kinds.
+				item["scope"] = string(jsplugin.ScopeOf(kind))
+			}
 		}
 		if enabled != "" && h.jsPlugins != nil {
 			metrics := h.jsPlugins.Metrics(plugin.ID, enabled)
@@ -268,45 +272,6 @@ func (h Handler) TryJSPlugin(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, result)
 }
 
-func (h Handler) BindJSPluginSiteQuotaProbe(w http.ResponseWriter, r *http.Request) {
-	if h.jsPlugins == nil || h.sites == nil {
-		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
-		return
-	}
-	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
-	version := strings.TrimSpace(chi.URLParam(r, "version"))
-	var body struct {
-		SiteID string `json:"site_id"`
-	}
-	if err := httpx.DecodeJSONBody(r, &body); err != nil {
-		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
-		return
-	}
-	siteID := strings.TrimSpace(body.SiteID)
-	if siteID == "" {
-		h.writeError(w, r, http.StatusBadRequest, "site_id_required", "site_id is required")
-		return
-	}
-	if err := h.jsPlugins.BindSiteQuotaProbe(r.Context(), pluginID, version, siteID); err != nil {
-		h.recordJSPluginAudit(r, "js_plugin.bind_quota_probe", pluginID, false, "js_plugin_bind_quota_failed", map[string]any{"version": version, "site_id": siteID})
-		h.writeError(w, r, http.StatusBadRequest, "js_plugin_bind_quota_failed", err.Error())
-		return
-	}
-	probeValue := sitepkg.QuotaProbePluginPrefix + pluginID
-	siteUUID, err := uuid.Parse(siteID)
-	if err != nil {
-		h.writeError(w, r, http.StatusBadRequest, "invalid_site_id", "site_id must be a uuid")
-		return
-	}
-	if _, err := h.sites.PatchGatewayQuotaProbe(r.Context(), siteUUID, probeValue); err != nil {
-		h.recordJSPluginAudit(r, "js_plugin.bind_quota_probe", pluginID, false, "site_quota_probe_patch_failed", map[string]any{"version": version, "site_id": siteID})
-		h.writeError(w, r, http.StatusBadRequest, "site_quota_probe_patch_failed", err.Error())
-		return
-	}
-	h.recordJSPluginAudit(r, "js_plugin.bind_quota_probe", pluginID, true, "", map[string]any{"version": version, "site_id": siteID})
-	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "quota_probe": probeValue})
-}
-
 func jsPluginManifestSummary(raw store.JSON) map[string]any {
 	if len(raw) == 0 {
 		return nil
@@ -381,8 +346,9 @@ func adminIDFromContext(ctx context.Context) string {
 	return id.String()
 }
 
-// BindJSPluginSite binds an enabled plugin to one site, for the kinds that act
-// per site: model_list, credential_check, error_classifier and pricing_parse.
+// BindJSPluginSite binds an enabled plugin to one site, for every kind with
+// site scope: quota_probe, model_list, credential_check, error_classifier and
+// pricing_parse.
 // Binding a pricing_parse plugin needs confirm_pricing_reviewed, because it
 // changes the prices xLyra shows for that site.
 func (h Handler) BindJSPluginSite(w http.ResponseWriter, r *http.Request) {
@@ -419,7 +385,15 @@ func (h Handler) BindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, http.StatusBadRequest, "js_plugin_pricing_review_required", "preview the parsed prices and confirm them before binding a pricing plugin")
 		return
 	}
-	if _, err := h.sites.PatchGatewayPlugin(r.Context(), siteUUID, kind, pluginID); err != nil {
+	// quota_probe keeps its binding in the site's quota probe setting, which can
+	// also name a built-in probe; every other kind lives under gateway plugins.
+	var patchErr error
+	if kind == jsplugin.KindQuotaProbe {
+		_, patchErr = h.sites.PatchGatewayQuotaProbe(r.Context(), siteUUID, sitepkg.QuotaProbePluginPrefix+pluginID)
+	} else {
+		_, patchErr = h.sites.PatchGatewayPlugin(r.Context(), siteUUID, kind, pluginID)
+	}
+	if err := patchErr; err != nil {
 		_ = h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String())
 		h.recordJSPluginAudit(r, "js_plugin.bind_site", pluginID, false, "site_plugin_patch_failed", meta)
 		h.writeError(w, r, http.StatusBadRequest, "site_plugin_patch_failed", err.Error())

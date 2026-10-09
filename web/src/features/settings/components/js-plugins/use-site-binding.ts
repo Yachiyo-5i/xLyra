@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   bindJSPluginSite,
-  bindJSPluginSiteQuotaProbe,
   previewJSPluginPricing,
   unbindJSPluginSite,
 } from '@/features/settings/api/js-plugins'
@@ -96,9 +95,7 @@ export function useSiteBinding(target: SiteBindingTarget | null, sites: Site[]) 
       for (const id of toUnbind) await run(id, () => unbindJSPluginSite(target.pluginId, id, target.kind))
       for (const id of toBind) {
         await run(id, () =>
-          target.kind === QUOTA_PROBE
-            ? bindJSPluginSiteQuotaProbe(target.pluginId, target.version, id)
-            : bindJSPluginSite(target.pluginId, target.version, id, { confirmPricingReviewed: reviewed }),
+          bindJSPluginSite(target.pluginId, target.version, id, { confirmPricingReviewed: reviewed }),
         )
       }
       if (failures.length > 0) throw new Error(failures.join('\n'))

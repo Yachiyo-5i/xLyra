@@ -57,16 +57,16 @@ func TestUnknownKindListsSupportedKinds(t *testing.T) {
 
 // Every kind is wired into xLyra and says how it takes effect.
 func TestEveryKindIsConnectedAndBound(t *testing.T) {
-	bindings := map[string]string{
-		KindQuotaProbe: "quota", KindProtocol: "slug", KindModelList: "site", KindCredentialCheck: "site",
-		KindSiteDetect: "global", KindErrorClassifier: "site", KindModelMetadata: "global", KindPricingParse: "site",
+	scopes := map[string]Scope{
+		KindQuotaProbe: ScopeSite, KindProtocol: ScopeEndpoint, KindModelList: ScopeSite, KindCredentialCheck: ScopeSite,
+		KindSiteDetect: ScopeGlobal, KindErrorClassifier: ScopeSite, KindModelMetadata: ScopeGlobal, KindPricingParse: ScopeSite,
 	}
 	for _, spec := range kindSpecs {
 		if !spec.Connected {
 			t.Errorf("kind %s is not connected", spec.Name)
 		}
-		if spec.Binding != bindings[spec.Name] {
-			t.Errorf("kind %s Binding = %q, want %q", spec.Name, spec.Binding, bindings[spec.Name])
+		if spec.Scope != scopes[spec.Name] {
+			t.Errorf("kind %s Scope = %q, want %q", spec.Name, spec.Scope, scopes[spec.Name])
 		}
 	}
 }
@@ -229,5 +229,19 @@ export function classify() { return { class: "unknown" }; }`)
 	err := plugin.RunFixture(context.Background(), Fixture{Name: "no input", Expect: fixtureExpectation{Result: map[string]any{"class": "unknown"}}})
 	if err == nil || !strings.Contains(err.Error(), "input is required") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+// The scope helpers read the registry, so a quota_probe is site-bound like the
+// other per-site kinds and an unknown kind has no scope at all.
+func TestScopeHelpers(t *testing.T) {
+	if !SiteBound(KindQuotaProbe) || !SiteBound(KindModelList) || SiteBound(KindProtocol) || SiteBound(KindSiteDetect) {
+		t.Fatal("SiteBound disagrees with the registry")
+	}
+	if !GlobalKind(KindSiteDetect) || GlobalKind(KindQuotaProbe) {
+		t.Fatal("GlobalKind disagrees with the registry")
+	}
+	if ScopeOf(KindProtocol) != ScopeEndpoint || ScopeOf("mine") != "" {
+		t.Fatalf("ScopeOf protocol = %q, unknown = %q", ScopeOf(KindProtocol), ScopeOf("mine"))
 	}
 }

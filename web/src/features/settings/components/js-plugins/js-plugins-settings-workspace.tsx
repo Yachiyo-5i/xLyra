@@ -33,8 +33,6 @@ import {
 import { Input } from '@/components/ui/input'
 import {
   bindJSPluginProtocolSlug,
-  GLOBAL_KINDS,
-  SITE_BOUND_KINDS,
   createJSPluginTrustedKey,
   deleteJSPluginTrustedKey,
   deleteJSPluginVersion,
@@ -156,9 +154,7 @@ export function JSPluginsSettingsWorkspace() {
       const result = await listSites({ oauth: 'all' })
       return result.items ?? []
     },
-    enabled:
-      managePlugin != null &&
-      (managePlugin.kind === 'quota_probe' || (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? '')),
+    enabled: managePlugin?.scope === 'site',
   })
 
   const invalidateAll = () => {
@@ -399,9 +395,7 @@ export function JSPluginsSettingsWorkspace() {
   }, [])
 
   const enabledVersionRow = (detailQuery.data?.versions ?? []).find((row) => row.status === 'enabled')
-  const bindsToSites =
-    managePlugin != null &&
-    (managePlugin.kind === 'quota_probe' || (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? ''))
+  const bindsToSites = managePlugin?.scope === 'site'
   const siteBinding = useSiteBinding(
     managePlugin && enabledVersionRow && bindsToSites
       ? { pluginId: managePlugin.id, version: enabledVersionRow.version, kind: managePlugin.kind ?? '' }
@@ -684,7 +678,7 @@ export function JSPluginsSettingsWorkspace() {
                   </table>
                 )}
 
-                {enabledVersionRow && managePlugin?.kind === 'protocol' ? (
+                {enabledVersionRow && managePlugin?.scope === 'endpoint' ? (
                   <section className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-4">
                     <FormField
                       label={t('settings:jsPlugins.bindProtocolTitle')}
@@ -724,7 +718,7 @@ export function JSPluginsSettingsWorkspace() {
                   />
                 ) : null}
 
-                {enabledVersionRow && managePlugin && (GLOBAL_KINDS as readonly string[]).includes(managePlugin.kind ?? '') ? (
+                {enabledVersionRow && managePlugin?.scope === 'global' ? (
                   <p className="border-t border-[hsl(var(--glass-divider))] pt-4 text-sm text-muted-soft">
                     {t(`settings:jsPlugins.globalKindHint.${managePlugin.kind}`)}
                   </p>
