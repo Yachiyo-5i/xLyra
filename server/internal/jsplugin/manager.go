@@ -224,10 +224,11 @@ func (m *Manager) BindSiteQuotaProbe(ctx context.Context, pluginID, version, sit
 		return fmt.Errorf("only quota_probe plugins can bind to sites")
 	}
 	return m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:   pluginID,
-		Version:    version,
-		TargetKind: store.JSPluginBindingQuotaProbe,
-		TargetID:   siteID,
+		PluginID:  pluginID,
+		Version:   version,
+		Kind:      KindQuotaProbe,
+		ScopeType: store.JSPluginScopeSite,
+		ScopeID:   siteID,
 	})
 }
 
@@ -255,10 +256,11 @@ func (m *Manager) BindSitePlugin(ctx context.Context, pluginID, version, siteID 
 		return "", fmt.Errorf("kind %q is not bound to a site", kind)
 	}
 	if err := m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:   pluginID,
-		Version:    version,
-		TargetKind: store.JSPluginBindingSitePlugin + kind,
-		TargetID:   siteID,
+		PluginID:  pluginID,
+		Version:   version,
+		Kind:      kind,
+		ScopeType: store.JSPluginScopeSite,
+		ScopeID:   siteID,
 	}); err != nil {
 		return "", err
 	}
@@ -270,7 +272,7 @@ func (m *Manager) UnbindSitePlugin(ctx context.Context, kind, siteID string) err
 	if !SiteBound(kind) {
 		return fmt.Errorf("kind %q is not bound to a site", kind)
 	}
-	return m.repo.DeleteBinding(ctx, store.JSPluginBindingSitePlugin+kind, strings.TrimSpace(siteID))
+	return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, strings.TrimSpace(siteID), kind)
 }
 
 func (m *Manager) SyncSiteQuotaProbeFromConfig(ctx context.Context, siteID string, quotaProbe string) error {
@@ -280,11 +282,11 @@ func (m *Manager) SyncSiteQuotaProbeFromConfig(ctx context.Context, siteID strin
 	}
 	probe := strings.TrimSpace(quotaProbe)
 	if !strings.HasPrefix(probe, quotaProbePluginPrefix) {
-		return m.repo.DeleteBinding(ctx, store.JSPluginBindingQuotaProbe, siteID)
+		return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, siteID, KindQuotaProbe)
 	}
 	pluginID := strings.TrimSpace(strings.TrimPrefix(probe, quotaProbePluginPrefix))
 	if pluginID == "" {
-		return m.repo.DeleteBinding(ctx, store.JSPluginBindingQuotaProbe, siteID)
+		return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, siteID, KindQuotaProbe)
 	}
 	versions, err := m.repo.ListVersions(ctx, pluginID)
 	if err != nil {
@@ -298,13 +300,14 @@ func (m *Manager) SyncSiteQuotaProbeFromConfig(ctx context.Context, siteID strin
 		}
 	}
 	if enabledVersion == "" {
-		return m.repo.DeleteBinding(ctx, store.JSPluginBindingQuotaProbe, siteID)
+		return m.repo.DeleteBinding(ctx, store.JSPluginScopeSite, siteID, KindQuotaProbe)
 	}
 	return m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:   pluginID,
-		Version:    enabledVersion,
-		TargetKind: store.JSPluginBindingQuotaProbe,
-		TargetID:   siteID,
+		PluginID:  pluginID,
+		Version:   enabledVersion,
+		Kind:      KindQuotaProbe,
+		ScopeType: store.JSPluginScopeSite,
+		ScopeID:   siteID,
 	})
 }
 
@@ -348,10 +351,11 @@ func (m *Manager) BindProtocolSlug(ctx context.Context, pluginID, version, slug 
 		return fmt.Errorf("slug is required")
 	}
 	if err := m.repo.UpsertBinding(ctx, store.JSPluginBinding{
-		PluginID:   pluginID,
-		Version:    version,
-		TargetKind: store.JSPluginBindingProtocolSlug,
-		TargetID:   slug,
+		PluginID:  pluginID,
+		Version:   version,
+		Kind:      KindProtocol,
+		ScopeType: store.JSPluginScopeEndpoint,
+		ScopeID:   slug,
 	}); err != nil {
 		return err
 	}

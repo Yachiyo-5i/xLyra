@@ -17,11 +17,10 @@ const (
 	JSPluginStatusDisabled = "disabled"
 	JSPluginStatusBroken   = "broken"
 
-	JSPluginBindingQuotaProbe   = "site_quota_probe"
-	JSPluginBindingProtocolSlug = "protocol_endpoint"
-	// JSPluginBindingSitePlugin is the prefix of per-site bindings for kinds such
-	// as model_list; the kind follows it, e.g. "site_plugin:model_list".
-	JSPluginBindingSitePlugin = "site_plugin:"
+	// A binding mounts a plugin version on a scope. ScopeSite is one site,
+	// ScopeEndpoint is a downstream path (/v1/plugins/<slug>).
+	JSPluginScopeSite     = "site"
+	JSPluginScopeEndpoint = "endpoint"
 )
 
 type JSPlugin struct {
@@ -55,13 +54,19 @@ type JSPluginTrustedKey struct {
 
 func (JSPluginTrustedKey) TableName() string { return "js_plugin_trusted_keys" }
 
+// JSPluginBinding mounts a plugin version on a scope. A scope holds one plugin
+// per Slot; exclusive kinds use their kind as the slot, so a site has at most one
+// plugin of each kind. Config carries the admin's parameters for the mount.
 type JSPluginBinding struct {
-	ID          uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	PluginID    string
-	Version     string
-	TargetKind  string
-	TargetID    string
-	CreatedAt   time.Time
+	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	PluginID  string
+	Version   string
+	Kind      string
+	ScopeType string
+	ScopeID   string
+	Slot      string
+	Config    JSON `gorm:"type:jsonb"`
+	CreatedAt time.Time
 }
 
 type JSPluginRepository struct {
@@ -167,19 +172,29 @@ func (r JSPluginRepository) UpsertBinding(ctx context.Context, binding JSPluginB
 	if binding.ID == uuid.Nil {
 		binding.ID = uuid.New()
 	}
+	if binding.Slot == "" {
+		binding.Slot = binding.Kind
+	}
+	config := []byte(binding.Config)
+	if len(config) == 0 {
+		config = []byte("{}")
+	}
 	return r.db.WithContext(ctx).Exec(`
-		INSERT INTO js_plugin_bindings (id, plugin_id, version, target_kind, target_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT (target_kind, target_id) DO UPDATE SET
+		INSERT INTO js_plugin_bindings (id, plugin_id, version, kind, scope_type, scope_id, slot, config, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
+		ON CONFLICT (scope_type, scope_id, slot) DO UPDATE SET
 			plugin_id = EXCLUDED.plugin_id,
 			version = EXCLUDED.version,
+			kind = EXCLUDED.kind,
+			config = EXCLUDED.config,
 			created_at = EXCLUDED.created_at
-	`, binding.ID, binding.PluginID, binding.Version, binding.TargetKind, binding.TargetID, time.Now().UTC()).Error
+	`, binding.ID, binding.PluginID, binding.Version, binding.Kind, binding.ScopeType, binding.ScopeID, binding.Slot, string(config), time.Now().UTC()).Error
 }
 
-func (r JSPluginRepository) DeleteBinding(ctx context.Context, targetKind, targetID string) error {
+// DeleteBinding removes the binding in one slot of a scope.
+func (r JSPluginRepository) DeleteBinding(ctx context.Context, scopeType, scopeID, slot string) error {
 	return r.db.WithContext(ctx).
-		Where("target_kind = ? AND target_id = ?", targetKind, targetID).
+		Where("scope_type = ? AND scope_id = ? AND slot = ?", scopeType, scopeID, slot).
 		Delete(&JSPluginBinding{}).Error
 }
 
@@ -189,6 +204,7 @@ func (r JSPluginRepository) ListBindings(ctx context.Context) ([]JSPluginBinding
 	return items, err
 }
 
+// ProtocolSlugMap maps each bound downstream path to the plugin serving it.
 func (r JSPluginRepository) ProtocolSlugMap(ctx context.Context) (map[string]string, error) {
 	bindings, err := r.ListBindings(ctx)
 	if err != nil {
@@ -196,10 +212,10 @@ func (r JSPluginRepository) ProtocolSlugMap(ctx context.Context) (map[string]str
 	}
 	out := make(map[string]string)
 	for _, binding := range bindings {
-		if binding.TargetKind != JSPluginBindingProtocolSlug {
+		if binding.ScopeType != JSPluginScopeEndpoint || binding.Kind != "protocol" {
 			continue
 		}
-		out[binding.TargetID] = binding.PluginID
+		out[binding.ScopeID] = binding.PluginID
 	}
 	return out, nil
 }

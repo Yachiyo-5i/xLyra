@@ -60,7 +60,7 @@ func TestDevPostgresMigrationsInitializeNewSchema(t *testing.T) {
 	if !migrator.HasTable(&CacheObservation{}) {
 		t.Fatal("cache_observations table was not created")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 }
 
 func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
@@ -89,7 +89,7 @@ func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
 	if !db.Migrator().HasColumn(&OAuthConnection{}, "RefreshLeaseID") {
 		t.Fatal("refresh lease column was not added by upgrade migration")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 }
 
 func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
@@ -103,7 +103,7 @@ func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
 	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
 		t.Fatalf("second migration run: %v", err)
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 }
 
 func TestDevPostgresFailedMigrationIsNotRecordedAndCanRetry(t *testing.T) {
@@ -259,10 +259,10 @@ func assertAppliedMigrationVersions(t *testing.T, db *gorm.DB, want []int64) {
 	}
 }
 
-// Per-site plugin bindings use target_kind "site_plugin:<kind>". The table's
-// check constraint once only allowed the first two kinds, which no unit test
-// without a real database could notice.
-func TestJSPluginBindingsAcceptSitePluginKinds(t *testing.T) {
+// Bindings mount a plugin on a scope in a slot. Every site kind must be accepted
+// without touching the table (the old CHECK had to be widened per kind), a scope
+// holds one plugin per slot, and an unknown scope type is rejected.
+func TestJSPluginBindingsMountOnScopes(t *testing.T) {
 	db, cfg, cleanup := openTemporaryMigrationStore(t)
 	defer cleanup()
 	ctx := context.Background()
@@ -280,23 +280,105 @@ func TestJSPluginBindingsAcceptSitePluginKinds(t *testing.T) {
 	}
 	repo := NewJSPluginRepository(db)
 	siteID := uuid.NewString()
-	for _, kind := range []string{"model_list", "credential_check", "error_classifier", "pricing_parse"} {
-		// No ID, like the real callers: bindings must not collide on a default one.
+	for _, kind := range []string{"quota_probe", "model_list", "credential_check", "error_classifier", "pricing_parse"} {
+		// No ID or slot, like the real callers: bindings must not collide on a default one.
 		err := repo.UpsertBinding(ctx, JSPluginBinding{
 			PluginID: "acme-models", Version: "1.0.0",
-			TargetKind: JSPluginBindingSitePlugin + kind, TargetID: siteID,
+			Kind: kind, ScopeType: JSPluginScopeSite, ScopeID: siteID,
 		})
 		if err != nil {
 			t.Fatalf("bind %s: %v", kind, err)
 		}
 	}
+	// Binding the same slot again replaces the mount instead of adding a second.
 	if err := repo.UpsertBinding(ctx, JSPluginBinding{
-		PluginID: "acme-models", Version: "1.0.0", TargetKind: "made_up", TargetID: siteID,
-	}); err == nil {
-		t.Fatal("an unknown target kind was accepted")
+		PluginID: "acme-models", Version: "1.0.0",
+		Kind: "model_list", ScopeType: JSPluginScopeSite, ScopeID: siteID,
+		Config: JSON(`{"mode":"strict"}`),
+	}); err != nil {
+		t.Fatalf("rebind model_list: %v", err)
 	}
-	if err := repo.DeleteBinding(ctx, JSPluginBindingSitePlugin+"model_list", siteID); err != nil {
+	bindings, err := repo.ListBindings(ctx)
+	if err != nil {
+		t.Fatalf("list bindings: %v", err)
+	}
+	if len(bindings) != 5 {
+		t.Fatalf("bindings = %d, want 5 (one per slot)", len(bindings))
+	}
+	for _, binding := range bindings {
+		if binding.Kind == "model_list" && string(binding.Config) != `{"mode": "strict"}` {
+			t.Fatalf("model_list config = %s, want the rebind's config", binding.Config)
+		}
+	}
+	if err := repo.UpsertBinding(ctx, JSPluginBinding{
+		PluginID: "acme-models", Version: "1.0.0", Kind: "model_list", ScopeType: "made_up", ScopeID: siteID,
+	}); err == nil {
+		t.Fatal("an unknown scope type was accepted")
+	}
+	if err := repo.UpsertBinding(ctx, JSPluginBinding{
+		PluginID: "acme-models", Version: "1.0.0", Kind: "protocol", ScopeType: JSPluginScopeEndpoint, ScopeID: "acme",
+	}); err != nil {
+		t.Fatalf("bind endpoint: %v", err)
+	}
+	slugs, err := repo.ProtocolSlugMap(ctx)
+	if err != nil || slugs["acme"] != "acme-models" || len(slugs) != 1 {
+		t.Fatalf("protocol slug map = %v, %v", slugs, err)
+	}
+	if err := repo.DeleteBinding(ctx, JSPluginScopeSite, siteID, "model_list"); err != nil {
 		t.Fatalf("unbind: %v", err)
+	}
+}
+
+// The mount migration rewrites bindings written under the old target_kind scheme.
+func TestJSPluginBindingMigrationConvertsLegacyRows(t *testing.T) {
+	db, cfg, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get postgres sql db: %v", err)
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	if err != nil {
+		t.Fatalf("create migration provider: %v", err)
+	}
+	if _, err := provider.UpTo(ctx, 8); err != nil {
+		t.Fatalf("apply migrations up to 8: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO js_plugins (id, source) VALUES ('acme', 'uploaded')`,
+		`INSERT INTO js_plugin_versions (plugin_id, version, manifest, package, package_sha256, status, selftest)
+		 VALUES ('acme', '1.0.0', '{}', '\x00', 'sha', 'enabled', '{}')`,
+		`INSERT INTO js_plugin_bindings (plugin_id, version, target_kind, target_id) VALUES
+		 ('acme', '1.0.0', 'site_quota_probe', 'site-1'),
+		 ('acme', '1.0.0', 'protocol_endpoint', 'acme-slug'),
+		 ('acme', '1.0.0', 'site_plugin:model_list', 'site-1')`,
+	} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("seed legacy rows: %v", err)
+		}
+	}
+	if _, err := provider.UpTo(ctx, 9); err != nil {
+		t.Fatalf("apply mount migration: %v", err)
+	}
+	_ = cfg
+	got := map[string]string{}
+	bindings, err := NewJSPluginRepository(db).ListBindings(ctx)
+	if err != nil {
+		t.Fatalf("list bindings: %v", err)
+	}
+	for _, binding := range bindings {
+		got[binding.Kind] = binding.ScopeType + ":" + binding.ScopeID + ":" + binding.Slot
+	}
+	want := map[string]string{
+		"quota_probe": "site:site-1:quota_probe",
+		"protocol":    "endpoint:acme-slug:protocol",
+		"model_list":  "site:site-1:model_list",
+	}
+	for kind, value := range want {
+		if got[kind] != value {
+			t.Fatalf("binding %s = %q, want %q (all: %v)", kind, got[kind], value, got)
+		}
 	}
 }
 
