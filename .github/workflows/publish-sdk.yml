@@ -33,6 +33,11 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # Trusted publishing needs npm 11.5.1 or newer; the one bundled with
+      # Node can be older.
+      - name: Update npm
+        run: npm install -g npm@^11.5.1
+
       - name: Show package contents
         working-directory: sdk/js
         run: npm pack --dry-run

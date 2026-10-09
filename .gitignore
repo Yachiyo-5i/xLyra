@@ -19,7 +19,9 @@ conf/
 postgres/
 logs/
 tmp/
-docs/
+# Internal design notes stay local; only the plugin developer docs are published.
+docs/*
+!docs/plugins/
 
 # Backend build and runtime output
 server/bin/
