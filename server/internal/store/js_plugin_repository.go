@@ -150,6 +150,11 @@ func (r JSPluginRepository) DeleteVersion(ctx context.Context, pluginID, version
 }
 
 func (r JSPluginRepository) UpsertBinding(ctx context.Context, binding JSPluginBinding) error {
+	// The raw insert below bypasses the column default, so a caller that leaves
+	// ID empty would write the all-zero UUID and a second binding would collide.
+	if binding.ID == uuid.Nil {
+		binding.ID = uuid.New()
+	}
 	return r.db.WithContext(ctx).Exec(`
 		INSERT INTO js_plugin_bindings (id, plugin_id, version, target_kind, target_id, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)

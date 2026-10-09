@@ -60,7 +60,7 @@ func TestDevPostgresMigrationsInitializeNewSchema(t *testing.T) {
 	if !migrator.HasTable(&CacheObservation{}) {
 		t.Fatal("cache_observations table was not created")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8})
 }
 
 func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
@@ -89,7 +89,7 @@ func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
 	if !db.Migrator().HasColumn(&OAuthConnection{}, "RefreshLeaseID") {
 		t.Fatal("refresh lease column was not added by upgrade migration")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8})
 }
 
 func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
@@ -103,7 +103,7 @@ func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
 	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
 		t.Fatalf("second migration run: %v", err)
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8})
 }
 
 func TestDevPostgresFailedMigrationIsNotRecordedAndCanRetry(t *testing.T) {
@@ -256,5 +256,46 @@ func assertAppliedMigrationVersions(t *testing.T, db *gorm.DB, want []int64) {
 		if got[index] != want[index] {
 			t.Fatalf("applied migration versions = %v, want %v", got, want)
 		}
+	}
+}
+
+// Per-site plugin bindings use target_kind "site_plugin:<kind>". The table's
+// check constraint once only allowed the first two kinds, which no unit test
+// without a real database could notice.
+func TestJSPluginBindingsAcceptSitePluginKinds(t *testing.T) {
+	db, cfg, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
+		t.Fatalf("initialize schema migrations: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO js_plugins (id, source) VALUES ('acme-models', 'uploaded')`,
+		`INSERT INTO js_plugin_versions (plugin_id, version, manifest, package, package_sha256, status, selftest)
+		 VALUES ('acme-models', '1.0.0', '{}', '\x00', 'sha', 'enabled', '{}')`,
+	} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("seed plugin: %v", err)
+		}
+	}
+	repo := NewJSPluginRepository(db)
+	siteID := uuid.NewString()
+	for _, kind := range []string{"model_list", "credential_check", "error_classifier", "pricing_parse"} {
+		// No ID, like the real callers: bindings must not collide on a default one.
+		err := repo.UpsertBinding(ctx, JSPluginBinding{
+			PluginID: "acme-models", Version: "1.0.0",
+			TargetKind: JSPluginBindingSitePlugin + kind, TargetID: siteID,
+		})
+		if err != nil {
+			t.Fatalf("bind %s: %v", kind, err)
+		}
+	}
+	if err := repo.UpsertBinding(ctx, JSPluginBinding{
+		PluginID: "acme-models", Version: "1.0.0", TargetKind: "made_up", TargetID: siteID,
+	}); err == nil {
+		t.Fatal("an unknown target kind was accepted")
+	}
+	if err := repo.DeleteBinding(ctx, JSPluginBindingSitePlugin+"model_list", siteID); err != nil {
+		t.Fatalf("unbind: %v", err)
 	}
 }

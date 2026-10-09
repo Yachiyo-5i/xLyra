@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/auth"
 	"xlyra/server/internal/httpx"
 	"xlyra/server/internal/jsplugin"
@@ -537,5 +538,54 @@ func (h Handler) PreviewJSPluginPricing(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	h.recordJSPluginAudit(r, "js_plugin.preview_pricing", pluginID, true, "", map[string]any{"site_id": siteUUID.String()})
-	httpx.JSON(w, http.StatusOK, map[string]any{"groups": snapshot.Groups, "items": snapshot.Items})
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"groups": pricingPreviewGroups(snapshot.Groups),
+		"items":  pricingPreviewItems(snapshot.Items),
+	})
+}
+
+func pricingPreviewGroups(groups []adapter.PricingGroup) []map[string]any {
+	out := make([]map[string]any, 0, len(groups))
+	for _, group := range groups {
+		out = append(out, map[string]any{
+			"name": group.GroupName, "display_name": group.DisplayName, "ratio": group.Ratio, "auto": group.IsAuto,
+		})
+	}
+	return out
+}
+
+// pricingPreviewItems lists only the values the plugin actually supplied, so an
+// admin reviewing the preview does not mistake a missing value for a zero.
+func pricingPreviewItems(items []adapter.ModelPricing) []map[string]any {
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		entry := map[string]any{
+			"model": item.ModelName, "display_name": item.DisplayName, "group": item.GroupName,
+			"billing_type": item.BillingType, "currency": item.Currency, "group_ratio": item.GroupRatio,
+		}
+		for _, value := range []struct {
+			key string
+			has bool
+			val float64
+		}{
+			{"model_ratio", item.HasModelRatio, item.ModelRatio},
+			{"completion_ratio", item.HasCompletionRatio, item.CompletionRatio},
+			{"cache_ratio", item.HasCacheRatio, item.CacheRatio},
+			{"create_cache_ratio", item.HasCreateCacheRatio, item.CreateCacheRatio},
+			{"create_cache_1h_ratio", item.HasCreateCache1hRatio, item.CreateCache1hRatio},
+			{"image_ratio", item.HasImageRatio, item.ImageRatio},
+			{"audio_ratio", item.HasAudioRatio, item.AudioRatio},
+			{"audio_completion_ratio", item.HasAudioCompletionRatio, item.AudioCompletionRatio},
+			{"model_price", item.HasModelPrice, item.ModelPrice},
+			{"input_value", item.HasInputValue, item.InputValue},
+			{"output_value", item.HasOutputValue, item.OutputValue},
+			{"per_request_value", item.HasPerRequestValue, item.PerRequestValue},
+		} {
+			if value.has {
+				entry[value.key] = value.val
+			}
+		}
+		out = append(out, entry)
+	}
+	return out
 }
