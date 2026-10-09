@@ -310,12 +310,12 @@ func jsPluginVersionPayload(row store.JSPluginVersion) map[string]any {
 		"version":        row.Version,
 		"status":         row.Status,
 		"package_sha256": row.PackageSHA256,
-		"manifest":       row.Manifest,
-		"selftest":       row.SelfTest,
+		"manifest":       rawJSON(row.Manifest),
+		"selftest":       rawJSON(row.SelfTest),
 		"created_at":     row.CreatedAt,
 	}
 	if len(row.GrantedPermissions) > 0 {
-		payload["granted_permissions"] = row.GrantedPermissions
+		payload["granted_permissions"] = rawJSON(row.GrantedPermissions)
 	}
 	if strings.TrimSpace(row.Signer) != "" {
 		payload["signer"] = row.Signer
@@ -688,10 +688,32 @@ func (h Handler) ListJSPluginActionLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	items, err := h.jsPlugins.ActionLog(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")), limit)
+	rows, err := h.jsPlugins.ActionLog(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")), limit)
 	if err != nil {
 		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_action_log_failed", "failed to read the action log")
 		return
 	}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"id":         row.ID,
+			"version":    row.Version,
+			"event_type": row.EventType,
+			"action":     rawJSON(row.Action),
+			"target_id":  row.TargetID,
+			"status":     row.Status,
+			"detail":     row.Detail,
+			"created_at": row.CreatedAt,
+		})
+	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// rawJSON sends a stored JSON column as the JSON it holds. store.JSON is a byte
+// slice, which encoding/json would otherwise write as a base64 string.
+func rawJSON(raw store.JSON) any {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return nil
+	}
+	return json.RawMessage(raw)
 }
