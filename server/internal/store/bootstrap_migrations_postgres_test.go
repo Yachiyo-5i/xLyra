@@ -299,3 +299,61 @@ func TestJSPluginBindingsAcceptSitePluginKinds(t *testing.T) {
 		t.Fatalf("unbind: %v", err)
 	}
 }
+
+// A connection that prepared a statement before another connection changed the
+// table must not fail afterwards. The default (prepared statement) store does,
+// which is why the startup schema step opens its own store.
+func TestSchemaWorkStoreSurvivesTableChangesFromAnotherConnection(t *testing.T) {
+	_, cfg, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	cfg.DBMinConns, cfg.DBMaxConns = 0, 2
+
+	staleAfterAlter := func(open func(context.Context, config.Config) (*Store, error)) error {
+		store, err := open(ctx, cfg)
+		if err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		defer store.Close()
+		sqlDB, err := store.DB().DB()
+		if err != nil {
+			t.Fatal(err)
+		}
+		table := "plan_probe_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+		if _, err := sqlDB.ExecContext(ctx, "CREATE TABLE "+table+" (a int)"); err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		reader, err := sqlDB.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer reader.Close()
+		query := func() error {
+			rows, err := reader.QueryContext(ctx, "SELECT * FROM "+table)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+			}
+			return rows.Err()
+		}
+		if err := query(); err != nil {
+			t.Fatalf("first query: %v", err)
+		}
+		// The change comes from a different connection, like a migration would.
+		if _, err := sqlDB.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN b int"); err != nil {
+			t.Fatalf("alter: %v", err)
+		}
+		return query()
+	}
+
+	if err := staleAfterAlter(Open); err == nil {
+		t.Log("the prepared statement store no longer fails here; the guard below is still correct")
+	} else {
+		t.Logf("prepared statement store, as expected: %v", err)
+	}
+	if err := staleAfterAlter(openForSchemaWork); err != nil {
+		t.Fatalf("schema work store failed after a table change: %v", err)
+	}
+}

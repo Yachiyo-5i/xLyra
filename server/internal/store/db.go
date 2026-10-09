@@ -17,7 +17,27 @@ type Store struct {
 }
 
 func Open(ctx context.Context, cfg config.Config) (*Store, error) {
-	db, err := gorm.Open(postgres.Open(cfg.DatabaseDSN()), &gorm.Config{
+	return open(ctx, cfg, false)
+}
+
+// openForSchemaWork opens a store for the startup step that creates and alters
+// tables. It uses the simple query protocol, so no server-side prepared
+// statement outlives a schema change.
+//
+// With prepared statements, a pooled connection that has already run
+// `SELECT * FROM api_keys` keeps that plan; once the same step adds a column,
+// reusing it fails with "cached plan must not change result type". Which
+// connection is reused depends on timing, so it showed up as a startup failure
+// on a fresh database that went away on the next start.
+func openForSchemaWork(ctx context.Context, cfg config.Config) (*Store, error) {
+	return open(ctx, cfg, true)
+}
+
+func open(ctx context.Context, cfg config.Config, simpleProtocol bool) (*Store, error) {
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  cfg.DatabaseDSN(),
+		PreferSimpleProtocol: simpleProtocol,
+	}), &gorm.Config{
 		TranslateError: true,
 		Logger:         gormlogger.Default.LogMode(gormlogger.Silent),
 	})
