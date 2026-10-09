@@ -30,6 +30,7 @@ type Manifest struct {
 	QuotaProbe  QuotaProbeSection `json:"quotaProbe"`
 	Site        SiteSection       `json:"site"`
 	Protocol    ProtocolSection   `json:"protocol"`
+	Automation  AutomationSection `json:"automation"`
 	SHA256      map[string]string `json:"sha256"`
 }
 
@@ -275,6 +276,10 @@ func validateManifest(manifest Manifest, source string) error {
 		}
 		if err := validatePluginPath(manifest.Site.PricingPath); err != nil {
 			return fmt.Errorf("site.pricingPath: %w", err)
+		}
+	case KindAutomation:
+		if err := validateAutomationSection(manifest.Automation); err != nil {
+			return err
 		}
 	case KindErrorClassifier, KindModelMetadata:
 		// No manifest section: these kinds are pure functions of their input.

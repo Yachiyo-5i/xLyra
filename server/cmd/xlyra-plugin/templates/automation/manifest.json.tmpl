@@ -1,0 +1,28 @@
+{
+  "apiVersion": 1,
+  "hostApi": 1,
+  "id": "{{.ID}}",
+  "kind": "automation",
+  "name": "{{.Name}}",
+  "description": "Automation for {{.Name}}",
+  "version": "0.1.0",
+  "license": "MIT",
+  "automation": {
+    "subscribes": ["oauth.quota_synced"],
+    "permissions": ["apikey.reset_usage", "notify"],
+    "binding": {
+      "subject": { "type": "oauth_connection", "providers": ["codex", "claude_code"] },
+      "target": { "type": "api_key", "requires": "finite_total_quota" },
+      "config": {
+        "type": "object",
+        "properties": {
+          "resetOnRecovery": {
+            "type": "boolean",
+            "title": "Also reset when the quota recovers early",
+            "default": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -38,6 +38,10 @@ type fixtureContext struct {
 	BaseURL        string `json:"baseURL"`
 	CredentialType string `json:"credentialType"`
 	Now            int64  `json:"now"`
+	// Config and State stand in for the binding's parameters and saved state
+	// in an automation fixture.
+	Config map[string]any `json:"config"`
+	State  map[string]any `json:"state"`
 }
 
 type FixtureResponse struct {
@@ -96,7 +100,7 @@ func (p *Plugin) RunFixture(ctx context.Context, fixture Fixture) error {
 	switch spec.Family {
 	case FamilyStepped:
 		return p.runSteppedFixture(ctx, fixture)
-	case FamilyOneShot:
+	case FamilyOneShot, FamilyEvent:
 		return p.runOneShotFixture(ctx, fixture)
 	}
 	return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)

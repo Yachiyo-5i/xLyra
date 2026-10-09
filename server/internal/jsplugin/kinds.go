@@ -17,6 +17,7 @@ const (
 	KindErrorClassifier = "error_classifier"
 	KindModelMetadata   = "model_metadata"
 	KindPricingParse    = "pricing_parse"
+	KindAutomation      = "automation"
 )
 
 // KindFamily groups kinds that share a driver.
@@ -30,6 +31,9 @@ const (
 	FamilyProtocol KindFamily = "protocol"
 	// FamilyOneShot kinds are pure functions: one call in, one result out.
 	FamilyOneShot KindFamily = "one_shot"
+	// FamilyEvent kinds are called off the request path when xLyra emits an
+	// event, and answer with actions for xLyra to carry out.
+	FamilyEvent KindFamily = "event"
 )
 
 // Optional protocol hooks.
@@ -52,6 +56,10 @@ const (
 	ScopeSite Scope = "site"
 	// ScopeEndpoint gets a downstream path, /v1/plugins/<slug>.
 	ScopeEndpoint Scope = "endpoint"
+	// ScopeSubject is bound to an object the plugin's events are about (such as
+	// an OAuth account), with parameters and targets chosen by an admin. An
+	// object can have several of them.
+	ScopeSubject Scope = "subject"
 )
 
 // kindSpec describes one kind: what it exports, how it is called and what it may touch.
@@ -86,6 +94,7 @@ var kindSpecs = []kindSpec{
 	{Name: KindErrorClassifier, Family: FamilyOneShot, Hooks: []string{"classify"}, Timeout: protocolHookTimeout, HotPath: true, Credential: "none", Connected: true, Scope: ScopeSite},
 	{Name: KindModelMetadata, Family: FamilyOneShot, Hooks: []string{"describeModels"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Scope: ScopeGlobal},
 	{Name: KindPricingParse, Family: FamilyOneShot, Hooks: []string{"parsePricing"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Scope: ScopeSite},
+	{Name: KindAutomation, Family: FamilyEvent, Hooks: []string{"handle"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Scope: ScopeSubject},
 }
 
 func lookupKind(name string) (kindSpec, bool) {

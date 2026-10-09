@@ -62,6 +62,12 @@ var tsTypes = []tsType{
 	{value: PricingGroupEntry{}, name: "PricingGroupEntry"},
 	{value: PricingItemEntry{}, name: "PricingItemEntry"},
 	{value: PricingParseResult{}, name: "PricingParseResult"},
+	{value: AutomationContext{}, name: "AutomationContext", section: "automation", enum: &tsEnum{"AutomationActionType", AutomationPermissions}},
+	{value: AutomationSubject{}, name: "AutomationSubject"},
+	{value: AutomationTarget{}, name: "AutomationTarget"},
+	{value: AutomationEvent{}, name: "AutomationEvent", enum: &tsEnum{"AutomationResetScope", AutomationResetScopes}},
+	{value: AutomationAction{}, name: "AutomationAction", enum: &tsEnum{"AutomationNoticeLevel", []string{"info", "warn"}}},
+	{value: AutomationResult{}, name: "AutomationResult"},
 }
 
 // TypeDeclarations renders the plugin SDK .d.ts: interfaces generated from the

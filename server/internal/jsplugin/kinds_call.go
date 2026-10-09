@@ -140,6 +140,29 @@ func (p *Plugin) CallPricingParse(ctx context.Context, c PricingParseContext, pa
 	return out, nil
 }
 
+// CallAutomation runs an automation plugin's handle hook for one event. The
+// result is checked against the permissions the manifest declares and the
+// targets the event carries; xLyra still decides whether to carry it out.
+func (p *Plugin) CallAutomation(ctx context.Context, c AutomationContext, event AutomationEvent) (AutomationResult, error) {
+	if c.Config == nil {
+		c.Config = map[string]any{}
+	}
+	if c.State == nil {
+		c.State = map[string]any{}
+	}
+	if event.Current == nil {
+		event.Current = map[string]any{}
+	}
+	var out AutomationResult
+	if err := p.callOneShot(ctx, KindAutomation, &out, encodeValue(c), encodeValue(event)); err != nil {
+		return AutomationResult{}, err
+	}
+	if err := validateAutomationResult(&out, p.Manifest.Automation.Permissions, event.Targets); err != nil {
+		return AutomationResult{}, annotate(p, err, "handle", 0, 0)
+	}
+	return out, nil
+}
+
 func (p *Plugin) callOneShot(ctx context.Context, kind string, out any, args ...any) error {
 	spec, ok := lookupKind(kind)
 	if !ok || p.Manifest.Kind != kind {
@@ -177,6 +200,18 @@ func (p *Plugin) runOneShotFixture(ctx context.Context, fixture Fixture) error {
 			return err
 		}
 		result, err = p.CallModelMetadata(ctx, ModelMetadataContext{SiteType: siteType}, in)
+	case KindAutomation:
+		var in AutomationEvent
+		if err = decodeFixtureInput(fixture.Input, &in); err != nil {
+			return err
+		}
+		result, err = p.CallAutomation(ctx, AutomationContext{
+			Event:     in.Type,
+			Now:       fixture.Ctx.Now,
+			BindingID: "fixture",
+			Config:    fixture.Ctx.Config,
+			State:     fixture.Ctx.State,
+		}, in)
 	case KindPricingParse:
 		if fixture.Input == nil {
 			return fmt.Errorf("input is required")

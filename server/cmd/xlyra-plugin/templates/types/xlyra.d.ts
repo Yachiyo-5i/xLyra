@@ -250,6 +250,74 @@ export interface PricingParseResult {
   items: PricingItemEntry[];
 }
 
+// ---- automation ----
+
+export type AutomationActionType = "apikey.reset_usage" | "notify";
+
+export interface AutomationContext {
+  /** The event type being handled. */
+  event: string;
+  /** Unix time in milliseconds. */
+  now: number;
+  bindingId: string;
+  /** The admin's parameters for this binding, validated against automation.binding.config. */
+  config: JsonObject;
+  /** What this binding returned as state last time; empty at first. */
+  state: JsonObject;
+}
+
+export interface AutomationSubject {
+  type: string;
+  id: string;
+  provider?: string;
+  /** Human-readable name, such as the account email. */
+  label?: string;
+}
+
+export interface AutomationTarget {
+  type: string;
+  /** Use this as an action's target. */
+  id: string;
+  name: string;
+  /** For api_key: totalUsed, totalLimit, dailyUsed, weeklyUsed. */
+  usage: JsonObject;
+}
+
+export type AutomationResetScope = "total" | "daily" | "weekly";
+
+export interface AutomationEvent {
+  type: string;
+  subject: AutomationSubject;
+  /** The state before the change; absent the first time. */
+  previous?: JsonObject;
+  /** The state after the change. */
+  current: JsonObject;
+  /** The objects an admin bound to this subject. */
+  targets: AutomationTarget[];
+}
+
+export type AutomationNoticeLevel = "info" | "warn";
+
+export interface AutomationAction {
+  type: AutomationActionType;
+  /** apikey.reset_usage: the id of one of event.targets. */
+  target?: string;
+  /** apikey.reset_usage: which usage window to clear. */
+  scope?: AutomationResetScope;
+  /** apikey.reset_usage: repeating the same key for the same target and scope does nothing. Use the upstream reset time. */
+  idempotencyKey?: string;
+  /** notify: defaults to info. */
+  level?: AutomationNoticeLevel;
+  /** notify: shown in the plugin's action log, at most 500 bytes. */
+  message?: string;
+}
+
+export interface AutomationResult {
+  actions: AutomationAction[];
+  /** Replaces this binding's saved state. Omit to keep it. At most 8 KiB. */
+  state?: JsonObject;
+}
+
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type JsonObject = Record<string, Json>;
 

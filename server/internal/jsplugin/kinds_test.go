@@ -37,8 +37,8 @@ func TestEveryKindHasHooksAndTimeout(t *testing.T) {
 			t.Fatalf("kind %s has no hooks or timeout", spec.Name)
 		}
 	}
-	if len(seen) != 8 {
-		t.Fatalf("got %d kinds, want 8", len(seen))
+	if len(seen) != 9 {
+		t.Fatalf("got %d kinds, want 9", len(seen))
 	}
 }
 
@@ -59,7 +59,7 @@ func TestUnknownKindListsSupportedKinds(t *testing.T) {
 func TestEveryKindIsConnectedAndBound(t *testing.T) {
 	scopes := map[string]Scope{
 		KindQuotaProbe: ScopeSite, KindProtocol: ScopeEndpoint, KindModelList: ScopeSite, KindCredentialCheck: ScopeSite,
-		KindSiteDetect: ScopeGlobal, KindErrorClassifier: ScopeSite, KindModelMetadata: ScopeGlobal, KindPricingParse: ScopeSite,
+		KindSiteDetect: ScopeGlobal, KindErrorClassifier: ScopeSite, KindModelMetadata: ScopeGlobal, KindPricingParse: ScopeSite, KindAutomation: ScopeSubject,
 	}
 	for _, spec := range kindSpecs {
 		if !spec.Connected {

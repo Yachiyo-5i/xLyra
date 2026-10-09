@@ -1,0 +1,16 @@
+{
+  "name": "weekly window rolled over",
+  "ctx": { "now": 2000, "config": { "resetOnRecovery": true } },
+  "input": {
+    "type": "oauth.quota_synced",
+    "subject": { "type": "oauth_connection", "id": "conn-1", "provider": "codex" },
+    "previous": { "weekly": { "resetAt": 1000, "remainingPercent": 2 } },
+    "current": { "weekly": { "resetAt": 9000, "remainingPercent": 100 } },
+    "targets": [{ "type": "api_key", "id": "key-1", "name": "alice", "usage": { "totalUsed": 12 } }]
+  },
+  "expect": {
+    "result": {
+      "actions": [{ "type": "apikey.reset_usage", "target": "key-1", "scope": "total", "idempotencyKey": "9000" }]
+    }
+  }
+}

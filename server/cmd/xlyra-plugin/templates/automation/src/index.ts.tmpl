@@ -1,0 +1,26 @@
+import type { AutomationContext, AutomationEvent, AutomationResult } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "automation" };
+
+// Runs when an OAuth account's weekly quota is synced. When the upstream window
+// has rolled over, ask xLyra to clear the usage of the API keys bound to it.
+// You only decide; xLyra checks the permissions and does the clearing.
+export function handle(ctx: AutomationContext, event: AutomationEvent): AutomationResult {
+  const before = event.previous?.weekly as { resetAt?: number; remainingPercent?: number } | undefined;
+  const after = event.current.weekly as { resetAt?: number; remainingPercent?: number } | undefined;
+  if (!before?.resetAt || !after?.resetAt || after.resetAt <= before.resetAt) return { actions: [] };
+
+  const rolledOver = before.resetAt <= ctx.now;
+  const recovered = (after.remainingPercent ?? 0) > (before.remainingPercent ?? 0);
+  if (!rolledOver && !(ctx.config.resetOnRecovery && recovered)) return { actions: [] };
+
+  return {
+    actions: event.targets.map((target) => ({
+      type: "apikey.reset_usage" as const,
+      target: target.id,
+      scope: "total" as const,
+      // The same upstream reset time resets a key only once, however often it is synced.
+      idempotencyKey: String(after.resetAt),
+    })),
+  };
+}
