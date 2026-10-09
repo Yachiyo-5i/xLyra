@@ -63,8 +63,18 @@ func openTestStore(t *testing.T) *store.Store {
 	query.Set("search_path", schema)
 	parsed.RawQuery = query.Encode()
 	cfg.PostgresDSN = parsed.String()
-	if err := store.EnsureDatabaseInitialized(ctx, cfg); err != nil {
-		t.Fatalf("migrate the test schema: %v", err)
+	// Other packages' tests migrate their own schemas at the same time, and
+	// CREATE EXTENSION IF NOT EXISTS can lose a race with them. The migration
+	// rolls back as a whole, so trying again is safe.
+	var migrateErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if migrateErr = store.EnsureDatabaseInitialized(ctx, cfg); migrateErr == nil {
+			break
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if migrateErr != nil {
+		t.Fatalf("migrate the test schema: %v", migrateErr)
 	}
 	st, err := store.Open(ctx, cfg)
 	if err != nil {
