@@ -735,7 +735,8 @@
       "siteDetect": "サイト判別",
       "errorClassifier": "エラー分類",
       "modelMetadata": "モデルメタデータ",
-      "pricingParse": "価格解析"
+      "pricingParse": "価格解析",
+      "automation": "自動化"
     },
     "metricsEmpty": "呼び出しなし",
     "metricsSummary": "失敗 {{errors}}/{{calls}}（{{rate}}%）",
@@ -772,6 +773,48 @@
     "untrustedTitle": "未信頼の署名者",
     "untrustedBody": "パッケージは署名されていますが、署名者は信頼鍵リストにありません。上で公開鍵を登録するか、確認して有効化してください。",
     "enableConfirm": "リスクを理解し、このバージョンを有効化する",
+    "permissionsTitle": "プラグインに権限を付与",
+    "permissionsBody": "このプラグインは、xLyra 内で特定のイベントが起きると自動で操作を行います。有効化すると、下記の権限を付与します。",
+    "permissionsList": "このバージョンに付与される権限",
+    "permissionsScopeHint": "権限は実行できる操作の種類だけを決めます。操作できるのは、後で「自動化」に紐づけたアカウントとオブジェクトに限られます。",
+    "permissionsConfirm": "内容を理解し、上記の権限を付与します",
+    "permission": {
+      "apikeyResetUsage": "紐づけた API キーの使用量（合計・日次・週次）をリセット",
+      "notify": "プラグインの操作履歴に通知を書き込む"
+    },
+    "automation": {
+      "title": "自動化",
+      "hint": "監視する OAuth アカウントと、操作できる API キーを選びます。アカウントで購読中のイベントが起きると、プラグインが内容を判断し、xLyra が実行します。",
+      "add": "自動化を追加",
+      "edit": "編集",
+      "delete": "削除",
+      "empty": "自動化はまだありません。追加するまでプラグインはイベントを処理しません。",
+      "account": "OAuth アカウント",
+      "accountPlaceholder": "アカウントを選択",
+      "noAccounts": "該当するアカウントがありません。",
+      "targets": "操作できる API キー",
+      "targetsFiniteHint": "合計クォータが有限のキーのみ選択できます。",
+      "targetsPlaceholder": "API キーを選択",
+      "noTargets": "API キーがありません",
+      "targetsUnit": "件のキー",
+      "noFiniteQuota": "合計クォータが無制限",
+      "targetsLine": "キー: {{names}}",
+      "saved": "保存しました",
+      "deleted": "削除しました",
+      "saveFailed": "保存に失敗しました",
+      "log": {
+        "title": "最近の操作",
+        "empty": "まだ操作はありません。",
+        "status": {
+          "applied": "実行済み",
+          "skipped": "スキップ",
+          "failed": "失敗"
+        },
+        "reset": "使用量をリセット（{{scope}}）",
+        "notice": "通知: {{message}}",
+        "handle": "イベントを処理"
+      }
+    },
     "bindProtocolTitle": "プロトコル slug",
     "bindProtocolHint": "有効化後 POST /v1/plugins/<slug>。manifest の downstreamPath と一致させます。",
     "bindProtocol": "slug を紐付け",

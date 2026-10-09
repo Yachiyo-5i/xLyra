@@ -8,6 +8,8 @@ import { DataTable } from '@/components/common/data-table'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
+import { JSPluginAutomationSection } from '@/features/settings/components/js-plugins/js-plugin-automation'
+import { permissionLabelKey } from '@/features/settings/components/js-plugins/permissions'
 import { JSPluginSiteBindingSection } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
 import { useSiteBinding } from '@/features/settings/components/js-plugins/use-site-binding'
 import {
@@ -37,6 +39,7 @@ import {
   deleteJSPluginTrustedKey,
   deleteJSPluginVersion,
   disableJSPlugin,
+  automationManifest,
   enableJSPluginVersion,
   getJSPlugin,
   JS_PLUGIN_MAX_PACKAGE_BYTES,
@@ -78,6 +81,7 @@ const KIND_LABEL_KEYS: Record<string, string> = {
   error_classifier: 'errorClassifier',
   model_metadata: 'modelMetadata',
   pricing_parse: 'pricingParse',
+  automation: 'automation',
 }
 
 function kindLabel(t: TFunction, kind: string) {
@@ -126,6 +130,8 @@ export function JSPluginsSettingsWorkspace() {
     version: string
     trust: JSPluginTrust
     signer?: string
+    /** Automation actions the version declares; the admin grants them by enabling it. */
+    permissions: string[]
   } | null>(null)
   const [enableConfirmed, setEnableConfirmed] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -195,12 +201,17 @@ export function JSPluginsSettingsWorkspace() {
       pluginId,
       version,
       confirmUntrusted,
+      grantPermissions,
     }: {
       pluginId: string
       version: string
       confirmUntrusted?: boolean
+      grantPermissions?: string[]
     }) =>
-      enableJSPluginVersion(pluginId, version, { confirm_untrusted: confirmUntrusted }),
+      enableJSPluginVersion(pluginId, version, {
+        confirm_untrusted: confirmUntrusted,
+        grant_permissions: grantPermissions,
+      }),
     onSuccess: () => {
       toast.success(t('settings:jsPlugins.enableSuccess'))
       setEnableConfirm(null)
@@ -218,6 +229,7 @@ export function JSPluginsSettingsWorkspace() {
           version: variables.version,
           trust: row?.signer ? 'untrusted_signer' : 'unsigned',
           signer: row?.signer,
+          permissions: automationManifest(row?.manifest)?.permissions ?? [],
         })
         setEnableConfirmed(false)
         return
@@ -486,12 +498,15 @@ export function JSPluginsSettingsWorkspace() {
   )
 
   const requestEnable = (row: JSPluginVersion) => {
-    if (row.trust && row.trust !== 'trusted') {
+    const permissions = automationManifest(row.manifest)?.permissions ?? []
+    // Untrusted code, or a plugin that wants to act on xLyra, needs the admin's explicit yes.
+    if ((row.trust && row.trust !== 'trusted') || permissions.length > 0) {
       setEnableConfirm({
         pluginId: row.plugin_id,
         version: row.version,
-        trust: row.trust,
+        trust: row.trust ?? 'trusted',
         signer: row.signer,
+        permissions,
       })
       setEnableConfirmed(false)
       return
@@ -715,6 +730,13 @@ export function JSPluginsSettingsWorkspace() {
                     binding={siteBinding}
                     sites={sitesQuery.data ?? []}
                     loading={sitesQuery.isLoading}
+                  />
+                ) : null}
+
+                {enabledVersionRow && managePlugin?.scope === 'subject' && automationManifest(enabledVersionRow.manifest) ? (
+                  <JSPluginAutomationSection
+                    pluginId={managePlugin.id}
+                    manifest={automationManifest(enabledVersionRow.manifest)!}
                   />
                 ) : null}
 
@@ -989,21 +1011,46 @@ export function JSPluginsSettingsWorkspace() {
             <DialogTitle>
               {enableConfirm?.trust === 'untrusted_signer'
                 ? t('settings:jsPlugins.untrustedTitle')
-                : t('settings:jsPlugins.unsignedTitle')}
+                : enableConfirm?.trust === 'trusted'
+                  ? t('settings:jsPlugins.permissionsTitle')
+                  : t('settings:jsPlugins.unsignedTitle')}
             </DialogTitle>
             <DialogDescription>
               {enableConfirm?.trust === 'untrusted_signer'
                 ? t('settings:jsPlugins.untrustedBody')
-                : t('settings:jsPlugins.unsignedBody')}
+                : enableConfirm?.trust === 'trusted'
+                  ? t('settings:jsPlugins.permissionsBody')
+                  : t('settings:jsPlugins.unsignedBody')}
               {enableConfirm?.signer ? (
                 <span className="mt-2 block font-mono text-xs">{enableConfirm.signer}</span>
               ) : null}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
+            {enableConfirm && enableConfirm.permissions.length > 0 ? (
+              <div className="mb-4 space-y-2">
+                <p className="text-sm font-medium text-foreground">{t('settings:jsPlugins.permissionsList')}</p>
+                <ul className="space-y-1.5 text-sm">
+                  {enableConfirm.permissions.map((permission) => {
+                    const key = permissionLabelKey(permission)
+                    return (
+                      <li key={permission} className="flex flex-col">
+                        <span className="font-mono text-xs text-foreground">{permission}</span>
+                        {key ? <span className="text-xs text-muted-soft">{t(key)}</span> : null}
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p className="text-xs text-muted-soft">{t('settings:jsPlugins.permissionsScopeHint')}</p>
+              </div>
+            ) : null}
             <label className="flex items-start gap-3 text-sm">
               <Checkbox checked={enableConfirmed} onCheckedChange={(v) => setEnableConfirmed(v === true)} />
-              <span>{t('settings:jsPlugins.enableConfirm')}</span>
+              <span>
+                {enableConfirm?.trust === 'trusted'
+                  ? t('settings:jsPlugins.permissionsConfirm')
+                  : t('settings:jsPlugins.enableConfirm')}
+              </span>
             </label>
           </DialogBody>
           <DialogFooter>
@@ -1018,7 +1065,8 @@ export function JSPluginsSettingsWorkspace() {
                 enableMutation.mutate({
                   pluginId: enableConfirm.pluginId,
                   version: enableConfirm.version,
-                  confirmUntrusted: true,
+                  confirmUntrusted: enableConfirm.trust !== 'trusted',
+                  grantPermissions: enableConfirm.permissions,
                 })
               }
             >

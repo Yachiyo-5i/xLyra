@@ -735,7 +735,8 @@
       "siteDetect": "Site detection",
       "errorClassifier": "Error classifier",
       "modelMetadata": "Model metadata",
-      "pricingParse": "Pricing parser"
+      "pricingParse": "Pricing parser",
+      "automation": "Automation"
     },
     "metricsEmpty": "No calls yet",
     "metricsSummary": "{{errors}}/{{calls}} failed ({{rate}}%)",
@@ -772,6 +773,48 @@
     "untrustedTitle": "Untrusted signer",
     "untrustedBody": "This package is signed, but the signer is not in your trusted keys list. Import the public key above or confirm to enable anyway.",
     "enableConfirm": "I understand the risk and want to enable this version",
+    "permissionsTitle": "Grant plugin permissions",
+    "permissionsBody": "This plugin acts automatically when certain events happen in xLyra. Enabling it grants the permissions listed below.",
+    "permissionsList": "Permissions this version will get",
+    "permissionsScopeHint": "A permission only decides what kind of action it may take. It can only act on the accounts and objects you bind under Automations afterwards.",
+    "permissionsConfirm": "I understand and grant these permissions",
+    "permission": {
+      "apikeyResetUsage": "Reset the usage (total, daily or weekly) of the API keys bound to it",
+      "notify": "Write notices to the plugin's action log"
+    },
+    "automation": {
+      "title": "Automations",
+      "hint": "Choose the OAuth account it watches and the API keys it may act on. When that account has an event the plugin subscribes to, the plugin decides what to do and xLyra carries it out.",
+      "add": "Add automation",
+      "edit": "Edit",
+      "delete": "Delete",
+      "empty": "No automations yet. The plugin handles no events until you add one.",
+      "account": "OAuth account",
+      "accountPlaceholder": "Select an account",
+      "noAccounts": "No matching accounts.",
+      "targets": "API keys it may act on",
+      "targetsFiniteHint": "Only keys with a finite total quota can be chosen.",
+      "targetsPlaceholder": "Select API keys",
+      "noTargets": "No API keys",
+      "targetsUnit": "keys",
+      "noFiniteQuota": "No finite total quota",
+      "targetsLine": "Keys: {{names}}",
+      "saved": "Saved",
+      "deleted": "Deleted",
+      "saveFailed": "Failed to save",
+      "log": {
+        "title": "Recent actions",
+        "empty": "Nothing has been done yet.",
+        "status": {
+          "applied": "Applied",
+          "skipped": "Skipped",
+          "failed": "Failed"
+        },
+        "reset": "Reset usage ({{scope}})",
+        "notice": "Notice: {{message}}",
+        "handle": "Handle event"
+      }
+    },
     "bindProtocolTitle": "Protocol slug",
     "bindProtocolHint": "After enable, routes POST /v1/plugins/<slug>. Must match manifest downstreamPath.",
     "bindProtocol": "Bind slug",

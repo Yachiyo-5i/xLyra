@@ -9,10 +9,11 @@ export type JSPluginKind =
   | 'error_classifier'
   | 'model_metadata'
   | 'pricing_parse'
+  | 'automation'
   | string
 
 /** site: bind to sites; endpoint: gets a downstream path; global: applies everywhere. */
-export type JSPluginScope = 'site' | 'endpoint' | 'global'
+export type JSPluginScope = 'site' | 'endpoint' | 'global' | 'subject'
 
 export type JSPluginMetrics24h = {
   calls: number
@@ -44,6 +45,8 @@ export type JSPluginVersion = {
   signer?: string
   trust?: JSPluginTrust
   manifest?: Record<string, unknown>
+  /** Automation actions an admin allowed this version to return. */
+  granted_permissions?: string[]
   selftest?: { ok?: boolean; error?: string }
   created_at?: string
 }
@@ -116,7 +119,7 @@ export async function deleteJSPluginTrustedKey(id: string) {
 export async function enableJSPluginVersion(
   pluginId: string,
   version: string,
-  options?: { confirm_untrusted?: boolean },
+  options?: { confirm_untrusted?: boolean; grant_permissions?: string[] },
 ) {
   return apiFetch<{ ok: boolean; generation?: number }>(
     `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}/enable`,
@@ -184,4 +187,116 @@ export async function previewJSPluginPricing(pluginId: string, siteId: string) {
     method: 'POST',
     body: { site_id: siteId },
   })
+}
+
+// ---- automation plugins ----
+
+/** One property of the parameters an automation plugin asks the admin for. */
+export type JSPluginConfigProperty = {
+  type: 'string' | 'number' | 'integer' | 'boolean'
+  title?: string
+  description?: string
+  default?: string | number | boolean
+  enum?: Array<string | number>
+  minimum?: number
+  maximum?: number
+}
+
+export type JSPluginConfigSchema = {
+  type?: 'object'
+  properties?: Record<string, JSPluginConfigProperty>
+  required?: string[]
+}
+
+/** The automation block of a plugin manifest. */
+export type JSPluginAutomationManifest = {
+  subscribes: string[]
+  permissions: string[]
+  binding: {
+    subject: { type: string; providers?: string[] }
+    target?: { type?: string; requires?: string }
+    config?: JSPluginConfigSchema
+  }
+}
+
+export function automationManifest(manifest?: Record<string, unknown>): JSPluginAutomationManifest | null {
+  const raw = manifest?.automation as Partial<JSPluginAutomationManifest> | undefined
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    subscribes: raw.subscribes ?? [],
+    permissions: raw.permissions ?? [],
+    binding: raw.binding ?? { subject: { type: '' } },
+  }
+}
+
+export type JSPluginAutomation = {
+  id: string
+  version: string
+  subject_type: string
+  subject_id: string
+  subject_label: string
+  provider: string
+  config: Record<string, string | number | boolean>
+  targets: Array<{ type: string; id: string; name: string }>
+  state: Record<string, unknown>
+  created_at: string
+}
+
+export type JSPluginAutomationInput = {
+  subject_id: string
+  target_ids: string[]
+  config: Record<string, string | number | boolean>
+}
+
+export type JSPluginActionLogEntry = {
+  id: number
+  version: string
+  event_type: string
+  action: { type?: string; scope?: string; message?: string }
+  target_id: string
+  status: 'applied' | 'skipped' | 'failed'
+  detail: string
+  created_at: string
+}
+
+export const jsPluginAutomationQueryKeys = {
+  list: (pluginId: string) => [...jsPluginQueryKeys.all, 'automations', pluginId] as const,
+  log: (pluginId: string) => [...jsPluginQueryKeys.all, 'action-log', pluginId] as const,
+}
+
+export async function listJSPluginAutomations(pluginId: string, signal?: AbortSignal) {
+  const result = await apiFetch<{ items: JSPluginAutomation[] }>(
+    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/automations`,
+    { signal },
+  )
+  return result.items ?? []
+}
+
+export async function createJSPluginAutomation(pluginId: string, input: JSPluginAutomationInput) {
+  return apiFetch<{ ok: boolean; id: string }>(`/api/v1/js-plugins/${encodeURIComponent(pluginId)}/automations`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function updateJSPluginAutomation(pluginId: string, bindingId: string, input: JSPluginAutomationInput) {
+  return apiFetch<{ ok: boolean }>(
+    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/automations/${encodeURIComponent(bindingId)}`,
+    { method: 'PUT', body: input },
+  )
+}
+
+export async function deleteJSPluginAutomation(pluginId: string, bindingId: string) {
+  return apiFetch<{ ok: boolean }>(
+    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/automations/${encodeURIComponent(bindingId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function listJSPluginActionLog(pluginId: string, signal?: AbortSignal) {
+  const result = await apiFetch<{ items: JSPluginActionLogEntry[] }>(
+    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/action-log?limit=30`,
+    { signal },
+  )
+  return result.items ?? []
 }

@@ -735,7 +735,8 @@
       "siteDetect": "站点识别",
       "errorClassifier": "错误分类",
       "modelMetadata": "模型元数据",
-      "pricingParse": "价格解析"
+      "pricingParse": "价格解析",
+      "automation": "自动化"
     },
     "metricsEmpty": "暂无调用",
     "metricsSummary": "{{errors}}/{{calls}} 失败（{{rate}}%）",
@@ -772,6 +773,48 @@
     "untrustedTitle": "未受信的签名方",
     "untrustedBody": "包已签名，但签名方不在受信公钥列表中。可在上方导入公钥，或确认后仍要启用。",
     "enableConfirm": "我了解风险，仍要启用此版本",
+    "permissionsTitle": "授予插件权限",
+    "permissionsBody": "这个插件会在 xLyra 内发生某些事件时自动执行操作。启用即表示授予它下面列出的权限。",
+    "permissionsList": "此版本将获得的权限",
+    "permissionsScopeHint": "权限只决定它能做哪类操作；它只能作用于你之后在“自动化”里绑定的账号和对象。",
+    "permissionsConfirm": "我已了解，并同意授予上述权限",
+    "permission": {
+      "apikeyResetUsage": "清零已绑定 API 密钥的用量（总额度、日额度或周额度）",
+      "notify": "在插件的操作记录中写入通知"
+    },
+    "automation": {
+      "title": "自动化",
+      "hint": "选择它要关注的 OAuth 账号和它可以操作的 API 密钥。账号发生它订阅的事件时，插件会决定做什么，xLyra 负责执行。",
+      "add": "新增自动化",
+      "edit": "编辑",
+      "delete": "删除",
+      "empty": "还没有自动化。新增后，插件才会开始处理事件。",
+      "account": "OAuth 账号",
+      "accountPlaceholder": "选择账号",
+      "noAccounts": "没有可用的账号。",
+      "targets": "可操作的 API 密钥",
+      "targetsFiniteHint": "只能选择设置了有限总额度的密钥。",
+      "targetsPlaceholder": "选择 API 密钥",
+      "noTargets": "没有 API 密钥",
+      "targetsUnit": "个密钥",
+      "noFiniteQuota": "未设置有限总额度",
+      "targetsLine": "密钥：{{names}}",
+      "saved": "已保存",
+      "deleted": "已删除",
+      "saveFailed": "保存失败",
+      "log": {
+        "title": "最近操作",
+        "empty": "还没有操作记录。",
+        "status": {
+          "applied": "已执行",
+          "skipped": "已跳过",
+          "failed": "失败"
+        },
+        "reset": "重置用量（{{scope}}）",
+        "notice": "通知：{{message}}",
+        "handle": "处理事件"
+      }
+    },
     "bindProtocolTitle": "协议下游 slug",
     "bindProtocolHint": "启用后分配 `/v1/plugins/<slug>`，须与 manifest 中的 downstreamPath 一致。",
     "bindProtocol": "绑定 slug",
