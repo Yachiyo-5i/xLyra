@@ -5,8 +5,15 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { FlaskConical, KeyRound, LoaderCircle, Package, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
+import {
+  MobileBuiltinCard,
+  MobileCardList,
+  MobileUploadedCard,
+  MobileVersionCard,
+} from '@/features/settings/components/js-plugins/js-plugins-mobile'
 import { TableToolbar } from '@/components/common/table-toolbar'
 import { defaultTableColumnWidths } from '@/lib/table-column-widths'
 import { FormField } from '@/components/ui/form-field'
@@ -162,6 +169,7 @@ export function JSPluginsSettingsWorkspace() {
   const [builtinKindFilter, setBuiltinKindFilter] = useState<BuiltinKindFilter>('all')
   const [tryResult, setTryResult] = useState<JSPluginTryResult | null>(null)
   const [protocolSlug, setProtocolSlug] = useState('')
+  const isMobile = useMobileLayout()
   const [bindSiteId, setBindSiteId] = useState('')
   const [pricingPreview, setPricingPreview] = useState<{ items: number; groups: number } | null>(null)
   const [pricingReviewed, setPricingReviewed] = useState(false)
@@ -688,25 +696,41 @@ export function JSPluginsSettingsWorkspace() {
             </Select>
           )}
         />
-        <DataTable
-          columnSizing={BUILTIN_COLUMN_SIZING}
-          columns={builtinColumns}
-          data={builtinsQuery.isError ? [] : filteredBuiltins}
-          getRowId={(plugin) => plugin.id}
-          emptyState={
-            <EmptyState
-              title={
-                builtinsQuery.isLoading
-                  ? t('settings:jsPlugins.loading')
-                  : builtinsQuery.isError
-                    ? t('settings:jsPlugins.loadFailed')
-                    : t('settings:jsPlugins.builtinFilterEmpty')
-              }
-              description={t('settings:jsPlugins.builtinFilterEmptyHint')}
-            />
-          }
-          hideHeaderWhenEmpty
-        />
+        {isMobile && !builtinsQuery.isError && filteredBuiltins.length > 0 ? (
+          <MobileCardList>
+            {filteredBuiltins.map((plugin) => (
+              <MobileBuiltinCard
+                key={plugin.id}
+                name={builtinDisplayName(plugin)}
+                id={plugin.id}
+                version={plugin.version}
+                kind={kindLabel(t, plugin.kind)}
+                detail={builtinDetail(plugin, t)}
+                labels={{ version: t('settings:jsPlugins.columns.version'), kind: t('settings:jsPlugins.columns.kind') }}
+              />
+            ))}
+          </MobileCardList>
+        ) : (
+          <DataTable
+            columnSizing={BUILTIN_COLUMN_SIZING}
+            columns={builtinColumns}
+            data={builtinsQuery.isError ? [] : filteredBuiltins}
+            getRowId={(plugin) => plugin.id}
+            emptyState={
+              <EmptyState
+                title={
+                  builtinsQuery.isLoading
+                    ? t('settings:jsPlugins.loading')
+                    : builtinsQuery.isError
+                      ? t('settings:jsPlugins.loadFailed')
+                      : t('settings:jsPlugins.builtinFilterEmpty')
+                }
+                description={t('settings:jsPlugins.builtinFilterEmptyHint')}
+              />
+            }
+            hideHeaderWhenEmpty
+          />
+        )}
       </section>
 
       <section className="space-y-3">
@@ -734,25 +758,63 @@ export function JSPluginsSettingsWorkspace() {
             </div>
           ) : null}
         </div>
-        <DataTable
-          columnSizing={UPLOADED_COLUMN_SIZING}
-          columns={uploadedColumns}
-          data={uploadedUnavailable ? [] : uploadedQuery.data ?? []}
-          getRowId={(plugin) => plugin.id}
-          emptyState={
-            <EmptyState
-              title={
-                uploadedUnavailable
-                  ? t('settings:jsPlugins.unavailable')
-                  : uploadedQuery.isLoading
-                    ? t('settings:jsPlugins.loading')
-                    : t('settings:jsPlugins.emptyUploaded')
-              }
-              description={t('settings:jsPlugins.emptyUploadedHint')}
-            />
-          }
-          hideHeaderWhenEmpty
-        />
+        {isMobile && !uploadedUnavailable && (uploadedQuery.data ?? []).length > 0 ? (
+          <MobileCardList>
+            {(uploadedQuery.data ?? []).map((plugin) => (
+              <MobileUploadedCard
+                key={plugin.id}
+                name={plugin.name || plugin.id}
+                id={plugin.id}
+                kind={kindLabel(t, plugin.kind ?? '')}
+                enabledVersion={
+                  plugin.enabled_version ? (
+                    <StatusBadge status="success">{plugin.enabled_version}</StatusBadge>
+                  ) : (
+                    <span className="text-muted-soft">—</span>
+                  )
+                }
+                metrics={formatMetrics24h(t, plugin.metrics_24h)}
+                labels={{
+                  kind: t('settings:jsPlugins.columns.kind'),
+                  enabledVersion: t('settings:jsPlugins.columns.enabledVersion'),
+                  metrics: t('settings:jsPlugins.columns.metrics24h'),
+                }}
+                actions={
+                  <>
+                    <Button type="button" variant="outline" size="sm" onClick={() => openManage(plugin)}>
+                      {t('settings:jsPlugins.manageVersions')}
+                    </Button>
+                    {plugin.enabled_version ? (
+                      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => disablePlugin(plugin.id)}>
+                        {t('settings:jsPlugins.disable')}
+                      </Button>
+                    ) : null}
+                  </>
+                }
+              />
+            ))}
+          </MobileCardList>
+        ) : (
+          <DataTable
+            columnSizing={UPLOADED_COLUMN_SIZING}
+            columns={uploadedColumns}
+            data={uploadedUnavailable ? [] : uploadedQuery.data ?? []}
+            getRowId={(plugin) => plugin.id}
+            emptyState={
+              <EmptyState
+                title={
+                  uploadedUnavailable
+                    ? t('settings:jsPlugins.unavailable')
+                    : uploadedQuery.isLoading
+                      ? t('settings:jsPlugins.loading')
+                      : t('settings:jsPlugins.emptyUploaded')
+                }
+                description={t('settings:jsPlugins.emptyUploadedHint')}
+              />
+            }
+            hideHeaderWhenEmpty
+          />
+        )}
       </section>
 
       <Dialog
@@ -790,19 +852,10 @@ export function JSPluginsSettingsWorkspace() {
               <p className="text-sm text-destructive">{t('settings:jsPlugins.loadFailed')}</p>
             ) : (
               <>
-                <table className="w-full min-w-full border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-[hsl(var(--glass-border))] text-muted-soft">
-                      <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.version')}</th>
-                      <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.status')}</th>
-                      <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.package')}</th>
-                      <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.selftest')}</th>
-                      <th className="px-3 py-2 text-right font-medium">{t('settings:jsPlugins.columns.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                {isMobile ? (
+                  <MobileCardList>
                     {(detailQuery.data?.versions ?? []).map((row) => (
-                      <VersionRow
+                      <VersionCard
                         key={row.version}
                         row={row}
                         busy={busy}
@@ -813,8 +866,34 @@ export function JSPluginsSettingsWorkspace() {
                         t={t}
                       />
                     ))}
-                  </tbody>
-                </table>
+                  </MobileCardList>
+                ) : (
+                  <table className="w-full min-w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-[hsl(var(--glass-border))] text-muted-soft">
+                        <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.version')}</th>
+                        <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.status')}</th>
+                        <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.package')}</th>
+                        <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.selftest')}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t('settings:jsPlugins.columns.actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detailQuery.data?.versions ?? []).map((row) => (
+                        <VersionRow
+                          key={row.version}
+                          row={row}
+                          busy={busy}
+                          tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
+                          onEnable={() => requestEnable(row)}
+                          onTry={() => tryMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
+                          onDelete={() => setDeleteTarget({ pluginId: row.plugin_id, version: row.version })}
+                          t={t}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                )}
 
                 {enabledVersionRow && managePlugin?.kind === 'protocol' ? (
                   <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
@@ -1293,15 +1372,7 @@ export function JSPluginsSettingsWorkspace() {
   )
 }
 
-function VersionRow({
-  row,
-  busy,
-  tryPending,
-  onEnable,
-  onTry,
-  onDelete,
-  t,
-}: {
+type VersionRowProps = {
   row: JSPluginVersion
   busy: boolean
   tryPending: boolean
@@ -1309,9 +1380,47 @@ function VersionRow({
   onTry: () => void
   onDelete: () => void
   t: TFunction
-}) {
-  const selftestOk = row.selftest?.ok
-  const selftestError = row.selftest?.error
+}
+
+function versionTrustBadge(row: JSPluginVersion, t: TFunction) {
+  if (row.trust === 'trusted') return <StatusBadge status="success">{t('settings:jsPlugins.trustTrusted')}</StatusBadge>
+  if (row.trust === 'untrusted_signer') {
+    return <StatusBadge status="warning">{t('settings:jsPlugins.trustUntrusted')}</StatusBadge>
+  }
+  if (row.signed) return <StatusBadge status="idle">{t('settings:jsPlugins.signed')}</StatusBadge>
+  return <StatusBadge status="idle">{t('settings:jsPlugins.unsigned')}</StatusBadge>
+}
+
+function selftestSummary(row: JSPluginVersion, t: TFunction) {
+  const ok = row.selftest?.ok
+  const error = row.selftest?.error
+  if (ok === true) return t('settings:jsPlugins.selftestOk')
+  return error || (ok === false ? t('settings:jsPlugins.selftestFailed') : '—')
+}
+
+function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }: VersionRowProps) {
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" disabled={busy || tryPending} onClick={onTry}>
+        {tryPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FlaskConical className="mr-1 h-3.5 w-3.5" />}
+        {t('settings:jsPlugins.try')}
+      </Button>
+      {row.status !== 'enabled' ? (
+        <Button type="button" size="sm" disabled={busy || row.status === 'broken'} onClick={onEnable}>
+          {t('settings:jsPlugins.enable')}
+        </Button>
+      ) : null}
+      {row.status !== 'enabled' ? (
+        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onDelete}>
+          {t('settings:jsPlugins.uninstall')}
+        </Button>
+      ) : null}
+    </>
+  )
+}
+
+function VersionRow(props: VersionRowProps) {
+  const { row, t } = props
   const manifestName = manifestString(row.manifest, 'name')
   const manifestKind = manifestString(row.manifest, 'kind')
 
@@ -1324,50 +1433,42 @@ function VersionRow({
       </td>
       <td className="px-3 py-2">{versionStatusBadge(row.status)}</td>
       <td className="px-3 py-2 text-xs">
-        <div>
-          {row.trust === 'trusted' ? (
-            <StatusBadge status="success">{t('settings:jsPlugins.trustTrusted')}</StatusBadge>
-          ) : row.trust === 'untrusted_signer' ? (
-            <StatusBadge status="warning">{t('settings:jsPlugins.trustUntrusted')}</StatusBadge>
-          ) : row.signed ? (
-            <StatusBadge status="idle">{t('settings:jsPlugins.signed')}</StatusBadge>
-          ) : (
-            <StatusBadge status="idle">{t('settings:jsPlugins.unsigned')}</StatusBadge>
-          )}
-        </div>
+        <div>{versionTrustBadge(row, t)}</div>
         <div className="mt-1 font-mono text-muted-soft" title={row.package_sha256}>
           {shortSha256(row.package_sha256)}
         </div>
       </td>
-      <td className="max-w-[180px] px-3 py-2 text-xs text-muted-soft" title={selftestError ?? undefined}>
-        <span className="line-clamp-2">
-          {selftestOk === true
-            ? t('settings:jsPlugins.selftestOk')
-            : selftestError || (selftestOk === false ? t('settings:jsPlugins.selftestFailed') : '—')}
-        </span>
+      <td className="max-w-[180px] px-3 py-2 text-xs text-muted-soft" title={row.selftest?.error ?? undefined}>
+        <span className="line-clamp-2">{selftestSummary(row, t)}</span>
       </td>
       <td className="px-3 py-2 text-right">
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" size="sm" variant="outline" disabled={busy || tryPending} onClick={onTry}>
-            {tryPending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <FlaskConical className="mr-1 h-3.5 w-3.5" />
-            )}
-            {t('settings:jsPlugins.try')}
-          </Button>
-          {row.status !== 'enabled' ? (
-            <Button type="button" size="sm" disabled={busy || row.status === 'broken'} onClick={onEnable}>
-              {t('settings:jsPlugins.enable')}
-            </Button>
-          ) : null}
-          {row.status !== 'enabled' ? (
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onDelete}>
-              {t('settings:jsPlugins.uninstall')}
-            </Button>
-          ) : null}
+          <VersionActions {...props} />
         </div>
       </td>
     </tr>
+  )
+}
+
+function VersionCard(props: VersionRowProps) {
+  const { row, t } = props
+  const manifestName = manifestString(row.manifest, 'name')
+  const manifestKind = manifestString(row.manifest, 'kind')
+
+  return (
+    <MobileVersionCard
+      version={row.version}
+      name={manifestName || undefined}
+      kind={manifestKind ? kindLabel(t, manifestKind) : undefined}
+      status={versionStatusBadge(row.status)}
+      trust={versionTrustBadge(row, t)}
+      sha={shortSha256(row.package_sha256)}
+      selftest={selftestSummary(row, t)}
+      labels={{
+        package: t('settings:jsPlugins.columns.package'),
+        selftest: t('settings:jsPlugins.columns.selftest'),
+      }}
+      actions={<VersionActions {...props} />}
+    />
   )
 }
