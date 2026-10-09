@@ -193,6 +193,82 @@ func TestRefreshCodexConnectionMarksReconnectRequiredOnRefreshFailureOffline(t *
 	}
 }
 
+func TestRefreshCodexConnectionPreservesQuotaMetadataOffline(t *testing.T) {
+	t.Parallel()
+
+	connectionID := uuid.New()
+	bootstrap := NewService(nil, "master-key")
+	encryptedRefresh, _, err := bootstrap.credentials.Encrypt("refresh-token")
+	if err != nil {
+		t.Fatalf("encrypt refresh token: %v", err)
+	}
+	connection := store.OAuthConnection{
+		ID:                    connectionID,
+		Provider:              codexProvider,
+		Status:                "connected",
+		EncryptedRefreshToken: encryptedRefresh,
+		Metadata: store.JSON(`{"plan_type":"free","token_mode":"stale","last_error":"old","last_error_at":"2026-01-01T00:00:00Z",` +
+			`"quota":{"weekly":{"used_percent":42,"reset_at":"2026-02-01T00:00:00Z"}}}`),
+	}
+	var saved store.OAuthConnection
+	service := oauthServiceWithQueryUpdate(t, func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*store.OAuthConnection)
+		if !ok {
+			tx.AddError(errors.New("unexpected codex refresh query destination"))
+			return
+		}
+		*item = connection
+		tx.Statement.RowsAffected = 1
+	}, func(tx *gorm.DB) {
+		item, ok := tx.Statement.Dest.(*store.OAuthConnection)
+		if !ok {
+			tx.AddError(errors.New("unexpected codex refresh save destination"))
+			return
+		}
+		saved = *item
+		tx.Statement.RowsAffected = 1
+	})
+	idToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"email":"codex@example.com","https://api.openai.com/auth":{"chatgpt_account_id":"acct-1","chatgpt_plan_type":"plus","chatgpt_user_id":"user-x"}}`)) + ".sig"
+	service.httpClient = &http.Client{Transport: oauthRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodPost || req.URL.String() != codexTokenURL {
+			t.Fatalf("unexpected codex refresh request: %s %s", req.Method, req.URL.String())
+		}
+		body, _ := json.Marshal(map[string]any{
+			"access_token":  "new-access",
+			"refresh_token": "new-refresh",
+			"id_token":      idToken,
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+		})
+		return oauthHTTPResponse(http.StatusOK, string(body)), nil
+	})}
+
+	if _, err := service.RefreshCodexConnection(context.Background(), connectionID); err != nil {
+		t.Fatalf("RefreshCodexConnection error = %v", err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(saved.Metadata, &meta); err != nil {
+		t.Fatalf("decode saved metadata: %v", err)
+	}
+	quota, ok := meta["quota"].(map[string]any)
+	if !ok {
+		t.Fatalf("saved metadata = %#v, want quota preserved", meta)
+	}
+	weekly, ok := quota["weekly"].(map[string]any)
+	if !ok || weekly["used_percent"] != float64(42) {
+		t.Fatalf("quota = %#v, want weekly preserved", quota)
+	}
+	if meta["plan_type"] != "plus" || meta["chatgpt_user_id"] != "user-x" || meta["token_mode"] != "oauth_refresh" || meta["refreshable"] != true {
+		t.Fatalf("saved metadata = %#v, want refreshed fields", meta)
+	}
+	if _, ok := meta["last_error"]; ok {
+		t.Fatalf("saved metadata = %#v, want last_error cleared", meta)
+	}
+	if _, ok := meta["last_error_at"]; ok {
+		t.Fatalf("saved metadata = %#v, want last_error_at cleared", meta)
+	}
+}
+
 func TestRefreshAntigravityConnectionMarksReconnectRequiredOnRefreshFailureOffline(t *testing.T) {
 	t.Parallel()
 
