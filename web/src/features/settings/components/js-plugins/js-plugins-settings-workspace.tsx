@@ -323,12 +323,15 @@ export function JSPluginsSettingsWorkspace() {
   const deleteMutation = useMutation({
     mutationFn: ({ pluginId, version }: { pluginId: string; version: string }) =>
       deleteJSPluginVersion(pluginId, version),
-    onSuccess: () => {
+    onSuccess: (_result, deleted) => {
       toast.success(t('settings:jsPlugins.deleteSuccess'))
       setDeleteTarget(null)
       invalidateAll()
       if (managePlugin) {
-        void queryClient.invalidateQueries({ queryKey: jsPluginQueryKeys.detail(managePlugin.id) })
+        // Uninstalling the last version removes the plugin itself, so there is nothing left to manage.
+        const remaining = (detailQuery.data?.versions ?? []).filter((row) => row.version !== deleted.version)
+        if (remaining.length === 0) closeManage()
+        else void queryClient.invalidateQueries({ queryKey: jsPluginQueryKeys.detail(managePlugin.id) })
       }
     },
     onError: (error: unknown) => {
@@ -912,7 +915,15 @@ export function JSPluginsSettingsWorkspace() {
             }
             confirm={
               siteBinding.applicable ? (
-                <Button type="button" disabled={!siteBinding.canApply} onClick={siteBinding.apply}>
+                <Button
+                  type="button"
+                  disabled={!siteBinding.canApply}
+                  onClick={() =>
+                    void siteBinding.apply().then((applied) => {
+                      if (applied) closeManage()
+                    })
+                  }
+                >
                   {siteBinding.applying ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (

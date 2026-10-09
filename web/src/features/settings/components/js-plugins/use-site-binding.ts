@@ -145,7 +145,15 @@ export function useSiteBinding(target: SiteBindingTarget | null, sites: Site[]) 
     setReviewed,
     canApply: target != null && changed && pricingReady && !applyMutation.isPending,
     applying: applyMutation.isPending,
-    apply: () => applyMutation.mutate(),
+    /** Resolves true when every change went through, so the caller can close the dialog. */
+    apply: async () => {
+      try {
+        await applyMutation.mutateAsync()
+        return true
+      } catch {
+        return false
+      }
+    },
     reset,
   }
 }
