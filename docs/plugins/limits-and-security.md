@@ -32,6 +32,7 @@
 | 项 | 上限 |
 | --- | --- |
 | 分步类型（`quota_probe`、`model_list`、`credential_check`、`site_detect`）每次钩子调用 | 200 ms |
+| `automation` 每次 `handle` 调用（不在请求路径上） | 200 ms |
 | 协议和 `error_classifier` 每次调用（在请求路径上） | 50 ms |
 | `model_metadata`、`pricing_parse` 每次调用 | 200 ms |
 | 每次调用的内存分配 | 16 MiB |
@@ -56,6 +57,15 @@
 - 找不到入口（`src/index.ts` 或 `src/index.js`）。
 
 只能 `import type`，以及相对路径的本地文件。需要的工具函数直接写进自己的源码里。
+
+## 自动化插件的权限
+
+`automation` 插件能让 xLyra 做事，所以多了两道限制，二者缺一不可：
+
+- **权限**：插件在 manifest 里声明会返回哪几类动作，管理员启用版本时逐项确认。没声明或没授予的动作一律不执行。
+- **范围**：动作只能作用于管理员在绑定里选定的对象（`target` 必须出现在 `event.targets` 中）。插件不能指定任意密钥或账号。
+
+动作集合由 xLyra 定义，目前只有 `apikey.reset_usage` 和 `notify`。改价格、改路由、改计费不在其中。每个动作的结果（成功、跳过、失败及原因）都会记入该插件的操作记录。
 
 ## 自动保护（熔断）
 

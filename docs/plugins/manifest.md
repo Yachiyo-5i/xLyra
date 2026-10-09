@@ -22,7 +22,7 @@
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `id` | 是 | 3–64 位，只能含小写字母、数字、`.`、`-`，首尾必须是字母或数字。**不能以 `xlyra.` 开头**（保留给内置插件），不能是 `builtins` |
-| `kind` | 是 | 八种之一：`quota_probe`、`protocol`、`model_list`、`credential_check`、`site_detect`、`error_classifier`、`model_metadata`、`pricing_parse`，详见[选择类型](./kinds.md)。不支持自定义类型 |
+| `kind` | 是 | 九种之一：`quota_probe`、`protocol`、`model_list`、`credential_check`、`site_detect`、`error_classifier`、`model_metadata`、`pricing_parse`、`automation`，详见[选择类型](./kinds.md)。不支持自定义类型 |
 | `version` | 是 | 语义化版本，如 `0.1.0`。同一个 id 的同一个版本号不能用不同内容重复上传 |
 | `apiVersion` | 是 | 钩子契约版本，目前只能是 `1` |
 | `hostApi` | 是 | 你用到的宿主 API 最低版本，目前是 `1`。高于当前 xLyra 支持的版本会被拒绝 |
@@ -61,6 +61,10 @@
 ```
 
 不写 `baseURLMode` 等于 `as_is`。`pricing_parse` 也使用 `site`，并且必须再写 `pricingPath`，见[价格解析](./pricing-parse.md)。`error_classifier`、`model_metadata` 没有额外的清单部分。
+
+## automation 部分
+
+`automation` 使用 `automation` 部分，声明订阅的事件、需要的权限和绑定时要管理员填的内容，详见[自动化插件](./automation.md)。
 
 ## protocol 部分
 

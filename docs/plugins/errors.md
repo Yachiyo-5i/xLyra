@@ -38,7 +38,7 @@ js_timeout: interrupted: timeout
 | `meta.id ... does not match manifest` | `meta` 与清单不一致 |
 | `at least one fixtures/*.json is required` | 没有测试样本 |
 | `apiVersion N is not supported` / `hostApi N is not supported` | 声明的版本比 xLyra 支持的高 |
-| `kind "..." is not supported in this build (supported: ...)` | `kind` 不是支持的八种之一，错误信息里会列出所有支持的类型 |
+| `kind "..." is not supported in this build (supported: ...)` | `kind` 不是支持的九种之一，错误信息里会列出所有支持的类型 |
 | `result.xxx: ... is not one of ...` | 返回的值不在允许的取值里（如 `status`、`class`） |
 | `result.models[N].id: "..." was not in the input` | `model_metadata` 返回了输入里没有的模型 |
 | `input is required` | 一次性函数类型的样本缺少 `input` |
@@ -51,5 +51,7 @@ js_timeout: interrupted: timeout
 | 错误码 | 含义 |
 | --- | --- |
 | `js_plugin_confirm_required` | 包未签名或签名者不在受信列表里，需要管理员二次确认 |
-| `js_plugin_kind_not_connected` | 类型已定义但 xLyra 尚未接入，不能启用。目前八种类型都已接入，只有以后新增的类型在接入前才会出现 |
+| `js_plugin_kind_not_connected` | 类型已定义但 xLyra 尚未接入，不能启用。目前九种类型都已接入，只有以后新增的类型在接入前才会出现 |
 | `js_plugin_pricing_review_required` | 绑定价格解析插件时没有确认预览结果 |
+| `js_plugin_permissions_required` | 启用的 `automation` 版本声明了权限，但管理员没有授予。需要在启用请求里带上 `grant_permissions` |
+| `js_plugin_automation_invalid` | 新增或修改自动化绑定时，所选账号、API 密钥或参数不符合插件的声明，错误信息里会说明原因 |

@@ -1,6 +1,6 @@
 # xLyra 插件开发文档
 
-xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能用的结构，或把下游请求翻译成上游请求。插件的类型（kind）由 xLyra 定义，开发者从[现有类型](./kinds.md)里选择；八种类型都已接入 xLyra。HTTP 请求、密钥、冷却、计费都留在 xLyra 的 Go 代码里，插件拿不到密钥，也不能自己发请求。
+xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能用的结构，或把下游请求翻译成上游请求。插件的类型（kind）由 xLyra 定义，开发者从[现有类型](./kinds.md)里选择；九种类型都已接入 xLyra。HTTP 请求、密钥、冷却、计费都留在 xLyra 的 Go 代码里，插件拿不到密钥，也不能自己发请求。
 
 当前版本：`apiVersion 1`，`hostApi 1`。
 
@@ -9,7 +9,7 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 | 文档 | 内容 |
 | --- | --- |
 | [快速开始](./quickstart.md) | 从 `init` 到上传启用的完整流程 |
-| [选择插件类型](./kinds.md) | 八种 kind 的用途、状态，以及怎么选 |
+| [选择插件类型](./kinds.md) | 九种 kind 的用途、状态，以及怎么选 |
 | [额度探测](./quota-probe.md) | `quota_probe` |
 | [协议](./protocol.md) | `protocol` |
 | [模型列表](./model-list.md) | `model_list` |
@@ -18,6 +18,7 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 | [错误分类](./error-classifier.md) | `error_classifier` |
 | [模型元数据](./model-metadata.md) | `model_metadata` |
 | [价格解析](./pricing-parse.md) | `pricing_parse` |
+| [自动化](./automation.md) | `automation`：响应 xLyra 事件，返回由 xLyra 执行的动作 |
 | [清单 manifest.json](./manifest.md) | 字段、校验规则 |
 | [fixtures 测试样本](./fixtures.md) | 样本格式与比对规则 |
 | [宿主 API](./host-api.md) | 插件里可以调用的全局函数 |
@@ -39,6 +40,6 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 ## 不支持的事
 
 - 流式响应：协议插件只处理非流式请求。
-- 由插件决定选路、价格、计费或冷却。
+- 由插件决定选路、价格、计费或冷却。`automation` 只能返回 xLyra 开放的几种动作，且需要管理员授予权限、绑定对象。
 - 访问环境变量、文件系统或任意主机。
 - 租户上传插件，插件只能由管理员上传。
