@@ -328,7 +328,6 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Get("/js-plugin-trusted-keys", adminHandler.ListJSPluginTrustedKeys)
 				protected.Post("/js-plugin-trusted-keys", adminHandler.CreateJSPluginTrustedKey)
 				protected.Delete("/js-plugin-trusted-keys/{id}", adminHandler.DeleteJSPluginTrustedKey)
-				protected.Get("/js-plugins/builtins", adminHandler.ListBuiltinJSPlugins)
 				protected.Get("/js-plugins", adminHandler.ListJSPlugins)
 				protected.Post("/js-plugins", adminHandler.UploadJSPlugin)
 				protected.Get("/js-plugins/{id}", adminHandler.GetJSPlugin)

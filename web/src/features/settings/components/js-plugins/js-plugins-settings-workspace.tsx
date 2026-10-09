@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { FlaskConical, KeyRound, LoaderCircle, Package, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { FlaskConical, KeyRound, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
@@ -11,13 +11,11 @@ import { PageHeader } from '@/components/common/page-header'
 import { JSPluginSiteBindingSection } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
 import { useSiteBinding } from '@/features/settings/components/js-plugins/use-site-binding'
 import {
-  MobileBuiltinCard,
   MobileCardList,
   MobileRowList,
   MobileUploadedCard,
   MobileVersionCard,
 } from '@/features/settings/components/js-plugins/js-plugins-mobile'
-import { TableToolbar } from '@/components/common/table-toolbar'
 import { defaultTableColumnWidths } from '@/lib/table-column-widths'
 import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/common/status-badge'
@@ -33,7 +31,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   bindJSPluginProtocolSlug,
   GLOBAL_KINDS,
@@ -46,12 +43,10 @@ import {
   getJSPlugin,
   JS_PLUGIN_MAX_PACKAGE_BYTES,
   jsPluginQueryKeys,
-  listBuiltinJSPlugins,
   listJSPluginTrustedKeys,
   listUploadedJSPlugins,
   tryJSPlugin,
   uploadJSPlugin,
-  type JSPluginBuiltin,
   type JSPluginListItem,
   type JSPluginMetrics24h,
   type JSPluginTrust,
@@ -93,16 +88,6 @@ function kindLabel(t: TFunction, kind: string) {
   return kind || '—'
 }
 
-function builtinDetail(plugin: JSPluginBuiltin, t: TFunction) {
-  if (plugin.replaces) {
-    return t('settings:jsPlugins.builtinReplaces', { type: plugin.replaces })
-  }
-  if (plugin.protocol) {
-    return t('settings:jsPlugins.builtinProtocol', { name: plugin.protocol })
-  }
-  return '—'
-}
-
 function manifestString(manifest: Record<string, unknown> | undefined, key: string) {
   const value = manifest?.[key]
   return typeof value === 'string' && value.trim() ? value.trim() : ''
@@ -112,10 +97,6 @@ function shortSha256(sha?: string) {
   if (!sha) return '—'
   if (sha.length <= 14) return sha
   return `${sha.slice(0, 8)}…${sha.slice(-6)}`
-}
-
-function builtinDisplayName(plugin: JSPluginBuiltin) {
-  return (plugin.name?.trim() || plugin.id).trim()
 }
 
 function formatMetrics24h(t: TFunction, metrics?: JSPluginMetrics24h) {
@@ -130,14 +111,6 @@ function formatMetrics24h(t: TFunction, metrics?: JSPluginMetrics24h) {
   })
 }
 
-type BuiltinKindFilter = 'all' | 'quota_probe' | 'protocol'
-
-const BUILTIN_COLUMN_SIZING = {
-  storageKey: 'xlyra:js-plugins:builtin-table-column-widths:v1',
-  defaultWidths: defaultTableColumnWidths([22, 28, 10, 14, 26]),
-  minimumWidths: [10, 12, 6, 8, 10],
-}
-
 const UPLOADED_COLUMN_SIZING = {
   storageKey: 'xlyra:js-plugins:uploaded-table-column-widths:v1',
   defaultWidths: defaultTableColumnWidths([18, 22, 12, 12, 16, 20]),
@@ -145,7 +118,7 @@ const UPLOADED_COLUMN_SIZING = {
 }
 
 export function JSPluginsSettingsWorkspace() {
-  const { t, i18n } = useTranslation(['settings', 'common'])
+  const { t } = useTranslation(['settings', 'common'])
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [managePlugin, setManagePlugin] = useState<JSPluginListItem | null>(null)
@@ -163,17 +136,11 @@ export function JSPluginsSettingsWorkspace() {
   const [trustedKeyAddOpen, setTrustedKeyAddOpen] = useState(false)
   const [trustedKeyName, setTrustedKeyName] = useState('')
   const [trustedKeyPublic, setTrustedKeyPublic] = useState('')
-  const [builtinSearch, setBuiltinSearch] = useState('')
-  const [builtinKindFilter, setBuiltinKindFilter] = useState<BuiltinKindFilter>('all')
   // Last trial run of each version, shown in its row until the dialog closes.
   const [trials, setTrials] = useState<Record<string, TrialState>>({})
   const [protocolSlug, setProtocolSlug] = useState('')
   const isMobile = useMobileLayout()
 
-  const builtinsQuery = useQuery({
-    queryKey: jsPluginQueryKeys.builtins(),
-    queryFn: ({ signal }) => listBuiltinJSPlugins(signal),
-  })
   const uploadedQuery = useQuery({
     queryKey: jsPluginQueryKeys.uploaded(),
     queryFn: ({ signal }) => listUploadedJSPlugins(signal),
@@ -420,7 +387,6 @@ export function JSPluginsSettingsWorkspace() {
   const trustedKeyCount = trustedKeysQuery.data?.length ?? 0
 
   const refresh = () => {
-    void builtinsQuery.refetch()
     void uploadedQuery.refetch()
     if (!uploadedUnavailable) {
       void trustedKeysQuery.refetch()
@@ -448,78 +414,6 @@ export function JSPluginsSettingsWorkspace() {
     setTrials({})
     siteBinding.reset()
   }
-
-  const filteredBuiltins = useMemo(() => {
-    const query = builtinSearch.trim().toLowerCase()
-    const items = [...(builtinsQuery.data ?? [])].sort((a, b) =>
-      builtinDisplayName(a).localeCompare(builtinDisplayName(b), i18n.language, { sensitivity: 'base' }),
-    )
-    return items.filter((plugin) => {
-      if (builtinKindFilter !== 'all' && plugin.kind !== builtinKindFilter) {
-        return false
-      }
-      if (!query) return true
-      const haystack = [
-        builtinDisplayName(plugin),
-        plugin.id,
-        plugin.kind,
-        plugin.replaces ?? '',
-        plugin.protocol ?? '',
-        plugin.description ?? '',
-      ]
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(query)
-    })
-  }, [builtinKindFilter, builtinSearch, builtinsQuery.data, i18n.language])
-
-  const builtinColumns = useMemo<ColumnDef<JSPluginBuiltin>[]>(
-    () => [
-      {
-        id: 'name',
-        header: t('settings:jsPlugins.columns.name'),
-        cell: ({ row }) => (
-          <div className="truncate font-medium text-foreground" title={builtinDisplayName(row.original)}>
-            {builtinDisplayName(row.original)}
-          </div>
-        ),
-        meta: { cellClassName: 'min-w-0' },
-      },
-      {
-        id: 'id',
-        header: t('settings:jsPlugins.columns.id'),
-        cell: ({ row }) => (
-          <div className="truncate font-mono text-xs text-muted-soft" title={row.original.id}>
-            {row.original.id}
-          </div>
-        ),
-        meta: { cellClassName: 'min-w-0' },
-      },
-      {
-        id: 'version',
-        header: t('settings:jsPlugins.columns.version'),
-        cell: ({ row }) => <span className="text-sm tabular-nums">{row.original.version}</span>,
-        meta: { align: 'center' },
-      },
-      {
-        id: 'kind',
-        header: t('settings:jsPlugins.columns.kind'),
-        cell: ({ row }) => <span className="text-sm">{kindLabel(t, row.original.kind)}</span>,
-        meta: { align: 'center' },
-      },
-      {
-        id: 'role',
-        header: t('settings:jsPlugins.columns.role'),
-        cell: ({ row }) => (
-          <div className="truncate text-sm text-muted-soft" title={builtinDetail(row.original, t)}>
-            {builtinDetail(row.original, t)}
-          </div>
-        ),
-        meta: { cellClassName: 'min-w-0' },
-      },
-    ],
-    [t],
-  )
 
   const disablePlugin = disableMutation.mutate
 
@@ -622,82 +516,13 @@ export function JSPluginsSettingsWorkspace() {
             <RefreshCw
               className={cn(
                 'mr-2 h-4 w-4',
-                (builtinsQuery.isFetching || uploadedQuery.isFetching || trustedKeysQuery.isFetching) && 'animate-spin',
+                (uploadedQuery.isFetching || trustedKeysQuery.isFetching) && 'animate-spin',
               )}
             />
             {t('common:actions.refresh')}
           </Button>
         }
       />
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Package className="h-4 w-4 text-muted-soft" />
-          <h3 className="text-sm font-semibold text-foreground">{t('settings:jsPlugins.builtinsTitle')}</h3>
-        </div>
-        <p className="text-sm text-muted-soft">{t('settings:jsPlugins.builtinsHint')}</p>
-        <TableToolbar
-          searchValue={builtinSearch}
-          onSearchChange={(event) => setBuiltinSearch(event.target.value)}
-          searchPlaceholder={t('settings:jsPlugins.builtinSearchPlaceholder')}
-          searchClassName="flex-none md:w-52"
-          filtersClassName="flex min-w-0 flex-1 flex-wrap items-center gap-3 md:flex md:auto-cols-auto"
-          filters={(
-            <Select
-              value={builtinKindFilter}
-              onValueChange={(value) => setBuiltinKindFilter(value as BuiltinKindFilter)}
-            >
-              <SelectTrigger
-                variant="filter"
-                filterLabel={t('settings:jsPlugins.builtinKindFilter.label')}
-                active={builtinKindFilter !== 'all'}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent searchable={false} widthMode="content">
-                <SelectItem value="all">{t('settings:jsPlugins.builtinKindFilter.all')}</SelectItem>
-                <SelectItem value="quota_probe">{t('settings:jsPlugins.kind.quotaProbe')}</SelectItem>
-                <SelectItem value="protocol">{t('settings:jsPlugins.kind.protocol')}</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-        />
-        {isMobile && !builtinsQuery.isError && filteredBuiltins.length > 0 ? (
-          <MobileCardList>
-            {filteredBuiltins.map((plugin) => (
-              <MobileBuiltinCard
-                key={plugin.id}
-                name={builtinDisplayName(plugin)}
-                id={plugin.id}
-                version={plugin.version}
-                kind={kindLabel(t, plugin.kind)}
-                detail={builtinDetail(plugin, t)}
-                labels={{ version: t('settings:jsPlugins.columns.version'), kind: t('settings:jsPlugins.columns.kind') }}
-              />
-            ))}
-          </MobileCardList>
-        ) : (
-          <DataTable
-            columnSizing={BUILTIN_COLUMN_SIZING}
-            columns={builtinColumns}
-            data={builtinsQuery.isError ? [] : filteredBuiltins}
-            getRowId={(plugin) => plugin.id}
-            emptyState={
-              <EmptyState
-                title={
-                  builtinsQuery.isLoading
-                    ? t('settings:jsPlugins.loading')
-                    : builtinsQuery.isError
-                      ? t('settings:jsPlugins.loadFailed')
-                      : t('settings:jsPlugins.builtinFilterEmpty')
-                }
-                description={t('settings:jsPlugins.builtinFilterEmptyHint')}
-              />
-            }
-            hideHeaderWhenEmpty
-          />
-        )}
-      </section>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">

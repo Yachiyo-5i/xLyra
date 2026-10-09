@@ -692,16 +692,7 @@
   "jsPlugins": {
     "eyebrow": "設定",
     "title": "開発者",
-    "description": "サンドボックス内の JavaScript フックでゲートウェイを拡張します。組み込みは xLyra 同梱。.xlp をアップロードし、ここで有効化するとランタイムに参加します。",
-    "builtinsTitle": "組み込みプラグイン",
-    "builtinsHint": "参照のみ。このリリースの参考実装で、読み込み成功後は自動で動作します。",
-    "builtinSearchPlaceholder": "名前・ID・役割で検索…",
-    "builtinKindFilter": {
-      "label": "種別",
-      "all": "すべての種別"
-    },
-    "builtinFilterEmpty": "現在の条件に一致する組み込みプラグインはありません。",
-    "builtinFilterEmptyHint": "別のキーワードを試すか、種別フィルターを解除してください。",
+    "description": "サンドボックス内の JavaScript フックでゲートウェイを拡張します。.xlp をアップロードし、ここで有効化するとランタイムに参加します。",
     "emptyUploadedHint": ".xlp パッケージをアップロードしてプラグインをインストールします。",
     "uploadedTitle": "アップロード済み",
     "uploadedHint": ".xlp のアップロード、本番用バージョンの有効化、未使用バージョンのアンインストール。能力は manifest の kind / apiVersion に従います。",
@@ -736,8 +727,6 @@
     "deleteConfirmBody": "{{id}} の {{version}} を削除します。有効中の場合は先に無効化してください。",
     "selftestOk": "OK",
     "selftestFailed": "失敗",
-    "builtinReplaces": "クォータ: {{type}}",
-    "builtinProtocol": "プロトコル: {{name}}",
     "kind": {
       "quotaProbe": "クォータプローブ",
       "protocol": "プロトコル",
@@ -823,7 +812,6 @@
       "id": "プラグイン ID",
       "version": "バージョン",
       "kind": "種別",
-      "role": "役割",
       "enabledVersion": "有効",
       "versions": "バージョン数",
       "status": "状態",

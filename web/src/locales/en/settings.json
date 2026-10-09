@@ -692,16 +692,7 @@
   "jsPlugins": {
     "eyebrow": "Settings",
     "title": "Developer",
-    "description": "Sandboxed JavaScript hooks extend the gateway. Built-ins ship with xLyra; upload a .xlp package and enable a version here to join the runtime.",
-    "builtinsTitle": "Built-in plugins",
-    "builtinsHint": "Read-only reference implementations for this release. They run automatically when loaded.",
-    "builtinSearchPlaceholder": "Search by name, ID, or role…",
-    "builtinKindFilter": {
-      "label": "Kind",
-      "all": "All kinds"
-    },
-    "builtinFilterEmpty": "No built-in plugins match the current filters.",
-    "builtinFilterEmptyHint": "Try a different keyword or clear the kind filter.",
+    "description": "Sandboxed JavaScript hooks extend the gateway. Upload a .xlp package and enable a version here to join the runtime.",
     "emptyUploadedHint": "Upload a .xlp package to install a plugin.",
     "uploadedTitle": "Uploaded plugins",
     "uploadedHint": "Upload .xlp, enable one version for production, or uninstall inactive versions. Capabilities follow the package manifest (kind, apiVersion).",
@@ -736,8 +727,6 @@
     "deleteConfirmBody": "Remove {{id}} version {{version}}. Disable the plugin first if this version is enabled.",
     "selftestOk": "OK",
     "selftestFailed": "Failed",
-    "builtinReplaces": "Quota probe: {{type}}",
-    "builtinProtocol": "Protocol: {{name}}",
     "kind": {
       "quotaProbe": "Quota probe",
       "protocol": "Protocol",
@@ -823,7 +812,6 @@
       "id": "Plugin ID",
       "version": "Version",
       "kind": "Kind",
-      "role": "Role",
       "enabledVersion": "Enabled",
       "versions": "Versions",
       "status": "Status",

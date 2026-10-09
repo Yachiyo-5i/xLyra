@@ -35,31 +35,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-type MobileBuiltinCardProps = {
-  name: string
-  id: string
-  version: string
-  kind: string
-  detail: string
-  labels: { version: string; kind: string }
-}
-
-export function MobileBuiltinCard({ name, id, version, kind, detail, labels }: MobileBuiltinCardProps) {
-  return (
-    <article className={CARD_CLASS}>
-      <h3 className="break-words text-base font-semibold text-foreground">{name}</h3>
-      <div className="mt-0.5 break-all font-mono text-xs text-muted-soft">{id}</div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <Field label={labels.kind}>{kind}</Field>
-        <Field label={labels.version}>
-          <span className="tabular-nums">{version}</span>
-        </Field>
-      </div>
-      {detail ? <p className="mt-3 break-words text-sm text-muted-soft">{detail}</p> : null}
-    </article>
-  )
-}
-
 type MobileUploadedCardProps = {
   name: string
   id: string

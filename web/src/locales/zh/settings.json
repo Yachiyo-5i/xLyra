@@ -692,16 +692,7 @@
   "jsPlugins": {
     "eyebrow": "设置",
     "title": "开发者",
-    "description": "在服务端沙箱中运行 JavaScript 钩子，扩展网关能力。内置插件随 xLyra 发布；上传 .xlp 并在本页启用后进入运行时。",
-    "builtinsTitle": "内置插件",
-    "builtinsHint": "只读。当前版本自带的参考实现，加载成功后自动生效。",
-    "builtinSearchPlaceholder": "按名称、ID 或角色搜索…",
-    "builtinKindFilter": {
-      "label": "类型",
-      "all": "全部类型"
-    },
-    "builtinFilterEmpty": "没有符合当前筛选条件的内置插件。",
-    "builtinFilterEmptyHint": "换个关键词，或清除类型筛选。",
+    "description": "在服务端沙箱中运行 JavaScript 钩子，扩展网关能力。上传 .xlp 并在本页启用后进入运行时。",
     "emptyUploadedHint": "上传 .xlp 插件包即可安装插件。",
     "uploadedTitle": "已上传插件",
     "uploadedHint": "上传 .xlp、启用某一版本参与运行，或卸载未启用的版本。具体能力以包内 manifest 的 kind 与 apiVersion 为准。",
@@ -736,8 +727,6 @@
     "deleteConfirmBody": "将删除 {{id}} 的 {{version}}。若该版本已启用，请先停用。",
     "selftestOk": "通过",
     "selftestFailed": "失败",
-    "builtinReplaces": "额度探测：{{type}}",
-    "builtinProtocol": "协议：{{name}}",
     "kind": {
       "quotaProbe": "额度探测",
       "protocol": "协议",
@@ -823,7 +812,6 @@
       "id": "插件 ID",
       "version": "版本",
       "kind": "类型",
-      "role": "作用",
       "enabledVersion": "已启用",
       "versions": "版本数",
       "status": "状态",

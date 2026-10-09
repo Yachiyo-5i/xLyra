@@ -20,19 +20,6 @@ import (
 	"xlyra/server/internal/store"
 )
 
-func (h Handler) ListBuiltinJSPlugins(w http.ResponseWriter, r *http.Request) {
-	registry, err := jsplugin.LoadBuiltins()
-	if err != nil {
-		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_builtins_failed", err.Error())
-		return
-	}
-	items := make([]map[string]any, 0, len(registry.Plugins()))
-	for _, plugin := range registry.Plugins() {
-		items = append(items, jsPluginBuiltinPayload(plugin))
-	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
-}
-
 func (h Handler) ListJSPlugins(w http.ResponseWriter, r *http.Request) {
 	if h.jsPlugins == nil || h.trafficDB == nil {
 		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
@@ -339,32 +326,6 @@ func jsPluginManifestSummary(raw store.JSON) map[string]any {
 		return nil
 	}
 	return out
-}
-
-func jsPluginBuiltinPayload(plugin *jsplugin.Plugin) map[string]any {
-	if plugin == nil {
-		return map[string]any{}
-	}
-	manifest := plugin.Manifest
-	payload := map[string]any{
-		"id":          manifest.ID,
-		"name":        manifest.Name,
-		"description": manifest.Description,
-		"version":     manifest.Version,
-		"kind":        manifest.Kind,
-		"source":      "builtin",
-	}
-	switch manifest.Kind {
-	case jsplugin.KindQuotaProbe:
-		if replaces := plugin.ProbeType(); replaces != "" {
-			payload["replaces"] = replaces
-		}
-	case jsplugin.KindProtocol:
-		if name := plugin.ProtocolName(); name != "" {
-			payload["protocol"] = name
-		}
-	}
-	return payload
 }
 
 func jsPluginVersionPayload(row store.JSPluginVersion) map[string]any {

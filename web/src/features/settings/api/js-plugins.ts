@@ -18,17 +18,6 @@ export type JSPluginMetrics24h = {
   window_ends?: string
 }
 
-export type JSPluginBuiltin = {
-  id: string
-  name: string
-  description?: string
-  version: string
-  kind: JSPluginKind
-  source: 'builtin'
-  replaces?: string
-  protocol?: string
-}
-
 export type JSPluginListItem = {
   id: string
   source: string
@@ -80,15 +69,9 @@ export const JS_PLUGIN_MAX_PACKAGE_BYTES = 2 << 20
 
 export const jsPluginQueryKeys = {
   all: ['settings', 'js-plugins'] as const,
-  builtins: () => [...jsPluginQueryKeys.all, 'builtins'] as const,
   uploaded: () => [...jsPluginQueryKeys.all, 'uploaded'] as const,
   detail: (id: string) => [...jsPluginQueryKeys.all, 'detail', id] as const,
   trustedKeys: () => [...jsPluginQueryKeys.all, 'trusted-keys'] as const,
-}
-
-export async function listBuiltinJSPlugins(signal?: AbortSignal) {
-  const result = await apiFetch<{ items: JSPluginBuiltin[] }>('/api/v1/js-plugins/builtins', { signal })
-  return result.items ?? []
 }
 
 export async function listUploadedJSPlugins(signal?: AbortSignal) {
