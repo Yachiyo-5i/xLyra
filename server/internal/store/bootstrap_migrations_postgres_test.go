@@ -357,3 +357,44 @@ func TestSchemaWorkStoreSurvivesTableChangesFromAnotherConnection(t *testing.T) 
 		t.Fatalf("schema work store failed after a table change: %v", err)
 	}
 }
+
+// Uninstalling the last version must not leave an empty plugin behind, while
+// uninstalling one of several versions keeps the plugin.
+func TestJSPluginDeleteVersionRemovesEmptyPlugin(t *testing.T) {
+	db, cfg, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
+		t.Fatalf("initialize schema migrations: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO js_plugins (id, source) VALUES ('acme-models', 'uploaded')`,
+		`INSERT INTO js_plugin_versions (plugin_id, version, manifest, package, package_sha256, status, selftest)
+		 VALUES ('acme-models', '1.0.0', '{}', '\x00', 'a', 'disabled', '{}'),
+		        ('acme-models', '1.0.1', '{}', '\x00', 'b', 'disabled', '{}')`,
+	} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("seed plugin: %v", err)
+		}
+	}
+	repo := NewJSPluginRepository(db)
+	pluginCount := func() int64 {
+		var n int64
+		if err := db.Raw(`SELECT count(*) FROM js_plugins WHERE id = 'acme-models'`).Scan(&n).Error; err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if err := repo.DeleteVersion(ctx, "acme-models", "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if pluginCount() != 1 {
+		t.Fatal("the plugin was removed while a version was still installed")
+	}
+	if err := repo.DeleteVersion(ctx, "acme-models", "1.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if pluginCount() != 0 {
+		t.Fatal("an empty plugin was left behind after the last version was uninstalled")
+	}
+}

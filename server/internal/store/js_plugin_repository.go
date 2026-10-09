@@ -136,17 +136,29 @@ func (r JSPluginRepository) DisableOtherVersions(ctx context.Context, pluginID, 
 		Update("status", JSPluginStatusDisabled).Error
 }
 
+// DeleteVersion removes one version that is not enabled. When it was the last
+// version, the plugin record goes too; otherwise an empty plugin would stay in
+// the list with nothing left to uninstall.
 func (r JSPluginRepository) DeleteVersion(ctx context.Context, pluginID, version string) error {
-	result := r.db.WithContext(ctx).
-		Where("plugin_id = ? AND version = ? AND status <> ?", pluginID, version, JSPluginStatusEnabled).
-		Delete(&JSPluginVersion{})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.
+			Where("plugin_id = ? AND version = ? AND status <> ?", pluginID, version, JSPluginStatusEnabled).
+			Delete(&JSPluginVersion{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		var remaining int64
+		if err := tx.Model(&JSPluginVersion{}).Where("plugin_id = ?", pluginID).Count(&remaining).Error; err != nil {
+			return err
+		}
+		if remaining == 0 {
+			return tx.Where("id = ?", pluginID).Delete(&JSPlugin{}).Error
+		}
+		return nil
+	})
 }
 
 func (r JSPluginRepository) UpsertBinding(ctx context.Context, binding JSPluginBinding) error {
