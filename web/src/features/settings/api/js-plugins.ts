@@ -71,7 +71,8 @@ export type JSPluginTryResult = {
   plugin_id: string
   version: string
   ok: boolean
-  duration_ms?: number
+  /** Microseconds; a fixture run is usually well under a millisecond. */
+  duration_us?: number
   error?: string
 }
 

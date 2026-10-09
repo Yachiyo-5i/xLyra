@@ -327,7 +327,8 @@ func (m *Manager) TryVersion(ctx context.Context, pluginID, version string) (map
 		"plugin_id": pluginID,
 		"version":   version,
 		"ok":        err == nil,
-		"duration_ms": time.Since(started).Milliseconds(),
+		// A fixture run takes well under a millisecond, so report microseconds.
+		"duration_us": time.Since(started).Microseconds(),
 	}
 	if err != nil {
 		out["error"] = err.Error()

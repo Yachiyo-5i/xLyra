@@ -491,6 +491,37 @@ func (h Handler) UnbindJSPluginSite(w http.ResponseWriter, r *http.Request) {
 	}
 	kind := strings.TrimSpace(body.Kind)
 	meta := map[string]any{"kind": kind, "site_id": siteUUID.String()}
+	site, err := h.sites.Get(r.Context(), siteUUID)
+	if err != nil {
+		h.writeError(w, r, http.StatusNotFound, "not_found", "site was not found")
+		return
+	}
+	// A plugin may only remove its own binding; otherwise unbinding plugin A
+	// from a site would silently remove plugin B's.
+	cfg := sitepkg.GatewayConfigFromSiteMeta(site.Meta)
+	if kind == jsplugin.KindQuotaProbe {
+		if sitepkg.QuotaProbeTypeFromConfig(cfg) != sitepkg.QuotaProbePluginPrefix+pluginID {
+			h.writeError(w, r, http.StatusConflict, "js_plugin_not_bound", "this site is not bound to this plugin")
+			return
+		}
+		if err := h.jsPlugins.SyncSiteQuotaProbeFromConfig(r.Context(), siteUUID.String(), ""); err != nil {
+			h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "js_plugin_unbind_site_failed", meta)
+			h.writeError(w, r, http.StatusBadRequest, "js_plugin_unbind_site_failed", err.Error())
+			return
+		}
+		if _, err := h.sites.PatchGatewayQuotaProbe(r.Context(), siteUUID, ""); err != nil {
+			h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "site_plugin_patch_failed", meta)
+			h.writeError(w, r, http.StatusBadRequest, "site_plugin_patch_failed", err.Error())
+			return
+		}
+		h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, true, "", meta)
+		httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+		return
+	}
+	if sitepkg.SitePluginID(cfg, kind) != pluginID {
+		h.writeError(w, r, http.StatusConflict, "js_plugin_not_bound", "this site is not bound to this plugin")
+		return
+	}
 	if err := h.jsPlugins.UnbindSitePlugin(r.Context(), kind, siteUUID.String()); err != nil {
 		h.recordJSPluginAudit(r, "js_plugin.unbind_site", pluginID, false, "js_plugin_unbind_site_failed", meta)
 		h.writeError(w, r, http.StatusBadRequest, "js_plugin_unbind_site_failed", err.Error())

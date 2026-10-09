@@ -8,9 +8,11 @@ import { DataTable } from '@/components/common/data-table'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
+import { JSPluginSiteBinding } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
 import {
   MobileBuiltinCard,
   MobileCardList,
+  MobileRowList,
   MobileUploadedCard,
   MobileVersionCard,
 } from '@/features/settings/components/js-plugins/js-plugins-mobile'
@@ -33,12 +35,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   bindJSPluginProtocolSlug,
-  bindJSPluginSite,
-  bindJSPluginSiteQuotaProbe,
   GLOBAL_KINDS,
-  previewJSPluginPricing,
   SITE_BOUND_KINDS,
-  unbindJSPluginSite,
   createJSPluginTrustedKey,
   deleteJSPluginTrustedKey,
   deleteJSPluginVersion,
@@ -56,7 +54,6 @@ import {
   type JSPluginListItem,
   type JSPluginMetrics24h,
   type JSPluginTrust,
-  type JSPluginTryResult,
   type JSPluginTrustedKey,
   type JSPluginVersion,
 } from '@/features/settings/api/js-plugins'
@@ -167,12 +164,10 @@ export function JSPluginsSettingsWorkspace() {
   const [trustedKeyPublic, setTrustedKeyPublic] = useState('')
   const [builtinSearch, setBuiltinSearch] = useState('')
   const [builtinKindFilter, setBuiltinKindFilter] = useState<BuiltinKindFilter>('all')
-  const [tryResult, setTryResult] = useState<JSPluginTryResult | null>(null)
+  // Last trial run of each version, shown in its row until the dialog closes.
+  const [trials, setTrials] = useState<Record<string, TrialState>>({})
   const [protocolSlug, setProtocolSlug] = useState('')
   const isMobile = useMobileLayout()
-  const [bindSiteId, setBindSiteId] = useState('')
-  const [pricingPreview, setPricingPreview] = useState<{ items: number; groups: number } | null>(null)
-  const [pricingReviewed, setPricingReviewed] = useState(false)
 
   const builtinsQuery = useQuery({
     queryKey: jsPluginQueryKeys.builtins(),
@@ -342,16 +337,20 @@ export function JSPluginsSettingsWorkspace() {
 
   const tryMutation = useMutation({
     mutationFn: ({ pluginId, version }: { pluginId: string; version: string }) => tryJSPlugin(pluginId, version),
-    onSuccess: (result) => {
-      setTryResult(result)
-      if (result.ok) {
-        toast.success(t('settings:jsPlugins.trySuccess'))
-      } else {
-        toast.error(result.error || t('settings:jsPlugins.tryFailed'))
-      }
+    onSuccess: (result, { pluginId, version }) => {
+      setTrials((current) => ({
+        ...current,
+        [trialKey(pluginId, version)]: { ok: result.ok, durationUs: result.duration_us, error: result.error },
+      }))
     },
-    onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.tryFailed'))
+    onError: (error: unknown, { pluginId, version }) => {
+      setTrials((current) => ({
+        ...current,
+        [trialKey(pluginId, version)]: {
+          ok: false,
+          error: error instanceof APIError ? error.message : t('settings:jsPlugins.tryFailed'),
+        },
+      }))
     },
   })
 
@@ -367,64 +366,13 @@ export function JSPluginsSettingsWorkspace() {
     },
   })
 
-  const bindQuotaMutation = useMutation({
-    mutationFn: ({ pluginId, version, siteId }: { pluginId: string; version: string; siteId: string }) =>
-      bindJSPluginSiteQuotaProbe(pluginId, version, siteId),
-    onSuccess: () => {
-      toast.success(t('settings:jsPlugins.bindQuotaSuccess'))
-    },
-    onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.bindQuotaFailed'))
-    },
-  })
-
-  const bindSiteMutation = useMutation({
-    mutationFn: ({ pluginId, version, siteId, reviewed }: { pluginId: string; version: string; siteId: string; reviewed: boolean }) =>
-      bindJSPluginSite(pluginId, version, siteId, { confirmPricingReviewed: reviewed }),
-    onSuccess: () => {
-      toast.success(t('settings:jsPlugins.bindSiteSuccess'))
-      void queryClient.invalidateQueries({ queryKey: sitesQueryKeys.all })
-    },
-    onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.bindSiteFailed'))
-    },
-  })
-
-  const unbindSiteMutation = useMutation({
-    mutationFn: ({ pluginId, siteId, kind }: { pluginId: string; siteId: string; kind: string }) =>
-      unbindJSPluginSite(pluginId, siteId, kind),
-    onSuccess: () => {
-      toast.success(t('settings:jsPlugins.unbindSiteSuccess'))
-      void queryClient.invalidateQueries({ queryKey: sitesQueryKeys.all })
-    },
-    onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.bindSiteFailed'))
-    },
-  })
-
-  const previewPricingMutation = useMutation({
-    mutationFn: ({ pluginId, siteId }: { pluginId: string; siteId: string }) => previewJSPluginPricing(pluginId, siteId),
-    onSuccess: (preview) => {
-      setPricingPreview({ items: preview.items?.length ?? 0, groups: preview.groups?.length ?? 0 })
-      setPricingReviewed(false)
-    },
-    onError: (error: unknown) => {
-      setPricingPreview(null)
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.previewPricingFailed'))
-    },
-  })
-
   const busy =
-    bindSiteMutation.isPending ||
-    unbindSiteMutation.isPending ||
-    previewPricingMutation.isPending ||
     uploadMutation.isPending ||
     enableMutation.isPending ||
     disableMutation.isPending ||
     deleteMutation.isPending ||
     tryMutation.isPending ||
     bindProtocolMutation.isPending ||
-    bindQuotaMutation.isPending ||
     addTrustedKeyMutation.isPending ||
     deleteTrustedKeyMutation.isPending
 
@@ -478,7 +426,6 @@ export function JSPluginsSettingsWorkspace() {
   const openManage = useCallback((plugin: JSPluginListItem) => {
     setManagePlugin(plugin)
     setProtocolSlug('')
-    setBindSiteId('')
   }, [])
 
   const enabledVersionRow = (detailQuery.data?.versions ?? []).find((row) => row.status === 'enabled')
@@ -823,11 +770,11 @@ export function JSPluginsSettingsWorkspace() {
           if (!open) {
             setManagePlugin(null)
             setProtocolSlug('')
-            setBindSiteId('')
+            setTrials({})
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{managePlugin?.name || t('settings:jsPlugins.versionsDialogTitle')}</DialogTitle>
             <DialogDescription className="space-y-1">
@@ -853,12 +800,13 @@ export function JSPluginsSettingsWorkspace() {
             ) : (
               <>
                 {isMobile ? (
-                  <MobileCardList>
+                  <MobileRowList>
                     {(detailQuery.data?.versions ?? []).map((row) => (
                       <VersionCard
                         key={row.version}
                         row={row}
                         busy={busy}
+                        trial={trials[trialKey(row.plugin_id, row.version)]}
                         tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
                         onEnable={() => requestEnable(row)}
                         onTry={() => tryMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
@@ -866,7 +814,7 @@ export function JSPluginsSettingsWorkspace() {
                         t={t}
                       />
                     ))}
-                  </MobileCardList>
+                  </MobileRowList>
                 ) : (
                   <table className="w-full min-w-full border-collapse text-left text-sm">
                     <thead>
@@ -884,7 +832,8 @@ export function JSPluginsSettingsWorkspace() {
                           key={row.version}
                           row={row}
                           busy={busy}
-                          tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
+                          trial={trials[trialKey(row.plugin_id, row.version)]}
+                        tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
                           onEnable={() => requestEnable(row)}
                           onTry={() => tryMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
                           onDelete={() => setDeleteTarget({ pluginId: row.plugin_id, version: row.version })}
@@ -896,7 +845,7 @@ export function JSPluginsSettingsWorkspace() {
                 )}
 
                 {enabledVersionRow && managePlugin?.kind === 'protocol' ? (
-                  <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
+                  <section className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-4">
                     <FormField
                       label={t('settings:jsPlugins.bindProtocolTitle')}
                       description={t('settings:jsPlugins.bindProtocolHint')}
@@ -924,135 +873,23 @@ export function JSPluginsSettingsWorkspace() {
                         </Button>
                       </div>
                     </FormField>
-                  </div>
+                  </section>
                 ) : null}
 
-                {enabledVersionRow && managePlugin?.kind === 'quota_probe' ? (
-                  <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
-                    <FormField
-                      label={t('settings:jsPlugins.bindQuotaTitle')}
-                      description={t('settings:jsPlugins.bindQuotaHint')}
-                    >
-                      <div className="flex flex-wrap items-end gap-2">
-                        <FormField label={t('settings:jsPlugins.bindQuotaSite')} className="min-w-[220px] flex-1">
-                          <Select value={bindSiteId} onValueChange={setBindSiteId}>
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('settings:jsPlugins.bindQuotaSitePlaceholder')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(sitesQuery.data ?? []).map((site) => (
-                                <SelectItem key={site.id} value={site.id}>
-                                  {site.name} ({site.slug})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormField>
-                        <Button
-                        type="button"
-                        size="sm"
-                        disabled={busy || !bindSiteId}
-                        onClick={() =>
-                          bindQuotaMutation.mutate({
-                            pluginId: managePlugin.id,
-                            version: enabledVersionRow.version,
-                            siteId: bindSiteId,
-                          })
-                        }
-                      >
-                          {t('settings:jsPlugins.bindQuota')}
-                        </Button>
-                      </div>
-                    </FormField>
-                  </div>
-                ) : null}
-
-                {enabledVersionRow && managePlugin && (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? '') ? (
-                  <div className="rounded-lg border border-[hsl(var(--glass-border))] p-4 space-y-3">
-                    <FormField
-                      label={t('settings:jsPlugins.bindSiteTitle')}
-                      description={t(`settings:jsPlugins.bindSiteHint.${managePlugin.kind}`)}
-                    >
-                      <div className="flex flex-wrap items-end gap-2">
-                        <FormField label={t('settings:jsPlugins.bindQuotaSite')} className="min-w-[220px] flex-1">
-                          <Select
-                            value={bindSiteId}
-                            onValueChange={(value) => {
-                              setBindSiteId(value)
-                              setPricingPreview(null)
-                              setPricingReviewed(false)
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('settings:jsPlugins.bindQuotaSitePlaceholder')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(sitesQuery.data ?? []).map((site) => (
-                                <SelectItem key={site.id} value={site.id}>
-                                  {site.name} ({site.slug})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormField>
-                        {managePlugin.kind === 'pricing_parse' ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={busy || !bindSiteId}
-                            onClick={() => previewPricingMutation.mutate({ pluginId: managePlugin.id, siteId: bindSiteId })}
-                          >
-                            {t('settings:jsPlugins.previewPricing')}
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={busy || !bindSiteId || (managePlugin.kind === 'pricing_parse' && !(pricingPreview && pricingReviewed))}
-                          onClick={() =>
-                            bindSiteMutation.mutate({
-                              pluginId: managePlugin.id,
-                              version: enabledVersionRow.version,
-                              siteId: bindSiteId,
-                              reviewed: pricingReviewed,
-                            })
-                          }
-                        >
-                          {t('settings:jsPlugins.bindSite')}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={busy || !bindSiteId}
-                          onClick={() =>
-                            unbindSiteMutation.mutate({ pluginId: managePlugin.id, siteId: bindSiteId, kind: managePlugin.kind ?? '' })
-                          }
-                        >
-                          {t('settings:jsPlugins.unbindSite')}
-                        </Button>
-                      </div>
-                    </FormField>
-                    {managePlugin.kind === 'pricing_parse' && pricingPreview ? (
-                      <div className="space-y-2 text-sm">
-                        <p>{t('settings:jsPlugins.pricingPreviewSummary', pricingPreview)}</p>
-                        <label className="flex items-start gap-2">
-                          <input
-                            type="checkbox"
-                            className="mt-1"
-                            checked={pricingReviewed}
-                            onChange={(event) => setPricingReviewed(event.target.checked)}
-                          />
-                          <span>{t('settings:jsPlugins.pricingReviewConfirm')}</span>
-                        </label>
-                      </div>
-                    ) : null}
-                  </div>
+                {enabledVersionRow &&
+                managePlugin &&
+                (managePlugin.kind === 'quota_probe' || (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? '')) ? (
+                  <JSPluginSiteBinding
+                    pluginId={managePlugin.id}
+                    version={enabledVersionRow.version}
+                    kind={managePlugin.kind ?? ''}
+                    sites={sitesQuery.data ?? []}
+                    loading={sitesQuery.isLoading}
+                  />
                 ) : null}
 
                 {enabledVersionRow && managePlugin && (GLOBAL_KINDS as readonly string[]).includes(managePlugin.kind ?? '') ? (
-                  <p className="rounded-lg border border-[hsl(var(--glass-border))] p-4 text-sm text-muted-foreground">
+                  <p className="border-t border-[hsl(var(--glass-divider))] pt-4 text-sm text-muted-soft">
                     {t(`settings:jsPlugins.globalKindHint.${managePlugin.kind}`)}
                   </p>
                 ) : null}
@@ -1074,7 +911,7 @@ export function JSPluginsSettingsWorkspace() {
           if (!open) setTrustedKeyAddOpen(false)
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>{t('settings:jsPlugins.trustedKeysDialogTitle')}</DialogTitle>
             <DialogDescription>{t('settings:jsPlugins.trustedKeysHint')}</DialogDescription>
@@ -1088,11 +925,11 @@ export function JSPluginsSettingsWorkspace() {
             ) : (trustedKeysQuery.data ?? []).length === 0 ? (
               <p className="text-sm text-muted-soft">{t('settings:jsPlugins.trustedKeysEmpty')}</p>
             ) : (
-              <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
+              <ul className="divide-y divide-[hsl(var(--glass-divider))] text-sm">
                 {(trustedKeysQuery.data ?? []).map((key: JSPluginTrustedKey) => (
                   <li
                     key={key.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[hsl(var(--glass-border))]/60 px-3 py-2"
+                    className="flex flex-wrap items-center justify-between gap-2 py-3"
                   >
                     <div className="min-w-0">
                       <div className="font-medium">{key.name}</div>
@@ -1340,46 +1177,49 @@ export function JSPluginsSettingsWorkspace() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={tryResult != null} onOpenChange={(open) => !open && setTryResult(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('settings:jsPlugins.tryDialogTitle')}</DialogTitle>
-            <DialogDescription className="font-mono text-xs">
-              {tryResult?.plugin_id}@{tryResult?.version}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody className="space-y-2 text-sm">
-            <p>
-              {tryResult?.ok ? (
-                <StatusBadge status="success">{t('settings:jsPlugins.tryOk')}</StatusBadge>
-              ) : (
-                <StatusBadge status="error">{t('settings:jsPlugins.tryFailed')}</StatusBadge>
-              )}
-            </p>
-            {tryResult?.duration_ms != null ? (
-              <p className="text-muted-soft">{t('settings:jsPlugins.tryDuration', { ms: tryResult.duration_ms })}</p>
-            ) : null}
-            {tryResult?.error ? <p className="text-destructive text-xs whitespace-pre-wrap">{tryResult.error}</p> : null}
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setTryResult(null)}>
-              {t('common:actions.close')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
 
 type VersionRowProps = {
   row: JSPluginVersion
+  trial?: TrialState
   busy: boolean
   tryPending: boolean
   onEnable: () => void
   onTry: () => void
   onDelete: () => void
   t: TFunction
+}
+
+type TrialState = { ok: boolean; durationUs?: number; error?: string }
+
+function trialKey(pluginId: string, version: string) {
+  return `${pluginId}@${version}`
+}
+
+// A fixture run takes well under a millisecond, so milliseconds alone would
+// always read 0. Show microseconds up to 1 ms, then milliseconds to the microsecond.
+function formatDurationUs(us: number) {
+  if (us < 1000) return `${us} µs`
+  if (us < 1_000_000) return `${(us / 1000).toFixed(3)} ms`
+  return `${(us / 1_000_000).toFixed(3)} s`
+}
+
+function TrialStatus({ trial, t }: { trial: TrialState; t: TFunction }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge status={trial.ok ? 'success' : 'error'}>
+          {trial.ok ? t('settings:jsPlugins.trialPassed') : t('settings:jsPlugins.trialFailed')}
+        </StatusBadge>
+        {trial.durationUs != null ? (
+          <span className="font-mono tabular-nums text-muted-soft">{formatDurationUs(trial.durationUs)}</span>
+        ) : null}
+      </div>
+      {trial.error ? <p className="whitespace-pre-wrap break-words text-destructive">{trial.error}</p> : null}
+    </div>
+  )
 }
 
 function versionTrustBadge(row: JSPluginVersion, t: TFunction) {
@@ -1440,6 +1280,11 @@ function VersionRow(props: VersionRowProps) {
       </td>
       <td className="max-w-[180px] px-3 py-2 text-xs text-muted-soft" title={row.selftest?.error ?? undefined}>
         <span className="line-clamp-2">{selftestSummary(row, t)}</span>
+        {props.trial ? (
+          <div className="mt-2">
+            <TrialStatus trial={props.trial} t={t} />
+          </div>
+        ) : null}
       </td>
       <td className="px-3 py-2 text-right">
         <div className="flex flex-wrap justify-end gap-2">
@@ -1464,9 +1309,11 @@ function VersionCard(props: VersionRowProps) {
       trust={versionTrustBadge(row, t)}
       sha={shortSha256(row.package_sha256)}
       selftest={selftestSummary(row, t)}
+      trial={props.trial ? <TrialStatus trial={props.trial} t={t} /> : undefined}
       labels={{
         package: t('settings:jsPlugins.columns.package'),
         selftest: t('settings:jsPlugins.columns.selftest'),
+        trial: t('settings:jsPlugins.columns.trial'),
       }}
       actions={<VersionActions {...props} />}
     />

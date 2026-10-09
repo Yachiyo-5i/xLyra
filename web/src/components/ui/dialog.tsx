@@ -20,10 +20,16 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+// Every size is capped by the visible viewport height (dvh follows the mobile
+// browser's collapsing toolbars). The sizes other than `default` are flex
+// columns, so the header and footer stay put and DialogBody scrolls. `default`
+// is a plain grid that other dialogs rely on to overflow, so it only gets a
+// cap on small screens, where a tall dialog would otherwise run off the page.
 const dialogSizeClassName = {
-  default: 'grid w-[min(92vw,720px)] overflow-visible',
+  default: 'grid w-[min(92vw,720px)] overflow-visible max-md:max-h-[calc(100dvh-1.5rem)] max-md:overflow-y-auto',
   sm: 'flex w-[min(92vw,520px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
   md: 'flex w-[min(92vw,640px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
+  lg: 'flex w-[min(94vw,768px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
   form: 'flex w-[min(96vw,907px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
 } as const
 
@@ -66,7 +72,7 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 }
 
 function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('px-6 py-5', className)} {...props} />
+  return <div className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-5', className)} {...props} />
 }
 
 type DialogFooterProps = React.HTMLAttributes<HTMLDivElement> & {

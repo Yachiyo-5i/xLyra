@@ -13,6 +13,11 @@ export function MobileCardList({ children, className }: { children: ReactNode; c
   return <div className={cn('space-y-3', className)}>{children}</div>
 }
 
+// Inside dialogs, rows are separated by thin lines rather than wrapped in cards.
+export function MobileRowList({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn('divide-y divide-[hsl(var(--glass-divider))]', className)}>{children}</div>
+}
+
 function CardActions({ children }: { children: ReactNode }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2 border-t border-[hsl(var(--glass-divider))] pt-3 [&>button]:min-w-[7rem] [&>button]:flex-1">
@@ -93,13 +98,15 @@ type MobileVersionCardProps = {
   trust: ReactNode
   sha: string
   selftest: string
-  labels: { package: string; selftest: string }
+  /** Result of the last trial run, if there was one. */
+  trial?: ReactNode
+  labels: { package: string; selftest: string; trial: string }
   actions: ReactNode
 }
 
-export function MobileVersionCard({ version, name, kind, status, trust, sha, selftest, labels, actions }: MobileVersionCardProps) {
+export function MobileVersionCard({ version, name, kind, status, trust, sha, selftest, trial, labels, actions }: MobileVersionCardProps) {
   return (
-    <article className={CARD_CLASS}>
+    <article className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="break-all font-mono text-base font-semibold text-foreground">{version}</div>
@@ -119,8 +126,9 @@ export function MobileVersionCard({ version, name, kind, status, trust, sha, sel
         <Field label={labels.selftest}>
           <span className="text-muted-soft">{selftest}</span>
         </Field>
+        {trial ? <Field label={labels.trial}>{trial}</Field> : null}
       </div>
-      <CardActions>{actions}</CardActions>
+      <div className="mt-3 flex flex-wrap gap-2 [&>button]:min-w-[6rem] [&>button]:flex-1">{actions}</div>
     </article>
   )
 }
