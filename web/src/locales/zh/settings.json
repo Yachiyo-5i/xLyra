@@ -800,12 +800,16 @@
     "trialFailed": "试跑失败",
     "siteBinding": {
       "optional": "绑定是可选的：不绑定时插件只是被加载，不会用于任何站点。",
-      "noSites": "暂无站点",
       "other": "已绑定：{{id}}",
-      "selected": "已选 {{count}} 个站点",
-      "apply": "应用",
       "applied": "已更新绑定",
-      "failed": "更新绑定失败"
+      "failed": "更新绑定失败",
+      "enabled": "启用",
+      "disabled": "停用",
+      "placeholder": "选择站点",
+      "search": "搜索站点",
+      "selectedUnit": "个站点已选",
+      "apply": "应用",
+      "noSites": "暂无站点"
     },
     "bindQuotaTitle": "站点额度探测",
     "bindQuotaHint": "将站点的内部 quota_probe 设为 plugin:<id>（不在站点编辑页展示）。",

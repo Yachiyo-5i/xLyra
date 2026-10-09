@@ -800,12 +800,16 @@
     "trialFailed": "試行に失敗",
     "siteBinding": {
       "optional": "紐付けは任意です。紐付けなしでもプラグインは読み込まれますが、どのサイトでも使われません。",
-      "noSites": "サイトがありません",
       "other": "紐付け済み: {{id}}",
-      "selected": "{{count}} 件のサイトを選択",
-      "apply": "適用",
       "applied": "紐付けを更新しました",
-      "failed": "紐付けを更新できませんでした"
+      "failed": "紐付けを更新できませんでした",
+      "enabled": "有効",
+      "disabled": "無効",
+      "placeholder": "サイトを選択",
+      "search": "サイトを検索",
+      "selectedUnit": "件のサイトを選択",
+      "apply": "適用",
+      "noSites": "サイトがありません"
     },
     "bindQuotaTitle": "サイトクォータプローブ",
     "bindQuotaHint": "サイト内部の quota_probe を plugin:<id> に設定（サイト編集 UI には表示しません）。",

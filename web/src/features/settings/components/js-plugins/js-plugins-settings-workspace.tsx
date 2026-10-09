@@ -8,7 +8,8 @@ import { DataTable } from '@/components/common/data-table'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
-import { JSPluginSiteBinding } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
+import { JSPluginSiteBindingSection } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
+import { useSiteBinding } from '@/features/settings/components/js-plugins/use-site-binding'
 import {
   MobileBuiltinCard,
   MobileCardList,
@@ -429,6 +430,21 @@ export function JSPluginsSettingsWorkspace() {
   }, [])
 
   const enabledVersionRow = (detailQuery.data?.versions ?? []).find((row) => row.status === 'enabled')
+  const bindsToSites =
+    managePlugin != null &&
+    (managePlugin.kind === 'quota_probe' || (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? ''))
+  const siteBinding = useSiteBinding(
+    managePlugin && enabledVersionRow && bindsToSites
+      ? { pluginId: managePlugin.id, version: enabledVersionRow.version, kind: managePlugin.kind ?? '' }
+      : null,
+    sitesQuery.data ?? [],
+  )
+  const closeManage = () => {
+    setManagePlugin(null)
+    setProtocolSlug('')
+    setTrials({})
+    siteBinding.reset()
+  }
 
   const filteredBuiltins = useMemo(() => {
     const query = builtinSearch.trim().toLowerCase()
@@ -767,11 +783,7 @@ export function JSPluginsSettingsWorkspace() {
       <Dialog
         open={managePlugin != null}
         onOpenChange={(open) => {
-          if (!open) {
-            setManagePlugin(null)
-            setProtocolSlug('')
-            setTrials({})
-          }
+          if (!open) closeManage()
         }}
       >
         <DialogContent size="lg">
@@ -876,13 +888,9 @@ export function JSPluginsSettingsWorkspace() {
                   </section>
                 ) : null}
 
-                {enabledVersionRow &&
-                managePlugin &&
-                (managePlugin.kind === 'quota_probe' || (SITE_BOUND_KINDS as readonly string[]).includes(managePlugin.kind ?? '')) ? (
-                  <JSPluginSiteBinding
-                    pluginId={managePlugin.id}
-                    version={enabledVersionRow.version}
-                    kind={managePlugin.kind ?? ''}
+                {siteBinding.applicable ? (
+                  <JSPluginSiteBindingSection
+                    binding={siteBinding}
                     sites={sitesQuery.data ?? []}
                     loading={sitesQuery.isLoading}
                   />
@@ -896,11 +904,24 @@ export function JSPluginsSettingsWorkspace() {
               </>
             )}
           </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setManagePlugin(null)}>
-              {t('common:actions.close')}
-            </Button>
-          </DialogFooter>
+          <DialogFooter
+            cancel={
+              <Button type="button" variant="outline" onClick={closeManage}>
+                {siteBinding.applicable ? t('common:actions.cancel') : t('common:actions.close')}
+              </Button>
+            }
+            confirm={
+              siteBinding.applicable ? (
+                <Button type="button" disabled={!siteBinding.canApply} onClick={siteBinding.apply}>
+                  {siteBinding.applying ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    t('settings:jsPlugins.siteBinding.apply')
+                  )}
+                </Button>
+              ) : undefined
+            }
+          />
         </DialogContent>
       </Dialog>
 

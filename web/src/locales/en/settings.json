@@ -800,12 +800,16 @@
     "trialFailed": "Trial failed",
     "siteBinding": {
       "optional": "Binding is optional: without it the plugin is loaded but not used on any site.",
-      "noSites": "No sites yet",
       "other": "Bound: {{id}}",
-      "selected": "{{count}} sites selected",
-      "apply": "Apply",
       "applied": "Bindings updated",
-      "failed": "Could not update bindings"
+      "failed": "Could not update bindings",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "placeholder": "Select sites",
+      "search": "Search sites",
+      "selectedUnit": "sites selected",
+      "apply": "Apply",
+      "noSites": "No sites yet"
     },
     "bindQuotaTitle": "Site quota probe",
     "bindQuotaHint": "Sets the site internal quota_probe to plugin:<id> (not shown on the site form).",

@@ -11,6 +11,8 @@ export type MultiSelectOption = {
   label: string
   description?: string
   icon?: string
+  /** Shown at the end of the option row in the dropdown, e.g. a status badge. */
+  badge?: ReactNode
   group?: string
   disabled?: boolean
 }
@@ -198,6 +200,7 @@ export function MultiSelect({
                           <span className="block truncate text-xs text-muted-soft">{option.description}</span>
                         ) : null}
                       </span>
+                      {option.badge ? <span className="shrink-0">{option.badge}</span> : null}
                     </label>
                   </div>
                 )
