@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -21,6 +22,8 @@ const (
 	// ScopeEndpoint is a downstream path (/v1/plugins/<slug>).
 	JSPluginScopeSite     = "site"
 	JSPluginScopeEndpoint = "endpoint"
+	// JSPluginScopeOAuthConnection is the subject of automation bindings.
+	JSPluginScopeOAuthConnection = "oauth_connection"
 )
 
 type JSPlugin struct {
@@ -36,11 +39,14 @@ type JSPluginVersion struct {
 	Manifest      JSON   `gorm:"type:jsonb"`
 	Package       []byte
 	PackageSHA256 string
-	Signer        string
-	Status        string
-	SelfTest      JSON `gorm:"column:selftest;type:jsonb"`
-	UploadedBy    uuid.NullUUID
-	CreatedAt     time.Time
+	// GrantedPermissions are the automation actions an admin allowed this
+	// version to return, as a JSON array of strings.
+	GrantedPermissions JSON `gorm:"type:jsonb"`
+	Signer             string
+	Status             string
+	SelfTest           JSON `gorm:"column:selftest;type:jsonb"`
+	UploadedBy         uuid.NullUUID
+	CreatedAt          time.Time
 }
 
 type JSPluginTrustedKey struct {
@@ -66,6 +72,10 @@ type JSPluginBinding struct {
 	ScopeID   string
 	Slot      string
 	Config    JSON `gorm:"type:jsonb"`
+	// Events and State belong to automation bindings: the events the binding
+	// is called for, and what its plugin saved last time.
+	Events    JSON `gorm:"type:jsonb"`
+	State     JSON `gorm:"type:jsonb"`
 	CreatedAt time.Time
 }
 
@@ -87,6 +97,9 @@ func (r JSPluginRepository) UpsertPlugin(ctx context.Context, id, source string)
 }
 
 func (r JSPluginRepository) CreateVersion(ctx context.Context, version JSPluginVersion) error {
+	if len(version.GrantedPermissions) == 0 {
+		version.GrantedPermissions = JSON("[]")
+	}
 	return r.db.WithContext(ctx).Create(&version).Error
 }
 
@@ -224,13 +237,31 @@ func (r JSPluginRepository) MarkBroken(ctx context.Context, pluginID, version st
 	return r.SetVersionStatus(ctx, pluginID, version, JSPluginStatusBroken, selftest)
 }
 
-func (r JSPluginRepository) EnableVersion(ctx context.Context, pluginID, version string, selftest any) error {
+// EnableVersion makes one version the plugin's enabled one. granted are the
+// automation permissions the admin approved for it. Bindings follow the enabled
+// version, so uninstalling an older version later cannot cascade-delete them.
+func (r JSPluginRepository) EnableVersion(ctx context.Context, pluginID, version string, selftest any, granted []string) error {
+	grants, err := json.Marshal(granted)
+	if err != nil {
+		return err
+	}
+	if granted == nil {
+		grants = []byte("[]")
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		repo := JSPluginRepository{db: tx}
 		if err := repo.SetVersionStatus(ctx, pluginID, version, JSPluginStatusEnabled, selftest); err != nil {
 			return err
 		}
-		return repo.DisableOtherVersions(ctx, pluginID, version)
+		if err := tx.Exec(`UPDATE js_plugin_versions SET granted_permissions = ?::jsonb WHERE plugin_id = ? AND version = ?`,
+			string(grants), pluginID, version).Error; err != nil {
+			return err
+		}
+		if err := repo.DisableOtherVersions(ctx, pluginID, version); err != nil {
+			return err
+		}
+		return tx.Exec(`UPDATE js_plugin_bindings SET version = ? WHERE plugin_id = ? AND version <> ?`,
+			version, pluginID, version).Error
 	})
 }
 

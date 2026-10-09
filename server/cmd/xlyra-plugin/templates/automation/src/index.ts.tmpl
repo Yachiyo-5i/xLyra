@@ -2,16 +2,31 @@ import type { AutomationContext, AutomationEvent, AutomationResult } from "../ty
 
 export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "automation" };
 
-// Runs when an OAuth account's weekly quota is synced. When the upstream window
-// has rolled over, ask xLyra to clear the usage of the API keys bound to it.
-// You only decide; xLyra checks the permissions and does the clearing.
-export function handle(ctx: AutomationContext, event: AutomationEvent): AutomationResult {
-  const before = event.previous?.weekly as { resetAt?: number; remainingPercent?: number } | undefined;
-  const after = event.current.weekly as { resetAt?: number; remainingPercent?: number } | undefined;
-  if (!before?.resetAt || !after?.resetAt || after.resetAt <= before.resetAt) return { actions: [] };
+type Window = { reset_at?: number | string; remaining_percent?: number };
 
-  const rolledOver = before.resetAt <= ctx.now;
-  const recovered = (after.remainingPercent ?? 0) > (before.remainingPercent ?? 0);
+// reset_at is a unix timestamp (seconds, sometimes milliseconds) or a date string.
+function resetMs(window: Window | undefined): number | undefined {
+  const value = window?.reset_at;
+  if (typeof value === "number" && value > 0) return value < 1e12 ? value * 1000 : value;
+  if (typeof value === "string") {
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+  return undefined;
+}
+
+// Runs whenever an OAuth account's quota is synced. When its weekly window has
+// rolled over, ask xLyra to clear the usage of the API keys bound to it. You
+// only decide; xLyra checks the permissions and does the clearing.
+export function handle(ctx: AutomationContext, event: AutomationEvent): AutomationResult {
+  const before = event.previous?.weekly as Window | undefined;
+  const after = event.current.weekly as Window | undefined;
+  const beforeAt = resetMs(before);
+  const afterAt = resetMs(after);
+  if (!beforeAt || !afterAt || afterAt <= beforeAt) return { actions: [] };
+
+  const rolledOver = beforeAt <= ctx.now;
+  const recovered = (after?.remaining_percent ?? 0) > (before?.remaining_percent ?? 0);
   if (!rolledOver && !(ctx.config.resetOnRecovery && recovered)) return { actions: [] };
 
   return {
@@ -20,7 +35,7 @@ export function handle(ctx: AutomationContext, event: AutomationEvent): Automati
       target: target.id,
       scope: "total" as const,
       // The same upstream reset time resets a key only once, however often it is synced.
-      idempotencyKey: String(after.resetAt),
+      idempotencyKey: String(afterAt),
     })),
   };
 }

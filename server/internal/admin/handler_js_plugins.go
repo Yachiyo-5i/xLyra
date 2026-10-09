@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -140,12 +141,22 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ConfirmUntrusted bool `json:"confirm_untrusted"`
 		ConfirmUnsigned  bool `json:"confirm_unsigned"`
+		// GrantPermissions are the automation actions the admin approved after
+		// seeing the list the version declares.
+		GrantPermissions []string `json:"grant_permissions"`
 	}
 	_ = httpx.DecodeJSONBody(r, &body)
 	confirm := body.ConfirmUntrusted || body.ConfirmUnsigned
-	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUntrusted: confirm}); err != nil {
+	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUntrusted: confirm, GrantPermissions: body.GrantPermissions}); err != nil {
 		code := "js_plugin_enable_failed"
 		status := http.StatusBadRequest
+		var permissionsErr *jsplugin.PermissionsRequiredError
+		if errors.As(err, &permissionsErr) {
+			code = "js_plugin_permissions_required"
+			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version, "required": permissionsErr.Required})
+			h.writeError(w, r, status, code, err.Error())
+			return
+		}
 		var confirmErr *jsplugin.ConfirmRequiredError
 		if errors.As(err, &confirmErr) {
 			code = "js_plugin_confirm_required"
@@ -302,6 +313,9 @@ func jsPluginVersionPayload(row store.JSPluginVersion) map[string]any {
 		"manifest":       row.Manifest,
 		"selftest":       row.SelfTest,
 		"created_at":     row.CreatedAt,
+	}
+	if len(row.GrantedPermissions) > 0 {
+		payload["granted_permissions"] = row.GrantedPermissions
 	}
 	if strings.TrimSpace(row.Signer) != "" {
 		payload["signer"] = row.Signer
@@ -554,4 +568,130 @@ func pricingPreviewItems(items []adapter.ModelPricing) []map[string]any {
 		out = append(out, entry)
 	}
 	return out
+}
+
+// ListJSPluginAutomations returns the bindings of an automation plugin.
+func (h Handler) ListJSPluginAutomations(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	items, err := h.jsPlugins.ListAutomations(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")))
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_automation_list_failed", "failed to list automations")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+type jsPluginAutomationBody struct {
+	SubjectID string         `json:"subject_id"`
+	TargetIDs []string       `json:"target_ids"`
+	Config    map[string]any `json:"config"`
+}
+
+func (b jsPluginAutomationBody) input() jsplugin.AutomationBindingInput {
+	return jsplugin.AutomationBindingInput{SubjectID: strings.TrimSpace(b.SubjectID), TargetIDs: b.TargetIDs, Config: b.Config}
+}
+
+// writeAutomationError maps what the manager returns onto a response.
+func (h Handler) writeAutomationError(w http.ResponseWriter, r *http.Request, action, pluginID string, meta map[string]any, err error) {
+	var inputErr *jsplugin.AutomationInputError
+	switch {
+	case errors.As(err, &inputErr):
+		h.recordJSPluginAudit(r, action, pluginID, false, "js_plugin_automation_invalid", meta)
+		h.writeError(w, r, http.StatusBadRequest, "js_plugin_automation_invalid", inputErr.Message)
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		h.recordJSPluginAudit(r, action, pluginID, false, "not_found", meta)
+		h.writeError(w, r, http.StatusNotFound, "not_found", "automation was not found")
+	default:
+		h.recordJSPluginAudit(r, action, pluginID, false, "js_plugin_automation_failed", meta)
+		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_automation_failed", "failed to save the automation")
+	}
+}
+
+// CreateJSPluginAutomation binds an enabled automation plugin to an OAuth
+// account and the objects it may act on.
+func (h Handler) CreateJSPluginAutomation(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	var body jsPluginAutomationBody
+	if err := httpx.DecodeJSONBody(r, &body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	meta := map[string]any{"subject_id": body.SubjectID, "targets": len(body.TargetIDs)}
+	binding, err := h.jsPlugins.CreateAutomation(r.Context(), pluginID, body.input())
+	if err != nil {
+		h.writeAutomationError(w, r, "js_plugin.bind_automation", pluginID, meta, err)
+		return
+	}
+	meta["binding_id"] = binding.ID.String()
+	h.recordJSPluginAudit(r, "js_plugin.bind_automation", pluginID, true, "", meta)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "id": binding.ID.String()})
+}
+
+// UpdateJSPluginAutomation changes the parameters and targets of a binding.
+func (h Handler) UpdateJSPluginAutomation(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	bindingID, err := uuid.Parse(strings.TrimSpace(chi.URLParam(r, "binding_id")))
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_binding_id", "binding_id must be a uuid")
+		return
+	}
+	var body jsPluginAutomationBody
+	if err := httpx.DecodeJSONBody(r, &body); err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
+		return
+	}
+	meta := map[string]any{"binding_id": bindingID.String(), "targets": len(body.TargetIDs)}
+	if err := h.jsPlugins.UpdateAutomation(r.Context(), pluginID, bindingID, body.input()); err != nil {
+		h.writeAutomationError(w, r, "js_plugin.update_automation", pluginID, meta, err)
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.update_automation", pluginID, true, "", meta)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// DeleteJSPluginAutomation removes a binding.
+func (h Handler) DeleteJSPluginAutomation(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	bindingID, err := uuid.Parse(strings.TrimSpace(chi.URLParam(r, "binding_id")))
+	if err != nil {
+		h.writeError(w, r, http.StatusBadRequest, "invalid_binding_id", "binding_id must be a uuid")
+		return
+	}
+	meta := map[string]any{"binding_id": bindingID.String()}
+	if err := h.jsPlugins.DeleteAutomation(r.Context(), pluginID, bindingID); err != nil {
+		h.writeAutomationError(w, r, "js_plugin.unbind_automation", pluginID, meta, err)
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.unbind_automation", pluginID, true, "", meta)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// ListJSPluginActionLog returns what a plugin recently asked xLyra to do.
+func (h Handler) ListJSPluginActionLog(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := h.jsPlugins.ActionLog(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")), limit)
+	if err != nil {
+		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_action_log_failed", "failed to read the action log")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
 }

@@ -100,6 +100,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		if oauthService == nil {
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)
 		}
+		wireJSPluginAutomation(oauthService, jsPluginManager, authService)
 		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
 		config.RegisterGeneralValidator(func(cfg config.GeneralConfig) error {
 			return site.ValidateJSPluginRuntime()
@@ -339,6 +340,11 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Post("/js-plugins/{id}/versions/{version}/bind-site", adminHandler.BindJSPluginSite)
 				protected.Post("/js-plugins/{id}/unbind-site", adminHandler.UnbindJSPluginSite)
 				protected.Post("/js-plugins/{id}/preview-pricing", adminHandler.PreviewJSPluginPricing)
+				protected.Get("/js-plugins/{id}/automations", adminHandler.ListJSPluginAutomations)
+				protected.Post("/js-plugins/{id}/automations", adminHandler.CreateJSPluginAutomation)
+				protected.Put("/js-plugins/{id}/automations/{binding_id}", adminHandler.UpdateJSPluginAutomation)
+				protected.Delete("/js-plugins/{id}/automations/{binding_id}", adminHandler.DeleteJSPluginAutomation)
+				protected.Get("/js-plugins/{id}/action-log", adminHandler.ListJSPluginActionLog)
 				protected.Get("/downloads/{downloadID}", downloadService.Download)
 				protected.Get("/dashboard/usage", adminHandler.DashboardUsage)
 				protected.Get("/dashboard/cooldowns", adminHandler.DashboardCooldowns)

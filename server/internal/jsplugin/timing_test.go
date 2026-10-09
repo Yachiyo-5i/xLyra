@@ -88,4 +88,3 @@ func BenchmarkBuiltinSystemoneSelfTest(b *testing.B) {
 		}
 	}
 }
-

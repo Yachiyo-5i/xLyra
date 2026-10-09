@@ -1,11 +1,11 @@
 {
   "name": "same window, nothing to do",
-  "ctx": { "now": 2000, "config": { "resetOnRecovery": true } },
+  "ctx": { "now": 2000000, "config": { "resetOnRecovery": true } },
   "input": {
     "type": "oauth.quota_synced",
     "subject": { "type": "oauth_connection", "id": "conn-1", "provider": "codex" },
-    "previous": { "weekly": { "resetAt": 9000, "remainingPercent": 40 } },
-    "current": { "weekly": { "resetAt": 9000, "remainingPercent": 38 } },
+    "previous": { "weekly": { "reset_at": 9000, "remaining_percent": 40 } },
+    "current": { "weekly": { "reset_at": 9000, "remaining_percent": 38 } },
     "targets": [{ "type": "api_key", "id": "key-1", "name": "alice", "usage": { "totalUsed": 12 } }]
   },
   "expect": { "result": { "actions": [] } }

@@ -30,6 +30,17 @@ type Service struct {
 	httpClients  *httpclient.Manager
 	masterKey    string
 	refreshGroup singleflight.Group
+	emitQuota    QuotaSyncEmitter
+}
+
+// QuotaSyncEmitter is told, inside the transaction that stores a connection's
+// freshly synced quota, what the quota was and what it is now.
+type QuotaSyncEmitter func(ctx context.Context, tx *gorm.DB, connection store.OAuthConnection, previous, current map[string]any) error
+
+// SetQuotaSyncEmitter registers who hears about quota syncs. It is set once at
+// startup, before any sync runs.
+func (s *Service) SetQuotaSyncEmitter(emit QuotaSyncEmitter) {
+	s.emitQuota = emit
 }
 
 type PendingSite struct {
@@ -1118,13 +1129,40 @@ func (s *Service) UpdateConnectionSync(ctx context.Context, connectionID uuid.UU
 	if len(connection.Metadata) > 0 {
 		_ = json.Unmarshal(connection.Metadata, &meta)
 	}
+	previousQuota, _ := meta["quota"].(map[string]any)
 	for key, value := range metadataPatch {
 		meta[key] = value
 	}
 	connection.Metadata = jsonBytes(meta)
 	connection.LastSyncAt = sql.NullTime{Time: time.Now(), Valid: true}
-	_, err = repo.Save(ctx, connection)
-	return err
+	if s.emitQuota == nil || metadataPatch["quota"] == nil {
+		_, err = repo.Save(ctx, connection)
+		return err
+	}
+	// The quota and the event about it are stored together, so a restart
+	// between the two cannot lose the event.
+	currentQuota := quotaAsMap(metadataPatch["quota"])
+	return s.db.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		saved, err := store.NewOAuthConnectionRepository(tx).Save(ctx, connection)
+		if err != nil {
+			return err
+		}
+		return s.emitQuota(ctx, tx, saved, previousQuota, currentQuota)
+	})
+}
+
+// quotaAsMap normalizes a quota value to the plain map it has in stored metadata.
+func quotaAsMap(value any) map[string]any {
+	if quota, ok := value.(map[string]any); ok {
+		return quota
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	var out map[string]any
+	_ = json.Unmarshal(raw, &out)
+	return out
 }
 
 func (s *Service) MarkConnectionAccessTokenOnly(ctx context.Context, connectionID uuid.UUID) error {

@@ -21,14 +21,29 @@ const quotaProbePluginPrefix = "plugin:"
 // EnableOptions controls optional enable-time checks.
 type EnableOptions struct {
 	ConfirmUntrusted bool
+	// GrantPermissions are the automation actions the admin approves. Enabling
+	// an automation version needs every permission its manifest declares.
+	GrantPermissions []string
+}
+
+// PermissionsRequiredError means a version declares automation permissions the
+// admin has not granted yet.
+type PermissionsRequiredError struct {
+	Required []string
+}
+
+func (e *PermissionsRequiredError) Error() string {
+	return "this plugin needs permissions that have not been granted: " + strings.Join(e.Required, ", ")
 }
 
 // Manager loads uploaded plugins and swaps catalog generations.
 type Manager struct {
+	db      *store.Store
 	repo    store.JSPluginRepository
 	catalog *Catalog
 	mu      sync.Mutex
 	gen     int64
+	wakeup  chan struct{}
 }
 
 func NewManager(db *store.Store, catalog *Catalog) *Manager {
@@ -36,9 +51,11 @@ func NewManager(db *store.Store, catalog *Catalog) *Manager {
 		catalog = DefaultCatalog()
 	}
 	m := &Manager{
+		db:      db,
 		repo:    store.NewJSPluginRepository(db.DB()),
 		catalog: catalog,
 		gen:     0,
+		wakeup:  make(chan struct{}, 1),
 	}
 	catalog.breaker = NewBreaker(m.onBreakerTrip)
 	return m
@@ -161,6 +178,20 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 	if spec, ok := lookupKind(pkg.Manifest.Kind); ok && !spec.Connected {
 		return &KindNotConnectedError{Kind: pkg.Manifest.Kind}
 	}
+	var granted []string
+	if pkg.Manifest.Kind == KindAutomation {
+		var missing []string
+		for _, permission := range pkg.Manifest.Automation.Permissions {
+			if contains(opts.GrantPermissions, permission) {
+				granted = append(granted, permission)
+			} else {
+				missing = append(missing, permission)
+			}
+		}
+		if len(missing) > 0 {
+			return &PermissionsRequiredError{Required: pkg.Manifest.Automation.Permissions}
+		}
+	}
 	plugin, err := CompilePackage(pkg)
 	if err != nil {
 		return err
@@ -169,8 +200,14 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 		_ = m.repo.SetVersionStatus(ctx, pluginID, version, store.JSPluginStatusBroken, map[string]any{"error": err.Error()})
 		return err
 	}
-	if err := m.repo.EnableVersion(ctx, pluginID, version, map[string]any{"ok": true}); err != nil {
+	if err := m.repo.EnableVersion(ctx, pluginID, version, map[string]any{"ok": true}, granted); err != nil {
 		return err
+	}
+	if pkg.Manifest.Kind == KindAutomation {
+		// The new version may subscribe to different events.
+		if err := m.repo.SetAutomationEvents(ctx, pluginID, pkg.Manifest.Automation.Subscribes); err != nil {
+			return err
+		}
 	}
 	return m.Reload(ctx)
 }
