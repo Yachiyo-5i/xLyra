@@ -60,7 +60,7 @@ func TestDevPostgresMigrationsInitializeNewSchema(t *testing.T) {
 	if !migrator.HasTable(&CacheObservation{}) {
 		t.Fatal("cache_observations table was not created")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})
 }
 
 func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
@@ -89,7 +89,7 @@ func TestDevPostgresMigrationsUpgradeExistingSchema(t *testing.T) {
 	if !db.Migrator().HasColumn(&OAuthConnection{}, "RefreshLeaseID") {
 		t.Fatal("refresh lease column was not added by upgrade migration")
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})
 }
 
 func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
@@ -103,7 +103,7 @@ func TestDevPostgresMigrationsAreRepeatable(t *testing.T) {
 	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
 		t.Fatalf("second migration run: %v", err)
 	}
-	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})
+	assertAppliedMigrationVersions(t, db, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})
 }
 
 func TestDevPostgresFailedMigrationIsNotRecordedAndCanRetry(t *testing.T) {
@@ -382,6 +382,134 @@ func TestJSPluginBindingMigrationConvertsLegacyRows(t *testing.T) {
 	}
 	if len(left) != 1 || left[0].Kind != "protocol" || left[0].ScopeType != JSPluginScopeEndpoint {
 		t.Fatalf("bindings after the site rows were dropped = %+v", left)
+	}
+}
+
+// An automation binding keeps the objects it picked as inputs, and an event
+// about an object reaches exactly the bindings that picked it as the one events
+// are about.
+func TestJSPluginAutomationBindingInputsAndEventMatching(t *testing.T) {
+	db, cfg, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
+		t.Fatalf("initialize schema migrations: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO js_plugins (id, source) VALUES ('acme', 'uploaded')`,
+		`INSERT INTO js_plugin_versions (plugin_id, version, manifest, package, package_sha256, status, selftest)
+		 VALUES ('acme', '1.0.0', '{}', '\x00', 'sha', 'enabled', '{}')`,
+	} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("seed plugin: %v", err)
+		}
+	}
+	repo := NewJSPluginRepository(db)
+	bind := func(subject string, picked ...string) JSPluginBinding {
+		inputs := []JSPluginBindingInput{{InputName: "account", EntityType: "oauth_connection", EntityID: subject, EventSubject: true}}
+		for _, key := range picked {
+			inputs = append(inputs, JSPluginBindingInput{InputName: "keys", EntityType: "api_key", EntityID: key})
+		}
+		binding, err := repo.CreateAutomationBinding(ctx, JSPluginBinding{
+			PluginID: "acme", Version: "1.0.0", Kind: "automation", Events: JSON(`["oauth.quota_synced"]`),
+		}, inputs)
+		if err != nil {
+			t.Fatalf("create automation binding: %v", err)
+		}
+		return binding
+	}
+	first := bind("conn-1", "key-1", "key-2")
+	bind("conn-2", "key-1")
+
+	inputs, err := repo.ListBindingInputs(ctx, first.ID)
+	if err != nil || len(inputs) != 3 {
+		t.Fatalf("inputs = %+v, %v", inputs, err)
+	}
+	// The same plugin can be bound twice to one account; the slot is the binding itself.
+	if again := bind("conn-1", "key-3"); again.Slot == first.Slot {
+		t.Fatal("two bindings share a slot")
+	}
+
+	queued, err := repo.EnqueueEvent(ctx, "oauth.quota_synced", "oauth_connection", "conn-1", JSON(`{}`))
+	if err != nil || queued != 2 {
+		t.Fatalf("queued for conn-1 = %d, %v; want the two bindings that picked it", queued, err)
+	}
+	// A key picked as a target is not the object events are about.
+	if queued, _ := repo.EnqueueEvent(ctx, "oauth.quota_synced", "api_key", "key-1", JSON(`{}`)); queued != 0 {
+		t.Fatalf("an event about a picked key reached %d bindings", queued)
+	}
+	// A binding that is not called for the event does not get it.
+	if queued, _ := repo.EnqueueEvent(ctx, "schedule.tick", "oauth_connection", "conn-1", JSON(`{}`)); queued != 0 {
+		t.Fatalf("an event the bindings did not subscribe to reached %d of them", queued)
+	}
+	// Changing what is picked keeps the record of what was already applied.
+	ran, err := repo.ApplyOnce(ctx, first.ID, "api_key", "key-1", "total", "k1", func(context.Context) error { return nil })
+	if err != nil || !ran {
+		t.Fatalf("first apply ran=%v err=%v", ran, err)
+	}
+	if err := repo.UpdateAutomationBinding(ctx, first.ID, JSON(`{}`), []JSPluginBindingInput{
+		{InputName: "account", EntityType: "oauth_connection", EntityID: "conn-1", EventSubject: true},
+		{InputName: "keys", EntityType: "api_key", EntityID: "key-1"},
+	}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if ran, _ := repo.ApplyOnce(ctx, first.ID, "api_key", "key-1", "total", "k1", func(context.Context) error { return nil }); ran {
+		t.Fatal("an object that stayed picked was applied to twice")
+	}
+	if _, err := repo.ApplyOnce(ctx, first.ID, "api_key", "key-2", "total", "k1", func(context.Context) error { return nil }); err == nil {
+		t.Fatal("an object that was unpicked could still be applied to")
+	}
+	if err := repo.DeleteAutomationBinding(ctx, first.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	left, _ := repo.ListBindingInputs(ctx, first.ID)
+	if len(left) != 0 {
+		t.Fatalf("a deleted binding left %d inputs", len(left))
+	}
+}
+
+// Upgrading from the version that bound an automation to one account and a list of
+// keys removes those bindings, since they have no named inputs to carry over, and
+// leaves other bindings alone.
+func TestJSPluginInputsMigrationRemovesAccountAndKeyBindings(t *testing.T) {
+	db, _, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get postgres sql db: %v", err)
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	if err != nil {
+		t.Fatalf("create migration provider: %v", err)
+	}
+	if _, err := provider.UpTo(ctx, 12); err != nil {
+		t.Fatalf("apply migrations up to 12: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO js_plugins (id, source) VALUES ('old-auto', 'uploaded'), ('other', 'uploaded')`,
+		`INSERT INTO js_plugin_versions (plugin_id, version, manifest, package, package_sha256, status, selftest) VALUES
+		 ('old-auto', '1.0.0', '{}', '\x00', 'a', 'enabled', '{}'),
+		 ('other', '1.0.0', '{}', '\x00', 'b', 'enabled', '{}')`,
+		`INSERT INTO js_plugin_bindings (plugin_id, version, kind, scope_type, scope_id, slot, events)
+		 VALUES ('old-auto', '1.0.0', 'automation', 'oauth_connection', 'conn-1', 'b1', '["oauth.quota_synced"]'),
+		        ('other', '1.0.0', 'protocol', 'endpoint', 'slug', 'protocol', '[]')`,
+		`INSERT INTO js_plugin_binding_targets (binding_id, target_type, target_id)
+		 SELECT id, 'api_key', 'key-1' FROM js_plugin_bindings WHERE kind = 'automation'`,
+	} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	if _, err := provider.UpTo(ctx, 13); err != nil {
+		t.Fatalf("apply the inputs migration: %v", err)
+	}
+	bindings, err := NewJSPluginRepository(db).ListBindings(ctx)
+	if err != nil || len(bindings) != 1 || bindings[0].Kind != "protocol" {
+		t.Fatalf("bindings after the migration = %+v, %v", bindings, err)
+	}
+	if db.Migrator().HasTable("js_plugin_binding_targets") || !db.Migrator().HasTable("js_plugin_binding_inputs") {
+		t.Fatal("the targets table was not replaced by the inputs table")
 	}
 }
 

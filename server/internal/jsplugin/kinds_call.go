@@ -142,10 +142,10 @@ func (p *Plugin) CallPricingParse(ctx context.Context, c PricingParseContext, pa
 
 // CallAutomation runs an automation plugin's handle hook for one event. The
 // result is checked against the permissions the manifest declares and the
-// targets the event carries; xLyra still decides whether to carry it out.
+// objects among c.Inputs; xLyra still decides whether to carry it out.
 func (p *Plugin) CallAutomation(ctx context.Context, c AutomationContext, event AutomationEvent) (AutomationResult, error) {
-	if c.Config == nil {
-		c.Config = map[string]any{}
+	if c.Inputs == nil {
+		c.Inputs = map[string]any{}
 	}
 	if c.State == nil {
 		c.State = map[string]any{}
@@ -153,11 +153,14 @@ func (p *Plugin) CallAutomation(ctx context.Context, c AutomationContext, event 
 	if event.Current == nil {
 		event.Current = map[string]any{}
 	}
+	if event.Subject.Fields == nil {
+		event.Subject.Fields = map[string]any{}
+	}
 	var out AutomationResult
 	if err := p.callOneShot(ctx, KindAutomation, &out, encodeValue(c), encodeValue(event)); err != nil {
 		return AutomationResult{}, err
 	}
-	if err := validateAutomationResult(&out, p.Manifest.Automation.Permissions, event.Targets); err != nil {
+	if err := validateAutomationResult(&out, p.Manifest.Automation.Permissions, entitiesIn(c.Inputs)); err != nil {
 		return AutomationResult{}, annotate(p, err, "handle", 0, 0)
 	}
 	return out, nil
@@ -209,7 +212,7 @@ func (p *Plugin) runOneShotFixture(ctx context.Context, fixture Fixture) error {
 			Event:     in.Type,
 			Now:       fixture.Ctx.Now,
 			BindingID: "fixture",
-			Config:    fixture.Ctx.Config,
+			Inputs:    fixture.Ctx.Inputs,
 			State:     fixture.Ctx.State,
 		}, in)
 	case KindPricingParse:

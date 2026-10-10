@@ -566,20 +566,23 @@ func (h Handler) ListJSPluginAutomations(w http.ResponseWriter, r *http.Request)
 	}
 	items, err := h.jsPlugins.ListAutomations(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")))
 	if err != nil {
+		if abandonIfClientGone(w, r) {
+			return
+		}
 		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_automation_list_failed", "failed to list automations")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
+// jsPluginAutomationBody carries one value per input the plugin declares: the id
+// (or ids) of the picked objects, or the parameter value.
 type jsPluginAutomationBody struct {
-	SubjectID string         `json:"subject_id"`
-	TargetIDs []string       `json:"target_ids"`
-	Config    map[string]any `json:"config"`
+	Inputs map[string]any `json:"inputs"`
 }
 
 func (b jsPluginAutomationBody) input() jsplugin.AutomationBindingInput {
-	return jsplugin.AutomationBindingInput{SubjectID: strings.TrimSpace(b.SubjectID), TargetIDs: b.TargetIDs, Config: b.Config}
+	return jsplugin.AutomationBindingInput{Inputs: b.Inputs}
 }
 
 // writeAutomationError maps what the manager returns onto a response.
@@ -611,7 +614,7 @@ func (h Handler) CreateJSPluginAutomation(w http.ResponseWriter, r *http.Request
 		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
 		return
 	}
-	meta := map[string]any{"subject_id": body.SubjectID, "targets": len(body.TargetIDs)}
+	meta := map[string]any{"inputs": len(body.Inputs)}
 	binding, err := h.jsPlugins.CreateAutomation(r.Context(), pluginID, body.input())
 	if err != nil {
 		h.writeAutomationError(w, r, "js_plugin.bind_automation", pluginID, meta, err)
@@ -639,7 +642,7 @@ func (h Handler) UpdateJSPluginAutomation(w http.ResponseWriter, r *http.Request
 		h.writeError(w, r, http.StatusBadRequest, "invalid_json", "invalid request body")
 		return
 	}
-	meta := map[string]any{"binding_id": bindingID.String(), "targets": len(body.TargetIDs)}
+	meta := map[string]any{"binding_id": bindingID.String(), "inputs": len(body.Inputs)}
 	if err := h.jsPlugins.UpdateAutomation(r.Context(), pluginID, bindingID, body.input()); err != nil {
 		h.writeAutomationError(w, r, "js_plugin.update_automation", pluginID, meta, err)
 		return
@@ -678,6 +681,9 @@ func (h Handler) ListJSPluginActionLog(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	rows, err := h.jsPlugins.ActionLog(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")), limit)
 	if err != nil {
+		if abandonIfClientGone(w, r) {
+			return
+		}
 		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_action_log_failed", "failed to read the action log")
 		return
 	}
@@ -704,4 +710,43 @@ func rawJSON(raw store.JSON) any {
 		return nil
 	}
 	return json.RawMessage(raw)
+}
+
+// ListJSPluginAutomationOptions lists the objects an admin may pick for one
+// input of an automation plugin, with the reason for any that cannot be picked.
+func (h Handler) ListJSPluginAutomationOptions(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	items, err := h.jsPlugins.AutomationOptions(r.Context(), strings.TrimSpace(chi.URLParam(r, "id")), strings.TrimSpace(chi.URLParam(r, "name")))
+	if err != nil {
+		if abandonIfClientGone(w, r) {
+			return
+		}
+		var inputErr *jsplugin.AutomationInputError
+		if errors.As(err, &inputErr) {
+			h.writeError(w, r, http.StatusBadRequest, "js_plugin_automation_invalid", inputErr.Message)
+			return
+		}
+		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_automation_failed", "failed to list the options")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// statusClientClosedRequest is the conventional status for a request the client
+// gave up on before the answer was ready.
+const statusClientClosedRequest = 499
+
+// abandonIfClientGone ends a request whose caller has already left. The page
+// aborts the lists it no longer needs (closing a dialog, switching plugins), and
+// the cancelled database call is not a server fault: answering it with a 500
+// only puts a false error in the log.
+func abandonIfClientGone(w http.ResponseWriter, r *http.Request) bool {
+	if r.Context().Err() == nil {
+		return false
+	}
+	w.WriteHeader(statusClientClosedRequest)
+	return true
 }

@@ -34,8 +34,8 @@ export function handle(ctx, event) {
   const after = event.current.weekly;
   if (!before || !after || after.reset_at <= before.reset_at) return { actions: [] };
   return {
-    actions: event.targets.map((t) => ({ type: "apikey.reset_usage", target: t.id, scope: "total", idempotencyKey: String(after.reset_at) })),
-    state: { lastReset: after.reset_at, level: ctx.config.level },
+    actions: ctx.inputs.keys.map((k) => ({ type: "apikey.reset_usage", target: k.id, scope: "total", idempotencyKey: String(after.reset_at) })),
+    state: { lastReset: after.reset_at, level: ctx.inputs.level, account: ctx.inputs.account.name },
   };
 }
 `
@@ -47,15 +47,15 @@ func rolloverPackage(t *testing.T, version string) []byte {
   "automation": {
     "subscribes": ["oauth.quota_synced"],
     "permissions": ["apikey.reset_usage"],
-    "binding": {
-      "subject": { "type": "oauth_connection", "providers": ["codex"] },
-      "target": { "type": "api_key", "requires": "finite_total_quota" },
-      "config": { "type": "object", "properties": { "level": { "type": "string", "default": "weekly" } } }
-    }
+    "inputs": [
+      { "name": "account", "type": "oauth_connection", "providers": ["codex", "claude_code"], "eventSubject": true },
+      { "name": "keys", "type": "api_key", "multiple": true, "requires": "finite_total_quota" },
+      { "name": "level", "type": "string", "default": "weekly" }
+    ]
   },
   "sha256": { "plugin.js": "` + hashSource(rolloverPlugin) + `" }
 }`
-	fixture := `{"name":"rollover","ctx":{"now":1,"config":{"level":"weekly"}},"input":{"type":"oauth.quota_synced","subject":{"type":"oauth_connection","id":"c"},"previous":{"weekly":{"reset_at":1}},"current":{"weekly":{"reset_at":2}},"targets":[{"type":"api_key","id":"k","name":"n","usage":{}}]},"expect":{"result":{"actions":[{"type":"apikey.reset_usage","target":"k","scope":"total","idempotencyKey":"2"}]}}}`
+	fixture := `{"name":"rollover","ctx":{"now":1,"inputs":{"account":{"type":"oauth_connection","id":"c","name":"a@b","fields":{}},"keys":[{"type":"api_key","id":"k","name":"n","fields":{}}],"level":"weekly"}},"input":{"type":"oauth.quota_synced","subject":{"type":"oauth_connection","id":"c","name":"a@b","fields":{}},"previous":{"weekly":{"reset_at":1}},"current":{"weekly":{"reset_at":2}}},"expect":{"result":{"actions":[{"type":"apikey.reset_usage","target":"k","scope":"total","idempotencyKey":"2"}]}}}`
 	raw, err := BuildPackage(map[string][]byte{
 		"manifest.json":     []byte(manifest),
 		"plugin.js":         []byte(rolloverPlugin),
@@ -119,30 +119,56 @@ func TestAutomationEndToEnd(t *testing.T) {
 	}
 
 	// Bad bindings are refused with a reason the admin can act on.
+	other, _ := store.NewOAuthConnectionRepository(st.DB()).Save(ctx, store.OAuthConnection{
+		Provider: "antigravity", Email: "other@example.com", Status: "connected", RawProfile: store.JSON("{}"), Metadata: store.JSON("{}"),
+	})
+	// The picker lists the accounts the admin pages list: those with a site.
+	for slug, account := range map[string]store.OAuthConnection{"codex": conn, "other": other} {
+		siteID := uuid.NewString()
+		if err := st.DB().Exec(`INSERT INTO sites (id, name, slug, site_type, base_url) VALUES (?, ?, ?, 'codex', 'https://example.com')`, siteID, slug, slug).Error; err != nil {
+			t.Fatalf("seed site: %v", err)
+		}
+		if err := st.DB().Exec(`UPDATE oauth_connections SET site_id = ? WHERE id = ?`, siteID, account.ID).Error; err != nil {
+			t.Fatalf("attach an account to its site: %v", err)
+		}
+	}
+	picks := func(account string, keys ...string) map[string]any {
+		list := make([]any, len(keys))
+		for i, key := range keys {
+			list[i] = key
+		}
+		return map[string]any{"account": account, "keys": list}
+	}
+	with := func(inputs map[string]any, name string, value any) map[string]any {
+		inputs[name] = value
+		return inputs
+	}
 	for name, in := range map[string]AutomationBindingInput{
-		"unlimited key": {SubjectID: conn.ID.String(), TargetIDs: []string{unlimited.ID.String()}},
-		"no targets":    {SubjectID: conn.ID.String()},
-		"missing key":   {SubjectID: conn.ID.String(), TargetIDs: []string{uuid.NewString()}},
-		"bad config":    {SubjectID: conn.ID.String(), TargetIDs: []string{finite.ID.String()}, Config: map[string]any{"nope": 1}},
-		"unknown owner": {SubjectID: uuid.NewString(), TargetIDs: []string{finite.ID.String()}},
+		"unlimited key":       {Inputs: picks(conn.ID.String(), unlimited.ID.String())},
+		"no keys":             {Inputs: picks(conn.ID.String())},
+		"no account":          {Inputs: map[string]any{"keys": []any{finite.ID.String()}}},
+		"missing key":         {Inputs: picks(conn.ID.String(), uuid.NewString())},
+		"unknown input":       {Inputs: with(picks(conn.ID.String(), finite.ID.String()), "nope", 1)},
+		"wrong provider":      {Inputs: picks(other.ID.String(), finite.ID.String())},
+		"unknown account":     {Inputs: picks(uuid.NewString(), finite.ID.String())},
+		"two accounts":        {Inputs: with(picks(conn.ID.String(), finite.ID.String()), "account", []any{conn.ID.String(), other.ID.String()})},
+		"parameter of a type": {Inputs: with(picks(conn.ID.String(), finite.ID.String()), "level", float64(3))},
+		"the key twice":       {Inputs: picks(conn.ID.String(), finite.ID.String(), finite.ID.String())},
 	} {
 		var inputErr *AutomationInputError
 		if _, err := manager.CreateAutomation(ctx, "acme-reset", in); !errors.As(err, &inputErr) {
 			t.Errorf("%s: err = %v, want an input error", name, err)
 		}
 	}
-	binding, err := manager.CreateAutomation(ctx, "acme-reset", AutomationBindingInput{
-		SubjectID: conn.ID.String(), TargetIDs: []string{finite.ID.String()},
-	})
+	binding, err := manager.CreateAutomation(ctx, "acme-reset", AutomationBindingInput{Inputs: picks(conn.ID.String(), finite.ID.String())})
 	if err != nil {
 		t.Fatalf("create automation: %v", err)
 	}
 
-	subject := AutomationSubject{Type: "oauth_connection", ID: conn.ID.String(), Provider: "codex", Label: "owner@example.com"}
 	emit := func(resetAt float64) {
 		t.Helper()
 		err := manager.EmitEvent(ctx, st.DB(), EmittedEvent{
-			Type: "oauth.quota_synced", Subject: subject,
+			Type: "oauth.quota_synced", EntityType: EntityOAuthConnection, EntityID: conn.ID.String(),
 			Previous: map[string]any{"weekly": map[string]any{"reset_at": resetAt - 1}},
 			Current:  map[string]any{"weekly": map[string]any{"reset_at": resetAt}},
 		})
@@ -152,7 +178,7 @@ func TestAutomationEndToEnd(t *testing.T) {
 	}
 
 	// A different account's event reaches nobody.
-	if err := manager.EmitEvent(ctx, st.DB(), EmittedEvent{Type: "oauth.quota_synced", Subject: AutomationSubject{Type: "oauth_connection", ID: uuid.NewString()}}); err != nil {
+	if err := manager.EmitEvent(ctx, st.DB(), EmittedEvent{Type: "oauth.quota_synced", EntityType: EntityOAuthConnection, EntityID: uuid.NewString()}); err != nil {
 		t.Fatal(err)
 	}
 	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events`); n != 0 {
@@ -202,9 +228,36 @@ func TestAutomationEndToEnd(t *testing.T) {
 	if err != nil || len(views) != 1 {
 		t.Fatalf("views = %v, err = %v", views, err)
 	}
-	if views[0].SubjectLabel != "owner@example.com" || len(views[0].Targets) != 1 || views[0].Targets[0].Name != "finite" ||
-		views[0].State["lastReset"] != float64(200) || views[0].State["level"] != "weekly" || views[0].Config["level"] != "weekly" {
+	inputsByName := map[string]AutomationInputView{}
+	for _, input := range views[0].Inputs {
+		inputsByName[input.Name] = input
+	}
+	if a := inputsByName["account"]; len(a.Entities) != 1 || a.Entities[0].Name != "owner@example.com" ||
+		len(inputsByName["keys"].Entities) != 1 || inputsByName["keys"].Entities[0].Name != "finite" ||
+		inputsByName["level"].Value != "weekly" ||
+		views[0].State["lastReset"] != float64(200) || views[0].State["level"] != "weekly" || views[0].State["account"] != "owner@example.com" {
 		t.Fatalf("view = %+v", views[0])
+	}
+	options, err := manager.AutomationOptions(ctx, "acme-reset", "keys")
+	if err != nil || len(options) != 2 {
+		t.Fatalf("options = %+v, %v", options, err)
+	}
+	for _, option := range options {
+		if (option.Name == "unlimited") != option.Disabled || (option.Disabled && option.Reason == "") {
+			t.Fatalf("option %+v: only the key without a finite quota is ruled out, with a reason", option)
+		}
+	}
+	accountOptions, err := manager.AutomationOptions(ctx, "acme-reset", "account")
+	if err != nil || len(accountOptions) != 2 {
+		t.Fatalf("account options = %+v, %v", accountOptions, err)
+	}
+	for _, option := range accountOptions {
+		if (option.Description == "antigravity") != option.Disabled {
+			t.Fatalf("account option %+v: only the antigravity account is ruled out", option)
+		}
+	}
+	if _, err := manager.AutomationOptions(ctx, "acme-reset", "level"); err == nil {
+		t.Fatal("a parameter was offered as a list of objects")
 	}
 	log, err := manager.ActionLog(ctx, "acme-reset", 50)
 	if err != nil {
@@ -246,7 +299,7 @@ func TestAutomationEndToEnd(t *testing.T) {
 	if err := manager.DeleteAutomation(ctx, "acme-reset", mustParse(t, binding.ID.String())); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events`) + countRows(t, st, `SELECT COUNT(*) FROM js_plugin_binding_targets`); n != 0 {
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events`) + countRows(t, st, `SELECT COUNT(*) FROM js_plugin_binding_inputs`); n != 0 {
 		t.Fatalf("%d rows left after unbinding", n)
 	}
 }
@@ -265,7 +318,7 @@ export function handle(ctx, event) {
   if (event.type !== "schedule.tick") return { actions: [] };
   const weekly = event.current.quota && event.current.quota.weekly;
   return {
-    actions: [{ type: "notify", level: "warn", message: "weekly remaining " + (weekly ? weekly.remaining_percent : "unknown") + "% for " + event.subject.label }],
+    actions: [{ type: "notify", level: "warn", message: "weekly remaining " + (weekly ? weekly.remaining_percent : "unknown") + "% for " + event.subject.name }],
     state: { ticks: ((ctx.state && ctx.state.ticks) || 0) + 1 },
   };
 }
@@ -279,11 +332,11 @@ func tickPackage(t *testing.T) []byte {
     "subscribes": ["schedule.tick"],
     "permissions": ["notify"],
     "schedule": { "everyMinutes": 60 },
-    "binding": { "subject": { "type": "oauth_connection" } }
+    "inputs": [ { "name": "account", "type": "oauth_connection", "eventSubject": true } ]
   },
   "sha256": { "plugin.js": "` + hashSource(tickPlugin) + `" }
 }`
-	fixture := `{"name":"tick","ctx":{"now":1},"input":{"type":"schedule.tick","subject":{"type":"oauth_connection","id":"c","label":"a@b"},"current":{"quota":{"weekly":{"remaining_percent":40}}},"targets":[]},"expect":{"result":{"actions":[{"type":"notify","level":"warn","message":"weekly remaining 40% for a@b"}],"state":{"ticks":1}}}}`
+	fixture := `{"name":"tick","ctx":{"now":1},"input":{"type":"schedule.tick","subject":{"type":"oauth_connection","id":"c","name":"a@b","fields":{}},"current":{"quota":{"weekly":{"remaining_percent":40}}}},"expect":{"result":{"actions":[{"type":"notify","level":"warn","message":"weekly remaining 40% for a@b"}],"state":{"ticks":1}}}}`
 	raw, err := BuildPackage(map[string][]byte{
 		"manifest.json":     []byte(manifest),
 		"plugin.js":         []byte(tickPlugin),
@@ -314,7 +367,7 @@ func TestAutomationScheduleTick(t *testing.T) {
 	if err := manager.Enable(ctx, "acme-tick", "1.0.0", EnableOptions{ConfirmUntrusted: true, GrantPermissions: []string{ActionNotify}}); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
-	binding, err := manager.CreateAutomation(ctx, "acme-tick", AutomationBindingInput{SubjectID: conn.ID.String()})
+	binding, err := manager.CreateAutomation(ctx, "acme-tick", AutomationBindingInput{Inputs: map[string]any{"account": conn.ID.String()}})
 	if err != nil {
 		t.Fatalf("create automation: %v", err)
 	}

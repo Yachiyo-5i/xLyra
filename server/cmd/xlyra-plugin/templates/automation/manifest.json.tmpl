@@ -10,19 +10,36 @@
   "automation": {
     "subscribes": ["oauth.quota_synced"],
     "permissions": ["apikey.reset_usage", "notify"],
-    "binding": {
-      "subject": { "type": "oauth_connection", "providers": ["codex", "claude_code"] },
-      "target": { "type": "api_key", "requires": "finite_total_quota" },
-      "config": {
-        "type": "object",
-        "properties": {
-          "resetOnRecovery": {
-            "type": "boolean",
-            "title": "Also reset when the quota recovers early",
-            "default": true
-          }
-        }
+    "form": {
+      "title": "Quota resets",
+      "description": "Pick the OAuth account to watch and the API keys to reset when its weekly quota resets.",
+      "addLabel": "Add",
+      "emptyText": "Nothing is bound yet."
+    },
+    "inputs": [
+      {
+        "name": "account",
+        "type": "oauth_connection",
+        "title": { "en": "OAuth account", "zh": "OAuth 账号" },
+        "placeholder": "Select an account",
+        "providers": ["codex", "claude_code"],
+        "eventSubject": true
+      },
+      {
+        "name": "keys",
+        "type": "api_key",
+        "title": "API keys to reset",
+        "placeholder": "Select API keys",
+        "emptyText": "No API keys",
+        "multiple": true,
+        "requires": "finite_total_quota"
+      },
+      {
+        "name": "resetOnRecovery",
+        "type": "boolean",
+        "title": "Also reset when the quota recovers early",
+        "default": true
       }
-    }
+    ]
   }
 }

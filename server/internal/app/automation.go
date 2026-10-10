@@ -31,15 +31,11 @@ func wireJSPluginAutomation(oauth *oauthsvc.Service, manager *jsplugin.Manager, 
 	if oauth != nil {
 		oauth.SetQuotaSyncEmitter(func(ctx context.Context, tx *gorm.DB, connection store.OAuthConnection, previous, current map[string]any) error {
 			return manager.EmitEvent(ctx, tx, jsplugin.EmittedEvent{
-				Type: "oauth.quota_synced",
-				Subject: jsplugin.AutomationSubject{
-					Type:     "oauth_connection",
-					ID:       connection.ID.String(),
-					Provider: connection.Provider,
-					Label:    connection.Email,
-				},
-				Previous: previous,
-				Current:  current,
+				Type:       "oauth.quota_synced",
+				EntityType: jsplugin.EntityOAuthConnection,
+				EntityID:   connection.ID.String(),
+				Previous:   previous,
+				Current:    current,
 			})
 		})
 	}

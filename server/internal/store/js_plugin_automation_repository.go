@@ -25,15 +25,19 @@ const (
 	JSPluginActionFailed  = "failed"
 )
 
-// JSPluginBindingTarget is an object an automation binding may act on.
-// Applied remembers, per usage scope, the idempotency key of the last action
-// carried out, so a repeated event does nothing.
-type JSPluginBindingTarget struct {
-	BindingID  uuid.UUID `gorm:"type:uuid;primaryKey"`
-	TargetType string    `gorm:"primaryKey"`
-	TargetID   string    `gorm:"primaryKey"`
-	Applied    JSON      `gorm:"type:jsonb"`
+// JSPluginBindingInput is an object an automation binding picked for one of the
+// inputs its plugin declares. Applied remembers, per usage scope, the idempotency
+// key of the last action carried out on it, so a repeated event does nothing.
+type JSPluginBindingInput struct {
+	BindingID    uuid.UUID `gorm:"type:uuid;primaryKey"`
+	InputName    string
+	EntityType   string `gorm:"primaryKey"`
+	EntityID     string `gorm:"primaryKey"`
+	EventSubject bool
+	Applied      JSON `gorm:"type:jsonb"`
 }
+
+func (JSPluginBindingInput) TableName() string { return "js_plugin_binding_inputs" }
 
 // JSPluginEvent is one event queued for one binding.
 type JSPluginEvent struct {
@@ -65,14 +69,16 @@ type JSPluginActionLog struct {
 
 func (JSPluginActionLog) TableName() string { return "js_plugin_action_log" }
 
-// CreateAutomationBinding stores an automation binding with its targets in one
-// transaction. The binding's slot is its own id, so a subject can have several.
-func (r JSPluginRepository) CreateAutomationBinding(ctx context.Context, binding JSPluginBinding, targets []JSPluginBindingTarget) (JSPluginBinding, error) {
+// CreateAutomationBinding stores an automation binding with its picked objects
+// in one transaction. The binding's slot is its own id, so a plugin can be bound
+// as many times as an admin likes.
+func (r JSPluginRepository) CreateAutomationBinding(ctx context.Context, binding JSPluginBinding, inputs []JSPluginBindingInput) (JSPluginBinding, error) {
 	if binding.ID == uuid.Nil {
 		binding.ID = uuid.New()
 	}
 	binding.Slot = binding.ID.String()
-	binding.ScopeType = JSPluginScopeOAuthConnection
+	binding.ScopeType = JSPluginScopeAutomation
+	binding.ScopeID = binding.ID.String()
 	if len(binding.Config) == 0 {
 		binding.Config = JSON("{}")
 	}
@@ -88,16 +94,16 @@ func (r JSPluginRepository) CreateAutomationBinding(ctx context.Context, binding
 		if err := tx.Create(&binding).Error; err != nil {
 			return err
 		}
-		return replaceTargets(tx, binding.ID, targets)
+		return replaceInputs(tx, binding.ID, inputs)
 	})
 	return binding, err
 }
 
-// UpdateAutomationBinding replaces a binding's config and targets. Targets
-// that stay keep their idempotency record.
-func (r JSPluginRepository) UpdateAutomationBinding(ctx context.Context, id uuid.UUID, config JSON, targets []JSPluginBindingTarget) error {
+// UpdateAutomationBinding replaces a binding's parameters and picked objects.
+// Objects that stay keep their idempotency record.
+func (r JSPluginRepository) UpdateAutomationBinding(ctx context.Context, id uuid.UUID, config JSON, inputs []JSPluginBindingInput) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&JSPluginBinding{}).Where("id = ? AND scope_type = ?", id, JSPluginScopeOAuthConnection).
+		result := tx.Model(&JSPluginBinding{}).Where("id = ? AND scope_type = ?", id, JSPluginScopeAutomation).
 			Update("config", config)
 		if result.Error != nil {
 			return result.Error
@@ -105,38 +111,34 @@ func (r JSPluginRepository) UpdateAutomationBinding(ctx context.Context, id uuid
 		if result.RowsAffected == 0 {
 			return gorm.ErrRecordNotFound
 		}
-		return replaceTargets(tx, id, targets)
+		return replaceInputs(tx, id, inputs)
 	})
 }
 
-func replaceTargets(tx *gorm.DB, bindingID uuid.UUID, targets []JSPluginBindingTarget) error {
-	keep := make([][2]string, 0, len(targets))
-	for _, target := range targets {
-		keep = append(keep, [2]string{target.TargetType, target.TargetID})
-		if err := tx.Exec(`
-			INSERT INTO js_plugin_binding_targets (binding_id, target_type, target_id)
-			VALUES (?, ?, ?) ON CONFLICT DO NOTHING
-		`, bindingID, target.TargetType, target.TargetID).Error; err != nil {
-			return err
-		}
-	}
-	var existing []JSPluginBindingTarget
+func replaceInputs(tx *gorm.DB, bindingID uuid.UUID, inputs []JSPluginBindingInput) error {
+	var existing []JSPluginBindingInput
 	if err := tx.Where("binding_id = ?", bindingID).Find(&existing).Error; err != nil {
 		return err
 	}
-	for _, row := range existing {
-		stays := false
-		for _, pair := range keep {
-			if pair[0] == row.TargetType && pair[1] == row.TargetID {
-				stays = true
-				break
-			}
+	keep := map[[2]string]bool{}
+	for _, input := range inputs {
+		keep[[2]string{input.EntityType, input.EntityID}] = true
+		if err := tx.Exec(`
+			INSERT INTO js_plugin_binding_inputs (binding_id, input_name, entity_type, entity_id, event_subject)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT (binding_id, entity_type, entity_id) DO UPDATE SET
+				input_name = EXCLUDED.input_name, event_subject = EXCLUDED.event_subject
+		`, bindingID, input.InputName, input.EntityType, input.EntityID, input.EventSubject).Error; err != nil {
+			return err
 		}
-		if !stays {
-			if err := tx.Where("binding_id = ? AND target_type = ? AND target_id = ?", bindingID, row.TargetType, row.TargetID).
-				Delete(&JSPluginBindingTarget{}).Error; err != nil {
-				return err
-			}
+	}
+	for _, row := range existing {
+		if keep[[2]string{row.EntityType, row.EntityID}] {
+			continue
+		}
+		if err := tx.Where("binding_id = ? AND entity_type = ? AND entity_id = ?", bindingID, row.EntityType, row.EntityID).
+			Delete(&JSPluginBindingInput{}).Error; err != nil {
+			return err
 		}
 	}
 	return nil
@@ -152,20 +154,21 @@ func (r JSPluginRepository) GetBinding(ctx context.Context, id uuid.UUID) (JSPlu
 func (r JSPluginRepository) ListAutomationBindings(ctx context.Context, pluginID string) ([]JSPluginBinding, error) {
 	var items []JSPluginBinding
 	err := r.db.WithContext(ctx).
-		Where("plugin_id = ? AND scope_type = ?", pluginID, JSPluginScopeOAuthConnection).
+		Where("plugin_id = ? AND scope_type = ?", pluginID, JSPluginScopeAutomation).
 		Order("created_at ASC").Find(&items).Error
 	return items, err
 }
 
-func (r JSPluginRepository) ListBindingTargets(ctx context.Context, bindingID uuid.UUID) ([]JSPluginBindingTarget, error) {
-	var items []JSPluginBindingTarget
-	err := r.db.WithContext(ctx).Where("binding_id = ?", bindingID).Order("target_id ASC").Find(&items).Error
+// ListBindingInputs returns the objects a binding picked.
+func (r JSPluginRepository) ListBindingInputs(ctx context.Context, bindingID uuid.UUID) ([]JSPluginBindingInput, error) {
+	var items []JSPluginBindingInput
+	err := r.db.WithContext(ctx).Where("binding_id = ?", bindingID).Order("input_name ASC, entity_id ASC").Find(&items).Error
 	return items, err
 }
 
-// DeleteAutomationBinding removes a binding with its targets and queued events.
+// DeleteAutomationBinding removes a binding with its inputs and queued events.
 func (r JSPluginRepository) DeleteAutomationBinding(ctx context.Context, id uuid.UUID) error {
-	result := r.db.WithContext(ctx).Where("id = ? AND scope_type = ?", id, JSPluginScopeOAuthConnection).Delete(&JSPluginBinding{})
+	result := r.db.WithContext(ctx).Where("id = ? AND scope_type = ?", id, JSPluginScopeAutomation).Delete(&JSPluginBinding{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -188,7 +191,7 @@ func (r JSPluginRepository) SetAutomationEvents(ctx context.Context, pluginID st
 		UPDATE js_plugin_bindings SET events = ?::jsonb,
 			next_tick_at = CASE WHEN jsonb_exists(?::jsonb, 'schedule.tick') THEN COALESCE(next_tick_at, NOW()) ELSE NULL END
 		WHERE plugin_id = ? AND scope_type = ?`,
-		string(raw), string(raw), pluginID, JSPluginScopeOAuthConnection).Error
+		string(raw), string(raw), pluginID, JSPluginScopeAutomation).Error
 }
 
 // DueTickBindings returns the bindings whose schedule.tick is due.
@@ -196,7 +199,7 @@ func (r JSPluginRepository) DueTickBindings(ctx context.Context, now time.Time, 
 	var items []JSPluginBinding
 	err := r.db.WithContext(ctx).
 		Where("scope_type = ? AND next_tick_at IS NOT NULL AND next_tick_at <= ? AND jsonb_exists(events, ?)",
-			JSPluginScopeOAuthConnection, now, "schedule.tick").
+			JSPluginScopeAutomation, now, "schedule.tick").
 		Order("next_tick_at ASC").Limit(limit).Find(&items).Error
 	return items, err
 }
@@ -222,16 +225,18 @@ func (r JSPluginRepository) SaveBindingState(ctx context.Context, id uuid.UUID, 
 	return r.db.WithContext(ctx).Model(&JSPluginBinding{}).Where("id = ?", id).Update("state", state).Error
 }
 
-// EnqueueEvent queues one event for every automation binding on the subject
-// that is called for it. It takes the caller's transaction so the event is
-// stored together with the change that caused it. It returns the number queued.
-func (r JSPluginRepository) EnqueueEvent(ctx context.Context, eventType, subjectID string, payload JSON) (int64, error) {
+// EnqueueEvent queues one event for every automation binding that picked the
+// object as the one events are about and is called for this event. It takes the
+// caller's transaction so the event is stored together with the change that
+// caused it. It returns the number queued.
+func (r JSPluginRepository) EnqueueEvent(ctx context.Context, eventType, entityType, entityID string, payload JSON) (int64, error) {
 	result := r.db.WithContext(ctx).Exec(`
 		INSERT INTO js_plugin_events (binding_id, event_type, payload)
 		SELECT b.id, ?, ?::jsonb FROM js_plugin_bindings b
+		JOIN js_plugin_binding_inputs i ON i.binding_id = b.id AND i.event_subject
 		JOIN js_plugin_versions v ON v.plugin_id = b.plugin_id AND v.version = b.version
-		WHERE b.scope_type = ? AND b.scope_id = ? AND jsonb_exists(b.events, ?) AND v.status = ?
-	`, eventType, string(payload), JSPluginScopeOAuthConnection, subjectID, eventType, JSPluginStatusEnabled)
+		WHERE i.entity_type = ? AND i.entity_id = ? AND jsonb_exists(b.events, ?) AND v.status = ?
+	`, eventType, string(payload), entityType, entityID, eventType, JSPluginStatusEnabled)
 	return result.RowsAffected, result.Error
 }
 
@@ -267,16 +272,17 @@ func (r JSPluginRepository) PurgeFinished(ctx context.Context, before time.Time)
 	return r.db.WithContext(ctx).Exec(`DELETE FROM js_plugin_action_log WHERE created_at < ?`, before).Error
 }
 
-// ApplyOnce runs fn for a binding's target unless the same key was already
-// applied for this scope. The record is written only after fn succeeds, in the
-// same transaction that holds the target's row lock, so concurrent runs
-// serialize and a failed fn is retried. It reports whether fn ran.
-func (r JSPluginRepository) ApplyOnce(ctx context.Context, bindingID uuid.UUID, targetType, targetID, scope, key string, fn func(context.Context) error) (bool, error) {
+// ApplyOnce runs fn for an object a binding picked, unless the same key was
+// already applied for this scope. The record is written only after fn
+// succeeds, in the same transaction that holds the object's row lock, so
+// concurrent runs serialize and a failed fn is retried. It reports whether fn
+// ran, and gorm.ErrRecordNotFound when the binding no longer holds the object.
+func (r JSPluginRepository) ApplyOnce(ctx context.Context, bindingID uuid.UUID, entityType, entityID, scope, key string, fn func(context.Context) error) (bool, error) {
 	ran := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var row JSPluginBindingTarget
-		err := tx.Raw(`SELECT * FROM js_plugin_binding_targets WHERE binding_id = ? AND target_type = ? AND target_id = ? FOR UPDATE`,
-			bindingID, targetType, targetID).Scan(&row).Error
+		var row JSPluginBindingInput
+		err := tx.Raw(`SELECT * FROM js_plugin_binding_inputs WHERE binding_id = ? AND entity_type = ? AND entity_id = ? FOR UPDATE`,
+			bindingID, entityType, entityID).Scan(&row).Error
 		if err != nil {
 			return err
 		}
@@ -299,8 +305,8 @@ func (r JSPluginRepository) ApplyOnce(ctx context.Context, bindingID uuid.UUID, 
 		if err != nil {
 			return err
 		}
-		return tx.Exec(`UPDATE js_plugin_binding_targets SET applied = ?::jsonb WHERE binding_id = ? AND target_type = ? AND target_id = ?`,
-			string(raw), bindingID, targetType, targetID).Error
+		return tx.Exec(`UPDATE js_plugin_binding_inputs SET applied = ?::jsonb WHERE binding_id = ? AND entity_type = ? AND entity_id = ?`,
+			string(raw), bindingID, entityType, entityID).Error
 	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, err

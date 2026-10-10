@@ -1,16 +1,62 @@
 {
   "name": "quota recovered before the old reset time",
-  "ctx": { "now": 500000, "config": { "resetOnRecovery": true } },
+  "ctx": {
+    "now": 500000,
+    "inputs": {
+      "account": {
+        "type": "oauth_connection",
+        "id": "conn-1",
+        "name": "owner@example.com",
+        "fields": {
+          "provider": "codex"
+        }
+      },
+      "keys": [
+        {
+          "type": "api_key",
+          "id": "key-1",
+          "name": "alice",
+          "fields": {
+            "totalUsed": 12
+          }
+        }
+      ],
+      "resetOnRecovery": true
+    }
+  },
   "input": {
     "type": "oauth.quota_synced",
-    "subject": { "type": "oauth_connection", "id": "conn-1", "provider": "codex" },
-    "previous": { "weekly": { "reset_at": 1000, "remaining_percent": 2 } },
-    "current": { "weekly": { "reset_at": 9000, "remaining_percent": 100 } },
-    "targets": [{ "type": "api_key", "id": "key-1", "name": "alice", "usage": { "totalUsed": 12 } }]
+    "subject": {
+      "type": "oauth_connection",
+      "id": "conn-1",
+      "name": "owner@example.com",
+      "fields": {
+        "provider": "codex"
+      }
+    },
+    "previous": {
+      "weekly": {
+        "reset_at": 1000,
+        "remaining_percent": 2
+      }
+    },
+    "current": {
+      "weekly": {
+        "reset_at": 9000,
+        "remaining_percent": 100
+      }
+    }
   },
   "expect": {
     "result": {
-      "actions": [{ "type": "apikey.reset_usage", "target": "key-1", "scope": "total", "idempotencyKey": "9000000" }]
+      "actions": [
+        {
+          "type": "apikey.reset_usage",
+          "target": "key-1",
+          "scope": "total",
+          "idempotencyKey": "9000000"
+        }
+      ]
     }
   }
 }

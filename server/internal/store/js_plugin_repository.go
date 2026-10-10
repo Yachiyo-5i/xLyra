@@ -19,10 +19,11 @@ const (
 	JSPluginStatusBroken   = "broken"
 
 	// A binding mounts a plugin version on a scope: a downstream path
-	// (/v1/plugins/<slug>) or, for automation, an OAuth account. Which plugin
-	// serves a site lives in the site's gateway config, not here.
-	JSPluginScopeEndpoint        = "endpoint"
-	JSPluginScopeOAuthConnection = "oauth_connection"
+	// (/v1/plugins/<slug>) or, for automation, the binding itself, whose objects
+	// are its inputs. Which plugin serves a site lives in the site's gateway
+	// config, not here.
+	JSPluginScopeEndpoint   = "endpoint"
+	JSPluginScopeAutomation = "automation"
 )
 
 type JSPlugin struct {

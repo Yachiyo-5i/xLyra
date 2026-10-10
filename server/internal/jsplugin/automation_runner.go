@@ -35,17 +35,19 @@ type AutomationHost interface {
 }
 
 // EmittedEvent is something that happened in xLyra that automation plugins may
-// be called for.
+// be called for. EntityType and EntityID name the object it happened to.
 type EmittedEvent struct {
-	Type     string
-	Subject  AutomationSubject
-	Previous map[string]any
-	Current  map[string]any
+	Type       string
+	EntityType string
+	EntityID   string
+	Previous   map[string]any
+	Current    map[string]any
 }
 
-// EmitEvent queues the event for every automation binding on its subject that
-// subscribes to it. Pass the transaction that stores the change, so the event
-// and the change are saved together and a restart cannot lose one.
+// EmitEvent queues the event for every automation binding that picked its
+// object as the one events are about and is called for it. Pass the transaction
+// that stores the change, so the event and the change are saved together and a
+// restart cannot lose one.
 func (m *Manager) EmitEvent(ctx context.Context, tx *gorm.DB, event EmittedEvent) error {
 	if m == nil {
 		return nil
@@ -55,14 +57,14 @@ func (m *Manager) EmitEvent(ctx context.Context, tx *gorm.DB, event EmittedEvent
 	}
 	payload, err := json.Marshal(map[string]any{
 		"type":     event.Type,
-		"subject":  encodeValue(event.Subject),
+		"subject":  map[string]any{"type": event.EntityType, "id": event.EntityID},
 		"previous": event.Previous,
 		"current":  event.Current,
 	})
 	if err != nil {
 		return err
 	}
-	queued, err := store.NewJSPluginRepository(tx).EnqueueEvent(ctx, event.Type, event.Subject.ID, payload)
+	queued, err := store.NewJSPluginRepository(tx).EnqueueEvent(ctx, event.Type, event.EntityType, event.EntityID, payload)
 	if err != nil {
 		return err
 	}
@@ -136,33 +138,31 @@ func (m *Manager) queueTicks(ctx context.Context) {
 	}
 }
 
-// tickPayload describes the subject as it is now: for an OAuth account, its
-// status and the quota last synced.
+// tickPayload describes the object the binding is about as it is now.
 func (m *Manager) tickPayload(ctx context.Context, binding store.JSPluginBinding) (store.JSON, error) {
-	id, err := uuid.Parse(binding.ScopeID)
+	rows, err := m.repo.ListBindingInputs(ctx, binding.ID)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := store.NewOAuthConnectionRepository(m.db.DB()).GetByID(ctx, id)
-	if err != nil {
-		return nil, err
+	for _, row := range rows {
+		if !row.EventSubject {
+			continue
+		}
+		known := lookupEntity(row.EntityType)
+		if known == nil {
+			return nil, fmt.Errorf("unknown object type %q", row.EntityType)
+		}
+		current, err := known.Snapshot(ctx, m.db, row.EntityID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]any{
+			"type":    EventScheduleTick,
+			"subject": map[string]any{"type": row.EntityType, "id": row.EntityID},
+			"current": current,
+		})
 	}
-	meta := jsonObject(conn.Metadata)
-	current := map[string]any{"now": time.Now().UnixMilli(), "status": conn.Status}
-	if quota, ok := meta["quota"]; ok {
-		current["quota"] = quota
-	}
-	if conn.LastSyncAt.Valid {
-		current["last_sync_at"] = conn.LastSyncAt.Time.UTC().Format(time.RFC3339)
-	}
-	raw, err := json.Marshal(map[string]any{
-		"type": EventScheduleTick,
-		"subject": encodeValue(AutomationSubject{
-			Type: binding.ScopeType, ID: binding.ScopeID, Provider: conn.Provider, Label: conn.Email,
-		}),
-		"current": current,
-	})
-	return raw, err
+	return nil, errors.New("binding has no object that events are about")
 }
 
 // processDue handles the events that are due and returns how many it took.
@@ -218,20 +218,15 @@ func (m *Manager) runEvent(ctx context.Context, host AutomationHost, event store
 	}
 	granted := grantedSet(version.GrantedPermissions)
 
-	input, err := m.buildEvent(ctx, binding, event)
+	inputs, input, err := m.buildEvent(ctx, plugin, binding, event)
 	if err != nil {
 		return "", err.Error(), true
-	}
-	config, err := ApplyConfig(plugin.Manifest.Automation.Binding.Config, jsonObject(binding.Config))
-	if err != nil {
-		m.logAction(ctx, binding, plugin, event, AutomationAction{Type: "handle"}, "", store.JSPluginActionFailed, "binding config is no longer valid: "+err.Error())
-		return store.JSPluginEventFailed, err.Error(), false
 	}
 	result, err := plugin.CallAutomation(ctx, AutomationContext{
 		Event:     event.EventType,
 		Now:       time.Now().UnixMilli(),
 		BindingID: binding.ID.String(),
-		Config:    config,
+		Inputs:    inputs,
 		State:     jsonObject(binding.State),
 	}, input)
 	if err != nil {
@@ -288,7 +283,7 @@ func (m *Manager) performAction(ctx context.Context, host AutomationHost, bindin
 		if host == nil {
 			return "", "", errors.New("no host to carry out the action")
 		}
-		ran, err := m.repo.ApplyOnce(ctx, binding.ID, "api_key", action.Target, action.Scope, action.IdempotencyKey, func(ctx context.Context) error {
+		ran, err := m.repo.ApplyOnce(ctx, binding.ID, EntityAPIKey, action.Target, action.Scope, action.IdempotencyKey, func(ctx context.Context) error {
 			return host.ResetAPIKeyQuota(ctx, keyID, []string{action.Scope})
 		})
 		switch {
@@ -304,54 +299,77 @@ func (m *Manager) performAction(ctx context.Context, host AutomationHost, bindin
 	return "", "", fmt.Errorf("unknown action %q", action.Type)
 }
 
-// buildEvent reads the queued payload and attaches the bound targets with their
-// current usage.
-func (m *Manager) buildEvent(ctx context.Context, binding store.JSPluginBinding, queued store.JSPluginEvent) (AutomationEvent, error) {
+// buildEvent reads the queued payload and gathers what the plugin is given: the
+// objects the admin picked, with their current state, and the parameters. inputs
+// is what the plugin sees under ctx.inputs.
+func (m *Manager) buildEvent(ctx context.Context, plugin *Plugin, binding store.JSPluginBinding, queued store.JSPluginEvent) (map[string]any, AutomationEvent, error) {
 	var payload struct {
-		Type     string            `json:"type"`
-		Subject  AutomationSubject `json:"subject"`
-		Previous map[string]any    `json:"previous"`
-		Current  map[string]any    `json:"current"`
+		Subject  struct{ Type, ID string } `json:"subject"`
+		Previous map[string]any            `json:"previous"`
+		Current  map[string]any            `json:"current"`
 	}
 	if err := json.Unmarshal(queued.Payload, &payload); err != nil {
-		return AutomationEvent{}, err
+		return nil, AutomationEvent{}, err
 	}
-	event := AutomationEvent{Type: queued.EventType, Subject: payload.Subject, Previous: payload.Previous, Current: payload.Current}
-	targets, err := m.repo.ListBindingTargets(ctx, binding.ID)
+	rows, err := m.repo.ListBindingInputs(ctx, binding.ID)
 	if err != nil {
-		return AutomationEvent{}, err
+		return nil, AutomationEvent{}, err
 	}
-	var ids []uuid.UUID
-	for _, target := range targets {
-		if target.TargetType != "api_key" {
+	idsByType := map[string][]string{}
+	for _, row := range rows {
+		idsByType[row.EntityType] = append(idsByType[row.EntityType], row.EntityID)
+	}
+	resolved := map[[2]string]AutomationEntity{}
+	for kind, ids := range idsByType {
+		known := lookupEntity(kind)
+		if known == nil {
 			continue
 		}
-		if id, err := uuid.Parse(target.TargetID); err == nil {
-			ids = append(ids, id)
-		}
-	}
-	if len(ids) > 0 {
-		keys, err := store.NewAPIKeyRepository(m.db.DB()).ListByIDs(ctx, ids)
+		entities, err := known.Resolve(ctx, m.db, ids)
 		if err != nil {
-			return AutomationEvent{}, err
+			return nil, AutomationEvent{}, err
 		}
-		for _, key := range keys {
-			event.Targets = append(event.Targets, AutomationTarget{Type: "api_key", ID: key.ID.String(), Name: key.Name, Usage: apiKeyUsage(key)})
+		for _, entity := range entities {
+			resolved[[2]string{entity.Type, entity.ID}] = entity
 		}
 	}
-	return event, nil
-}
 
-func apiKeyUsage(key store.APIKey) map[string]any {
-	usage := map[string]any{
-		"totalUsed":  key.QuotaTotalUsed,
-		"dailyUsed":  key.QuotaDailyUsed,
-		"weeklyUsed": key.QuotaWeeklyUsed,
+	params := jsonObject(binding.Config)
+	inputs := map[string]any{}
+	for _, spec := range plugin.Manifest.Automation.Inputs {
+		if !spec.IsEntity() {
+			if value, ok := params[spec.Name]; ok {
+				inputs[spec.Name] = value
+			} else if spec.Default != nil {
+				inputs[spec.Name] = spec.Default
+			}
+			continue
+		}
+		var picked []any
+		for _, row := range rows {
+			if row.InputName != spec.Name {
+				continue
+			}
+			if entity, ok := resolved[[2]string{row.EntityType, row.EntityID}]; ok {
+				picked = append(picked, encodeValue(entity))
+			}
+		}
+		switch {
+		case spec.Multiple:
+			if picked == nil {
+				picked = []any{}
+			}
+			inputs[spec.Name] = picked
+		case len(picked) > 0:
+			inputs[spec.Name] = picked[0]
+		}
 	}
-	if finiteTotalQuota(key) {
-		usage["totalLimit"] = key.QuotaLimit.Float64
+
+	subject, ok := resolved[[2]string{payload.Subject.Type, payload.Subject.ID}]
+	if !ok {
+		subject = AutomationEntity{Type: payload.Subject.Type, ID: payload.Subject.ID, Name: payload.Subject.ID}
 	}
-	return usage
+	return inputs, AutomationEvent{Type: queued.EventType, Subject: subject, Previous: payload.Previous, Current: payload.Current}, nil
 }
 
 func finiteTotalQuota(key store.APIKey) bool {

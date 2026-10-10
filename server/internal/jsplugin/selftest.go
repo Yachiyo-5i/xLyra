@@ -38,9 +38,9 @@ type fixtureContext struct {
 	BaseURL        string `json:"baseURL"`
 	CredentialType string `json:"credentialType"`
 	Now            int64  `json:"now"`
-	// Config and State stand in for the binding's parameters and saved state
-	// in an automation fixture.
-	Config map[string]any `json:"config"`
+	// Inputs and State stand in for what the admin picked and the binding's
+	// saved state in an automation fixture.
+	Inputs map[string]any `json:"inputs"`
 	State  map[string]any `json:"state"`
 }
 

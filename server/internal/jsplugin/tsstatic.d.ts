@@ -15,6 +15,9 @@ export type SteppedDecision<R> =
   | { result: R; request?: never; error?: never }
   | { error: string; request?: never; result?: never };
 
+/** What an admin picked for one input: an object (several when the input is multiple) or a parameter value. */
+export type AutomationInputValue = AutomationEntity | AutomationEntity[] | string | number | boolean;
+
 export type ModelListDecision = SteppedDecision<ModelListResult>;
 export type CredentialCheckDecision = SteppedDecision<CredentialCheckResult>;
 export type SiteDetectDecision = SteppedDecision<SiteDetectResult>;

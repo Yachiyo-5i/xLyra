@@ -1,4 +1,4 @@
-import type { AutomationContext, AutomationEvent, AutomationResult } from "../types/xlyra";
+import type { AutomationContext, AutomationEntity, AutomationEvent, AutomationResult } from "../types/xlyra";
 
 export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "automation" };
 
@@ -16,8 +16,11 @@ function resetMs(window: Window | undefined): number | undefined {
 }
 
 // Runs whenever an OAuth account's quota is synced. When its weekly window has
-// rolled over, ask xLyra to clear the usage of the API keys bound to it. You
+// rolled over, ask xLyra to clear the usage of the API keys picked for it. You
 // only decide; xLyra checks the permissions and does the clearing.
+//
+// ctx.inputs holds what the admin picked, under the names declared in
+// manifest.json: "account" and "keys" are objects, "resetOnRecovery" a value.
 export function handle(ctx: AutomationContext, event: AutomationEvent): AutomationResult {
   const before = event.previous?.weekly as Window | undefined;
   const after = event.current.weekly as Window | undefined;
@@ -27,10 +30,10 @@ export function handle(ctx: AutomationContext, event: AutomationEvent): Automati
 
   const rolledOver = beforeAt <= ctx.now;
   const recovered = (after?.remaining_percent ?? 0) > (before?.remaining_percent ?? 0);
-  if (!rolledOver && !(ctx.config.resetOnRecovery && recovered)) return { actions: [] };
+  if (!rolledOver && !(ctx.inputs.resetOnRecovery && recovered)) return { actions: [] };
 
   return {
-    actions: event.targets.map((target) => ({
+    actions: (ctx.inputs.keys as AutomationEntity[]).map((target) => ({
       type: "apikey.reset_usage" as const,
       target: target.id,
       scope: "total" as const,

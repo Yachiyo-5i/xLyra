@@ -344,6 +344,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Post("/js-plugins/{id}/automations", adminHandler.CreateJSPluginAutomation)
 				protected.Put("/js-plugins/{id}/automations/{binding_id}", adminHandler.UpdateJSPluginAutomation)
 				protected.Delete("/js-plugins/{id}/automations/{binding_id}", adminHandler.DeleteJSPluginAutomation)
+				protected.Get("/js-plugins/{id}/inputs/{name}/options", adminHandler.ListJSPluginAutomationOptions)
 				protected.Get("/js-plugins/{id}/action-log", adminHandler.ListJSPluginActionLog)
 				protected.Get("/downloads/{downloadID}", downloadService.Download)
 				protected.Get("/dashboard/usage", adminHandler.DashboardUsage)
