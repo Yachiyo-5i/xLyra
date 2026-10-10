@@ -219,6 +219,31 @@ func (h Handler) DeleteJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// DeleteJSPlugin uninstalls every version of a plugin that is not enabled.
+func (h Handler) DeleteJSPlugin(w http.ResponseWriter, r *http.Request) {
+	if h.jsPlugins == nil {
+		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")
+		return
+	}
+	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if err := h.jsPlugins.DeletePlugin(r.Context(), pluginID); err != nil {
+		code := "js_plugin_delete_failed"
+		status := http.StatusBadRequest
+		switch {
+		case errors.Is(err, jsplugin.ErrVersionEnabled):
+			code = "js_plugin_version_enabled"
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			code = "not_found"
+			status = http.StatusNotFound
+		}
+		h.recordJSPluginAudit(r, "js_plugin.delete_plugin", pluginID, false, code, nil)
+		h.writeError(w, r, status, code, err.Error())
+		return
+	}
+	h.recordJSPluginAudit(r, "js_plugin.delete_plugin", pluginID, true, "", nil)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 func (h Handler) BindJSPluginProtocolSlug(w http.ResponseWriter, r *http.Request) {
 	if h.jsPlugins == nil {
 		h.writeError(w, r, http.StatusServiceUnavailable, "js_plugin_unavailable", "js plugin manager is not available")

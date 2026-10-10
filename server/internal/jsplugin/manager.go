@@ -239,6 +239,16 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 	return nil
 }
 
+// DeletePlugin uninstalls every version of a plugin, with its bindings and logs.
+// An enabled plugin must be disabled first.
+func (m *Manager) DeletePlugin(ctx context.Context, pluginID string) error {
+	err := m.repo.DeletePlugin(ctx, pluginID)
+	if errors.Is(err, store.ErrJSPluginEnabled) {
+		return ErrVersionEnabled
+	}
+	return err
+}
+
 // CheckSiteBinding checks that an enabled plugin version may be bound to a
 // site, and returns its kind. Which plugin serves which site is kept in the
 // site's gateway config, which routing and the site pages already read, so this

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,6 +26,9 @@ const (
 	JSPluginScopeEndpoint   = "endpoint"
 	JSPluginScopeAutomation = "automation"
 )
+
+// ErrJSPluginEnabled is returned when a plugin is removed while one of its versions is enabled.
+var ErrJSPluginEnabled = errors.New("plugin has an enabled version")
 
 type JSPlugin struct {
 	ID        string `gorm:"primaryKey"`
@@ -178,6 +182,31 @@ func (r JSPluginRepository) DeleteVersion(ctx context.Context, pluginID, version
 			return tx.Where("id = ?", pluginID).Delete(&JSPlugin{}).Error
 		}
 		return nil
+	})
+}
+
+// DeletePlugin removes a plugin with every version, binding, queued event and
+// log row it has. It refuses while a version is enabled, and reports
+// gorm.ErrRecordNotFound for a plugin that does not exist.
+func (r JSPluginRepository) DeletePlugin(ctx context.Context, pluginID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var enabled int64
+		if err := tx.Model(&JSPluginVersion{}).Where("plugin_id = ? AND status = ?", pluginID, JSPluginStatusEnabled).Count(&enabled).Error; err != nil {
+			return err
+		}
+		if enabled > 0 {
+			return ErrJSPluginEnabled
+		}
+		result := tx.Where("id = ?", pluginID).Delete(&JSPlugin{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		// The versions, bindings and their events go with the plugin row; the log
+		// only refers to the plugin by name, so it is cleared here.
+		return tx.Exec(`DELETE FROM js_plugin_action_log WHERE plugin_id = ?`, pluginID).Error
 	})
 }
 

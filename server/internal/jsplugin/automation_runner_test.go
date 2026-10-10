@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"xlyra/server/internal/store"
 )
@@ -418,5 +419,65 @@ func TestAutomationScheduleTick(t *testing.T) {
 	}
 	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_bindings WHERE next_tick_at > NOW()`); n != 1 {
 		t.Fatal("a disabled plugin's binding was not postponed")
+	}
+}
+
+// Uninstalling a plugin removes every version with its bindings, queue and log,
+// but only once it is no longer enabled.
+func TestDeletePluginRemovesEveryVersionAndWhatHangsOffIt(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	manager := NewManager(st, &Catalog{})
+	grant := EnableOptions{ConfirmUntrusted: true, GrantPermissions: []string{ActionAPIKeyResetUsage}}
+	for _, version := range []string{"1.0.0", "1.1.0"} {
+		if _, err := manager.Upload(ctx, "", rolloverPackage(t, version)); err != nil {
+			t.Fatalf("upload %s: %v", version, err)
+		}
+	}
+	if err := manager.Enable(ctx, "acme-reset", "1.1.0", grant); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	conn, _ := store.NewOAuthConnectionRepository(st.DB()).Save(ctx, store.OAuthConnection{
+		Provider: "codex", Email: "o@x", Status: "connected", RawProfile: store.JSON("{}"), Metadata: store.JSON("{}"),
+	})
+	key := store.APIKey{Name: "k", KeyPrefix: "k", KeyHash: uuid.NewString(), MaskedKey: "k", KeyKind: "generated", Scope: "gateway", Status: "active", ModelPolicy: "allow_all", SitePolicy: "allow_all", BillingMultiplier: 1, QuotaLimit: sql.NullFloat64{Float64: 20, Valid: true}, QuotaDailyUnlimited: true, QuotaWeeklyUnlimited: true}
+	if err := st.DB().Create(&key).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.CreateAutomation(ctx, "acme-reset", AutomationBindingInput{Inputs: map[string]any{"account": conn.ID.String(), "keys": []any{key.ID.String()}}}); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if err := manager.EmitEvent(ctx, st.DB(), EmittedEvent{Type: "oauth.quota_synced", EntityType: EntityOAuthConnection, EntityID: conn.ID.String(),
+		Previous: map[string]any{"weekly": map[string]any{"reset_at": 1}}, Current: map[string]any{"weekly": map[string]any{"reset_at": 2}}}); err != nil {
+		t.Fatal(err)
+	}
+	manager.processDue(ctx, &fakeHost{})
+
+	if err := manager.DeletePlugin(ctx, "acme-reset"); !errors.Is(err, ErrVersionEnabled) {
+		t.Fatalf("deleting an enabled plugin: err = %v, want ErrVersionEnabled", err)
+	}
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_versions WHERE plugin_id = 'acme-reset'`); n != 2 {
+		t.Fatalf("a refused delete removed versions: %d left", n)
+	}
+	if err := manager.Disable(ctx, "acme-reset"); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.DeletePlugin(ctx, "acme-reset"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	for _, query := range []string{
+		`SELECT COUNT(*) FROM js_plugins WHERE id = 'acme-reset'`,
+		`SELECT COUNT(*) FROM js_plugin_versions WHERE plugin_id = 'acme-reset'`,
+		`SELECT COUNT(*) FROM js_plugin_bindings WHERE plugin_id = 'acme-reset'`,
+		`SELECT COUNT(*) FROM js_plugin_binding_inputs`,
+		`SELECT COUNT(*) FROM js_plugin_events`,
+		`SELECT COUNT(*) FROM js_plugin_action_log WHERE plugin_id = 'acme-reset'`,
+	} {
+		if n := countRows(t, st, query); n != 0 {
+			t.Errorf("%s = %d after uninstalling the plugin", query, n)
+		}
+	}
+	if err := manager.DeletePlugin(ctx, "acme-reset"); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("deleting a plugin that is gone: err = %v, want not found", err)
 	}
 }
