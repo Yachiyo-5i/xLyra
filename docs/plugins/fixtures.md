@@ -130,4 +130,4 @@ fixtures 是放在 `fixtures/*.json` 里的录制样本：给定上游的响应�
 
 ## 自动化样本
 
-`automation` 的样本没有 `responses`：`ctx` 提供 `now`、`config`（绑定参数）和 `state`（上次保存的状态），`input` 是事件，`expect.result` 是期望的 `{ actions, state }`，只比对写出的字段。详见[自动化插件](./automation.md#写-fixtures)。
+`automation` 的样本没有 `responses`：`ctx` 提供 `now`、`inputs`（管理员选的对象和填的参数，与 `ctx.inputs` 一致）和 `state`（上次保存的状态），`input` 是事件，`expect.result` 是期望的 `{ actions, state }`，只比对写出的字段。详见[自动化插件](./automation.md#写-fixtures)。

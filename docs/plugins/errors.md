@@ -54,4 +54,4 @@ js_timeout: interrupted: timeout
 | `js_plugin_kind_not_connected` | 类型已定义但 xLyra 尚未接入，不能启用。目前九种类型都已接入，只有以后新增的类型在接入前才会出现 |
 | `js_plugin_pricing_review_required` | 绑定价格解析插件时没有确认预览结果 |
 | `js_plugin_permissions_required` | 启用的 `automation` 版本声明了权限，但管理员没有授予。需要在启用请求里带上 `grant_permissions` |
-| `js_plugin_automation_invalid` | 新增或修改自动化绑定时，所选账号、API 密钥或参数不符合插件的声明，错误信息里会说明原因 |
+| `js_plugin_automation_invalid` | 新增或修改自动化绑定时，所选对象或参数不符合插件声明的输入，错误信息里会说明原因 |
