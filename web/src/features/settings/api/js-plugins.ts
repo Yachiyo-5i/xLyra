@@ -134,6 +134,11 @@ export async function disableJSPlugin(pluginId: string) {
   )
 }
 
+/** Uninstalls every version of a plugin that is not enabled. */
+export async function deleteJSPlugin(pluginId: string) {
+  return apiFetch<{ ok: boolean }>(`/api/v1/js-plugins/${encodeURIComponent(pluginId)}`, { method: 'DELETE' })
+}
+
 export async function deleteJSPluginVersion(pluginId: string, version: string) {
   return apiFetch<{ ok: boolean }>(
     `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}`,

@@ -38,6 +38,7 @@ import {
   bindJSPluginProtocolSlug,
   createJSPluginTrustedKey,
   deleteJSPluginTrustedKey,
+  deleteJSPlugin,
   deleteJSPluginVersion,
   disableJSPlugin,
   automationManifest,
@@ -126,6 +127,7 @@ export function JSPluginsSettingsWorkspace() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [managePlugin, setManagePlugin] = useState<JSPluginListItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ pluginId: string; version: string } | null>(null)
+  const [uninstallTarget, setUninstallTarget] = useState<{ pluginId: string; name: string; versions: number } | null>(null)
   const [enableConfirm, setEnableConfirm] = useState<{
     pluginId: string
     version: string
@@ -315,6 +317,19 @@ export function JSPluginsSettingsWorkspace() {
     },
   })
 
+  const uninstallMutation = useMutation({
+    mutationFn: ({ pluginId }: { pluginId: string }) => deleteJSPlugin(pluginId),
+    onSuccess: (_result, { pluginId }) => {
+      toast.success(t('settings:jsPlugins.uninstallAllSuccess'))
+      setUninstallTarget(null)
+      invalidateAll()
+      if (managePlugin?.id === pluginId) closeManage()
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.deleteFailed'))
+    },
+  })
+
   const tryMutation = useMutation({
     mutationFn: ({ pluginId, version }: { pluginId: string; version: string }) => tryJSPlugin(pluginId, version),
     onSuccess: (result, { pluginId, version }) => {
@@ -351,6 +366,7 @@ export function JSPluginsSettingsWorkspace() {
     enableMutation.isPending ||
     disableMutation.isPending ||
     deleteMutation.isPending ||
+    uninstallMutation.isPending ||
     tryMutation.isPending ||
     bindProtocolMutation.isPending ||
     addTrustedKeyMutation.isPending ||
@@ -423,6 +439,11 @@ export function JSPluginsSettingsWorkspace() {
   }
 
   const disablePlugin = disableMutation.mutate
+  const requestUninstall = useCallback(
+    (plugin: JSPluginListItem) =>
+      setUninstallTarget({ pluginId: plugin.id, name: plugin.name || plugin.id, versions: plugin.version_count }),
+    [],
+  )
 
   const uploadedColumns = useMemo<ColumnDef<JSPluginListItem>[]>(
     () => [
@@ -489,13 +510,24 @@ export function JSPluginsSettingsWorkspace() {
               >
                 {t('settings:jsPlugins.disable')}
               </Button>
-            ) : null}
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-[hsl(var(--destructive))]"
+                disabled={busy}
+                onClick={() => requestUninstall(row.original)}
+              >
+                {t('settings:jsPlugins.uninstall')}
+              </Button>
+            )}
           </div>
         ),
         meta: { align: 'right' },
       },
     ],
-    [t, busy, openManage, disablePlugin],
+    [t, busy, openManage, disablePlugin, requestUninstall],
   )
 
   const requestEnable = (row: JSPluginVersion) => {
@@ -589,7 +621,18 @@ export function JSPluginsSettingsWorkspace() {
                       <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => disablePlugin(plugin.id)}>
                         {t('settings:jsPlugins.disable')}
                       </Button>
-                    ) : null}
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-[hsl(var(--destructive))]"
+                        disabled={busy}
+                        onClick={() => requestUninstall(plugin)}
+                      >
+                        {t('settings:jsPlugins.uninstall')}
+                      </Button>
+                    )}
                   </>
                 }
               />
@@ -988,6 +1031,35 @@ export function JSPluginsSettingsWorkspace() {
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
             >
               {deleteMutation.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              {t('settings:jsPlugins.uninstall')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={uninstallTarget != null} onOpenChange={(open) => !open && setUninstallTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('settings:jsPlugins.uninstallAllTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('settings:jsPlugins.uninstallAllBody', { name: uninstallTarget?.name, count: uninstallTarget?.versions })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setUninstallTarget(null)}>
+              {t('common:actions.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={uninstallMutation.isPending || !uninstallTarget}
+              onClick={() => uninstallTarget && uninstallMutation.mutate({ pluginId: uninstallTarget.pluginId })}
+            >
+              {uninstallMutation.isPending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" />
