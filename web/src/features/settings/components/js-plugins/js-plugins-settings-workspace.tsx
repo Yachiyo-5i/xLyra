@@ -3,11 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { FlaskConical, KeyRound, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { KeyRound, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
+import { JSPluginVersionMenu, type VersionMenuItem } from '@/features/settings/components/js-plugins/js-plugin-version-menu'
 import { JSPluginAutomationSection } from '@/features/settings/components/js-plugins/js-plugin-automation'
 import { permissionLabelKey } from '@/features/settings/components/js-plugins/permissions'
 import { JSPluginSiteBindingSection } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
@@ -1141,7 +1142,7 @@ function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }:
   return (
     <>
       <Button type="button" size="sm" variant="outline" disabled={busy || tryPending} onClick={onTry}>
-        {tryPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FlaskConical className="mr-1 h-3.5 w-3.5" />}
+        {tryPending ? <LoaderCircle className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
         {t('settings:jsPlugins.try')}
       </Button>
       {row.status !== 'enabled' ? (
@@ -1155,6 +1156,24 @@ function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }:
         </Button>
       ) : null}
     </>
+  )
+}
+
+/** Desktop: every action of a version behind one vertical-dots button. */
+function VersionActionsMenu({ row, busy, tryPending, onEnable, onTry, onDelete, t }: VersionRowProps) {
+  const items: VersionMenuItem[] = [
+    { key: 'try', label: t('settings:jsPlugins.try'), disabled: busy || tryPending, onSelect: onTry },
+  ]
+  if (row.status !== 'enabled') {
+    items.push(
+      { key: 'enable', label: t('settings:jsPlugins.enable'), disabled: busy || row.status === 'broken', onSelect: onEnable },
+      { key: 'uninstall', label: t('settings:jsPlugins.uninstall'), disabled: busy, destructive: true, onSelect: onDelete },
+    )
+  }
+  return (
+    <div className="flex justify-end">
+      <JSPluginVersionMenu items={items} pending={tryPending} label={t('settings:jsPlugins.columns.actions')} />
+    </div>
   )
 }
 
@@ -1185,10 +1204,8 @@ function VersionRow(props: VersionRowProps) {
           </div>
         ) : null}
       </td>
-      <td className="px-3 py-2 text-right">
-        <div className="flex flex-wrap justify-end gap-2">
-          <VersionActions {...props} />
-        </div>
+      <td className="w-px px-3 py-2 text-right">
+        <VersionActionsMenu {...props} />
       </td>
     </tr>
   )

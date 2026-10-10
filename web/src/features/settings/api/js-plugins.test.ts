@@ -9,11 +9,14 @@ describe('automationManifest', () => {
       automation: {
         subscribes: ['oauth.quota_synced'],
         permissions: ['apikey.reset_usage'],
-        binding: { subject: { type: 'oauth_connection', providers: ['codex'] }, target: { type: 'api_key' } },
+        inputs: [
+          { name: 'account', type: 'oauth_connection', providers: ['codex'], eventSubject: true },
+          { name: 'keys', type: 'api_key', multiple: true },
+        ],
       },
     })
     expect(manifest?.permissions).toEqual(['apikey.reset_usage'])
-    expect(manifest?.binding.subject.providers).toEqual(['codex'])
+    expect(manifest?.inputs.map((input) => input.name)).toEqual(['account', 'keys'])
   })
 
   it('is null for other kinds, so enabling them asks for nothing extra', () => {
@@ -22,7 +25,7 @@ describe('automationManifest', () => {
   })
 
   it('tolerates a section without permissions', () => {
-    expect(automationManifest({ automation: { binding: { subject: { type: 'oauth_connection' } } } })?.permissions).toEqual([])
+    expect(automationManifest({ automation: { inputs: [] } })?.permissions).toEqual([])
   })
 })
 

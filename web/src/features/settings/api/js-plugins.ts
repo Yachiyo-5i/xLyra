@@ -191,21 +191,31 @@ export async function previewJSPluginPricing(pluginId: string, siteId: string) {
 
 // ---- automation plugins ----
 
-/** One property of the parameters an automation plugin asks the admin for. */
-export type JSPluginConfigProperty = {
-  type: 'string' | 'number' | 'integer' | 'boolean'
-  title?: string
-  description?: string
+/** Copy a plugin supplies for the form: one string for every language, or one per language. */
+export type LocalizedText = string | Record<string, string>
+
+export type JSPluginAutomationInputKind = 'oauth_connection' | 'api_key' | 'string' | 'number' | 'integer' | 'boolean'
+
+/** One thing an automation plugin asks the admin for: a built-in object to pick, or a parameter. */
+export type JSPluginAutomationInput = {
+  name: string
+  type: JSPluginAutomationInputKind
+  title?: LocalizedText
+  description?: LocalizedText
+  placeholder?: LocalizedText
+  emptyText?: LocalizedText
+  /** Defaults to true for objects and false for parameters. */
+  required?: boolean
+  // objects
+  multiple?: boolean
+  eventSubject?: boolean
+  providers?: string[]
+  requires?: string
+  // parameters
   default?: string | number | boolean
   enum?: Array<string | number>
   minimum?: number
   maximum?: number
-}
-
-export type JSPluginConfigSchema = {
-  type?: 'object'
-  properties?: Record<string, JSPluginConfigProperty>
-  required?: string[]
 }
 
 /** The automation block of a plugin manifest. */
@@ -214,11 +224,8 @@ export type JSPluginAutomationManifest = {
   permissions: string[]
   /** Present when the plugin subscribes to schedule.tick. */
   schedule?: { everyMinutes?: number }
-  binding: {
-    subject: { type: string; providers?: string[] }
-    target?: { type?: string; requires?: string }
-    config?: JSPluginConfigSchema
-  }
+  form?: { title?: LocalizedText; description?: LocalizedText; addLabel?: LocalizedText; emptyText?: LocalizedText }
+  inputs: JSPluginAutomationInput[]
 }
 
 export function automationManifest(manifest?: Record<string, unknown>): JSPluginAutomationManifest | null {
@@ -228,27 +235,32 @@ export function automationManifest(manifest?: Record<string, unknown>): JSPlugin
     subscribes: raw.subscribes ?? [],
     permissions: raw.permissions ?? [],
     schedule: raw.schedule,
-    binding: raw.binding ?? { subject: { type: '' } },
+    form: raw.form,
+    inputs: raw.inputs ?? [],
   }
 }
+
+export type JSPluginAutomationValue = string | number | boolean | string[]
 
 export type JSPluginAutomation = {
   id: string
   version: string
-  subject_type: string
-  subject_id: string
-  subject_label: string
-  provider: string
-  config: Record<string, string | number | boolean>
-  targets: Array<{ type: string; id: string; name: string }>
+  inputs: Array<{
+    name: string
+    entities?: Array<{ type: string; id: string; name: string }>
+    value?: string | number | boolean
+  }>
   state: Record<string, unknown>
   created_at: string
 }
 
-export type JSPluginAutomationInput = {
-  subject_id: string
-  target_ids: string[]
-  config: Record<string, string | number | boolean>
+export type JSPluginAutomationOption = {
+  id: string
+  name: string
+  description?: string
+  disabled?: boolean
+  reason_code?: string
+  reason?: string
 }
 
 export type JSPluginActionLogEntry = {
@@ -265,6 +277,7 @@ export type JSPluginActionLogEntry = {
 export const jsPluginAutomationQueryKeys = {
   list: (pluginId: string) => [...jsPluginQueryKeys.all, 'automations', pluginId] as const,
   log: (pluginId: string) => [...jsPluginQueryKeys.all, 'action-log', pluginId] as const,
+  options: (pluginId: string, inputName: string) => [...jsPluginQueryKeys.all, 'options', pluginId, inputName] as const,
 }
 
 export async function listJSPluginAutomations(pluginId: string, signal?: AbortSignal) {
@@ -275,18 +288,30 @@ export async function listJSPluginAutomations(pluginId: string, signal?: AbortSi
   return result.items ?? []
 }
 
-export async function createJSPluginAutomation(pluginId: string, input: JSPluginAutomationInput) {
+export async function createJSPluginAutomation(pluginId: string, inputs: Record<string, JSPluginAutomationValue>) {
   return apiFetch<{ ok: boolean; id: string }>(`/api/v1/js-plugins/${encodeURIComponent(pluginId)}/automations`, {
     method: 'POST',
-    body: input,
+    body: { inputs },
   })
 }
 
-export async function updateJSPluginAutomation(pluginId: string, bindingId: string, input: JSPluginAutomationInput) {
+export async function updateJSPluginAutomation(
+  pluginId: string,
+  bindingId: string,
+  inputs: Record<string, JSPluginAutomationValue>,
+) {
   return apiFetch<{ ok: boolean }>(
     `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/automations/${encodeURIComponent(bindingId)}`,
-    { method: 'PUT', body: input },
+    { method: 'PUT', body: { inputs } },
   )
+}
+
+export async function listJSPluginAutomationOptions(pluginId: string, inputName: string, signal?: AbortSignal) {
+  const result = await apiFetch<{ items: JSPluginAutomationOption[] }>(
+    `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/inputs/${encodeURIComponent(inputName)}/options`,
+    { signal },
+  )
+  return result.items ?? []
 }
 
 export async function deleteJSPluginAutomation(pluginId: string, bindingId: string) {
