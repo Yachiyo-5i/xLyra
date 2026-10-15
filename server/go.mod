@@ -1,6 +1,6 @@
 module xlyra/server
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/Yachiyo-5i/moejs v0.1.0-yachiyo.2
@@ -14,9 +14,9 @@ require (
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.26.4
-	golang.org/x/crypto v0.51.0
-	golang.org/x/net v0.54.0
-	golang.org/x/sync v0.21.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/net v0.60.0
+	golang.org/x/sync v0.23.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )
@@ -46,6 +46,6 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/text v0.39.0
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0
 )
