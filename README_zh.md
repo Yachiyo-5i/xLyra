@@ -23,7 +23,9 @@ xLyra 是一个自托管 AI 网关、LLM 代理和控制面，用于聚合多个
 xLyra 支持：
 
 - OpenAI 兼容和 Anthropic 兼容 API
-- Chat Completions、Responses 和 Messages 协议转换
+- Chat Completions、Responses、Messages 和 Gemini 协议转换
+- JS 插件扩展：额度探测、自定义协议、模型列表、自动化等，详见[插件开发文档](./docs/plugins/README.md)
+- Agent 工作台：在 xLyra 内用已接入的模型运行对话式 Agent，详见 [Agent 使用文档](./docs/agent/README.md)
 - OAuth 账号编排与 Token 刷新
 - 多站点、多账号模型路由
 - 基于健康状态的故障转移与冷却机制
@@ -70,10 +72,15 @@ postgres  # PostgreSQL 数据库
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/v1/models` | 查询下游可见模型 |
+| `GET` | `/v1beta/models` | 以 Gemini 原生格式查询下游可见的 Gemini 模型 |
 | `POST` | `/v1/chat/completions` | OpenAI Chat Completions（流式与非流式） |
 | `POST` | `/v1/responses` | OpenAI Responses API |
 | `GET` | `/v1/responses` | OpenAI Responses API over WebSocket（`Upgrade: websocket`） |
 | `POST` | `/v1/messages` | Anthropic Messages-style 端点 |
+| `POST` | `/v1beta/models/{model}:generateContent` | Gemini generateContent（非流式） |
+| `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini generateContent（流式） |
+| `POST` | `/v1/systemone` | TypeSafe Jev 决策模型端点（SystemOne 协议透传，由内置协议插件实现，仅非流式） |
+| `POST` | `/v1/plugins/{slug}` | 由 JS 协议插件提供的自定义协议端点，`slug` 由管理员在启用插件时分配 |
 | `POST` | `/v1/images/generations` | 图片生成 |
 | `POST` | `/v1/images/edits` | 图片编辑（multipart） |
 | `POST` | `/v1/embeddings` | Embeddings |
@@ -88,6 +95,7 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 | Chat Completions | OpenAI Chat / Responses / Anthropic Messages / Google Gemini / Antigravity / Grok |
 | Responses | Responses / OpenAI Chat / Anthropic Messages / Google Gemini / Antigravity / Grok |
 | Messages | Anthropic Messages / Responses / OpenAI Chat / Google Gemini / Antigravity / Codex / Grok |
+| Gemini generateContent | Google Gemini / Antigravity / Responses / OpenAI Chat / Anthropic Messages / Codex / Grok；含图片生成的请求可路由到 OpenAI Images |
 | Images generations | OpenAI Images / Codex 图片生成工具 / Google Gemini / Antigravity / Grok |
 | Images edits | OpenAI multipart / Codex multipart / Grok |
 | Embeddings | OpenAI-compatible embeddings |
@@ -180,6 +188,19 @@ xLyra 在下游和上游协议格式之间透明转换。Failover 只允许发�
 - 仪表盘：RPM、Token 吞吐、成本、活跃 Key 热力图和冷却摘要
 - 实时请求流图：在途请求以节点连线拓扑形式实时可视化
 - 模型体验工作台：多协议交互测试（Chat、Responses、Messages），支持附件对话
+
+### Agent
+
+- `/agent` 工作台：对话式 Agent，可读写文件、运行命令、搜索网页，带步骤时间线、权限确认和附件
+- `/settings/agent`：连接 Runner 容器、限定 Agent 可用的站点与模型、升级 Agent
+- 在工作台里管理 Skills、记忆、AGENTS.md 和上下文压缩设置
+- 配置说明：[docs/agent](./docs/agent/README.md)
+
+### 插件
+
+- 在开发者设置页上传、校验、启用和绑定 JS 插件
+- 插件类型包括额度探测、协议、模型列表、密钥校验、站点识别、错误分类、模型元数据、价格解析和自动化
+- 开发文档：[docs/plugins](./docs/plugins/README.md)
 
 ### 系统
 

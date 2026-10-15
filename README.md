@@ -23,7 +23,9 @@ It provides one API endpoint for OpenAI, Anthropic, Claude Code, Codex, Gemini, 
 xLyra supports:
 
 - OpenAI-compatible and Anthropic-compatible APIs
-- Chat Completions, Responses, and Messages protocol conversion
+- Chat Completions, Responses, Messages, and Gemini protocol conversion
+- JS plugin extensions: quota probes, custom protocols, model lists, automation, and more (see the [plugin developer docs](./docs/plugins/README.md), in Chinese)
+- Agent workspace: a conversational agent that runs on the models already connected to xLyra (see the [Agent docs](./docs/agent/README.md), in Chinese)
 - OAuth account orchestration and token refresh
 - Multi-site and multi-account model routing
 - Health-aware failover and cooldown
@@ -75,6 +77,10 @@ The inference endpoints below require a downstream API key via `Authorization: B
 | `POST` | `/v1/responses` | OpenAI Responses API |
 | `GET` | `/v1/responses` | OpenAI Responses API over WebSocket (`Upgrade: websocket`) |
 | `POST` | `/v1/messages` | Anthropic Messages-style endpoint |
+| `POST` | `/v1beta/models/{model}:generateContent` | Gemini generateContent (non-streaming) |
+| `POST` | `/v1beta/models/{model}:streamGenerateContent` | Gemini generateContent (streaming) |
+| `POST` | `/v1/systemone` | TypeSafe Jev decision model endpoint (SystemOne protocol passthrough, implemented by a built-in protocol plugin, non-streaming only) |
+| `POST` | `/v1/plugins/{slug}` | Custom protocol endpoint provided by a JS protocol plugin; the admin assigns `slug` when enabling the plugin |
 | `POST` | `/v1/images/generations` | Image generation |
 | `POST` | `/v1/images/edits` | Image editing (multipart) |
 | `POST` | `/v1/embeddings` | Embeddings |
@@ -89,6 +95,7 @@ xLyra translates between downstream and upstream protocol formats transparently.
 | Chat Completions | OpenAI Chat / Responses / Anthropic Messages / Google Gemini / Antigravity / Grok |
 | Responses | Responses / OpenAI Chat / Anthropic Messages / Google Gemini / Antigravity / Grok |
 | Messages | Anthropic Messages / Responses / OpenAI Chat / Google Gemini / Antigravity / Codex / Grok |
+| Gemini generateContent | Google Gemini / Antigravity / Responses / OpenAI Chat / Anthropic Messages / Codex / Grok; requests that generate images can route to OpenAI Images |
 | Images generations | OpenAI Images / Codex image generation tool / Google Gemini / Antigravity / Grok |
 | Images edits | OpenAI multipart / Codex multipart / Grok |
 | Embeddings | OpenAI-compatible embeddings |
@@ -181,6 +188,19 @@ Concurrency queue timeouts (`upstream_concurrency_wait_timeout`) never trigger a
 - Dashboard: RPM, token throughput, cost, active key heatmap, and cooldown summary
 - Real-time traffic flow graph: live in-flight requests visualized as a node-link topology
 - Model playground: multi-protocol interactive testing (Chat, Responses, Messages) with attachment support
+
+### Agent
+
+- `/agent` workspace: conversational agent that reads and writes files, runs commands, and searches the web, with a step-by-step timeline, permission prompts, and attachments
+- `/settings/agent`: connect the Runner container, limit which sites and models the agent may use, and upgrade the agent
+- Skills, memory, AGENTS.md, and context-compaction settings are managed from the workspace
+- Setup guide: [docs/agent](./docs/agent/README.md) (Chinese)
+
+### Plugins
+
+- Upload, verify, enable, and bind JS plugins from the developer settings page
+- Plugin kinds include quota probes, protocols, model lists, credential checks, site detection, error classifiers, model metadata, pricing parsers, and automation
+- Developer guide: [docs/plugins](./docs/plugins/README.md) (Chinese)
 
 ### System
 

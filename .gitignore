@@ -21,9 +21,10 @@ conf/
 postgres/
 logs/
 tmp/
-# Internal design notes stay local; only the plugin developer docs are published.
+# Internal design notes stay local; only the plugin developer docs and the Agent docs are published.
 docs/*
 !docs/plugins/
+!docs/agent/
 
 # Backend build and runtime output
 server/bin/
