@@ -1,0 +1,20 @@
+{
+  "name": "billing on v1 paths",
+  "ctx": {"siteType": "newapi", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [
+    {"match": {"method": "GET", "path": "/api/usage/token"}, "status": 404, "body": "404 page not found"},
+    {"match": {"method": "GET", "path": "/v1/dashboard/billing/subscription"}, "status": 200, "json": {"hard_limit_usd": 50}},
+    {"match": {"method": "GET", "path": "/v1/dashboard/billing/usage"}, "status": 200, "json": {"total_usage": 1234}}
+  ],
+  "expect": {
+    "requests": [
+      {"path": "/api/usage/token"},
+      {"path": "/v1/dashboard/billing/subscription"},
+      {"path": "/v1/dashboard/billing/usage"}
+    ],
+    "result": {
+      "kind": "balance",
+      "entries": [{"label": "balance", "unit": "usd", "limit": 50, "used": 12.34, "remaining": 37.66}]
+    }
+  }
+}

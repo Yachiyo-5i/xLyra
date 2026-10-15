@@ -1,0 +1,13 @@
+{
+  "name": "empty data is an error",
+  "ctx": {"siteType": "moonshot", "baseURL": "https://api.moonshot.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/users/me/balance"},
+    "status": 200,
+    "json": {"code": 0, "status": true, "data": {}}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/users/me/balance"}],
+    "error": "balance endpoint did not contain balance data"
+  }
+}

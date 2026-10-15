@@ -1,0 +1,16 @@
+{
+  "name": "balance",
+  "ctx": {"siteType": "xlyra", "baseURL": "https://gateway.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/user/balance"},
+    "status": 200,
+    "json": {"unit": "usd", "quota_unlimited": false, "quota_limit": 20, "balance": 12.5, "quota_total_used": 7.5}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/user/balance"}],
+    "result": {
+      "kind": "balance",
+      "entries": [{"label": "balance", "unit": "usd", "limit": 20, "remaining": 12.5, "used": 7.5}]
+    }
+  }
+}

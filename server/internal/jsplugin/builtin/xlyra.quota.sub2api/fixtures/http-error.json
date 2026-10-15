@@ -1,0 +1,27 @@
+{
+  "name": "truncated http error",
+  "ctx": {
+    "siteType": "sub2api",
+    "baseURL": "https://relay.example",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/v1/usage"
+      },
+      "status": 401,
+      "body": "测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测"
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/v1/usage"
+      }
+    ],
+    "error": "HTTP 401: 测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测�"
+  }
+}

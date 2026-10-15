@@ -1,0 +1,17 @@
+{
+  "name": "zero balance is kept and unavailable",
+  "ctx": {"siteType": "moonshot", "baseURL": "https://api.moonshot.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/users/me/balance"},
+    "status": 200,
+    "json": {"code": 0, "status": true, "data": {"available_balance": 0, "cash_balance": 0, "voucher_balance": 0}}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/users/me/balance"}],
+    "result": {
+      "kind": "balance",
+      "isAvailable": false,
+      "entries": [{"label": "balance", "unit": "cny", "remaining": 0, "cashBalance": 0, "voucherBalance": 0}]
+    }
+  }
+}

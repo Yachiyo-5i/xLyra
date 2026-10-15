@@ -1,0 +1,13 @@
+{
+  "name": "unparseable amount is not zero",
+  "ctx": {"siteType": "deepseek", "baseURL": "https://api.deepseek.com", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/user/balance"},
+    "status": 200,
+    "json": {"is_available": false, "balance_infos": [{"currency": "CNY", "total_balance": "invalid"}]}
+  }],
+  "expect": {
+    "requests": [{"path": "/user/balance"}],
+    "error": "balance endpoint did not contain balance data"
+  }
+}

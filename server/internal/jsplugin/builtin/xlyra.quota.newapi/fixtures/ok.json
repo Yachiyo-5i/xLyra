@@ -1,0 +1,16 @@
+{
+  "name": "token usage",
+  "ctx": {"siteType": "newapi", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/api/usage/token"},
+    "status": 200,
+    "json": {"data": {"total_granted": 25000000, "total_used": 5000000, "total_available": 20000000, "unlimited_quota": false}}
+  }],
+  "expect": {
+    "requests": [{"path": "/api/usage/token"}],
+    "result": {
+      "kind": "balance",
+      "entries": [{"label": "balance", "unit": "usd", "limit": 50, "used": 10, "remaining": 40}]
+    }
+  }
+}

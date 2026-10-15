@@ -1,0 +1,19 @@
+{
+  "apiVersion": 1,
+  "description": "Kimi Coding Plan quota",
+  "hostApi": 1,
+  "id": "xlyra.quota.kimi",
+  "kind": "quota_probe",
+  "license": "AGPL-3.0",
+  "name": "Kimi quota",
+  "quotaProbe": {
+    "baseURLMode": "trim_v1",
+    "defaultBaseURL": "https://api.kimi.com/coding",
+    "replaces": "kimi"
+  },
+  "sha256": {
+    "plugin.js": "b2a3e3aab684e367c7d5a6a5c3e39955290d35407bf4867c819560ec44995a09"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

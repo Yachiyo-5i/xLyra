@@ -1,0 +1,17 @@
+{
+  "name": "balance",
+  "ctx": {"siteType": "moonshot", "baseURL": "https://api.moonshot.cn", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/users/me/balance"},
+    "status": 200,
+    "json": {"code": 0, "data": {"available_balance": 49.58894, "voucher_balance": 46.58893, "cash_balance": 3.00001}}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/users/me/balance"}],
+    "result": {
+      "kind": "balance",
+      "isAvailable": true,
+      "entries": [{"label": "balance", "unit": "cny", "remaining": 49.58894, "cashBalance": 3.00001, "voucherBalance": 46.58893}]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "apiVersion": 1,
+  "description": "Moonshot balance",
+  "hostApi": 1,
+  "id": "xlyra.quota.moonshot",
+  "kind": "quota_probe",
+  "license": "AGPL-3.0",
+  "name": "Moonshot balance",
+  "quotaProbe": {
+    "baseURLMode": "trim_v1",
+    "defaultBaseURL": "https://api.moonshot.cn",
+    "replaces": "moonshot"
+  },
+  "sha256": {
+    "plugin.js": "78f3c721ee9c51c41ffa5892564ca4bc7aa85a04166952a77741000a64c3a764"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

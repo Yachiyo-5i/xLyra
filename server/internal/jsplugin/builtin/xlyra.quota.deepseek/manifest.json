@@ -1,0 +1,19 @@
+{
+  "apiVersion": 1,
+  "description": "DeepSeek balance",
+  "hostApi": 1,
+  "id": "xlyra.quota.deepseek",
+  "kind": "quota_probe",
+  "license": "AGPL-3.0",
+  "name": "DeepSeek balance",
+  "quotaProbe": {
+    "baseURLMode": "trim_v1_fold",
+    "defaultBaseURL": "https://api.deepseek.com",
+    "replaces": "deepseek"
+  },
+  "sha256": {
+    "plugin.js": "9fb36769d1b712a0cd5cf27786729cbe5e40e5b0994f96863b1f8126f2bf2b3b"
+  },
+  "version": "1.0.0",
+  "xlyra": ">=1.14.0"
+}

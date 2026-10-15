@@ -1,0 +1,16 @@
+{
+  "name": "unlimited prefers quota_used",
+  "ctx": {"siteType": "xlyra", "baseURL": "https://xlyra.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/user/balance"},
+    "status": 200,
+    "json": {"is_active": true, "balance": null, "unit": "USD", "quota_limit": null, "quota_used": 3.2, "quota_total_used": 0, "quota_unlimited": true}
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/user/balance"}],
+    "result": {
+      "kind": "unlimited",
+      "entries": [{"label": "balance", "unit": "usd", "unlimited": true, "used": 3.2}]
+    }
+  }
+}

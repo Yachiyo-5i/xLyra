@@ -1,0 +1,27 @@
+{
+  "name": "array json",
+  "ctx": {
+    "siteType": "sub2api",
+    "baseURL": "https://relay.example",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/v1/usage"
+      },
+      "status": 200,
+      "body": "[1]"
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/v1/usage"
+      }
+    ],
+    "error": "invalid JSON response"
+  }
+}

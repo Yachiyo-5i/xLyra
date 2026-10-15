@@ -1,0 +1,28 @@
+{
+  "name": "unrestricted subscription with usd windows",
+  "ctx": {"siteType": "sub2api", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/v1/usage"},
+    "status": 200,
+    "json": {
+      "mode": "unrestricted",
+      "remaining": 4.2,
+      "subscription": {
+        "daily_usage_usd": 0.8, "daily_limit_usd": 5,
+        "weekly_usage_usd": 3.1, "weekly_limit_usd": 20,
+        "monthly_usage_usd": 3.1, "monthly_limit_usd": 0
+      }
+    }
+  }],
+  "expect": {
+    "requests": [{"path": "/v1/usage"}],
+    "result": {
+      "kind": "mixed",
+      "entries": [
+        {"label": "balance", "unit": "usd", "remaining": 4.2},
+        {"label": "daily", "unit": "usd", "limit": 5, "used": 0.8, "remaining": 4.2},
+        {"label": "weekly", "unit": "usd", "limit": 20, "used": 3.1, "remaining": 16.9}
+      ]
+    }
+  }
+}

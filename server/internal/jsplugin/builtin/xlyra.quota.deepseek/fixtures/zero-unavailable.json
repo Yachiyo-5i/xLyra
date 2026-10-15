@@ -1,0 +1,17 @@
+{
+  "name": "zero balance kept while unavailable",
+  "ctx": {"siteType": "deepseek", "baseURL": "https://api.deepseek.com", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/user/balance"},
+    "status": 200,
+    "json": {"is_available": false, "balance_infos": [{"currency": "CNY", "total_balance": "0.00", "granted_balance": "0.00", "topped_up_balance": "0.00"}]}
+  }],
+  "expect": {
+    "requests": [{"path": "/user/balance"}],
+    "result": {
+      "kind": "balance",
+      "isAvailable": false,
+      "entries": [{"label": "balance", "unit": "cny", "remaining": 0}]
+    }
+  }
+}

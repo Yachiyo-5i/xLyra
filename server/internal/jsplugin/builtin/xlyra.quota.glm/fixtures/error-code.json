@@ -1,0 +1,30 @@
+{
+  "name": "error code",
+  "ctx": {
+    "siteType": "glm_code",
+    "baseURL": "https://open.bigmodel.cn",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/api/monitor/usage/quota/limit"
+      },
+      "status": 200,
+      "json": {
+        "code": 401,
+        "msg": "未授权"
+      }
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/api/monitor/usage/quota/limit"
+      }
+    ],
+    "error": "quota limit endpoint returned error: 未授权"
+  }
+}

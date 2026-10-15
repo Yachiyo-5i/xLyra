@@ -1,0 +1,13 @@
+{
+  "name": "empty balance infos",
+  "ctx": {"siteType": "deepseek", "baseURL": "https://api.deepseek.com", "credentialType": "api_key", "now": 1791331200000},
+  "responses": [{
+    "match": {"method": "GET", "path": "/user/balance"},
+    "status": 200,
+    "json": {"is_available": false, "balance_infos": []}
+  }],
+  "expect": {
+    "requests": [{"path": "/user/balance"}],
+    "error": "balance endpoint did not contain balance data"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "truncated unit",
+  "ctx": {
+    "siteType": "glm_code",
+    "baseURL": "https://open.bigmodel.cn",
+    "credentialType": "api_key",
+    "now": 1791331200000
+  },
+  "responses": [
+    {
+      "match": {
+        "method": "GET",
+        "path": "/api/monitor/usage/quota/limit"
+      },
+      "status": 200,
+      "json": {
+        "code": 200,
+        "data": {
+          "level": "pro",
+          "limits": [
+            {
+              "type": "TOKENS_LIMIT",
+              "unit": 3.9,
+              "number": 5.2,
+              "percentage": 10
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "requests": [
+      {
+        "path": "/api/monitor/usage/quota/limit"
+      }
+    ],
+    "result": {
+      "kind": "token_plan",
+      "plan": "Pro",
+      "entries": [
+        {
+          "label": "five_hour",
+          "unit": "percent",
+          "limit": 100,
+          "used": 10,
+          "remaining": 90
+        }
+      ]
+    }
+  }
+}
