@@ -204,13 +204,16 @@ func (r JSPluginRepository) DueTickBindings(ctx context.Context, now time.Time, 
 	return items, err
 }
 
-// QueueTick queues one event for one binding and schedules its next tick, in
-// one transaction, so a tick is never queued twice for the same slot of time.
-func (r JSPluginRepository) QueueTick(ctx context.Context, bindingID uuid.UUID, eventType string, payload JSON, next time.Time) error {
+// QueueTicks queues one event per payload for one binding and schedules its
+// next tick, in one transaction, so a tick is never queued twice for the same
+// slot of time.
+func (r JSPluginRepository) QueueTicks(ctx context.Context, bindingID uuid.UUID, eventType string, payloads []JSON, next time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`INSERT INTO js_plugin_events (binding_id, event_type, payload) VALUES (?, ?, ?::jsonb)`,
-			bindingID, eventType, string(payload)).Error; err != nil {
-			return err
+		for _, payload := range payloads {
+			if err := tx.Exec(`INSERT INTO js_plugin_events (binding_id, event_type, payload) VALUES (?, ?, ?::jsonb)`,
+				bindingID, eventType, string(payload)).Error; err != nil {
+				return err
+			}
 		}
 		return tx.Exec(`UPDATE js_plugin_bindings SET next_tick_at = ? WHERE id = ?`, next, bindingID).Error
 	})

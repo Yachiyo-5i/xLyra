@@ -57,7 +57,10 @@ type AutomationOption struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	Disabled    bool   `json:"disabled,omitempty"`
+	// IconKey names the brand to show next to the object (a site's type, an
+	// account's provider); the console picks the logo.
+	IconKey  string `json:"icon_key,omitempty"`
+	Disabled bool   `json:"disabled,omitempty"`
 	// ReasonCode is stable, for the page to word in its own language; Reason is
 	// the same in English.
 	ReasonCode string `json:"reason_code,omitempty"`
@@ -327,7 +330,7 @@ func (m *Manager) AutomationOptions(ctx context.Context, pluginID, inputName str
 		for _, entity := range entities {
 			code, reason := kind.Check(entity, spec)
 			options = append(options, AutomationOption{
-				ID: entity.ID, Name: entity.Name, Description: kind.Describe(entity),
+				ID: entity.ID, Name: entity.Name, Description: kind.Describe(entity), IconKey: kind.iconKey(entity),
 				Disabled: reason != "", ReasonCode: code, Reason: reason,
 			})
 		}

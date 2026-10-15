@@ -199,7 +199,7 @@ export async function previewJSPluginPricing(pluginId: string, siteId: string) {
 /** Copy a plugin supplies for the form: one string for every language, or one per language. */
 export type LocalizedText = string | Record<string, string>
 
-export type JSPluginAutomationInputKind = 'oauth_connection' | 'api_key' | 'string' | 'number' | 'integer' | 'boolean'
+export type JSPluginAutomationInputKind = 'oauth_connection' | 'api_key' | 'site' | 'string' | 'url' | 'number' | 'integer' | 'boolean'
 
 /** One thing an automation plugin asks the admin for: a built-in object to pick, or a parameter. */
 export type JSPluginAutomationInput = {
@@ -209,6 +209,8 @@ export type JSPluginAutomationInput = {
   description?: LocalizedText
   placeholder?: LocalizedText
   emptyText?: LocalizedText
+  /** How the form draws the input; see docs/plugins/automation.md. Left out, it follows from the type. */
+  control?: 'select' | 'multi_select' | 'radio' | 'input' | 'password' | 'textarea' | 'checkbox' | 'switch'
   /** Defaults to true for objects and false for parameters. */
   required?: boolean
   // objects
@@ -263,6 +265,8 @@ export type JSPluginAutomationOption = {
   id: string
   name: string
   description?: string
+  /** Brand key of the object (a site's type, an account's provider); the console maps it to a logo. */
+  icon_key?: string
   disabled?: boolean
   reason_code?: string
   reason?: string
@@ -272,7 +276,7 @@ export type JSPluginActionLogEntry = {
   id: number
   version: string
   event_type: string
-  action: { type?: string; scope?: string; message?: string }
+  action: { type?: string; scope?: string; message?: string; method?: string; url?: string }
   target_id: string
   status: 'applied' | 'skipped' | 'failed'
   detail: string

@@ -160,7 +160,7 @@ func (p *Plugin) CallAutomation(ctx context.Context, c AutomationContext, event 
 	if err := p.callOneShot(ctx, KindAutomation, &out, encodeValue(c), encodeValue(event)); err != nil {
 		return AutomationResult{}, err
 	}
-	if err := validateAutomationResult(&out, p.Manifest.Automation.Permissions, entitiesIn(c.Inputs)); err != nil {
+	if err := validateAutomationResult(&out, p.Manifest.Automation.Permissions, entitiesIn(c.Inputs), p.Manifest.Automation.Inputs, c.Inputs); err != nil {
 		return AutomationResult{}, annotate(p, err, "handle", 0, 0)
 	}
 	return out, nil

@@ -783,7 +783,8 @@
     "permissionsConfirm": "我已了解，并同意授予上述权限",
     "permission": {
       "apikeyResetUsage": "清零已绑定 API 密钥的用量（总额度、日额度或周额度）",
-      "notify": "在插件的操作记录中写入通知"
+      "notify": "在插件的操作记录中写入通知",
+      "httpRequest": "向管理员在绑定里填写的地址发送 HTTP 请求（比如推送通知）"
     },
     "automation": {
       "title": "自动化",
@@ -807,6 +808,7 @@
         },
         "reset": "重置用量（{{scope}}）",
         "notice": "通知：{{message}}",
+        "http": "HTTP 请求：{{method}} {{url}}",
         "handle": "处理事件"
       },
       "noOptions": "没有可选项",

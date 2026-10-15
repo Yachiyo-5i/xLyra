@@ -2,6 +2,8 @@ package jsplugin
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +34,19 @@ type AutomationHost interface {
 	// ResetAPIKeyQuota clears the used amount of the given windows (total,
 	// daily, weekly) of one API key.
 	ResetAPIKeyQuota(ctx context.Context, id uuid.UUID, scopes []string) error
+	// DoHTTP sends one request a plugin asked for and returns the status code.
+	// The plugin never sees the response. The error must not contain the URL:
+	// a plugin's address may carry a key.
+	DoHTTP(ctx context.Context, request HTTPRequest) (status int, err error)
+}
+
+// HTTPRequest is an outgoing request an automation plugin asked for, already
+// checked against the addresses the admin entered.
+type HTTPRequest struct {
+	Method  string
+	URL     string
+	Headers map[string]string
+	Body    string
 }
 
 // EmittedEvent is something that happened in xLyra that automation plugins may
@@ -125,25 +140,27 @@ func (m *Manager) queueTicks(ctx context.Context) {
 			_ = m.repo.PostponeTick(ctx, binding.ID, time.Now().Add(tickRetry))
 			continue
 		}
-		payload, err := m.tickPayload(ctx, binding)
+		payloads, err := m.tickPayloads(ctx, binding)
 		if err != nil {
 			slog.Warn("js plugin tick skipped", "binding_id", binding.ID.String(), "error", err)
 			_ = m.repo.PostponeTick(ctx, binding.ID, time.Now().Add(tickRetry))
 			continue
 		}
 		next := time.Now().Add(time.Duration(plugin.Manifest.Automation.Schedule.EveryMinutes) * time.Minute)
-		if err := m.repo.QueueTick(ctx, binding.ID, EventScheduleTick, payload, next); err != nil && ctx.Err() == nil {
+		if err := m.repo.QueueTicks(ctx, binding.ID, EventScheduleTick, payloads, next); err != nil && ctx.Err() == nil {
 			slog.Warn("js plugin tick not queued", "binding_id", binding.ID.String(), "error", err)
 		}
 	}
 }
 
-// tickPayload describes the object the binding is about as it is now.
-func (m *Manager) tickPayload(ctx context.Context, binding store.JSPluginBinding) (store.JSON, error) {
+// tickPayloads describes each object the binding is about as it is now: one
+// event per object, so a plugin handles one object at a time.
+func (m *Manager) tickPayloads(ctx context.Context, binding store.JSPluginBinding) ([]store.JSON, error) {
 	rows, err := m.repo.ListBindingInputs(ctx, binding.ID)
 	if err != nil {
 		return nil, err
 	}
+	var payloads []store.JSON
 	for _, row := range rows {
 		if !row.EventSubject {
 			continue
@@ -154,15 +171,25 @@ func (m *Manager) tickPayload(ctx context.Context, binding store.JSPluginBinding
 		}
 		current, err := known.Snapshot(ctx, m.db, row.EntityID)
 		if err != nil {
-			return nil, err
+			// One object that cannot be read (deleted meanwhile) must not
+			// silence the others.
+			slog.Warn("js plugin tick object skipped", "binding_id", binding.ID.String(), "entity_id", row.EntityID, "error", err)
+			continue
 		}
-		return json.Marshal(map[string]any{
+		payload, err := json.Marshal(map[string]any{
 			"type":    EventScheduleTick,
 			"subject": map[string]any{"type": row.EntityType, "id": row.EntityID},
 			"current": current,
 		})
+		if err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, payload)
 	}
-	return nil, errors.New("binding has no object that events are about")
+	if len(payloads) == 0 {
+		return nil, errors.New("binding has no object that events are about")
+	}
+	return payloads, nil
 }
 
 // processDue handles the events that are due and returns how many it took.
@@ -240,7 +267,7 @@ func (m *Manager) runEvent(ctx context.Context, host AutomationHost, event store
 			m.logAction(ctx, binding, plugin, event, action, action.Target, store.JSPluginActionFailed, "permission "+action.Type+" was not granted")
 			continue
 		}
-		outcome, note, err := m.performAction(ctx, host, binding, action)
+		outcome, note, err := m.performAction(ctx, host, binding, input.Subject, action)
 		if err != nil {
 			m.logAction(ctx, binding, plugin, event, action, action.Target, store.JSPluginActionFailed, err.Error())
 			failed = err.Error()
@@ -265,7 +292,7 @@ func (m *Manager) runEvent(ctx context.Context, host AutomationHost, event store
 }
 
 // performAction carries out one granted action.
-func (m *Manager) performAction(ctx context.Context, host AutomationHost, binding store.JSPluginBinding, action AutomationAction) (outcome, note string, err error) {
+func (m *Manager) performAction(ctx context.Context, host AutomationHost, binding store.JSPluginBinding, subject AutomationEntity, action AutomationAction) (outcome, note string, err error) {
 	switch action.Type {
 	case ActionNotify:
 		attrs := []any{"plugin_id", binding.PluginID, "binding_id", binding.ID.String(), "message", action.Message}
@@ -275,6 +302,32 @@ func (m *Manager) performAction(ctx context.Context, host AutomationHost, bindin
 			slog.Info("js plugin notice", attrs...)
 		}
 		return store.JSPluginActionApplied, "", nil
+	case ActionHTTPRequest:
+		if host == nil {
+			return "", "", errors.New("no host to carry out the action")
+		}
+		// One request per event object and destination, so retries and repeated
+		// events do not send twice.
+		digest := sha256.Sum256([]byte(action.URL))
+		scope := "http:" + hex.EncodeToString(digest[:6])
+		var status int
+		ran, err := m.repo.ApplyOnce(ctx, binding.ID, subject.Type, subject.ID, scope, action.IdempotencyKey, func(ctx context.Context) error {
+			var err error
+			status, err = host.DoHTTP(ctx, HTTPRequest{Method: action.Method, URL: action.URL, Headers: action.Headers, Body: action.Body})
+			if err == nil && (status < 200 || status > 299) {
+				err = fmt.Errorf("the server answered HTTP %d", status)
+			}
+			return err
+		})
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			return store.JSPluginActionSkipped, "target is no longer bound", nil
+		case err != nil:
+			return "", "", err
+		case !ran:
+			return store.JSPluginActionSkipped, "already sent for this event object", nil
+		}
+		return store.JSPluginActionApplied, fmt.Sprintf("HTTP %d", status), nil
 	case ActionAPIKeyResetUsage:
 		keyID, err := uuid.Parse(action.Target)
 		if err != nil {
@@ -377,7 +430,7 @@ func finiteTotalQuota(key store.APIKey) bool {
 }
 
 func (m *Manager) logAction(ctx context.Context, binding store.JSPluginBinding, plugin *Plugin, event store.JSPluginEvent, action AutomationAction, target, status, detail string) {
-	raw, _ := json.Marshal(encodeValue(action))
+	raw, _ := json.Marshal(encodeValue(redactForLog(action)))
 	entry := store.JSPluginActionLog{
 		BindingID: uuid.NullUUID{UUID: binding.ID, Valid: true},
 		PluginID:  plugin.Manifest.ID,
@@ -418,4 +471,21 @@ func grantedSet(raw store.JSON) map[string]bool {
 		set[name] = true
 	}
 	return set
+}
+
+// redactForLog keeps the secrets of an http.request out of the action log: an
+// address and headers may carry keys or tokens, so only the origin, the method
+// and the start of the body are recorded.
+func redactForLog(action AutomationAction) AutomationAction {
+	if action.Type != ActionHTTPRequest {
+		return action
+	}
+	if origin, err := httpOrigin(action.URL); err == nil {
+		action.URL = origin
+	} else {
+		action.URL = ""
+	}
+	action.Headers = nil
+	action.Body = truncate(action.Body, 200)
+	return action
 }

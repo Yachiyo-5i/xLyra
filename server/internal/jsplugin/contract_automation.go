@@ -3,6 +3,7 @@ package jsplugin
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -42,11 +43,12 @@ const (
 const (
 	ActionAPIKeyResetUsage = "apikey.reset_usage"
 	ActionNotify           = "notify"
+	ActionHTTPRequest      = "http.request"
 )
 
 // AutomationPermissions lists every action type, which doubles as the
 // permission names.
-var AutomationPermissions = []string{ActionAPIKeyResetUsage, ActionNotify}
+var AutomationPermissions = []string{ActionAPIKeyResetUsage, ActionNotify, ActionHTTPRequest}
 
 // AutomationResetScopes are the usage windows apikey.reset_usage may clear.
 var AutomationResetScopes = []string{"total", "daily", "weekly"}
@@ -55,8 +57,11 @@ var AutomationResetScopes = []string{"total", "daily", "weekly"}
 const (
 	MaxAutomationActions = 32
 	MaxAutomationMessage = 500
-	MaxAutomationKey     = 128
-	MaxAutomationInputs  = 16
+	// MaxAutomationHTTPBody and MaxAutomationHTTPHeaders bound one http.request.
+	MaxAutomationHTTPBody    = 64 << 10
+	MaxAutomationHTTPHeaders = 16
+	MaxAutomationKey         = 128
+	MaxAutomationInputs      = 16
 	// MaxAutomationEntities is how many objects one binding may hold in all.
 	MaxAutomationEntities = 200
 )
@@ -64,10 +69,10 @@ const (
 // AutomationEntity is a built-in object a binding refers to, as much of it as a
 // plugin may see. Fields depend on the type.
 type AutomationEntity struct {
-	Type   string         `ts:"type,doc=oauth_connection or api_key."`
+	Type   string         `ts:"type,doc=oauth_connection, api_key or site."`
 	ID     string         `ts:"id,doc=Use this as an action's target."`
 	Name   string         `ts:"name,doc=Human-readable name: the account email, the key name."`
-	Fields map[string]any `ts:"fields,type=JsonObject,doc=oauth_connection: provider, status. api_key: totalUsed, totalLimit, dailyUsed, weeklyUsed." max:"32"`
+	Fields map[string]any `ts:"fields,type=JsonObject,doc=oauth_connection: provider, status. api_key: totalUsed, totalLimit, dailyUsed, weeklyUsed. site: siteType, enabled." max:"32"`
 }
 
 // AutomationContext is passed to a handle hook.
@@ -89,12 +94,16 @@ type AutomationEvent struct {
 
 // AutomationAction is one thing a plugin asks xLyra to do.
 type AutomationAction struct {
-	Type           string `ts:"type,type=AutomationActionType" enum:"apikey.reset_usage,notify"`
-	Target         string `ts:"target,optional,doc=apikey.reset_usage: the id of an API key among the picked inputs."`
-	Scope          string `ts:"scope,optional,type=AutomationResetScope,doc=apikey.reset_usage: which usage window to clear." enum:"total,daily,weekly"`
-	IdempotencyKey string `ts:"idempotencyKey,optional,doc=apikey.reset_usage: repeating the same key for the same target and scope does nothing. Use the upstream reset time."`
-	Level          string `ts:"level,optional,type=AutomationNoticeLevel,doc=notify: defaults to info." enum:"info,warn"`
-	Message        string `ts:"message,optional,doc=notify: shown in the plugin's action log, at most 500 bytes."`
+	Type           string            `ts:"type,type=AutomationActionType" enum:"apikey.reset_usage,notify,http.request"`
+	Target         string            `ts:"target,optional,doc=apikey.reset_usage: the id of an API key among the picked inputs."`
+	Scope          string            `ts:"scope,optional,type=AutomationResetScope,doc=apikey.reset_usage: which usage window to clear." enum:"total,daily,weekly"`
+	IdempotencyKey string            `ts:"idempotencyKey,optional,doc=apikey.reset_usage and http.request: repeating the same key for the same target (or event object) does nothing. Use the upstream reset time, or the moment of the alert."`
+	Level          string            `ts:"level,optional,type=AutomationNoticeLevel,doc=notify: defaults to info." enum:"info,warn"`
+	Message        string            `ts:"message,optional,doc=notify: shown in the plugin's action log, at most 500 bytes."`
+	Method         string            `ts:"method,optional,doc=http.request: GET, POST (default), PUT, PATCH or DELETE."`
+	URL            string            `ts:"url,optional,doc=http.request: where to send it. Its origin (scheme, host and port) must be that of a url input the admin filled in."`
+	Headers        map[string]string `ts:"headers,optional,doc=http.request: at most 16 headers; Host, Content-Length, Transfer-Encoding, Connection, Proxy-Authorization and X-Forwarded-* are dropped."`
+	Body           string            `ts:"body,optional,doc=http.request: the request body as text (JSON.stringify an object and set Content-Type), at most 64 KiB; not sent with GET."`
 }
 
 // AutomationResult is the return value of a handle hook.
@@ -130,16 +139,51 @@ func entitiesIn(inputs map[string]any) []AutomationEntity {
 	return out
 }
 
+// httpMethods are what http.request may use.
+var httpMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
+
+// httpOrigin returns scheme://host[:port] of an http(s) URL, or an error saying
+// what is wrong with it. URLs with credentials are refused.
+func httpOrigin(raw string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", fmt.Errorf("must be an http(s) address")
+	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("must not contain a user name or password")
+	}
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), nil
+}
+
+// allowedOrigins are the destinations an http.request may reach: the origins of
+// the url inputs the admin filled in.
+func allowedOrigins(specs []AutomationInputSpec, values map[string]any) map[string]bool {
+	out := map[string]bool{}
+	for _, spec := range specs {
+		if spec.Type != "url" {
+			continue
+		}
+		if raw, ok := values[spec.Name].(string); ok {
+			if origin, err := httpOrigin(raw); err == nil {
+				out[origin] = true
+			}
+		}
+	}
+	return out
+}
+
 // validateAutomationResult checks what the field tags cannot: that each action
-// has what its type needs, that its type was declared as a permission, and that
-// its target is one of the objects the admin picked.
-func validateAutomationResult(result *AutomationResult, declared []string, picked []AutomationEntity) error {
+// has what its type needs, that its type was declared as a permission, that its
+// target is one of the objects the admin picked, and that a request goes only
+// where the admin pointed the plugin.
+func validateAutomationResult(result *AutomationResult, declared []string, picked []AutomationEntity, specs []AutomationInputSpec, values map[string]any) error {
 	keys := map[string]bool{}
 	for _, entity := range picked {
 		if entity.Type == EntityAPIKey {
 			keys[entity.ID] = true
 		}
 	}
+	origins := allowedOrigins(specs, values)
 	for i := range result.Actions {
 		action := &result.Actions[i]
 		path := fmt.Sprintf("result.actions[%d]", i)
@@ -164,7 +208,38 @@ func validateAutomationResult(result *AutomationResult, declared []string, picke
 			if action.Level == "" {
 				action.Level = "info"
 			}
+		case ActionHTTPRequest:
+			if err := validateHTTPAction(action, origins); err != nil {
+				return shapeError("%s.%s", path, err.Error())
+			}
 		}
+	}
+	return nil
+}
+
+func validateHTTPAction(action *AutomationAction, origins map[string]bool) error {
+	origin, err := httpOrigin(action.URL)
+	if err != nil {
+		return fmt.Errorf("url: %w", err)
+	}
+	if !origins[origin] {
+		return fmt.Errorf("url: %s is not the address of a url input the admin filled in", origin)
+	}
+	if action.Method == "" {
+		action.Method = "POST"
+	}
+	action.Method = strings.ToUpper(action.Method)
+	if !contains(httpMethods, action.Method) {
+		return fmt.Errorf("method: %q is not one of %s", action.Method, strings.Join(httpMethods, ", "))
+	}
+	if len(action.Headers) > MaxAutomationHTTPHeaders {
+		return fmt.Errorf("headers: at most %d", MaxAutomationHTTPHeaders)
+	}
+	if len(action.Body) > MaxAutomationHTTPBody {
+		return fmt.Errorf("body: at most %d bytes", MaxAutomationHTTPBody)
+	}
+	if action.IdempotencyKey == "" || len(action.IdempotencyKey) > MaxAutomationKey {
+		return fmt.Errorf("idempotencyKey: required for %s, at most %d bytes", action.Type, MaxAutomationKey)
 	}
 	return nil
 }
@@ -203,8 +278,8 @@ type AutomationSchedule struct {
 }
 
 // AutomationInputSpec declares one input of a binding. Type is either a
-// built-in object type (oauth_connection, api_key), which the admin picks from
-// a list, or a parameter type (string, number, integer, boolean).
+// built-in object type (oauth_connection, api_key, site), which the admin picks
+// from a list, or a parameter type (string, url, number, integer, boolean).
 type AutomationInputSpec struct {
 	Name        string        `json:"name"`
 	Type        string        `json:"type"`
@@ -217,10 +292,18 @@ type AutomationInputSpec struct {
 	// Required defaults to true for objects and false for parameters.
 	Required *bool `json:"required,omitempty"`
 
+	// Control picks how the console draws the input; see allowedControls. Left
+	// out, it follows from the type: an object is a select (a multi-select when
+	// Multiple), a boolean a checkbox, a parameter with enum a select, any
+	// other parameter an input.
+	Control string `json:"control,omitempty"`
+
 	// Objects only.
 	Multiple bool `json:"multiple,omitempty"`
 	// EventSubject marks the input an event is about. Exactly one object input
-	// must carry it; events reach the bindings that picked the object.
+	// must carry it; events reach the bindings that picked the object. With
+	// Multiple, a binding is about every object picked, and each event (and
+	// each schedule.tick) is about one of them.
 	EventSubject bool `json:"eventSubject,omitempty"`
 	// Providers restricts OAuth accounts to these providers.
 	Providers []string `json:"providers,omitempty"`
@@ -247,7 +330,7 @@ func (s AutomationInputSpec) IsRequired() bool {
 
 var (
 	inputNamePattern = regexp.MustCompile(`^[a-z][A-Za-z0-9]{0,31}$`)
-	paramTypes       = []string{"string", "number", "integer", "boolean"}
+	paramTypes       = []string{"string", "url", "number", "integer", "boolean"}
 )
 
 func validateAutomationSection(section AutomationSection) error {
@@ -271,7 +354,7 @@ func validateAutomationSection(section AutomationSection) error {
 
 	names := map[string]bool{}
 	var subject *AutomationInputSpec
-	hasAPIKey := false
+	hasAPIKey, hasURL := false, false
 	for i := range section.Inputs {
 		input := &section.Inputs[i]
 		if !inputNamePattern.MatchString(input.Name) {
@@ -291,8 +374,11 @@ func validateAutomationSection(section AutomationSection) error {
 		if err := validateInputSpec(input); err != nil {
 			return fmt.Errorf("automation.inputs.%s: %w", input.Name, err)
 		}
-		if input.Type == EntityAPIKey {
+		switch input.Type {
+		case EntityAPIKey:
 			hasAPIKey = true
+		case "url":
+			hasURL = true
 		}
 		if input.EventSubject {
 			if subject != nil {
@@ -334,10 +420,49 @@ func validateAutomationSection(section AutomationSection) error {
 	if contains(section.Permissions, ActionAPIKeyResetUsage) && !hasAPIKey {
 		return fmt.Errorf("automation.permissions: %s needs an input of type %q to pick the keys", ActionAPIKeyResetUsage, EntityAPIKey)
 	}
+	if contains(section.Permissions, ActionHTTPRequest) && !hasURL {
+		return fmt.Errorf("automation.permissions: %s needs an input of type \"url\" for the admin to say where requests may go", ActionHTTPRequest)
+	}
 	return nil
 }
 
+// Controls an input may ask for, by what it holds. The first is the default.
+const (
+	ControlSelect      = "select"
+	ControlMultiSelect = "multi_select"
+	ControlRadio       = "radio"
+	ControlInput       = "input"
+	ControlPassword    = "password"
+	ControlTextarea    = "textarea"
+	ControlCheckbox    = "checkbox"
+	ControlSwitch      = "switch"
+)
+
+// allowedControls lists the controls that fit an input, default first.
+func allowedControls(input *AutomationInputSpec) []string {
+	switch {
+	case input.IsEntity() && input.Multiple:
+		return []string{ControlMultiSelect}
+	case input.IsEntity():
+		return []string{ControlSelect}
+	case input.Type == "boolean":
+		return []string{ControlCheckbox, ControlSwitch}
+	case len(input.Enum) > 0:
+		return []string{ControlSelect, ControlRadio}
+	case input.Type == "url":
+		return []string{ControlInput, ControlPassword}
+	case input.Type == "string":
+		return []string{ControlInput, ControlPassword, ControlTextarea}
+	}
+	return []string{ControlInput}
+}
+
 func validateInputSpec(input *AutomationInputSpec) error {
+	if input.Control != "" {
+		if allowed := allowedControls(input); !contains(allowed, input.Control) {
+			return fmt.Errorf("control %q does not fit this input (use one of: %s)", input.Control, strings.Join(allowed, ", "))
+		}
+	}
 	if kind := lookupEntity(input.Type); kind != nil {
 		if input.Default != nil || len(input.Enum) > 0 || input.Minimum != nil || input.Maximum != nil {
 			return fmt.Errorf("default, enum, minimum and maximum are for parameters, not %s", input.Type)
@@ -347,9 +472,6 @@ func validateInputSpec(input *AutomationInputSpec) error {
 		}
 		if input.Requires != "" && !contains(kind.Requirements, input.Requires) {
 			return fmt.Errorf("requires %q is not supported for %s (supported: %s)", input.Requires, input.Type, strings.Join(kind.Requirements, ", "))
-		}
-		if input.EventSubject && input.Multiple {
-			return fmt.Errorf("the eventSubject cannot be multiple: each binding is about one object")
 		}
 		return nil
 	}
@@ -382,6 +504,14 @@ func checkParam(input AutomationInputSpec, value any) error {
 	case "string":
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("expected string")
+		}
+	case "url":
+		raw, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("expected an http(s) address")
+		}
+		if _, err := httpOrigin(raw); err != nil {
+			return err
 		}
 	case "boolean":
 		if _, ok := value.(bool); !ok {

@@ -135,6 +135,14 @@ func decodeValue(item any, out reflect.Value, field reflect.StructField, path st
 		if encoded, err := json.Marshal(object); err != nil || len(encoded) > maxFieldBytes {
 			return shapeError("%s: too large", path)
 		}
+		if out.Type() == reflect.TypeOf(map[string]string{}) {
+			strings, err := stringMap(object, path)
+			if err != nil {
+				return err
+			}
+			out.Set(reflect.ValueOf(strings))
+			break
+		}
 		out.Set(reflect.ValueOf(object))
 	case reflect.Struct:
 		return decodeStruct(item, out, path)

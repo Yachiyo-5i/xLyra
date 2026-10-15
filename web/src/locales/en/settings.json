@@ -783,7 +783,8 @@
     "permissionsConfirm": "I understand and grant these permissions",
     "permission": {
       "apikeyResetUsage": "Reset the usage (total, daily or weekly) of the API keys bound to it",
-      "notify": "Write notices to the plugin's action log"
+      "notify": "Write notices to the plugin's action log",
+      "httpRequest": "Send HTTP requests to the addresses you enter in a binding (for example push notifications)"
     },
     "automation": {
       "title": "Automations",
@@ -807,6 +808,7 @@
         },
         "reset": "Reset usage ({{scope}})",
         "notice": "Notice: {{message}}",
+        "http": "HTTP request: {{method}} {{url}}",
         "handle": "Handle event"
       },
       "noOptions": "Nothing to pick",

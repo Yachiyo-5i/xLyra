@@ -20,7 +20,7 @@ xlyra-plugin kinds
 | [`error_classifier`](./error-classifier.md) | 上游错误格式特殊，需要告诉 xLyra 这是哪一类失败 | `classify` | 无 | 站点：启用后绑定到站点 |
 | [`model_metadata`](./model-metadata.md) | 上游模型名对应的名称与能力 xLyra 不认识 | `describeModels` | 无 | 全局：启用即对所有站点生效 |
 | [`pricing_parse`](./pricing-parse.md) | 站点公布的价格表格式特殊 | `parsePricing` | 站点 API Key（由 xLyra 取价格表） | 站点：启用后预览核对，再绑定到站点 |
-| [`automation`](./automation.md) | xLyra 里发生某件事时自动做点什么，比如额度重置后清零密钥用量 | `handle` | 无 | 对象：启用时授予权限，再绑定到 OAuth 账号和 API 密钥 |
+| [`automation`](./automation.md) | xLyra 里发生某件事时自动做点什么，比如额度重置后清零密钥用量 | `handle` | 无 | 对象：启用时授予权限，再按插件声明的表单绑定到 OAuth 账号、API 密钥或站点 |
 
 ### 作用域是什么意思
 
@@ -45,7 +45,7 @@ xlyra-plugin kinds
 | 上游的模型名或能力 xLyra 不认识 | `model_metadata` |
 | 站点公布的价格表是特殊格式 | `pricing_parse` |
 | 上游需要特殊请求头、请求签名、请求改写 | 暂时没有对应类型，计划作为 `protocol` 的可选钩子 |
-| 账号额度重置后自动清零密钥用量、额度变化时发通知 | `automation` |
+| 账号额度重置后自动清零密钥用量、站点余额不足时推送通知（Bark、Webhook 等，由插件自己发请求） | `automation` |
 | 我想加新功能、计费规则、选路策略 | 插件做不到，请向 xLyra 提需求 |
 
 一个站点可能需要多个插件，比如一个 `protocol` 加一个 `quota_probe`，它们各自打包、各自上传。

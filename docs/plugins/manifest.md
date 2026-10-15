@@ -64,7 +64,7 @@
 
 ## automation 部分
 
-`automation` 使用 `automation` 部分，声明订阅的事件、需要的权限和绑定时要管理员填的内容，详见[自动化插件](./automation.md)。
+`automation` 使用 `automation` 部分，声明订阅的事件、需要的权限，以及绑定表单：每个输入的数据类型、控件（`select`、`multi_select`、`radio`、`input`、`switch` 等）和文案。xLyra 按这份声明渲染表单，插件不写界面代码。详见[自动化插件](./automation.md#输入inputs)。
 
 ## protocol 部分
 

@@ -100,7 +100,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		if oauthService == nil {
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)
 		}
-		wireJSPluginAutomation(oauthService, jsPluginManager, authService)
+		wireJSPluginAutomation(oauthService, jsPluginManager, authService, defaultHTTPClient)
 		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
 		config.RegisterGeneralValidator(func(cfg config.GeneralConfig) error {
 			return site.ValidateJSPluginRuntime()

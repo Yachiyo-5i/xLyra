@@ -19,6 +19,7 @@ import (
 const (
 	EntityOAuthConnection = "oauth_connection"
 	EntityAPIKey          = "api_key"
+	EntitySite            = "site"
 )
 
 // EntityRequireFiniteTotalQuota is the requirement that an API key has a finite
@@ -46,11 +47,20 @@ type entityKind struct {
 	Check func(entity AutomationEntity, input AutomationInputSpec) (code, reason string)
 	// Describe is a short line shown under an option in the picker.
 	Describe func(entity AutomationEntity) string
+	// IconKey names the brand shown next to the object in the picker; optional.
+	IconKey func(entity AutomationEntity) string
 	// Snapshot is the object's state for a schedule.tick event.
 	Snapshot func(ctx context.Context, db *store.Store, id string) (map[string]any, error)
 }
 
-var entityKinds = []entityKind{oauthConnectionKind, apiKeyKind}
+var entityKinds = []entityKind{oauthConnectionKind, apiKeyKind, siteKind}
+
+func (k *entityKind) iconKey(entity AutomationEntity) string {
+	if k.IconKey == nil {
+		return ""
+	}
+	return k.IconKey(entity)
+}
 
 func lookupEntity(name string) *entityKind {
 	for i := range entityKinds {
@@ -121,6 +131,10 @@ var oauthConnectionKind = entityKind{
 		return "", ""
 	},
 	Describe: func(entity AutomationEntity) string {
+		provider, _ := entity.Fields["provider"].(string)
+		return provider
+	},
+	IconKey: func(entity AutomationEntity) string {
 		provider, _ := entity.Fields["provider"].(string)
 		return provider
 	},
@@ -232,4 +246,75 @@ func apiKeyEntity(row store.APIKey) AutomationEntity {
 		fields["totalLimit"] = row.QuotaLimit.Float64
 	}
 	return AutomationEntity{Type: EntityAPIKey, ID: row.ID.String(), Name: row.Name, Fields: fields}
+}
+
+// ---- site ----
+
+// siteQuotaSummaryKey is where the site's last quota probe is kept in its meta.
+const siteQuotaSummaryKey = "quota_probe_summary"
+
+var siteKind = entityKind{
+	Name: EntitySite,
+	List: func(ctx context.Context, db *store.Store) ([]AutomationEntity, error) {
+		rows, err := store.NewSiteRepository(db.DB()).List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]AutomationEntity, 0, len(rows))
+		for _, row := range rows {
+			if !store.SiteDeleted(row) {
+				out = append(out, siteEntity(row))
+			}
+		}
+		return out, nil
+	},
+	Resolve: func(ctx context.Context, db *store.Store, ids []string) ([]AutomationEntity, error) {
+		parsed, err := parseIDs(ids)
+		if err != nil || len(parsed) == 0 {
+			return nil, err
+		}
+		rows, err := store.NewSiteRepository(db.DB()).ListByIDsIncludingDeleted(ctx, parsed)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]AutomationEntity, 0, len(rows))
+		for _, row := range rows {
+			if !store.SiteDeleted(row) {
+				out = append(out, siteEntity(row))
+			}
+		}
+		return out, nil
+	},
+	Check: func(AutomationEntity, AutomationInputSpec) (string, string) { return "", "" },
+	// A site is told apart by its logo and name, so no description.
+	Describe: func(AutomationEntity) string { return "" },
+	IconKey: func(entity AutomationEntity) string {
+		siteType, _ := entity.Fields["siteType"].(string)
+		return siteType
+	},
+	Snapshot: func(ctx context.Context, db *store.Store, id string) (map[string]any, error) {
+		parsed, err := uuid.Parse(id)
+		if err != nil {
+			return nil, err
+		}
+		row, err := store.NewSiteRepository(db.DB()).GetByID(ctx, parsed)
+		if err != nil {
+			return nil, err
+		}
+		if store.SiteDeleted(row) {
+			return nil, fmt.Errorf("site %s was deleted", id)
+		}
+		current := map[string]any{"now": time.Now().UnixMilli(), "enabled": row.Enabled, "siteType": row.SiteType}
+		if quota, ok := jsonObject(row.Meta)[siteQuotaSummaryKey]; ok {
+			current["quota"] = quota
+		}
+		return current, nil
+	},
+}
+
+func siteEntity(row store.Site) AutomationEntity {
+	return AutomationEntity{
+		Type: EntitySite, ID: row.ID.String(), Name: row.Name,
+		Fields: map[string]any{"siteType": row.SiteType, "enabled": row.Enabled},
+	}
 }

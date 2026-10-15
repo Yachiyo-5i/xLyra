@@ -783,7 +783,8 @@
     "permissionsConfirm": "内容を理解し、上記の権限を付与します",
     "permission": {
       "apikeyResetUsage": "紐づけた API キーの使用量（合計・日次・週次）をリセット",
-      "notify": "プラグインの操作履歴に通知を書き込む"
+      "notify": "プラグインの操作履歴に通知を書き込む",
+      "httpRequest": "バインドで入力したアドレスへ HTTP リクエストを送信（プッシュ通知など）"
     },
     "automation": {
       "title": "自動化",
@@ -807,6 +808,7 @@
         },
         "reset": "使用量をリセット（{{scope}}）",
         "notice": "通知: {{message}}",
+        "http": "HTTP リクエスト：{{method}} {{url}}",
         "handle": "イベントを処理"
       },
       "noOptions": "選択できる項目がありません",

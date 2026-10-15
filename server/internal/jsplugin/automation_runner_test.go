@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -17,6 +19,10 @@ type fakeHost struct {
 	mu    sync.Mutex
 	calls []string
 	fail  bool
+	// requests records each outgoing request as "METHOD url body".
+	requests   []string
+	failHTTP   bool
+	httpStatus int
 }
 
 func (h *fakeHost) ResetAPIKeyQuota(_ context.Context, id uuid.UUID, scopes []string) error {
@@ -27,6 +33,23 @@ func (h *fakeHost) ResetAPIKeyQuota(_ context.Context, id uuid.UUID, scopes []st
 	}
 	h.calls = append(h.calls, id.String()+":"+scopes[0])
 	return nil
+}
+
+func (h *fakeHost) DoHTTP(_ context.Context, req HTTPRequest) (int, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.failHTTP {
+		return 0, errors.New("the request failed: connection refused")
+	}
+	h.requests = append(h.requests, req.Method+" "+req.URL+" "+req.Body)
+	return h.status(), nil
+}
+
+func (h *fakeHost) status() int {
+	if h.httpStatus != 0 {
+		return h.httpStatus
+	}
+	return 200
 }
 
 const rolloverPlugin = `export const meta = { apiVersion: 1, id: "acme-reset", kind: "automation" };
@@ -479,5 +502,133 @@ func TestDeletePluginRemovesEveryVersionAndWhatHangsOffIt(t *testing.T) {
 	}
 	if err := manager.DeletePlugin(ctx, "acme-reset"); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("deleting a plugin that is gone: err = %v, want not found", err)
+	}
+}
+
+const httpPlugin = `export const meta = { apiVersion: 1, id: "acme-http", kind: "automation" };
+export function handle(ctx, event) {
+  const site = ctx.inputs.sites.find((s) => s.id === event.subject.id);
+  const quota = event.current.quota;
+  if (!site || !quota || quota.remaining_min > ctx.inputs.threshold) return { actions: [] };
+  const sites = Object.assign({}, ctx.state.sites);
+  if (sites[site.id]) return { actions: [] };
+  sites[site.id] = { seq: 1 };
+  return {
+    actions: [{ type: "http.request", url: ctx.inputs.webhook, body: JSON.stringify({ title: site.name }), idempotencyKey: "1" }],
+    state: { sites },
+  };
+}
+`
+
+func httpPackage(t *testing.T) []byte {
+	t.Helper()
+	manifest := `{
+  "id": "acme-http", "name": "HTTP", "version": "1.0.0", "apiVersion": 1, "hostApi": 1, "kind": "automation",
+  "automation": {
+    "subscribes": ["schedule.tick"],
+    "permissions": ["http.request"],
+    "schedule": { "everyMinutes": 10 },
+    "inputs": [
+      { "name": "sites", "type": "site", "multiple": true, "eventSubject": true },
+      { "name": "webhook", "type": "url", "required": true },
+      { "name": "threshold", "type": "number", "default": 5 }
+    ]
+  },
+  "sha256": { "plugin.js": "` + hashSource(httpPlugin) + `" }
+}`
+	fixture := `{"name":"idle","ctx":{"now":1,"inputs":{"sites":[{"type":"site","id":"s","name":"S","fields":{}}],"webhook":"https://hook.example/k","threshold":5}},"input":{"type":"schedule.tick","subject":{"type":"site","id":"s","name":"S","fields":{}},"current":{"quota":{"remaining_min":50}}},"expect":{"result":{"actions":[]}}}`
+	raw, err := BuildPackage(map[string][]byte{
+		"manifest.json":     []byte(manifest),
+		"plugin.js":         []byte(httpPlugin),
+		"fixtures/one.json": []byte(fixture),
+	})
+	if err != nil {
+		t.Fatalf("build package: %v", err)
+	}
+	return raw
+}
+
+// One binding watches several sites: every tick is about one site, a failed
+// request is retried without being lost, and a site that was already announced
+// is not announced again however many ticks follow. The address with its key
+// stays out of the action log.
+func TestAutomationHTTPRequestAlertsEachSiteOnce(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	manager := NewManager(st, &Catalog{})
+	sites := store.NewSiteRepository(st.DB())
+	makeSite := func(name string, remaining float64) store.Site {
+		site, err := sites.Create(ctx, store.CreateSiteParams{
+			Name: name, Slug: name + "-" + uuid.NewString()[:6], SiteType: "sub2api", BaseURL: "https://" + name + ".example",
+			Status: "active", Enabled: true, RoutingPriority: 1,
+			Meta: store.JSON(fmt.Sprintf(`{"quota_probe_summary":{"status":"ok","remaining_min":%v,"unit":"usd"}}`, remaining)),
+		})
+		if err != nil {
+			t.Fatalf("seed site: %v", err)
+		}
+		return site
+	}
+	low, healthy := makeSite("low", 1), makeSite("healthy", 90)
+
+	if _, err := manager.Upload(ctx, "", httpPackage(t)); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if err := manager.Enable(ctx, "acme-http", "1.0.0", EnableOptions{ConfirmUntrusted: true, GrantPermissions: []string{ActionHTTPRequest}}); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	for name, in := range map[string]map[string]any{
+		"not a url":       {"sites": []any{low.ID.String()}, "webhook": "not a url"},
+		"with a password": {"sites": []any{low.ID.String()}, "webhook": "https://u:p@hook.example/k"},
+	} {
+		if _, err := manager.CreateAutomation(ctx, "acme-http", AutomationBindingInput{Inputs: in}); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	const webhook = "https://hook.example/devicekey"
+	if _, err := manager.CreateAutomation(ctx, "acme-http", AutomationBindingInput{Inputs: map[string]any{
+		"sites": []any{low.ID.String(), healthy.ID.String()}, "webhook": webhook,
+	}}); err != nil {
+		t.Fatalf("create automation: %v", err)
+	}
+
+	manager.queueTicks(ctx)
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events WHERE status = 'pending'`); n != 2 {
+		t.Fatalf("queued %d ticks, want one per site", n)
+	}
+
+	host := &fakeHost{failHTTP: true}
+	manager.processDue(ctx, host)
+	if len(host.requests) != 0 {
+		t.Fatalf("a failing request was credited: %v", host.requests)
+	}
+	if n := countRows(t, st, `SELECT COUNT(*) FROM js_plugin_events WHERE status = 'pending' AND attempts = 1`); n < 1 {
+		t.Fatal("the failed request was not kept for a retry")
+	}
+
+	host.failHTTP = false
+	st.DB().Exec(`UPDATE js_plugin_events SET next_attempt_at = NOW() - INTERVAL '1 second'`)
+	manager.processDue(ctx, host)
+	if want := `POST ` + webhook + ` {"title":"low"}`; len(host.requests) != 1 || host.requests[0] != want {
+		t.Fatalf("requests = %v, want [%s]", host.requests, want)
+	}
+
+	// Later ticks, and a redelivered event, add nothing.
+	for range 3 {
+		st.DB().Exec(`UPDATE js_plugin_bindings SET next_tick_at = NOW() - INTERVAL '1 minute'`)
+		manager.queueTicks(ctx)
+		manager.processDue(ctx, host)
+	}
+	if len(host.requests) != 1 {
+		t.Fatalf("the same alert was sent again: %v", host.requests)
+	}
+
+	log, err := manager.ActionLog(ctx, "acme-http", 20)
+	if err != nil || len(log) == 0 {
+		t.Fatalf("action log = %v, %v", log, err)
+	}
+	for _, entry := range log {
+		if strings.Contains(string(entry.Action), "devicekey") || strings.Contains(entry.Detail, "devicekey") {
+			t.Fatalf("the address with its key reached the action log: %s", entry.Action)
+		}
 	}
 }

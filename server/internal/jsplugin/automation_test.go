@@ -46,7 +46,6 @@ func TestAutomationManifestRules(t *testing.T) {
 		"no inputs":          func(s *AutomationSection) { s.Inputs = nil },
 		"no event subject":   func(s *AutomationSection) { s.Inputs[0].EventSubject = false },
 		"two event subjects": func(s *AutomationSection) { s.Inputs[1].EventSubject = true },
-		"multiple subject":   func(s *AutomationSection) { s.Inputs[0].Multiple = true },
 		"parameter subject": func(s *AutomationSection) {
 			s.Inputs[0].EventSubject = false
 			s.Inputs[2].EventSubject = true
@@ -56,9 +55,11 @@ func TestAutomationManifestRules(t *testing.T) {
 			s.Inputs[1].EventSubject = true
 			s.Inputs[1].Multiple = false
 		},
-		"unknown input type": func(s *AutomationSection) { s.Inputs[2].Type = "site" },
-		"bad input name":     func(s *AutomationSection) { s.Inputs[2].Name = "Bad Name" },
-		"duplicate name":     func(s *AutomationSection) { s.Inputs[2].Name = "keys" },
+		"unknown input type":  func(s *AutomationSection) { s.Inputs[2].Type = "team" },
+		"bad input name":      func(s *AutomationSection) { s.Inputs[2].Name = "Bad Name" },
+		"control not fitting": func(s *AutomationSection) { s.Inputs[2].Control = "switch" },
+		"single multi-select": func(s *AutomationSection) { s.Inputs[0].Control = ControlMultiSelect },
+		"duplicate name":      func(s *AutomationSection) { s.Inputs[2].Name = "keys" },
 		"too many inputs": func(s *AutomationSection) {
 			for i := 0; i < MaxAutomationInputs; i++ {
 				s.Inputs = append(s.Inputs, AutomationInputSpec{Name: "p" + string(rune('a'+i)), Type: "boolean"})
@@ -232,5 +233,91 @@ func TestAutomationFormTextIsValidated(t *testing.T) {
 	good.Inputs[1].Placeholder = LocalizedText{"": "Pick keys"}
 	if err := validateAutomationSection(good); err != nil {
 		t.Fatalf("localized copy rejected: %v", err)
+	}
+}
+
+func TestHTTPRequestNeedsAURLInput(t *testing.T) {
+	section := func() AutomationSection {
+		return AutomationSection{
+			Subscribes:  []string{EventScheduleTick},
+			Schedule:    AutomationSchedule{EveryMinutes: 10},
+			Permissions: []string{ActionHTTPRequest},
+			Inputs: []AutomationInputSpec{
+				{Name: "site", Type: EntitySite, EventSubject: true},
+				{Name: "hook", Type: "url"},
+			},
+		}
+	}
+	if err := validateAutomationSection(section()); err != nil {
+		t.Fatalf("valid section: %v", err)
+	}
+	for name, change := range map[string]func(*AutomationSection){
+		"no url input":     func(s *AutomationSection) { s.Inputs = s.Inputs[:1] },
+		"a string instead": func(s *AutomationSection) { s.Inputs[1].Type = "string" },
+		"url as textarea":  func(s *AutomationSection) { s.Inputs[1].Control = ControlTextarea },
+	} {
+		bad := section()
+		change(&bad)
+		if err := validateAutomationSection(bad); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestCheckURLParam(t *testing.T) {
+	spec := AutomationInputSpec{Name: "hook", Type: "url"}
+	for _, ok := range []string{"https://api.day.app/key", "http://10.0.0.5:8080/push"} {
+		if err := checkParam(spec, ok); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
+	for _, bad := range []any{"", "api.day.app/key", "ftp://host/x", "https://u:p@host/x", 5.0} {
+		if err := checkParam(spec, bad); err == nil {
+			t.Errorf("%v accepted", bad)
+		}
+	}
+}
+
+func TestCallAutomationChecksHTTPActions(t *testing.T) {
+	section := AutomationSection{
+		Subscribes:  []string{EventScheduleTick},
+		Schedule:    AutomationSchedule{EveryMinutes: 10},
+		Permissions: []string{ActionHTTPRequest},
+		Inputs: []AutomationInputSpec{
+			{Name: "site", Type: EntitySite, EventSubject: true},
+			{Name: "hook", Type: "url"},
+		},
+	}
+	inputs := map[string]any{"site": entityMap(EntitySite, "site-1", "relay"), "hook": "https://api.day.app/secret"}
+	event := AutomationEvent{Type: EventScheduleTick, Subject: AutomationEntity{Type: EntitySite, ID: "site-1", Name: "relay"}}
+	call := func(body string) (AutomationResult, error) {
+		plugin := automationPlugin(t, "acme-http", section, body)
+		return plugin.CallAutomation(context.Background(), AutomationContext{Event: event.Type, Now: 1, BindingID: "b", Inputs: inputs}, event)
+	}
+	good, err := call(`export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook + "/Low/hello?level=timeSensitive", method: "get", headers: { "X-Test": "1" }, idempotencyKey: "k" }] }; }`)
+	if err != nil || len(good.Actions) != 1 || good.Actions[0].Method != "GET" || good.Actions[0].Headers["X-Test"] != "1" {
+		t.Fatalf("good = %+v err = %v", good, err)
+	}
+	defaulted, err := call(`export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook, body: "{}", idempotencyKey: "k" }] }; }`)
+	if err != nil || defaulted.Actions[0].Method != "POST" {
+		t.Fatalf("default method: %+v err = %v", defaulted, err)
+	}
+	for name, body := range map[string]string{
+		"another host":        `export function handle() { return { actions: [{ type: "http.request", url: "https://evil.example/x", idempotencyKey: "k" }] }; }`,
+		"another port":        `export function handle() { return { actions: [{ type: "http.request", url: "https://api.day.app:8443/x", idempotencyKey: "k" }] }; }`,
+		"another scheme":      `export function handle() { return { actions: [{ type: "http.request", url: "http://api.day.app/x", idempotencyKey: "k" }] }; }`,
+		"a look-alike host":   `export function handle() { return { actions: [{ type: "http.request", url: "https://api.day.app.evil.example/x", idempotencyKey: "k" }] }; }`,
+		"credentials in url":  `export function handle() { return { actions: [{ type: "http.request", url: "https://u:p@api.day.app/x", idempotencyKey: "k" }] }; }`,
+		"no url":              `export function handle() { return { actions: [{ type: "http.request", idempotencyKey: "k" }] }; }`,
+		"no key":              `export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook }] }; }`,
+		"bad method":          `export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook, method: "TRACE", idempotencyKey: "k" }] }; }`,
+		"header not a string": `export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook, headers: { A: 1 }, idempotencyKey: "k" }] }; }`,
+		"too many headers":    `export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook, headers: Object.fromEntries(Array.from({ length: 17 }, (_, i) => ["H" + i, "v"])), idempotencyKey: "k" }] }; }`,
+		"huge body":           `export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook, body: "x".repeat(70000), idempotencyKey: "k" }] }; }`,
+		"unknown field":       `export function handle(ctx) { return { actions: [{ type: "http.request", url: ctx.inputs.hook, retries: 3, idempotencyKey: "k" }] }; }`,
+	} {
+		if _, err := call(body); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
 	}
 }

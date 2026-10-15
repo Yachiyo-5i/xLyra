@@ -2,6 +2,7 @@
 const PERMISSION_LABEL_KEYS: Record<string, string> = {
   'apikey.reset_usage': 'apikeyResetUsage',
   notify: 'notify',
+  'http.request': 'httpRequest',
 }
 
 export function permissionLabelKey(permission: string) {

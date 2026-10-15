@@ -253,17 +253,17 @@ export interface PricingParseResult {
 // ---- automation ----
 
 export interface AutomationEntity {
-  /** oauth_connection or api_key. */
+  /** oauth_connection, api_key or site. */
   type: string;
   /** Use this as an action's target. */
   id: string;
   /** Human-readable name: the account email, the key name. */
   name: string;
-  /** oauth_connection: provider, status. api_key: totalUsed, totalLimit, dailyUsed, weeklyUsed. */
+  /** oauth_connection: provider, status. api_key: totalUsed, totalLimit, dailyUsed, weeklyUsed. site: siteType, enabled. */
   fields: JsonObject;
 }
 
-export type AutomationActionType = "apikey.reset_usage" | "notify";
+export type AutomationActionType = "apikey.reset_usage" | "notify" | "http.request";
 
 export interface AutomationContext {
   /** The event type being handled. */
@@ -297,12 +297,20 @@ export interface AutomationAction {
   target?: string;
   /** apikey.reset_usage: which usage window to clear. */
   scope?: AutomationResetScope;
-  /** apikey.reset_usage: repeating the same key for the same target and scope does nothing. Use the upstream reset time. */
+  /** apikey.reset_usage and http.request: repeating the same key for the same target (or event object) does nothing. Use the upstream reset time, or the moment of the alert. */
   idempotencyKey?: string;
   /** notify: defaults to info. */
   level?: AutomationNoticeLevel;
   /** notify: shown in the plugin's action log, at most 500 bytes. */
   message?: string;
+  /** http.request: GET, POST (default), PUT, PATCH or DELETE. */
+  method?: string;
+  /** http.request: where to send it. Its origin (scheme, host and port) must be that of a url input the admin filled in. */
+  url?: string;
+  /** http.request: at most 16 headers; Host, Content-Length, Transfer-Encoding, Connection, Proxy-Authorization and X-Forwarded-* are dropped. */
+  headers?: Record<string, string>;
+  /** http.request: the request body as text (JSON.stringify an object and set Content-Type), at most 64 KiB; not sent with GET. */
+  body?: string;
 }
 
 export interface AutomationResult {

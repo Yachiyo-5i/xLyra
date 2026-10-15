@@ -8,7 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { FormField } from '@/components/ui/form-field'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { TextArea } from '@/components/ui/textarea'
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
+import { Radio, RadioGroup } from '@/components/ui/radio'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   createJSPluginAutomation,
@@ -24,13 +27,15 @@ import {
   type JSPluginAutomationOption,
   type JSPluginAutomationValue,
 } from '@/features/settings/api/js-plugins'
+import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { resolveText } from '@/features/settings/lib/localized-text'
+import { useResolvedTheme } from '@/hooks/theme-context'
 import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
 
 type FormState = { editing: string | null; values: Record<string, JSPluginAutomationValue | undefined> }
 
-const isObjectInput = (input: JSPluginAutomationInput) => input.type === 'oauth_connection' || input.type === 'api_key'
+const isObjectInput = (input: JSPluginAutomationInput) => input.type === 'oauth_connection' || input.type === 'api_key' || input.type === 'site'
 const isRequired = (input: JSPluginAutomationInput) => input.required ?? isObjectInput(input)
 
 function initialValues(manifest: JSPluginAutomationManifest, item?: JSPluginAutomation): FormState['values'] {
@@ -96,6 +101,12 @@ export function JSPluginAutomationSection({
   objectInputs.forEach((input, index) => {
     optionsByInput[input.name] = { options: optionQueries[index]?.data ?? [], loading: optionQueries[index]?.isLoading ?? false }
   })
+
+  // An object may come with a brand key (a site's type, an account's provider); the
+  // picker shows that brand's logo next to its name, whatever the object type is.
+  const resolvedMode = useResolvedTheme()
+  const optionIcon = (option: JSPluginAutomationOption) =>
+    option.icon_key ? siteTypeIconPath(option.icon_key, resolvedMode) : undefined
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: jsPluginAutomationQueryKeys.list(pluginId) })
@@ -164,6 +175,7 @@ export function JSPluginAutomationSection({
               options={options.map<MultiSelectOption>((option) => ({
                 value: option.id,
                 label: option.name,
+                icon: optionIcon(option),
                 disabled: option.disabled,
                 description: option.disabled ? reasonText(option) : option.description,
               }))}
@@ -182,6 +194,9 @@ export function JSPluginAutomationSection({
               <SelectContent searchable={false}>
                 {options.map((option) => (
                   <SelectItem key={option.id} value={option.id} disabled={option.disabled}>
+                    {optionIcon(option) ? (
+                      <img src={optionIcon(option)} alt="" className="mr-2 inline-block h-4 w-4 rounded-sm object-contain align-text-bottom" />
+                    ) : null}
                     {option.name}
                     {option.disabled ? ` — ${reasonText(option)}` : option.description ? ` · ${option.description}` : ''}
                   </SelectItem>
@@ -195,6 +210,17 @@ export function JSPluginAutomationSection({
     }
 
     if (input.type === 'boolean') {
+      if (input.control === 'switch') {
+        return (
+          <Switch
+            key={input.name}
+            checked={value === true}
+            onCheckedChange={(checked) => setValue(input.name, checked)}
+            label={label}
+            description={hint}
+          />
+        )
+      }
       return (
         <Checkbox
           key={input.name}
@@ -203,6 +229,20 @@ export function JSPluginAutomationSection({
           label={label}
           description={hint}
         />
+      )
+    }
+    if (input.enum && input.enum.length > 0 && input.control === 'radio') {
+      return (
+        <FormField key={input.name} label={label} description={hint} required={isRequired(input)}>
+          <RadioGroup
+            value={value === undefined ? undefined : String(value)}
+            onValueChange={(next) => setValue(input.name, input.enum?.find((option) => String(option) === next) as JSPluginAutomationValue)}
+          >
+            {input.enum.map((option) => (
+              <Radio key={String(option)} value={String(option)} label={String(option)} />
+            ))}
+          </RadioGroup>
+        </FormField>
       )
     }
     if (input.enum && input.enum.length > 0) {
@@ -227,10 +267,22 @@ export function JSPluginAutomationSection({
       )
     }
     const numeric = input.type === 'number' || input.type === 'integer'
+    if (input.control === 'textarea') {
+      return (
+        <FormField key={input.name} label={label} description={hint} required={isRequired(input)}>
+          <TextArea
+            placeholder={text(input.placeholder)}
+            value={value === undefined || Array.isArray(value) ? '' : String(value)}
+            onChange={(event) => setValue(input.name, event.target.value === '' ? undefined : event.target.value)}
+          />
+        </FormField>
+      )
+    }
     return (
       <FormField key={input.name} label={label} description={hint} required={isRequired(input)}>
         <Input
-          type={numeric ? 'number' : 'text'}
+          type={numeric ? 'number' : input.control === 'password' ? 'password' : 'text'}
+          autoComplete={input.control === 'password' ? 'off' : undefined}
           min={input.minimum}
           max={input.maximum}
           placeholder={text(input.placeholder)}
@@ -253,7 +305,9 @@ export function JSPluginAutomationSection({
         ? (saved?.entities ?? []).map((entity) => entity.name || entity.id).join(', ')
         : saved?.value === undefined
           ? ''
-          : String(saved.value)
+          : input.control === 'password'
+            ? '••••••'
+            : String(saved.value)
       return value ? `${inputTitle(input)}: ${value}` : ''
     }
     const heading = subjectInput
@@ -264,10 +318,13 @@ export function JSPluginAutomationSection({
   }
 
   const statusLabel = (status: string) => t(`settings:jsPlugins.automation.log.status.${status}`, status)
-  const actionLabel = (entry: { action: { type?: string; scope?: string; message?: string } }) => {
+  const actionLabel = (entry: { action: { type?: string; scope?: string; message?: string; method?: string; url?: string } }) => {
     const type = entry.action?.type ?? ''
     if (type === 'apikey.reset_usage') {
       return t('settings:jsPlugins.automation.log.reset', { scope: entry.action.scope ?? '' })
+    }
+    if (type === 'http.request') {
+      return t('settings:jsPlugins.automation.log.http', { method: entry.action.method ?? 'POST', url: entry.action.url ?? '' })
     }
     if (type === 'notify') return t('settings:jsPlugins.automation.log.notice', { message: entry.action.message ?? '' })
     return t('settings:jsPlugins.automation.log.handle')

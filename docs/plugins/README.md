@@ -18,7 +18,7 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 | [错误分类](./error-classifier.md) | `error_classifier` |
 | [模型元数据](./model-metadata.md) | `model_metadata` |
 | [价格解析](./pricing-parse.md) | `pricing_parse` |
-| [自动化](./automation.md) | `automation`：响应 xLyra 事件，返回由 xLyra 执行的动作 |
+| [自动化](./automation.md) | `automation`：响应 xLyra 事件，返回由 xLyra 执行的动作；绑定表单由 manifest 声明 |
 | [清单 manifest.json](./manifest.md) | 字段、校验规则 |
 | [fixtures 测试样本](./fixtures.md) | 样本格式与比对规则 |
 | [宿主 API](./host-api.md) | 插件里可以调用的全局函数 |
