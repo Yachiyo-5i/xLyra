@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.0...v1.15.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* 🐛 automation 插件支持站点对象与通用 HTTP 请求，表单控件由 manifest 声明 ([e087657](https://github.com/Yachiyo-5i/xLyra/commit/e087657697a42c16d436144fb65c526dc589d7f0))
+
 ## [1.15.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.14.2...v1.15.0) (2026-10-15)
 
 
