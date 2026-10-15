@@ -74,6 +74,8 @@ type CandidateSite struct {
 	RoutingPriority        float64
 	ResponsesToolPolicy    string
 	DisabledResponsesTools []string
+	// ErrorClassifierPlugin is the error_classifier plugin an admin bound to the site, if any.
+	ErrorClassifierPlugin string
 }
 
 type CandidateModel struct {
@@ -239,6 +241,7 @@ func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (Candida
 				RoutingPriority:        row.SiteRoutingPriority,
 				ResponsesToolPolicy:    siteResponsesToolPolicy(row.SiteMeta),
 				DisabledResponsesTools: siteDisabledResponsesTools(row.SiteMeta),
+				ErrorClassifierPlugin:  sitepkg.SitePluginID(siteGatewayConfig(row.SiteMeta), "error_classifier"),
 			},
 			Model: CandidateModel{
 				SiteModelID:            row.SiteModelID,

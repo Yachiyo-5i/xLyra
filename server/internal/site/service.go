@@ -16,11 +16,14 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"log/slog"
+
 	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/credential"
 	"xlyra/server/internal/httpclient"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/modelcapabilities"
 	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/store"
@@ -43,6 +46,7 @@ type Service struct {
 	confFile    *config.ConfigFile
 	timeZone    config.TimeZone
 	siteLocks   *siteRefreshLocks
+	jsPlugins   *jsplugin.Registry
 }
 
 type CreateSiteParams struct {
@@ -135,6 +139,16 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		oauthService = oauthsvc.NewService(db, masterKey, confFile)
 	}
 	httpClients := httpclient.NewManager(confFile)
+	plugins := jsplugin.DefaultCatalog().Registry()
+	if plugins == nil {
+		if err := jsplugin.DefaultCatalog().InitBuiltins(); err != nil {
+			slog.Warn("builtin js plugins", "error", err)
+		}
+		plugins = jsplugin.DefaultCatalog().Registry()
+	}
+	if err := ValidateJSPluginRuntime(); err != nil {
+		slog.Warn("builtin js plugins unavailable", "error", err)
+	}
 	return &Service{
 		db:          db,
 		credentials: credential.NewService(masterKey),
@@ -145,7 +159,18 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		confFile:    confFile,
 		timeZone:    timeZone,
 		siteLocks:   newSiteRefreshLocks(),
+		jsPlugins:   plugins,
 	}
+}
+
+func (s *Service) activeJSRegistry() *jsplugin.Registry {
+	if registry := jsplugin.DefaultCatalog().Registry(); registry != nil {
+		return registry
+	}
+	if s == nil {
+		return nil
+	}
+	return s.jsPlugins
 }
 
 func (s *Service) List(ctx context.Context) ([]store.Site, error) {
@@ -420,6 +445,9 @@ func (s *Service) DetectSiteType(ctx context.Context, baseURL string) (DetectRes
 		if result.Matched && (!best.Matched || result.Confidence > best.Confidence) {
 			best = result
 		}
+	}
+	if pluginBest, ok := s.detectWithPlugins(ctx, baseURL); ok && (!best.Matched || pluginBest.Confidence > best.Confidence) {
+		best = pluginBest
 	}
 	if best.Matched {
 		return best, nil
@@ -1105,7 +1133,7 @@ func (s *Service) Validate(ctx context.Context, siteID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	validator, ok := adapter.AsCredentialValidator(module)
+	validator, ok := s.credentialValidatorFor(site, module)
 	if !ok {
 		return fmt.Errorf("site_type %q does not support credential validation", site.SiteType)
 	}
@@ -1131,7 +1159,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 	if !ok {
 		return SyncResult{}, fmt.Errorf("unsupported site_type %q", site.SiteType)
 	}
-	modelLister, ok := adapter.AsGatewayModelLister(module)
+	modelLister, ok := s.modelListerFor(site, module)
 	if !ok {
 		return SyncResult{}, fmt.Errorf("site_type %q does not support model sync", site.SiteType)
 	}
@@ -2549,6 +2577,11 @@ func coalesceModelCapabilities(existing adapter.Model, next adapter.Model, keyNa
 }
 
 func (s *Service) enrichModelCapabilities(ctx context.Context, site store.Site, model adapter.Model) adapter.Model {
+	model = s.enrichModelCapabilitiesBase(ctx, site, model)
+	return s.applyModelMetadataPlugins(ctx, site, model)
+}
+
+func (s *Service) enrichModelCapabilitiesBase(ctx context.Context, site store.Site, model adapter.Model) adapter.Model {
 	model = applyModelNameEndpointTypes(site, model)
 	if s == nil || s.modelCaps == nil {
 		return model

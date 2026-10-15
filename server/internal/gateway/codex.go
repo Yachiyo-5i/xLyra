@@ -250,6 +250,7 @@ func classifyGatewayUpstreamErrorWithTimeZone(candidate routeengine.Candidate, r
 	}
 	if !ok {
 		failure := upstream.ClassifyResponseAt(result.upstreamStatusCode, nil, body, now)
+		failure = applyErrorClassifierPlugin(candidate, result.upstreamStatusCode, failure)
 		if failure.SubscriptionLimited() {
 			resetAt, retryAfterSeconds := subscriptionLimitResetAt(result, failure, now, timeZone)
 			classified = codexUpstreamError{
