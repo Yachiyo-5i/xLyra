@@ -89,7 +89,7 @@ func ensureDatabaseInitializedOnce(ctx context.Context, cfg config.Config) error
 	if strings.TrimSpace(cfg.DatabaseName()) == "" {
 		return fmt.Errorf("target database name is required")
 	}
-	store, err := Open(ctx, cfg)
+	store, err := openForSchemaWork(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("ping target database: %w", err)
 	}
