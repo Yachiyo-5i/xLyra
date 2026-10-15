@@ -21,6 +21,7 @@ import (
 	"xlyra/server/internal/dashboard"
 	"xlyra/server/internal/downloads"
 	"xlyra/server/internal/gateway"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/httpx"
 	"xlyra/server/internal/newapi"
 	oauthsvc "xlyra/server/internal/oauth"
@@ -50,10 +51,16 @@ type Handler struct {
 	downloads *downloads.Service
 	timeZone  config.TimeZone
 	trafficDB *store.Store
+	jsPlugins *jsplugin.Manager
 }
 
 func (h Handler) WithTrafficFlowStore(db *store.Store) Handler {
 	h.trafficDB = db
+	return h
+}
+
+func (h Handler) WithJSPlugins(manager *jsplugin.Manager) Handler {
+	h.jsPlugins = manager
 	return h
 }
 
@@ -95,6 +102,12 @@ func (h Handler) logInfo(message string, args ...any) {
 func (h Handler) logWarn(message string, args ...any) {
 	if h.logger != nil {
 		h.logger.Warn(message, append([]any{"scope", "admin"}, args...)...)
+	}
+}
+
+func (h Handler) logError(message string, args ...any) {
+	if h.logger != nil {
+		h.logger.Error(message, append([]any{"scope", "admin"}, args...)...)
 	}
 }
 

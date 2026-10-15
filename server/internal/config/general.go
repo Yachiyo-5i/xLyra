@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const GeneralConfigPath = "global.general"
@@ -47,7 +48,7 @@ type GeneralConfig struct {
 	Log         GeneralLogConfig         `json:"log"`
 	Data        GeneralDataConfig        `json:"data"`
 	Cache       GeneralCacheConfig       `json:"cache"`
-	Security    GeneralSecurityConfig    `json:"security"`
+	Security GeneralSecurityConfig `json:"security"`
 }
 
 func DefaultGeneralConfig() GeneralConfig {
@@ -201,7 +202,33 @@ func ValidateGeneralConfig(cfg GeneralConfig) error {
 	if cfg.Security.SessionLifetimeHours < 0 || cfg.Security.SessionLifetimeHours > 720 {
 		return fmt.Errorf("security.session_lifetime_hours must be between 0 and 720")
 	}
+	if err := runGeneralValidator(cfg); err != nil {
+		return err
+	}
 	return nil
+}
+
+var (
+	generalValidatorMu sync.Mutex
+	generalValidator   func(GeneralConfig) error
+)
+
+// RegisterGeneralValidator adds a check that runs after format validation.
+// The site package registers builtin JS plugin readiness so config does not import the JS runtime.
+func RegisterGeneralValidator(fn func(GeneralConfig) error) {
+	generalValidatorMu.Lock()
+	generalValidator = fn
+	generalValidatorMu.Unlock()
+}
+
+func runGeneralValidator(cfg GeneralConfig) error {
+	generalValidatorMu.Lock()
+	fn := generalValidator
+	generalValidatorMu.Unlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(cfg)
 }
 
 func GeneralConfigToMap(cfg GeneralConfig) map[string]any {

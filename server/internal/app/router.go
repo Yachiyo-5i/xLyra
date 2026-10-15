@@ -27,6 +27,7 @@ import (
 	"xlyra/server/internal/downloads"
 	"xlyra/server/internal/gateway"
 	"xlyra/server/internal/health"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/httpx"
 	"xlyra/server/internal/newapi"
@@ -87,12 +88,23 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	var analyticsService *analytics.Service
 	var routerService *routeengine.Service
 	var usageService *usage.Service
+	var jsPluginManager *jsplugin.Manager
 	if db != nil {
+		jsPluginManager = jsplugin.NewManager(db, jsplugin.DefaultCatalog())
+		reloadCtx, reloadCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := jsPluginManager.Reload(reloadCtx); err != nil {
+			logger.Warn("js plugin catalog reload failed", "error", err)
+		}
+		reloadCancel()
 		oauthService = sharedOAuth
 		if oauthService == nil {
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)
 		}
+		wireJSPluginAutomation(oauthService, jsPluginManager, authService)
 		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		config.RegisterGeneralValidator(func(cfg config.GeneralConfig) error {
+			return site.ValidateJSPluginRuntime()
+		})
 		catalogService = catalog.NewService(db, confFile)
 		dashboardService = dashboard.NewService(db, appTimeZone)
 		analyticsService = analytics.NewService(db, appTimeZone)
@@ -184,6 +196,9 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		go syncAgentAccessPolicy()
 	}
 	adminHandler := admin.NewHandler(logger.With("thread", "admin"), authService, siteService, catalogService, routerService, usageService, dashboardService, systemStatsService, &gatewayHandler, newAPIService, oauthService, appTimeZone).WithDownloadService(downloadService).WithTrafficFlowStore(db).WithAnalyticsService(analyticsService)
+	if jsPluginManager != nil {
+		adminHandler = adminHandler.WithJSPlugins(jsPluginManager)
+	}
 	healthHandler := health.NewHandler(cfg, db)
 	var preRestore, postRestore, databaseRestored func(context.Context) error
 	if playgroundService != nil {
@@ -311,6 +326,27 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Post("/profile/totp/enable", adminHandler.EnableProfileTOTP)
 				protected.Delete("/profile/totp", adminHandler.DisableProfileTOTP)
 				protected.Get("/audit-logs", adminHandler.ListAuditLogs)
+				protected.Get("/js-plugin-trusted-keys", adminHandler.ListJSPluginTrustedKeys)
+				protected.Post("/js-plugin-trusted-keys", adminHandler.CreateJSPluginTrustedKey)
+				protected.Delete("/js-plugin-trusted-keys/{id}", adminHandler.DeleteJSPluginTrustedKey)
+				protected.Get("/js-plugins", adminHandler.ListJSPlugins)
+				protected.Post("/js-plugins", adminHandler.UploadJSPlugin)
+				protected.Get("/js-plugins/{id}", adminHandler.GetJSPlugin)
+				protected.Post("/js-plugins/{id}/versions/{version}/enable", adminHandler.EnableJSPluginVersion)
+				protected.Post("/js-plugins/{id}/disable", adminHandler.DisableJSPlugin)
+				protected.Delete("/js-plugins/{id}", adminHandler.DeleteJSPlugin)
+				protected.Delete("/js-plugins/{id}/versions/{version}", adminHandler.DeleteJSPluginVersion)
+				protected.Post("/js-plugins/{id}/versions/{version}/bind-protocol", adminHandler.BindJSPluginProtocolSlug)
+				protected.Post("/js-plugins/{id}/try", adminHandler.TryJSPlugin)
+				protected.Post("/js-plugins/{id}/versions/{version}/bind-site", adminHandler.BindJSPluginSite)
+				protected.Post("/js-plugins/{id}/unbind-site", adminHandler.UnbindJSPluginSite)
+				protected.Post("/js-plugins/{id}/preview-pricing", adminHandler.PreviewJSPluginPricing)
+				protected.Get("/js-plugins/{id}/automations", adminHandler.ListJSPluginAutomations)
+				protected.Post("/js-plugins/{id}/automations", adminHandler.CreateJSPluginAutomation)
+				protected.Put("/js-plugins/{id}/automations/{binding_id}", adminHandler.UpdateJSPluginAutomation)
+				protected.Delete("/js-plugins/{id}/automations/{binding_id}", adminHandler.DeleteJSPluginAutomation)
+				protected.Get("/js-plugins/{id}/inputs/{name}/options", adminHandler.ListJSPluginAutomationOptions)
+				protected.Get("/js-plugins/{id}/action-log", adminHandler.ListJSPluginActionLog)
 				protected.Get("/downloads/{downloadID}", downloadService.Download)
 				protected.Get("/dashboard/usage", adminHandler.DashboardUsage)
 				protected.Get("/dashboard/cooldowns", adminHandler.DashboardCooldowns)
@@ -481,6 +517,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 			protected.With(textLimitBody).Post("/embeddings", gatewayHandler.Embeddings)
 			protected.With(textLimitBody).Post("/audio/speech", gatewayHandler.AudioSpeech)
 			protected.With(textLimitBody).Post("/systemone", gatewayHandler.TypeSafeSystemOne)
+			protected.With(textLimitBody).Post("/plugins/{slug}", gatewayHandler.PluginProtocol)
 			protected.Post("/images/generations", gatewayHandler.ImagesGenerations)
 			protected.Post("/images/edits", gatewayHandler.ImagesEdits)
 			protected.With(limitBody).Post("/messages", gatewayHandler.Messages)

@@ -159,3 +159,69 @@ func TestBindConnectionSiteCanClearOrSetSiteOffline(t *testing.T) {
 		t.Fatalf("bound site id = %#v, want %s", saved[1].SiteID, newSiteID)
 	}
 }
+
+// A synced quota is stored together with the event about it, and the event
+// carries the quota as it was and as it is now.
+func TestUpdateConnectionSyncEmitsQuotaEventWithBeforeAndAfter(t *testing.T) {
+	t.Parallel()
+
+	connectionID := uuid.New()
+	service := oauthServiceWithQueryUpdate(t, func(tx *gorm.DB) {
+		if connection, ok := tx.Statement.Dest.(*store.OAuthConnection); ok {
+			*connection = store.OAuthConnection{
+				ID:       connectionID,
+				Provider: codexProvider,
+				Email:    "owner@example.com",
+				Status:   "connected",
+				Metadata: store.JSON(`{"quota":{"weekly":{"reset_at":100}}}`),
+			}
+			tx.Statement.RowsAffected = 1
+			return
+		}
+		tx.AddError(errors.New("unexpected query destination"))
+	}, func(tx *gorm.DB) { tx.Statement.RowsAffected = 1 })
+
+	type heard struct {
+		connection        store.OAuthConnection
+		previous, current map[string]any
+	}
+	var events []heard
+	service.SetQuotaSyncEmitter(func(_ context.Context, _ *gorm.DB, connection store.OAuthConnection, previous, current map[string]any) error {
+		events = append(events, heard{connection, previous, current})
+		return nil
+	})
+
+	if err := service.UpdateConnectionSync(context.Background(), connectionID, map[string]any{"quota": map[string]any{"weekly": map[string]any{"reset_at": 200}}}); err != nil {
+		t.Fatalf("UpdateConnectionSync returned error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events = %d, want 1", len(events))
+	}
+	got := events[0]
+	if got.connection.Email != "owner@example.com" || got.connection.Provider != codexProvider {
+		t.Fatalf("event connection = %+v", got.connection)
+	}
+	if before, _ := got.previous["weekly"].(map[string]any); before["reset_at"] != float64(100) {
+		t.Fatalf("previous = %#v, want reset_at 100", got.previous)
+	}
+	if after, _ := got.current["weekly"].(map[string]any); after["reset_at"] != 200 && after["reset_at"] != float64(200) {
+		t.Fatalf("current = %#v, want reset_at 200", got.current)
+	}
+
+	// A sync that carries no quota says nothing about it.
+	if err := service.UpdateConnectionSync(context.Background(), connectionID, map[string]any{"models": []any{}}); err != nil {
+		t.Fatalf("UpdateConnectionSync without quota: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("a sync without quota emitted an event")
+	}
+
+	// If the event cannot be stored the sync fails, so the quota is not saved
+	// without it.
+	service.SetQuotaSyncEmitter(func(context.Context, *gorm.DB, store.OAuthConnection, map[string]any, map[string]any) error {
+		return errors.New("queue is down")
+	})
+	if err := service.UpdateConnectionSync(context.Background(), connectionID, map[string]any{"quota": map[string]any{}}); err == nil {
+		t.Fatal("a failed event was swallowed")
+	}
+}
