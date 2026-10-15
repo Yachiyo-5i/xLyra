@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.15.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.14.2...v1.15.0) (2026-10-15)
+
+
+### Features
+
+* 🎸 JS 插件运行时：沙箱、包格式、签名、类型注册表、catalog、automation 运行时与内置插件包 ([0c3c4cc](https://github.com/Yachiyo-5i/xLyra/commit/0c3c4cc4a7f2eee1e47115ac3945c919200b94a4))
+* 🎸 xlyra-plugin 命令行工具：init、build、test、run、pack、verify 与各类型脚手架 ([f91ac3a](https://github.com/Yachiyo-5i/xLyra/commit/f91ac3abb3344530f17c75e5ee18ed4e09265e12))
+* 🎸 发布插件 SDK 包 @yachiyo-5i/xlyra-plugin-sdk ([978922b](https://github.com/Yachiyo-5i/xLyra/commit/978922badb7af0fc5d0512fc0e17adbd20acb38f))
+* 🎸 开发者设置页：插件列表、版本管理、试跑与入口 ([4456a8e](https://github.com/Yachiyo-5i/xLyra/commit/4456a8e348da58220d61280ebe4b1ead523e26b5))
+* 🎸 开发者页 automation 配置与权限授予 ([78e498c](https://github.com/Yachiyo-5i/xLyra/commit/78e498ce56f6328839bb82b07308e743ae796fe6))
+* 🎸 开发者页中英日文案 ([7a0ddfe](https://github.com/Yachiyo-5i/xLyra/commit/7a0ddfe53a4817ac8243499775226b3bb2b7dd7c))
+* 🎸 开发者页数据层与基础组件：插件接口、本地化文本、权限、多选与弹窗视口适配 ([a53b902](https://github.com/Yachiyo-5i/xLyra/commit/a53b902774cb4ed1b718145b91ac582b9540cd2c))
+* 🎸 开发者页移动端卡片与版本操作菜单 ([642a3c7](https://github.com/Yachiyo-5i/xLyra/commit/642a3c743a14435205fd1c4de6d57b1ebcc366c0))
+* 🎸 开发者页站点多选绑定 ([c1efa97](https://github.com/Yachiyo-5i/xLyra/commit/c1efa9738ab7b8266241f037b0b8c429a4bedb34))
+* 🎸 插件管理 API、受信公钥 API 与 automation 事件接入（含额度同步事件） ([6f4b141](https://github.com/Yachiyo-5i/xLyra/commit/6f4b1416458af17b6bc51213a2071af49dab5047))
+* 🎸 新增 JS 插件存储与挂载模型 ([5868987](https://github.com/Yachiyo-5i/xLyra/commit/58689875a6b113361558888d54d6a08d56208b98))
+* 🎸 新增插件自动化存储 ([a7b633f](https://github.com/Yachiyo-5i/xLyra/commit/a7b633fbfb0fda52f397948dc8adcfed0139e933))
+* 🎸 站点与路由接入 JS 插件：额度探测内置化、站点类型插件绑定、错误分类 ([4709653](https://github.com/Yachiyo-5i/xLyra/commit/4709653107f3ed639bed20922f03d16db8243c26))
+* 🎸 网关接入 JS 协议插件：端点注册表、协议适配器、签名与错误改写、SystemOne 内置化 ([180c128](https://github.com/Yachiyo-5i/xLyra/commit/180c128e6fbe83bbe33bdccfacb966938118a08e))
+
+
+### Bug Fixes
+
+* 🐛 .gitignore 的 dev* 不再忽略开发者设置页，并放行 docs/plugins ([874db6d](https://github.com/Yachiyo-5i/xLyra/commit/874db6d1ca642af0d036291784c7ceee5963b267))
+* 🐛 Codex 刷新连接时合并而非覆盖已有 metadata，保留 quota 等同步字段 ([8126df8](https://github.com/Yachiyo-5i/xLyra/commit/8126df88c1058175e9667c9522018ec14a97b5fd))
+* 🐛 server-run 不再依赖被忽略的 dev-server.sh ([e514dbe](https://github.com/Yachiyo-5i/xLyra/commit/e514dbe1040e5a7d6beec4e3333723c78beb39d5))
+* 🐛 全新数据库首次启动时建表改用简单协议 ([7eba484](https://github.com/Yachiyo-5i/xLyra/commit/7eba484f8803071609aa97193cb8d5d5492738e8))
+* 🐛 升级 Go 至 1.26.9 及 x/net、x/text，修复 govulncheck 报告的漏洞 ([6663578](https://github.com/Yachiyo-5i/xLyra/commit/666357866fec17ed71995456ebc6ab531871380b))
+
 ## [1.14.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.14.1...v1.14.2) (2026-10-05)
 
 
