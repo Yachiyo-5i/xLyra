@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -383,7 +382,7 @@ func (h Handler) forwardGatewayRequest(
 		endpoint := protocol.UpstreamPath(candidate.Site.BaseURL)
 		result.upstreamPath = endpointPath(endpoint)
 		result.upstreamURL = endpoint
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		req, err := newUpstreamHTTPRequest(ctx, protocol, endpoint, body)
 		if err != nil {
 			result.statusCode = http.StatusBadGateway
 			result.errorType = "upstream_request_build_failed"
@@ -392,13 +391,9 @@ func (h Handler) forwardGatewayRequest(
 			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
-		req.Header.Set("Authorization", "Bearer "+upstreamKey)
+		applyUpstreamAuth(req, protocol, upstreamKey)
 		req.Header.Set("Content-Type", contentType)
-		if upstreamStream {
-			req.Header.Set("Accept", "text/event-stream")
-		} else {
-			req.Header.Set("Accept", "application/json")
-		}
+		setUpstreamAccept(req, upstreamStream)
 		if isCodexSite(candidate.Site.SiteType) {
 			applyCodexGatewayHeaders(req, accountID, upstreamStream)
 		}
@@ -421,6 +416,14 @@ func (h Handler) forwardGatewayRequest(
 		}
 		if isClaudeCodeSite(candidate.Site.SiteType) {
 			applyClaudeCodeOAuthGatewayHeaders(req, upstreamKey)
+		}
+		if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "upstream_sign_failed"
+			result.errorMessage = err.Error()
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result = recordCredentialAttempt(result, nil, false)
+			return result
 		}
 
 		releaseConcurrency, err := h.acquireUpstreamConcurrency(ctx, candidate, selectedCredential.Credential.ID, siteConfig)

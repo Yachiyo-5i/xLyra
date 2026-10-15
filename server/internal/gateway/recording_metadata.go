@@ -286,23 +286,6 @@ func protocolConversionMetadata(result gatewayAttemptResult) any {
 	}
 }
 
-func downstreamProtocolFromPath(path string) string {
-	switch strings.TrimSpace(path) {
-	case gatewayEndpointChatCompletions:
-		return string(canonicalProtocolOpenAIChat)
-	case gatewayEndpointResponses:
-		return string(canonicalProtocolOpenAIResponses)
-	case gatewayEndpointMessages:
-		return string(canonicalProtocolAnthropicMessages)
-	case gatewayEndpointGeminiGenerate:
-		return string(canonicalProtocolGoogleGemini)
-	case gatewayEndpointImagesGenerations, gatewayEndpointImagesEdits:
-		return string(canonicalProtocolOpenAIImages)
-	default:
-		return ""
-	}
-}
-
 func streamConversionMode(downstreamProtocol string, upstreamProtocol string) string {
 	if downstreamProtocol == "" || upstreamProtocol == "" {
 		return "unknown"

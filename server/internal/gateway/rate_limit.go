@@ -35,7 +35,7 @@ func (h Handler) acquireRateLimit(ctx context.Context, apiKeyID uuid.UUID, endpo
 		APIKeyID:    apiKeyID,
 		Endpoint:    endpoint.DownstreamPath(),
 		Payload:     request.Payload,
-		EstimateTPM: endpointUsesTPM(endpoint.DownstreamPath()),
+		EstimateTPM: downstreamEndpointUsesTPM(endpoint.DownstreamPath()),
 		RequestedAt: startedAt,
 	})
 	if err == nil {
