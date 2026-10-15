@@ -1,0 +1,13 @@
+import type { ErrorClassifyContext, ErrorClassifyInput, ErrorClassifyResult } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "error_classifier" };
+
+// Decide what kind of failure an upstream error is. You can only pick a class;
+// routing and cooldown length stay with xLyra.
+export function classify(_ctx: ErrorClassifyContext, input: ErrorClassifyInput): ErrorClassifyResult {
+  if (input.code === "insufficient_quota") return { class: "subscription_limit", reason: "quota used up" };
+  if (input.status === 429) return { class: "limited" };
+  if (input.status === 401 || input.status === 403) return { class: "credential_invalid" };
+  if (input.status >= 500) return { class: "transient" };
+  return { class: "unknown" };
+}

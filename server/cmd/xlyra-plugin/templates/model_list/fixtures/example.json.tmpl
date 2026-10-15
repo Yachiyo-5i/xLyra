@@ -1,0 +1,11 @@
+{
+  "name": "two models",
+  "ctx": { "siteType": "custom", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000 },
+  "responses": [
+    { "match": { "method": "GET", "path": "/api/models" }, "status": 200, "json": { "data": [{ "id": "m-1", "title": "Model One" }, { "id": "m-2" }] } }
+  ],
+  "expect": {
+    "requests": [{ "path": "/api/models" }],
+    "result": { "models": [{ "name": "m-1", "displayName": "Model One" }, { "name": "m-2" }] }
+  }
+}

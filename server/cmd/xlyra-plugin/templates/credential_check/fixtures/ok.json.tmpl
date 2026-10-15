@@ -1,0 +1,11 @@
+{
+  "name": "key works",
+  "ctx": { "siteType": "custom", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000 },
+  "responses": [
+    { "match": { "path": "/api/me" }, "status": 200, "json": { "id": 1 } }
+  ],
+  "expect": {
+    "requests": [{ "path": "/api/me" }],
+    "result": { "status": "ok" }
+  }
+}

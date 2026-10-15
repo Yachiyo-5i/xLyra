@@ -1,0 +1,14 @@
+{
+  "name": "balance ok",
+  "ctx": { "siteType": "custom", "baseURL": "https://relay.example", "credentialType": "api_key", "now": 1791331200000 },
+  "responses": [
+    { "match": { "method": "GET", "path": "/api/usage" }, "status": 200, "json": { "total": 20, "used": 7.5 } }
+  ],
+  "expect": {
+    "requests": [{ "path": "/api/usage" }],
+    "result": {
+      "kind": "balance",
+      "entries": [{ "label": "balance", "unit": "usd", "limit": 20, "used": 7.5, "remaining": 12.5 }]
+    }
+  }
+}

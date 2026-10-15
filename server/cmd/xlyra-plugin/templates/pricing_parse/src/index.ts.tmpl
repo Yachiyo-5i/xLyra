@@ -1,0 +1,16 @@
+import type { PricingParseContext, PricingParseResult } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "pricing_parse" };
+
+// Turn the price table a site publishes into xLyra's structure. The input is
+// the site's JSON, exactly as received.
+export function parsePricing(_ctx: PricingParseContext, payload: any): PricingParseResult {
+  const groups = Object.entries(payload.groups ?? {}).map(([name, ratio]) => ({ name, ratio: Number(ratio) }));
+  const items = (payload.models ?? []).map((m: any) => ({
+    model: String(m.name),
+    group: m.group ? String(m.group) : undefined,
+    modelRatio: Number(m.ratio),
+    completionRatio: m.completion_ratio == null ? undefined : Number(m.completion_ratio),
+  }));
+  return { groups, items };
+}

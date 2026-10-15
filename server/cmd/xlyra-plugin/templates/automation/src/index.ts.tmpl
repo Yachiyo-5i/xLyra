@@ -1,0 +1,44 @@
+import type { AutomationContext, AutomationEntity, AutomationEvent, AutomationResult } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "automation" };
+
+type Window = { reset_at?: number | string; remaining_percent?: number };
+
+// reset_at is a unix timestamp (seconds, sometimes milliseconds) or a date string.
+function resetMs(window: Window | undefined): number | undefined {
+  const value = window?.reset_at;
+  if (typeof value === "number" && value > 0) return value < 1e12 ? value * 1000 : value;
+  if (typeof value === "string") {
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+  return undefined;
+}
+
+// Runs whenever an OAuth account's quota is synced. When its weekly window has
+// rolled over, ask xLyra to clear the usage of the API keys picked for it. You
+// only decide; xLyra checks the permissions and does the clearing.
+//
+// ctx.inputs holds what the admin picked, under the names declared in
+// manifest.json: "account" and "keys" are objects, "resetOnRecovery" a value.
+export function handle(ctx: AutomationContext, event: AutomationEvent): AutomationResult {
+  const before = event.previous?.weekly as Window | undefined;
+  const after = event.current.weekly as Window | undefined;
+  const beforeAt = resetMs(before);
+  const afterAt = resetMs(after);
+  if (!beforeAt || !afterAt || afterAt <= beforeAt) return { actions: [] };
+
+  const rolledOver = beforeAt <= ctx.now;
+  const recovered = (after?.remaining_percent ?? 0) > (before?.remaining_percent ?? 0);
+  if (!rolledOver && !(ctx.inputs.resetOnRecovery && recovered)) return { actions: [] };
+
+  return {
+    actions: (ctx.inputs.keys as AutomationEntity[]).map((target) => ({
+      type: "apikey.reset_usage" as const,
+      target: target.id,
+      scope: "total" as const,
+      // The same upstream reset time resets a key only once, however often it is synced.
+      idempotencyKey: String(afterAt),
+    })),
+  };
+}

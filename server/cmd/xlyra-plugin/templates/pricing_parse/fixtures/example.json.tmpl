@@ -1,0 +1,14 @@
+{
+  "name": "two models",
+  "ctx": { "siteType": "custom" },
+  "input": {
+    "groups": { "default": 1 },
+    "models": [{ "name": "acme-chat-1", "group": "default", "ratio": 2.5, "completion_ratio": 4 }]
+  },
+  "expect": {
+    "result": {
+      "groups": [{ "name": "default", "ratio": 1 }],
+      "items": [{ "model": "acme-chat-1", "group": "default", "modelRatio": 2.5, "completionRatio": 4 }]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+import type { CredentialCheckDecision, ProbeContext, ProbeStep } from "../types/xlyra";
+
+export const meta = { apiVersion: 1, id: "{{.ID}}", kind: "credential_check" };
+
+// status: "ok" the key works, "invalid" the site rejected it,
+// "unavailable" the site could not answer so nothing is known about the key.
+export function check(_ctx: ProbeContext, steps: ProbeStep[]): CredentialCheckDecision {
+  if (steps.length === 0) {
+    return { request: { method: "GET", path: "/api/me" } };
+  }
+  const { status } = steps[0].response;
+  if (status === 200) return { result: { status: "ok" } };
+  if (status === 401 || status === 403) return { result: { status: "invalid", message: `rejected with ${status}` } };
+  return { result: { status: "unavailable", message: `site answered ${status}` } };
+}
