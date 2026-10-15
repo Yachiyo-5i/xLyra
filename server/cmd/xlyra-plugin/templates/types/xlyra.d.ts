@@ -272,7 +272,7 @@ export interface AutomationContext {
   now: number;
   bindingId: string;
   /** What the admin picked, by the input names declared in automation.inputs. An object input is an AutomationEntity (an array of them when multiple), a parameter is its value. */
-  inputs: Record<string;
+  inputs: Record<string, AutomationInputValue>;
   /** What this binding returned as state last time; empty at first. */
   state: JsonObject;
 }

@@ -146,8 +146,29 @@ func renderInterface(item tsType, names map[reflect.Type]string) (string, error)
 	return out.String(), nil
 }
 
+// splitTag splits a ts tag at its commas, except those inside angle brackets,
+// so type=Record<string, X> stays in one piece.
+func splitTag(raw string) []string {
+	var parts []string
+	depth, start := 0, 0
+	for i, r := range raw {
+		switch r {
+		case '<':
+			depth++
+		case '>':
+			depth--
+		case ',':
+			if depth == 0 {
+				parts = append(parts, raw[start:i])
+				start = i + 1
+			}
+		}
+	}
+	return append(parts, raw[start:])
+}
+
 func parseTSTag(raw string) (name string, optional bool, typ string, doc string) {
-	parts := strings.Split(raw, ",")
+	parts := splitTag(raw)
 	name = parts[0]
 	for i := 1; i < len(parts); i++ {
 		part := parts[i]

@@ -245,3 +245,10 @@ func TestScopeHelpers(t *testing.T) {
 		t.Fatalf("ScopeOf protocol = %q, unknown = %q", ScopeOf(KindProtocol), ScopeOf("mine"))
 	}
 }
+
+func TestParseTSTagKeepsGenericTypesTogether(t *testing.T) {
+	name, optional, typ, doc := parseTSTag("inputs,optional,type=Record<string, Value>,doc=First, second.")
+	if name != "inputs" || !optional || typ != "Record<string, Value>" || doc != "First, second." {
+		t.Fatalf("name=%q optional=%v type=%q doc=%q", name, optional, typ, doc)
+	}
+}
