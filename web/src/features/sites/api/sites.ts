@@ -126,6 +126,8 @@ export type SiteGatewayConfig = {
   impersonate_codex_client?: boolean
   impersonate_claude_code_client?: boolean
   quota_probe?: string
+  /** Plugin ids an admin bound to this site, by kind (model_list, credential_check, ...). */
+  plugins?: Record<string, string>
 }
 
 type SiteAuthConfig = {
