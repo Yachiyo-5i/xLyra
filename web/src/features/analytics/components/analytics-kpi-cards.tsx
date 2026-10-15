@@ -109,7 +109,7 @@ function KpiCard({
   const { t } = useTranslation('analytics')
 
   return (
-    <Card className="flex min-h-[120px] flex-col justify-between gap-3 rounded-lg p-4">
+    <Card className="flex min-h-[120px] flex-col justify-between gap-3 p-4">
       <div className="flex items-center gap-2 text-muted-soft">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
         <span className="text-xs font-medium">{title}</span>

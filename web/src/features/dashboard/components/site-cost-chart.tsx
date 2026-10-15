@@ -1,3 +1,4 @@
+import { chartCursorFill, chartGridStroke, chartTick } from '@/components/charts/chart-theme'
 import {
   Bar,
   BarChart,
@@ -40,13 +41,13 @@ export function SiteCostChart({ data, height = 300, compactYAxis = false }: Site
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart accessibilityLayer={false} data={data} layout="vertical" margin={{ top: 8, right: 48, bottom: 0, left: compactYAxis ? 0 : 8 }}>
-          <CartesianGrid stroke="hsl(var(--glass-border))" horizontal={false} />
+          <CartesianGrid stroke={chartGridStroke} horizontal={false} />
           <XAxis
             type="number"
             tickFormatter={formatDollarTick}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+            tick={chartTick}
           />
           <YAxis
             type="category"
@@ -54,10 +55,10 @@ export function SiteCostChart({ data, height = 300, compactYAxis = false }: Site
             width={yAxisWidth}
             tickLine={false}
             axisLine={false}
-            tick={compactYAxis ? <CompactSiteCostTick /> : { fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+            tick={compactYAxis ? <CompactSiteCostTick /> : chartTick}
           />
           <Tooltip
-            cursor={{ fill: 'hsl(var(--surface-subtle))' }}
+            cursor={{ fill: chartCursorFill }}
             contentStyle={dashboardTooltipStyle}
             itemStyle={dashboardTooltipItemStyle}
             labelStyle={dashboardTooltipLabelStyle}
@@ -68,7 +69,7 @@ export function SiteCostChart({ data, height = 300, compactYAxis = false }: Site
               dataKey="cost"
               position="right"
               formatter={(value) => `$${Number(value ?? 0).toFixed(2)}`}
-              fill="hsl(var(--text-muted-soft))"
+              fill="var(--label-tertiary)"
               fontSize={12}
             />
           </Bar>
@@ -82,7 +83,7 @@ function CompactSiteCostTick({ x = 0, y = 0, payload }: SiteCostTickProps) {
   const lines = wrapSiteName(payload?.value ?? '')
 
   return (
-    <text x={x - 8} y={y} textAnchor="end" fill="hsl(var(--text-muted-soft))" fontSize={12}>
+    <text x={x - 8} y={y} textAnchor="end" fill="var(--label-tertiary)" fontSize={11}>
       {lines.map((line, index) => (
         <tspan key={`${line}-${index}`} x={x - 8} dy={index === 0 ? -(lines.length - 1) * 6 + 4 : 13}>
           {line}

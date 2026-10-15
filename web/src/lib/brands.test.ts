@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getProviderCatalogEntry, getProviderCatalogEntryByName, inferFallbackBrand } from './brands'
-import { resolveThemedIconPath, siteTypeIconPath } from '@/components/common/brand-utils'
+import { siteTypeIconPath } from '@/components/common/brand-utils'
 
 describe('inferFallbackBrand', () => {
   it.each([
@@ -44,14 +44,8 @@ describe('inferFallbackBrand', () => {
     expect(getProviderCatalogEntry(' TYPESAFE ')).toBe(entry)
   })
 
-  it('uses light variants for new monochrome brand icons', () => {
-    expect(resolveThemedIconPath('/brand-icons/vidu-dark.png', 'Vidu', 'light')).toBe('/brand-icons/vidu-light.png')
-    expect(resolveThemedIconPath('/brand-icons/vidu-dark.png', 'Vidu', 'dark')).toBe('/brand-icons/vidu-dark.png')
-    expect(resolveThemedIconPath('/brand-icons/kuaishou.svg', 'Kuaishou', 'light')).toBe('/brand-icons/kuaishou.svg')
-    expect(resolveThemedIconPath('/brand-icons/hunyuan-dark.png', 'Hunyuan', 'light')).toBe('/brand-icons/hunyuan-light.png')
-    expect(resolveThemedIconPath('/brand-icons/typesafe-dark.png', 'TypeSafe', 'dark')).toBe('/brand-icons/typesafe-dark.png')
-    expect(resolveThemedIconPath('/brand-icons/typesafe-dark.png', 'TypeSafe', 'light')).toBe('/brand-icons/typesafe-light.png')
-    expect(siteTypeIconPath('typesafe', 'light')).toBe('/brand-icons/typesafe-light.png')
-    expect(siteTypeIconPath('typesafe', 'dark')).toBe('/brand-icons/typesafe-dark.png')
+  it('maps site types to bundled brand icons', () => {
+    expect(siteTypeIconPath('typesafe')).toBe('/brand-icons/typesafe-dark.png')
+    expect(siteTypeIconPath('openai')).toBe('/brand-icons/openai.png')
   })
 })

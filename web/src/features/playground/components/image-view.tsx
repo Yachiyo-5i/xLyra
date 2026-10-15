@@ -558,7 +558,7 @@ export function ImageView({
 
   const lightboxNode = (
     <Dialog open={lightbox !== null} onOpenChange={(open) => !open && setLightbox(null)}>
-      <DialogContent className="w-auto max-w-[92vw] bg-transparent p-0 shadow-none backdrop-blur-0">
+      <DialogContent surface="none" className="w-auto max-w-[92vw] bg-transparent p-0 shadow-none backdrop-blur-0">
         {lightbox ? (
           <div className="flex flex-col items-center gap-3">
             <img src={lightbox} alt="" className="max-h-[80vh] max-w-[92vw] rounded-2xl object-contain" />

@@ -334,12 +334,6 @@ body:has(.agent-page) {
   color: hsl(var(--agent-text-faint)) !important;
 }
 
-/* 附件文件图标的配色用 dark: 媒体查询切换，跟随的是系统外观而非本页恒暗视觉；
-   浅色系统下会落到 *-600 一档，钉到暗色侧的 *-400 同值。 */
-.agent-page .text-yellow-600 { color: #facc15; }
-.agent-page .text-cyan-600 { color: #22d3ee; }
-.agent-page .text-teal-600 { color: #2dd4bf; }
-
 .agent-liquid-shell .text-foreground,
 .agent-liquid-surface .text-foreground {
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.55);

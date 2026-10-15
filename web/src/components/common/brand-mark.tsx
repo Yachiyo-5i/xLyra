@@ -1,6 +1,4 @@
-import { useResolvedTheme } from '@/hooks/theme-context'
 import { cn } from '@/lib/utils'
-import { resolveThemedIconPath } from '@/components/common/brand-utils'
 
 export function BrandMark({
   iconPath,
@@ -19,7 +17,6 @@ export function BrandMark({
   transparent?: boolean
   size?: 'xs' | 'sm' | 'md'
 }) {
-  const resolvedMode = useResolvedTheme()
   const boxClassName = size === 'xs' ? 'h-4 w-4 rounded-sm' : size === 'sm' ? 'h-6 w-6 rounded-md' : 'h-11 w-11 rounded-md'
   const imageClassName = size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-4 w-4' : 'h-7 w-7'
   const textClassName = size === 'xs' ? 'text-[8px]' : size === 'sm' ? 'text-[11px]' : 'text-sm font-semibold'
@@ -39,7 +36,7 @@ export function BrandMark({
     >
       {iconPath ? (
         <img
-          src={resolveThemedIconPath(iconPath, label, resolvedMode)}
+          src={iconPath}
           alt={label}
           className={cn('object-contain', imageClassName)}
         />

@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   buildModelGlyph,
-  resolveThemedIconPath,
 } from '@/components/common/brand-utils'
 import {
   Select,
@@ -20,7 +19,6 @@ import {
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { providerCatalog } from '@/lib/brands'
-import { useResolvedTheme } from '@/hooks/theme-context'
 import type {
   ModelPriceCredentialPricing,
   ModelPriceInput,
@@ -806,7 +804,6 @@ function ProviderMark({
   size?: 'sm' | 'lg'
 }) {
   const entry = getProviderEntry(provider)
-  const resolvedMode = useResolvedTheme()
   const label = entry?.name ?? provider ?? modelKey
   const boxClassName = size === 'lg' ? 'size-9 rounded-md' : 'size-6 rounded-md'
   const imageClassName = size === 'lg' ? 'size-6' : 'size-4'
@@ -824,7 +821,7 @@ function ProviderMark({
     >
       {entry?.iconPath ? (
         <img
-          src={resolveThemedIconPath(entry.iconPath, label, resolvedMode)}
+          src={entry.iconPath}
           alt={label}
           className={cn('object-contain', imageClassName)}
         />

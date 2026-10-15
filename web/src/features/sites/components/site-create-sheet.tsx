@@ -26,7 +26,6 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { cn } from '@/lib/utils'
-import { useResolvedTheme } from '@/hooks/theme-context'
 import {
   type CreateSiteInput,
   type Site,
@@ -413,7 +412,6 @@ function FormSection({
 }
 
 function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTypeInfo[]; onSelect: (siteType: string) => void; language: string; t: (key: string) => string }) {
-  const resolvedMode = useResolvedTheme()
   const groups = providerGroups(siteTypes.filter((st) => st.show_in_create_dialog), t)
   return (
     <div className="space-y-5">
@@ -422,7 +420,7 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
           <div className="text-muted-soft text-xs font-medium">{group.title}</div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {group.items.map((st) => {
-              const icon = siteTypeIconPath(st.site_type, resolvedMode) ?? st.icon_url
+              const icon = siteTypeIconPath(st.site_type) ?? st.icon_url
               const subtitle = providerSubtitle(st, language, t)
               return (
                 <button
@@ -562,11 +560,10 @@ export function SiteCreateSheet({
     description: t('form.fields.groupSiteCount', { count: group.sites.length }),
   })), [siteGroups, t])
 
-  const resolvedMode = useResolvedTheme()
   const selectedProvider = siteType || null
   const selectedProviderInfo = siteTypes?.find(st => st.site_type === selectedProvider)
   const selectedProviderIcon = selectedProvider
-    ? siteTypeIconPath(selectedProvider, resolvedMode) ?? selectedProviderInfo?.icon_url
+    ? siteTypeIconPath(selectedProvider) ?? selectedProviderInfo?.icon_url
     : null
   const showBuiltinHint = !requiresBaseURL(siteType, siteTypes)
   const builtinBaseURL = selectedProviderInfo?.official_base_url?.trim()

@@ -1,3 +1,4 @@
+import { chartCursorFill, chartGridStroke, chartTick } from '@/components/charts/chart-theme'
 import { useMemo, useState } from 'react'
 import {
   Area,
@@ -176,7 +177,7 @@ function TrendChart({
       tickFormatter={xTickFormatter}
       tickLine={false}
       axisLine={false}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+      tick={chartTick}
     />
   )
   const yAxis = (
@@ -185,13 +186,13 @@ function TrendChart({
       tickLine={false}
       axisLine={false}
       width={56}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+      tick={chartTick}
     />
   )
-  const grid = <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
+  const grid = <CartesianGrid stroke={chartGridStroke} vertical={false} />
   const tooltip = (
     <Tooltip
-      cursor={{ fill: 'hsl(var(--surface-subtle))' }}
+      cursor={{ fill: chartCursorFill }}
       content={(props) => (
         <TrendTooltip {...props} series={series} formatValue={formatValue} />
       )}
@@ -201,9 +202,9 @@ function TrendChart({
     <Legend
       iconType="square"
       iconSize={8}
-      wrapperStyle={{ fontSize: 12, paddingTop: 4, color: 'hsl(var(--text-muted-soft))' }}
+      wrapperStyle={{ fontSize: 12, paddingTop: 4, color: 'var(--label-tertiary)' }}
       formatter={(value) => (
-        <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+        <span style={{ color: 'var(--label-primary)' }}>{value}</span>
       )}
     />
   )
@@ -276,7 +277,7 @@ function TrendChart({
           axisLine={false}
           width={56}
           domain={percent ? [0, 1] : undefined}
-          tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+          tick={chartTick}
         />
         {tooltip}
         {legend}
@@ -321,7 +322,7 @@ function TrendTooltip({ active, label, payload, series, formatValue }: TrendTool
       return {
         key: dataKey,
         name: seriesItem?.name ?? String(item.name ?? dataKey),
-        color: seriesItem?.color ?? item.color ?? 'hsl(var(--text-muted-soft))',
+        color: seriesItem?.color ?? item.color ?? 'var(--label-tertiary)',
         value,
       }
     })

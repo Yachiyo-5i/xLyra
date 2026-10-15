@@ -27,7 +27,7 @@ export function DashboardRiskList({ items, onItemClick, className }: DashboardRi
   }
 
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-lg p-5', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 shrink-0 space-y-1">
         <h3 className="text-base font-semibold text-foreground">{t('risks.title')}</h3>
         <p className="text-sm text-muted-soft">{t('risks.description')}</p>

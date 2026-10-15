@@ -1,3 +1,4 @@
+import { chartCursorFill, chartGridStroke, chartTick } from '@/components/charts/chart-theme'
 import {
   Bar,
   BarChart,
@@ -22,7 +23,6 @@ type ModelCostChartProps = {
 }
 
 export function ModelCostChart({ data, series, height = 300 }: ModelCostChartProps) {
-  const xAxisInterval = data.length > 60 ? 8 : data.length > 20 ? 2 : 0
   const seriesWithColor = series.map((item, index) => ({
     ...item,
     color: item.color ?? dashboardChartColors[index % dashboardChartColors.length],
@@ -32,17 +32,18 @@ export function ModelCostChart({ data, series, height = 300 }: ModelCostChartPro
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart accessibilityLayer={false} data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
+          <CartesianGrid stroke={chartGridStroke} vertical={false} />
           <XAxis
             dataKey="date"
-            interval={xAxisInterval}
+            interval="preserveStartEnd"
+            minTickGap={12}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+            tick={chartTick}
           />
-          <YAxis tickFormatter={formatDollarTick} tickLine={false} axisLine={false} width={46} tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }} />
+          <YAxis tickFormatter={formatDollarTick} tickLine={false} axisLine={false} width={46} tick={chartTick} />
           <Tooltip
-            cursor={{ fill: 'hsl(var(--surface-subtle))' }}
+            cursor={{ fill: chartCursorFill }}
             content={(props) => <ModelCostTooltip {...props} series={seriesWithColor} />}
           />
           {seriesWithColor.map((item, index) => (
@@ -77,7 +78,7 @@ function ModelCostTooltip({ active, label, payload, series }: ModelCostTooltipPr
       return {
         key: dataKey,
         name: seriesItem?.name ?? String(item.name ?? dataKey),
-        color: seriesItem?.color ?? item.color ?? item.fill ?? 'hsl(var(--text-muted-soft))',
+        color: seriesItem?.color ?? item.color ?? item.fill ?? 'var(--label-tertiary)',
         value,
       }
     })

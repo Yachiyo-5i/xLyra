@@ -2,7 +2,9 @@ import { useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronDown, Globe } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useLiquidGlassRef } from '@/components/glass/use-liquid-glass'
 import { Button } from '@/components/ui/button'
+import { menuButtonClass, popoverPanelClass } from '@/components/ui/field-styles'
 import { cn } from '@/lib/utils'
 
 type SupportedLanguage = 'zh' | 'en' | 'jp'
@@ -17,6 +19,7 @@ export function LanguageSwitcher() {
   const { i18n } = useTranslation()
   const { t } = useTranslation('components')
   const [open, setOpen] = useState(false)
+  const glassRef = useLiquidGlassRef<HTMLDivElement>('regular')
   const current = normalizeLanguage(i18n.language)
 
   function selectLanguage(value: SupportedLanguage) {
@@ -39,34 +42,32 @@ export function LanguageSwitcher() {
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 px-2 text-xs"
+          className="gap-1.5 px-3"
           aria-label={t('topbar.language.label')}
         >
           <Globe className="size-3.5" />
           {currentLabel}
-          <ChevronDown className={cn('size-3 transition-transform', open && 'rotate-180')} />
+          <ChevronDown className={cn('size-3 text-label-3 transition-transform', open && 'rotate-180')} />
         </Button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          ref={glassRef}
           align="end"
           sideOffset={8}
-          className="z-[120] w-36 overflow-hidden rounded-xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--dialog-surface))] p-1 shadow-[var(--shadow-dialog)] backdrop-blur-xl"
+          className={cn(popoverPanelClass, 'z-[120] w-40 origin-(--radix-popover-content-transform-origin)')}
         >
           {languages.map((language) => (
             <button
               key={language.value}
               type="button"
               onClick={() => selectLanguage(language.value)}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                language.value === current
-                  ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                  : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-              )}
+              className={menuButtonClass}
             >
-              <span className="min-w-0 flex-1 text-left">{language.label}</span>
-              {language.value === current ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                {language.value === current ? <Check className="size-3.5" strokeWidth={2.5} /> : null}
+              </span>
+              <span className="min-w-0 flex-1">{language.label}</span>
             </button>
           ))}
         </PopoverPrimitive.Content>

@@ -32,7 +32,7 @@ export function SiteUptimeStrip({ sites, className }: SiteUptimeStripProps) {
   ]
 
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-lg p-5', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 shrink-0 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <h3 className="text-base font-semibold text-foreground">{t('uptime.title')}</h3>

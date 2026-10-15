@@ -73,14 +73,6 @@
     "logoutSuccess": "ログアウトしました",
     "logoutFailed": "ログアウトに失敗しました"
   },
-  "theme": {
-    "modeLight": "ライト",
-    "modeDark": "ダーク",
-    "modeSystem": "システム",
-    "baseDefault": "デフォルト",
-    "displayDark": "ダーク",
-    "displayLight": "ライト"
-  },
   "brands": {
     "otherBrand": "その他のブランド",
     "all": "すべて"

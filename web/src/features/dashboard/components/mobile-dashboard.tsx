@@ -79,7 +79,7 @@ function MobileKpiCard({
   accent,
 }: MobileKpiCardProps) {
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Icon className={cn('size-4 shrink-0', accentClasses[accent])} />
@@ -291,7 +291,7 @@ export function MobileDashboardSkeleton() {
 
 function MobileKpiCardSkeleton() {
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-4 flex items-center gap-2">
         <Skeleton className="size-4 rounded" />
         <Skeleton className="h-4 w-20" />
@@ -316,7 +316,7 @@ function MobilePanelSkeleton({
   variant: MobilePanelSkeletonVariant
 }) {
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-2xl p-4', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-4', className)}>
       <div className="mb-4 shrink-0 space-y-2">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-3 w-20" />

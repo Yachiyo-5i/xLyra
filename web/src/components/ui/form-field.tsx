@@ -9,6 +9,10 @@ type FormFieldProps = HTMLAttributes<HTMLDivElement> & {
   required?: boolean
 }
 
+/**
+ * 表单字段：标签 → 控件 → 说明 / 错误。
+ * 标签与控件间距 6；有错误时用错误替换说明，避免两段小字堆在一起。
+ */
 export function FormField({
   className,
   label,
@@ -20,17 +24,24 @@ export function FormField({
   ...props
 }: FormFieldProps) {
   return (
-    <div className={cn('space-y-2', className)} {...props}>
+    <div className={cn('flex flex-col gap-1.5', className)} {...props}>
       {label ? (
-        <label htmlFor={htmlFor} className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <label htmlFor={htmlFor} className="flex items-center gap-1 text-subhead text-label">
           <span>{label}</span>
-          {required ? <span className="text-[hsl(var(--badge-warning-text))]">*</span> : null}
+          {required ? (
+            <span className="text-danger" aria-hidden="true">
+              *
+            </span>
+          ) : null}
         </label>
       ) : null}
       {children}
-      {description ? <p className="text-muted-soft text-xs leading-5">{description}</p> : null}
       {error ? (
-        <p className="text-xs leading-5 text-[hsl(var(--destructive))]">{error}</p>
+        <p role="alert" className="text-footnote text-danger">
+          {error}
+        </p>
+      ) : description ? (
+        <p className="text-footnote text-label-2">{description}</p>
       ) : null}
     </div>
   )

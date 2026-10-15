@@ -1,3 +1,4 @@
+import { chartSliceStroke } from '@/components/charts/chart-theme'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, type TooltipContentProps } from 'recharts'
 import { X } from 'lucide-react'
@@ -179,7 +180,7 @@ export function AnalyticsCostDonut({
                   innerRadius={roseInnerRadius}
                   outerRadius={(dataPoint: DonutSlice) => dataPoint.outerRadius}
                   paddingAngle={slices.length > 8 ? 1 : 2}
-                  stroke="hsl(var(--surface-panel))"
+                  stroke={chartSliceStroke}
                   strokeWidth={1.5}
                   isAnimationActive={true}
                   animationBegin={0}

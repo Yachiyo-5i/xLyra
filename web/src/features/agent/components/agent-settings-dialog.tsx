@@ -287,6 +287,7 @@ export function AgentSettingsDialog({ open, onOpenChange, backgroundImage = '/ag
           text like skill descriptions would overflow the dialog; pinning the track
           with grid-cols-[minmax(0,1fr)] constrains it to the container width. */}
       <DialogContent
+        surface="none"
         className={cn(
           'agent-liquid-dialog-host min-h-0 grid-rows-[minmax(0,1fr)] grid-cols-[minmax(0,1fr)] overflow-hidden',
           mobileLayout

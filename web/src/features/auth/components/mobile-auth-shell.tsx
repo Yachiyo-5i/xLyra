@@ -17,7 +17,6 @@ export function MobileAuthShell({ title, children }: MobileAuthShellProps) {
   return (
     <div ref={viewportRef} className="app-viewport bg-[hsl(var(--surface-base))]">
       <div className="ambient-background" />
-      <div className="noise-overlay" />
       <div className="relative z-0 flex h-full min-h-0 flex-col px-5 pb-6 pt-5 mobile-safe-top mobile-safe-bottom">
         <main data-scroll-container="true" className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto py-8">
           <div className="mx-auto w-full max-w-[450px]">

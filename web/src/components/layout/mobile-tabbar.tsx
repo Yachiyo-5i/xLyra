@@ -1,8 +1,8 @@
+import type { CSSProperties, Ref } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { MoreHorizontal, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import type { CSSProperties, Ref } from 'react'
+import { LiquidTabBar, type LiquidTabBarItem } from '@/components/layout/liquid-tab-bar'
 
 export type MobileTabbarItem = {
   to: string
@@ -16,66 +16,59 @@ type MobileTabbarProps = {
   moreOpen?: boolean
   onMoreClick: () => void
   moreButtonRef?: Ref<HTMLButtonElement>
+  /** 向下滚动时收起：只保留当前项 */
+  collapsed?: boolean
+  onExpand?: () => void
 }
 
-export function MobileTabbar({ items, moreItems = [], moreOpen = false, onMoreClick, moreButtonRef }: MobileTabbarProps) {
+const MORE_KEY = '__more__'
+
+/**
+ * 移动端胶囊 Tab Bar：距左右下各 21，4 个常用入口 +「更多」。
+ * 外观与动效来自 LiquidTabBar；这里只负责路由与「更多」按钮。
+ */
+export function MobileTabbar({
+  items,
+  moreItems = [],
+  moreOpen = false,
+  onMoreClick,
+  moreButtonRef,
+  collapsed = false,
+  onExpand,
+}: MobileTabbarProps) {
   const { t } = useTranslation('common')
   const location = useLocation()
   const activeMoreItem = moreItems.find((item) => isRouteActive(location.pathname, item.to))
-  const MoreIcon = activeMoreItem?.icon ?? MoreHorizontal
-  const moreActive = moreOpen || Boolean(activeMoreItem) || isMoreActive(location.pathname, items)
+  const activePrimary = items.find((item) => isRouteActive(location.pathname, item.to))
+  const moreLabel = activeMoreItem?.label ?? t('nav.settings')
+
+  const tabItems: LiquidTabBarItem[] = [
+    ...items.map((item) => ({ key: item.to, label: item.label, icon: item.icon })),
+    // 当前页面在「更多」里时，「更多」显示该页面的图标
+    { key: MORE_KEY, label: moreLabel, icon: activeMoreItem?.icon ?? MoreHorizontal },
+  ]
 
   return (
     <nav
-      className="mobile-tabbar-shell mobile-safe-bottom pointer-events-none absolute inset-x-0 bottom-0 z-30 px-4 transition-[opacity,transform] duration-200"
-      style={{ '--mobile-safe-bottom-extra': '1.25rem' } as CSSProperties}
+      aria-label={t('nav.workspace')}
+      className="mobile-tabbar-shell mobile-safe-bottom pointer-events-none absolute inset-x-0 bottom-0 z-30 px-[21px] transition-[opacity,transform] duration-200"
+      style={{ '--mobile-safe-bottom-extra': '21px' } as CSSProperties}
     >
-      <div className="mx-auto grid h-14 max-w-[360px] grid-cols-5 gap-1 rounded-full border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.2)] p-1 shadow-[0_16px_38px_rgba(0,0,0,0.12)] backdrop-blur-[32px] backdrop-saturate-150">
-        {items.map((tab) => {
-          const Icon = tab.icon
-
-          return (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              aria-label={tab.label}
-              className={({ isActive }) =>
-                cn(
-                  'pointer-events-auto flex min-w-0 items-center justify-center rounded-full transition-colors',
-                  isActive
-                    ? 'bg-primary text-white shadow-[0_10px_24px_hsl(var(--primary)/0.22)]'
-                    : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-                )
-              }
-            >
-              {({ isActive }) => (
-                <Icon className="size-5 shrink-0" style={isActive ? { color: '#fff' } : undefined} />
-              )}
-            </NavLink>
+      <LiquidTabBar
+        items={tabItems}
+        activeKey={activePrimary?.to ?? MORE_KEY}
+        collapsed={collapsed}
+        onExpand={onExpand}
+        renderItem={(item, slotProps) =>
+          item.key === MORE_KEY ? (
+            <button key={item.key} ref={moreButtonRef} type="button" onClick={onMoreClick} aria-expanded={moreOpen} {...slotProps} />
+          ) : (
+            <NavLink key={item.key} to={item.key} {...slotProps} />
           )
-        })}
-
-        <button
-          ref={moreButtonRef}
-          type="button"
-          onClick={onMoreClick}
-          aria-label={activeMoreItem?.label ?? t('nav.settings')}
-          className={cn(
-            'pointer-events-auto flex min-w-0 items-center justify-center rounded-full transition-colors',
-            moreActive
-              ? 'bg-primary text-white shadow-[0_10px_24px_hsl(var(--primary)/0.22)]'
-              : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-          )}
-        >
-          <MoreIcon className="size-5 shrink-0" style={moreActive ? { color: '#fff' } : undefined} />
-        </button>
-      </div>
+        }
+      />
     </nav>
   )
-}
-
-function isMoreActive(pathname: string, items: MobileTabbarItem[]) {
-  return !items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))
 }
 
 function isRouteActive(pathname: string, to: string) {

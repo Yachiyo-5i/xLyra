@@ -1,10 +1,11 @@
-import type { PropsWithChildren } from 'react'
+import type { CSSProperties, PropsWithChildren } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { MobileDockMenu, type MobileDockMenuItem } from '@/components/layout/mobile-dock-menu'
 import { MobileTabbar, type MobileTabbarItem } from '@/components/layout/mobile-tabbar'
 import { MobileTopbar } from '@/components/layout/mobile-topbar'
+import { useCollapseOnScroll } from '@/hooks/use-collapse-on-scroll'
 import { useIOSViewportBounceLock } from '@/hooks/use-ios-viewport-bounce-lock'
 import { getAppNavSections, type AppNavItem, type AppNavSection } from '@/lib/navigation'
 import { useAgentAvailability } from '@/features/agent/lib/use-agent-availability'
@@ -15,6 +16,8 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   const { t } = useTranslation('common')
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
+  // HIG：向下滚动时 Tab Bar 收起，向上滚动或回到顶部时展开
+  const tabbar = useCollapseOnScroll()
   const viewportRef = useRef<HTMLDivElement>(null)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
   const agentAvailable = useAgentAvailability()
@@ -30,7 +33,6 @@ export function MobileAppShell({ children }: PropsWithChildren) {
     return (
       <div ref={viewportRef} className="app-viewport">
         <div className="ambient-background" />
-        <div className="noise-overlay" />
         <main data-scroll-container="true" className="relative z-0 h-full min-h-0 overflow-hidden">
           {children}
         </main>
@@ -41,21 +43,32 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   return (
     <div ref={viewportRef} className="app-viewport">
       <div className="ambient-background" />
-      <div className="noise-overlay" />
       <div className="relative z-0 h-full min-h-0">
         <main
           data-scroll-container="true"
+          onScroll={tabbar.onScroll}
           className="mobile-main-scroll relative z-0 h-full overflow-y-auto px-4 pt-[calc(env(safe-area-inset-top,0px)+4.25rem)]"
         >
           {children}
         </main>
+        {/* 顶部与底部的 scroll edge effect：内容滚到浮动控件下方时模糊、压暗 */}
+        <div
+          className="scroll-edge-top z-20"
+          style={{ '--scroll-edge-height': 'calc(env(safe-area-inset-top, 0px) + 72px)' } as CSSProperties}
+        />
+        <div className="scroll-edge-bottom mobile-tabbar-shell z-20" />
         <MobileTopbar />
         <MobileTabbar
           items={primaryItems}
           moreItems={dockItems}
           moreOpen={moreOpen}
           moreButtonRef={moreButtonRef}
-          onMoreClick={() => setMoreOpen((open) => !open)}
+          onMoreClick={() => {
+            tabbar.expand()
+            setMoreOpen((open) => !open)
+          }}
+          collapsed={tabbar.collapsed && !moreOpen}
+          onExpand={tabbar.expand}
         />
       </div>
       <MobileDockMenu open={moreOpen} items={dockItems} anchorRef={moreButtonRef} onOpenChange={setMoreOpen} />

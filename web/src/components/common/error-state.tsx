@@ -1,24 +1,24 @@
 import type { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 type ErrorStateProps = {
   title: string
   description: string
   action?: ReactNode
+  className?: string
 }
 
-export function ErrorState({ title, description, action }: ErrorStateProps) {
+/** 错误状态：与 EmptyState 同一结构，图标用系统红；通常给一个「重试」按钮 */
+export function ErrorState({ title, description, action, className }: ErrorStateProps) {
   return (
-    <Card className="flex min-h-56 flex-col items-center justify-center gap-4 rounded-lg p-6 text-center">
-      <div className="rounded-lg border border-red-400/25 bg-red-400/14 p-4 text-red-100">
-        <AlertTriangle className="h-6 w-6" />
-      </div>
+    <div role="alert" className={cn('flex min-h-56 flex-col items-center justify-center gap-3 px-6 py-10 text-center', className)}>
+      <AlertTriangle className="size-10 text-danger" strokeWidth={1.5} aria-hidden="true" />
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="text-muted-soft max-w-md text-sm leading-6">{description}</p>
+        <h3 className="text-title-3 text-label">{title}</h3>
+        <p className="max-w-md break-words text-body text-label-2">{description}</p>
       </div>
-      {action}
-    </Card>
+      {action ? <div className="mt-2">{action}</div> : null}
+    </div>
   )
 }

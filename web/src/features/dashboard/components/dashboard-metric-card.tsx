@@ -41,7 +41,7 @@ export function DashboardMetricCard({
   className,
 }: DashboardMetricCardProps) {
   return (
-    <Card className={cn('@container/metric rounded-lg p-4', className)}>
+    <Card className={cn('@container/metric p-4', className)}>
       <div className="relative space-y-3">
         <div className="flex items-center gap-2">
           {icon ? (

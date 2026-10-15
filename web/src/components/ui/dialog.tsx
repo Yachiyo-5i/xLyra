@@ -5,16 +5,14 @@ import { cn } from '@/lib/utils'
 const Dialog = DialogPrimitive.Root
 const DialogPortal = DialogPrimitive.Portal
 
+/** 遮罩：30% 黑色，不模糊 */
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-[rgb(var(--dialog-overlay))] backdrop-blur-[5px] transition-opacity duration-200',
-      className,
-    )}
+    className={cn('sheet-overlay-animate fixed inset-0 z-50 bg-black/30', className)}
     {...props}
   />
 ))
@@ -26,7 +24,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 // is a plain grid that other dialogs rely on to overflow, so it only gets a
 // cap on small screens, where a tall dialog would otherwise run off the page.
 const dialogSizeClassName = {
-  default: 'grid w-[min(92vw,720px)] overflow-visible max-md:max-h-[calc(100dvh-1.5rem)] max-md:overflow-y-auto',
+  default: 'grid w-[min(92vw,720px)] overflow-visible max-lg:max-h-[88dvh] max-lg:overflow-y-auto',
   sm: 'flex w-[min(92vw,520px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
   md: 'flex w-[min(92vw,640px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
   lg: 'flex w-[min(94vw,768px)] max-h-[min(88dvh,880px)] flex-col overflow-hidden',
@@ -39,36 +37,55 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
   overlayClassName?: string
   container?: HTMLElement | null
   size?: DialogSize
+  /**
+   * glass：覆盖层 Liquid Glass（`.lg-thick`），默认；
+   * none：不带任何外观，由调用方自己绘制（图片查看器、Agent 页自带液态玻璃的弹窗）
+   */
+  surface?: 'glass' | 'none'
+  /**
+   * auto：桌面居中，移动端（< 1024）变为从底部弹出的 Sheet，默认；
+   * center：始终居中（提醒类弹窗，如 ConfirmDialog）
+   */
+  presentation?: 'auto' | 'center'
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, overlayClassName, container, size = 'default', ...props }, ref) => (
-  <DialogPortal container={container ?? undefined}>
-    <DialogOverlay className={overlayClassName} />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] gap-0 rounded-[28px] bg-[hsl(var(--dialog-surface))] p-0 shadow-[var(--shadow-dialog)] backdrop-blur-[40px] backdrop-saturate-150 duration-200',
-        dialogSizeClassName[size],
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </DialogPrimitive.Content>
-  </DialogPortal>
-))
+>(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', presentation, ...props }, ref) => {
+  // 自绘外观的弹窗布局由调用方控制，不自动变成 Sheet
+  const resolvedPresentation = presentation ?? (surface === 'none' ? 'center' : 'auto')
+  const sheetOnMobile = resolvedPresentation === 'auto'
+
+  return (
+    <DialogPortal container={container ?? undefined}>
+      <DialogOverlay className={overlayClassName} />
+      <DialogPrimitive.Content
+        ref={ref}
+        data-presentation={resolvedPresentation}
+        className={cn(
+          'dialog-content fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 gap-0 p-0 outline-none',
+          surface === 'glass' && 'lg-thick rounded-shell',
+          dialogSizeClassName[size],
+          // 移动端 Sheet：左右与底部各内缩 8，圆角 24；宽度随屏幕，最高 88dvh
+          sheetOnMobile &&
+            'max-lg:inset-x-2 max-lg:bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] max-lg:top-auto max-lg:w-auto max-lg:max-w-none max-lg:translate-x-0 max-lg:translate-y-0',
+          className,
+        )}
+        {...props}
+      >
+        {sheetOnMobile && surface === 'glass' ? (
+          <span aria-hidden="true" className="mx-auto mt-2 block h-[5px] w-9 shrink-0 rounded-full bg-fill-1 lg:hidden" />
+        ) : null}
+        {children}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  )
+})
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn('border-b border-[hsl(var(--glass-divider))] px-6 py-5 text-left', className)}
-      {...props}
-    />
-  )
+  return <div className={cn('border-b border-separator px-6 py-5 text-left', className)} {...props} />
 }
 
 function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -82,10 +99,18 @@ type DialogFooterProps = React.HTMLAttributes<HTMLDivElement> & {
   confirm?: React.ReactNode
 }
 
+/**
+ * 页脚：桌面右对齐、取消在左、主按钮在右；
+ * 移动端全宽垂直堆叠，主按钮在上（DOM 顺序不变，用 flex-col-reverse 翻转）。
+ */
 function DialogFooter({ className, cancel, confirm, children, ...props }: DialogFooterProps) {
   return (
     <div
-      className={cn('flex items-center justify-end gap-3 border-t border-[hsl(var(--glass-divider))] px-6 py-4', className)}
+      className={cn(
+        'flex items-center justify-end gap-2 border-t border-separator px-6 py-4',
+        'max-lg:flex-col-reverse max-lg:items-stretch max-lg:[&>*]:w-full',
+        className,
+      )}
       {...props}
     >
       {children}
@@ -99,7 +124,7 @@ const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('text-lg font-semibold text-foreground', className)} {...props} />
+  <DialogPrimitive.Title ref={ref} className={cn('text-title-2 text-label', className)} {...props} />
 ))
 DialogTitle.displayName = DialogPrimitive.Title.displayName
 
@@ -107,11 +132,7 @@ const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cn('text-muted-soft mt-1 text-sm leading-6', className)}
-    {...props}
-  />
+  <DialogPrimitive.Description ref={ref} className={cn('mt-1 text-body text-label-2', className)} {...props} />
 ))
 DialogDescription.displayName = DialogPrimitive.Description.displayName
 

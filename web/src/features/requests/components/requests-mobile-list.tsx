@@ -56,7 +56,7 @@ export function RequestsMobileList({
         const statusCode = item.upstream_status_code ?? item.status_code ?? '-'
 
         return (
-          <Card key={item.id} className="overflow-hidden rounded-lg p-0">
+          <Card key={item.id} className="overflow-hidden p-0">
             <button
               type="button"
               className="w-full p-4 text-left"

@@ -15,6 +15,10 @@ const toastViewportOffset = {
   right: TOAST_EDGE_OFFSET,
 } as const
 
+/**
+ * Toast：功能层 Liquid Glass（外观见 index.css 的 .app-toast），圆角 20。
+ * 不再按类型铺彩色渐变底，只用系统色图标区分成功 / 警告 / 错误（HIG：玻璃上的颜色要克制）。
+ */
 export function AppToaster() {
   return (
     <Toaster
@@ -22,37 +26,24 @@ export function AppToaster() {
       offset={toastViewportOffset}
       mobileOffset={toastViewportOffset}
       className="app-toaster"
-      richColors
       icons={{
-        success: <CheckCircle2 className="h-4 w-4 text-[hsl(var(--badge-success-text))]" />,
-        info: <Info className="h-4 w-4 text-[hsl(var(--badge-info-text))]" />,
-        warning: <AlertTriangle className="h-4 w-4 text-[hsl(var(--badge-warning-text))]" />,
-        error: <AlertCircle className="h-4 w-4 text-[hsl(var(--destructive))]" />,
-        loading: <LoaderCircle className="h-4 w-4 animate-spin text-[hsl(var(--badge-accent-text))]" />,
-        close: <X className="h-4 w-4" />,
+        success: <CheckCircle2 className="size-[18px] text-success" />,
+        info: <Info className="size-[18px] text-info" />,
+        warning: <AlertTriangle className="size-[18px] text-warning" />,
+        error: <AlertCircle className="size-[18px] text-danger" />,
+        loading: <LoaderCircle className="size-[18px] animate-spin text-label-2" />,
+        close: <X className="size-3.5" />,
       }}
       toastOptions={{
         classNames: {
-          toast:
-            '!border-[hsl(var(--glass-border))] !bg-[hsl(var(--surface-elevated))] !text-[hsl(var(--foreground))] !shadow-[0_18px_40px_rgba(4,8,18,0.24)] !backdrop-blur-[16px]',
-          content: '!gap-0',
-          title: '!text-inherit',
-          description: '!text-[hsl(var(--text-muted-soft))]',
-          icon: '!mt-0.5 !mr-3 !self-start',
-          closeButton:
-            '!border-[hsl(var(--glass-border))] !bg-[hsl(var(--surface-subtle))] !text-[hsl(var(--text-muted-soft))] hover:!bg-[hsl(var(--surface-soft-hover))] hover:!text-[hsl(var(--foreground))]',
-          actionButton: '!bg-primary !text-primary-foreground',
-          cancelButton: '!bg-[hsl(var(--surface-subtle))] !text-[hsl(var(--foreground))]',
-          success:
-            '!border-[hsl(var(--badge-success-border))] !bg-[linear-gradient(135deg,hsl(var(--badge-success-bg)),hsl(var(--surface-elevated)))]',
-          info:
-            '!border-[hsl(var(--badge-info-border))] !bg-[linear-gradient(135deg,hsl(var(--badge-info-bg)),hsl(var(--surface-elevated)))]',
-          warning:
-            '!border-[hsl(var(--badge-warning-border))] !bg-[linear-gradient(135deg,hsl(var(--badge-warning-bg)),hsl(var(--surface-elevated)))]',
-          error:
-            '!border-[hsl(var(--destructive)/0.24)] !bg-[linear-gradient(135deg,hsl(var(--destructive)/0.14),hsl(var(--surface-elevated)))]',
-          loading:
-            '!border-[hsl(var(--badge-accent-border))] !bg-[linear-gradient(135deg,hsl(var(--badge-accent-bg)),hsl(var(--surface-elevated)))]',
+          toast: 'app-toast',
+          content: '!gap-0.5',
+          title: '!text-subhead !font-semibold !text-label',
+          description: '!text-footnote !text-label-2',
+          icon: '!mt-px !mr-2.5 !self-start',
+          closeButton: '!border-0 !bg-fill-2 !text-label-2 hover:!bg-fill-1 hover:!text-label',
+          actionButton: '!rounded-full !bg-tint !px-3 !text-callout !font-medium !text-tint-foreground',
+          cancelButton: '!rounded-full !bg-fill-2 !px-3 !text-callout !font-medium !text-label',
         },
       }}
     />

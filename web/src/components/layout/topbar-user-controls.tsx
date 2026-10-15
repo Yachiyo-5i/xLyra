@@ -1,45 +1,21 @@
-import { lazy, Suspense, useState } from 'react'
-import { Palette } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { LiquidGlass } from '@/components/glass/liquid-glass'
 import { Skeleton } from '@/components/ui/skeleton'
 import { LanguageSwitcher } from '@/components/common/language-switcher'
 import { useAuthStore } from '@/stores/auth-store'
 
-const ThemeSwitcher = lazy(() =>
-  import('@/components/layout/theme-switcher').then((module) => ({ default: module.ThemeSwitcher })),
-)
-
-function ThemeSwitcherTrigger({ onClick }: { onClick: () => void }) {
-  const { t } = useTranslation('components')
-
-  return (
-    <Button variant="ghost" size="icon" aria-label={t('themeSwitcher.openLabel')} onClick={onClick}>
-      <Palette className="size-4" />
-    </Button>
-  )
-}
-
+/** 顶栏右侧的玻璃控件组：当前账户名 + 语言切换 */
 export function TopbarUserControls() {
   const user = useAuthStore((state) => state.user)
   const authStatus = useAuthStore((state) => state.status)
-  const [themeOpen, setThemeOpen] = useState(false)
   const isAuthChecking = !user && (authStatus === 'idle' || authStatus === 'checking')
 
   return (
-    <>
-      <div className="flex items-center gap-3">
-        <div className="hidden rounded-full bg-[hsl(var(--surface-subtle))] px-3 py-2 text-xs text-[hsl(var(--text-muted-soft))] xl:block">
-          {isAuthChecking ? <Skeleton className="h-3 w-28 rounded-full" /> : user?.displayName ?? user?.username ?? 'Authenticated admin'}
-        </div>
-        <LanguageSwitcher />
-        <ThemeSwitcherTrigger onClick={() => setThemeOpen(true)} />
-      </div>
-      {themeOpen ? (
-        <Suspense fallback={null}>
-          <ThemeSwitcher compact hideTrigger open={themeOpen} onOpenChange={setThemeOpen} />
-        </Suspense>
-      ) : null}
-    </>
+    <LiquidGlass className="pointer-events-auto flex items-center gap-1 rounded-full p-1">
+      <span className="hidden max-w-48 truncate px-3 text-callout text-label-2 xl:block">
+        {isAuthChecking ? <Skeleton className="h-3 w-24 rounded-full" /> : user?.displayName ?? user?.username ?? 'Authenticated admin'}
+      </span>
+      <span className="hidden h-4 w-px bg-separator xl:block" />
+      <LanguageSwitcher />
+    </LiquidGlass>
   )
 }

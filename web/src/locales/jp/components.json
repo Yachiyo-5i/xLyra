@@ -11,16 +11,6 @@
     "serviceErrorTitle": "バックエンドサービスを利用できません",
     "serviceErrorDesc": "バックエンドサービスで一時的な問題が発生しています。後ほどページを再読み込みしてください。"
   },
-  "themeSwitcher": {
-    "openLabel": "テーマ切り替えを開く",
-    "appearance": "外観",
-    "title": "テーマ",
-    "description": "モード、ベース、アクセント。現在は {{mode}} です。",
-    "mode": "モード",
-    "base": "ベース",
-    "accent": "アクセント",
-    "systemHint": "システム設定に従います。現在は {{mode}} と判定されています。"
-  },
   "modelsDraw": {
     "searchPlaceholder": "モデルを検索",
     "headers": {

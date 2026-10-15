@@ -22,12 +22,10 @@ import {
 } from '@/components/ui/select'
 import {
   buildModelGlyph,
-  resolveThemedIconPath,
 } from '@/components/common/brand-utils'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { providerCatalog } from '@/lib/brands'
-import { useResolvedTheme } from '@/hooks/theme-context'
 import type {
   ModelPriceCredentialPricing,
   ModelPriceInput,
@@ -899,7 +897,6 @@ function ProviderMark({
   modelKey: string
 }) {
   const entry = getProviderEntry(provider)
-  const resolvedMode = useResolvedTheme()
   const label = entry?.name ?? provider ?? modelKey
 
   return (
@@ -913,7 +910,7 @@ function ProviderMark({
     >
       {entry?.iconPath ? (
         <img
-          src={resolveThemedIconPath(entry.iconPath, label, resolvedMode)}
+          src={entry.iconPath}
           alt={label}
           className="size-6 object-contain"
         />

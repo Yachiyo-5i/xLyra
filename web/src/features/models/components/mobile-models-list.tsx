@@ -60,7 +60,7 @@ function MobileModelCard({
   const Chevron = expanded ? ChevronDown : ChevronRight
 
   return (
-    <Card className="overflow-hidden rounded-lg p-0">
+    <Card className="overflow-hidden p-0">
       <button
         type="button"
         onClick={onToggle}

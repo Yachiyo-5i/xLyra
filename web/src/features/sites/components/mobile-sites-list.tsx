@@ -55,7 +55,6 @@ export function MobileSitesList({
   onOpenGrokAccounts,
   onOpenTest,
   onOpenUsageSplit,
-  resolvedMode,
   siteTypes,
   className,
 }: {
@@ -81,7 +80,6 @@ export function MobileSitesList({
   onOpenGrokAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
-  resolvedMode: 'light' | 'dark'
   siteTypes: SiteTypeInfo[]
   className?: string
 }) {
@@ -119,7 +117,6 @@ export function MobileSitesList({
             onOpenGrokAccounts={onOpenGrokAccounts}
             onOpenTest={onOpenTest}
             onOpenUsageSplit={onOpenUsageSplit}
-            resolvedMode={resolvedMode}
             siteTypes={siteTypes}
           />
         </div>
@@ -156,7 +153,6 @@ function MobileSiteCard({
   onOpenGrokAccounts,
   onOpenTest,
   onOpenUsageSplit,
-  resolvedMode,
   siteTypes,
 }: {
   site: Site
@@ -178,12 +174,11 @@ function MobileSiteCard({
   onOpenGrokAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
-  resolvedMode: 'light' | 'dark'
   siteTypes: SiteTypeInfo[]
 }) {
   const { t, i18n } = useTranslation('sites')
   const oauth = isOAuthSite(site)
-  const icon = siteTypeIcon(site.site_type, siteTypes, resolvedMode) || site.icon_url
+  const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
   const modelCount = siteModelsDisplayCount(site, models, apiKeys)
   const isGrok = site.site_type === 'grok'
   const keyInfo = oauth || isGrok ? null : { enabled: apiKeys.filter((key) => key.enabled).length, total: apiKeys.length || site.api_key_count || 0 }

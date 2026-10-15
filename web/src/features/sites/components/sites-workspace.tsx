@@ -97,7 +97,6 @@ import type {
   ValidationSnapshot,
 } from '@/features/sites/lib/types'
 import { useMobileLayout } from '@/hooks/use-media-query'
-import { useResolvedTheme } from '@/hooks/theme-context'
 
 const EMPTY_SITES: Site[] = []
 const EMPTY_MODELS: SiteModel[] = []
@@ -126,7 +125,6 @@ export function SitesWorkspace({
 }) {
   const queryClient = useQueryClient()
   const { t } = useTranslation('sites')
-  const resolvedMode = useResolvedTheme()
   const isMobile = useMobileLayout()
   const [initialURLTarget] = useState(() =>
     siteURLTarget(new URLSearchParams(initialSearch)),
@@ -391,11 +389,11 @@ export function SitesWorkspace({
       tabs.push({
         value: key,
         label: formatSiteTypeLabel(site.site_type, siteTypes),
-        icon: siteTypeIcon(site.site_type, siteTypes, resolvedMode),
+        icon: siteTypeIcon(site.site_type, siteTypes),
       })
     }
     return tabs
-  }, [resolvedMode, siteTypes, sites])
+  }, [siteTypes, sites])
 
   const filteredSites = useMemo(() => {
     const keyword = effectiveSearch.trim().toLowerCase()
@@ -824,7 +822,6 @@ export function SitesWorkspace({
     onOpenTest: setTestSite,
     onOpenUsageSplit: (site: Site) =>
       setUsageSplitTarget({ type: 'site', id: site.id }),
-    resolvedMode,
     siteTypes,
   }
 

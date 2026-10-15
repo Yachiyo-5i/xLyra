@@ -359,7 +359,7 @@ function AnalyticsSkeleton({ isMobile }: { isMobile: boolean }) {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="flex min-h-[120px] flex-col justify-between gap-3 rounded-lg p-4">
+          <Card key={index} className="flex min-h-[120px] flex-col justify-between gap-3 p-4">
             <div className="flex items-center gap-2">
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
@@ -371,7 +371,7 @@ function AnalyticsSkeleton({ isMobile }: { isMobile: boolean }) {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-4">
-        <Card className="h-[420px] rounded-lg p-5 xl:col-span-3">
+        <Card className="h-[420px] p-5 xl:col-span-3">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-2">
               <Skeleton className="h-5 w-64 max-w-full" />
@@ -382,7 +382,7 @@ function AnalyticsSkeleton({ isMobile }: { isMobile: boolean }) {
           <Skeleton className="h-[310px] rounded-lg" />
         </Card>
 
-        <Card className="h-[420px] rounded-lg p-5">
+        <Card className="h-[420px] p-5">
           <div className="mb-4 space-y-2">
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-40" />
@@ -402,7 +402,7 @@ function AnalyticsSkeleton({ isMobile }: { isMobile: boolean }) {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-4">
-        <Card className="h-[260px] max-h-[520px] rounded-lg p-5 xl:col-span-2 xl:h-[360px] xl:max-h-none">
+        <Card className="h-[260px] max-h-[520px] p-5 xl:col-span-2 xl:h-[360px] xl:max-h-none">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="space-y-2">
               <Skeleton className="h-5 w-24" />
@@ -424,7 +424,7 @@ function AnalyticsSkeleton({ isMobile }: { isMobile: boolean }) {
           </div>
         </Card>
 
-        <Card className="h-[360px] rounded-lg p-5 xl:col-span-2">
+        <Card className="h-[360px] p-5 xl:col-span-2">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="space-y-2">
               <Skeleton className="h-5 w-36" />
@@ -466,7 +466,7 @@ function MobileAnalyticsSkeleton() {
 
       <div className="grid gap-3">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="h-[117px] rounded-2xl p-4">
+          <Card key={index} className="h-[117px] p-4">
             <div className="mb-3 flex items-center gap-2">
               <Skeleton className="size-4 rounded" />
               <Skeleton className="h-4 w-20" />
@@ -477,7 +477,7 @@ function MobileAnalyticsSkeleton() {
         ))}
       </div>
 
-      <Card className="rounded-2xl p-4">
+      <Card className="p-4">
         <div className="mb-3 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <Skeleton className="h-5 w-48" />
@@ -488,7 +488,7 @@ function MobileAnalyticsSkeleton() {
         <Skeleton className="h-[240px] rounded-lg" />
       </Card>
 
-      <Card className="h-[320px] rounded-2xl p-5">
+      <Card className="h-[320px] p-5">
         <div className="mb-4 space-y-2">
           <Skeleton className="h-5 w-36" />
           <Skeleton className="h-4 w-40" />
@@ -506,7 +506,7 @@ function MobileAnalyticsSkeleton() {
         </div>
       </Card>
 
-      <Card className="rounded-2xl p-4">
+      <Card className="p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="space-y-2">
             <Skeleton className="h-5 w-24" />
@@ -526,7 +526,7 @@ function MobileAnalyticsSkeleton() {
         </div>
       </Card>
 
-      <Card className="h-[400px] rounded-2xl p-5">
+      <Card className="h-[400px] p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="space-y-2">
             <Skeleton className="h-5 w-36" />

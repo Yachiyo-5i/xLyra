@@ -102,8 +102,8 @@ export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[]
   return siteType
 }
 
-export function siteTypeIcon(siteType: string, siteTypes?: SiteTypeInfo[], resolvedMode: 'light' | 'dark' = 'dark'): string | null {
-  const iconPath = siteTypeIconPath(siteType, resolvedMode)
+export function siteTypeIcon(siteType: string, siteTypes?: SiteTypeInfo[]): string | null {
+  const iconPath = siteTypeIconPath(siteType)
   if (iconPath) return iconPath
   const fromAPI = siteTypes?.find((siteTypeInfo) => siteTypeInfo.site_type === siteType)?.icon_url
   if (fromAPI) return fromAPI

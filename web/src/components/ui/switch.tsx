@@ -15,20 +15,31 @@ type SwitchProps = Omit<
   onCheckedChange?: (checked: boolean) => void
 }
 
+/**
+ * 开关：关为填充色、开为系统绿。尺寸取 --switch-w / --switch-h，移动端为 iOS 标准 51×31。
+ * 按住时滑块向内拉长并变为半透明玻璃（HIG：滑块在交互时呈现 Liquid Glass 外观），松开恢复。
+ */
 const SwitchControl = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
 >(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      'peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border bg-[hsl(var(--surface-subtle))] transition-[background-color,border-color,box-shadow] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))] data-[state=checked]:bg-primary data-[state=checked]:[box-shadow:var(--switch-checked-shadow)] disabled:cursor-not-allowed disabled:opacity-50',
+      'group peer relative inline-flex h-[var(--switch-h)] w-[var(--switch-w)] shrink-0 cursor-pointer items-center rounded-full bg-fill-1 p-0.5 transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint/55 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-40 data-[state=checked]:bg-success',
       className,
     )}
-    style={{ borderColor: 'hsl(var(--glass-border))' }}
     {...props}
     ref={ref}
   >
-    <SwitchPrimitives.Thumb className="pointer-events-none block size-5 rounded-full bg-card shadow-lg ring-0 transition-[transform,background-color,box-shadow] duration-200 ease-out data-[state=checked]:translate-x-5 data-[state=checked]:bg-primary-foreground data-[state=unchecked]:translate-x-0" />
+    <SwitchPrimitives.Thumb
+      className={cn(
+        'pointer-events-none block h-[calc(var(--switch-h)-4px)] w-[calc(var(--switch-h)-4px)] rounded-full bg-white shadow-[0_2px_6px_rgb(0_0_0_/_0.28),0_0_0_0.5px_rgb(0_0_0_/_0.06)] transition-[transform,width,background-color,box-shadow] duration-200 ease-[cubic-bezier(0.34,1.3,0.64,1)]',
+        'data-[state=checked]:translate-x-[calc(var(--switch-w)-var(--switch-h))]',
+        // 按住：滑块拉长 6px（开启状态向左拉长），并变成半透明玻璃
+        'group-active:w-[calc(var(--switch-h)+2px)] group-active:bg-white/75 group-active:shadow-[inset_0_0_0_0.5px_rgb(255_255_255_/_0.7),inset_0_1px_0_rgb(255_255_255_/_0.9),0_3px_10px_rgb(0_0_0_/_0.3)]',
+        'group-active:data-[state=checked]:translate-x-[calc(var(--switch-w)-var(--switch-h)-6px)]',
+      )}
+    />
   </SwitchPrimitives.Root>
 ))
 SwitchControl.displayName = SwitchPrimitives.Root.displayName
@@ -39,16 +50,17 @@ const Switch = React.forwardRef<React.ElementRef<typeof SwitchPrimitives.Root>, 
 
     if (!label && !description) return control
 
+    // 带文字的开关是一整行：点击整行都能切换。用填充色分组，不再嵌套材质
     return (
       <label
         className={cn(
-          'section-soft flex cursor-pointer items-center justify-between gap-4 rounded-lg px-4 py-3',
-          disabled && 'cursor-not-allowed opacity-50',
+          'flex cursor-pointer items-center justify-between gap-4 rounded-inner bg-fill-4 px-4 py-3',
+          disabled && 'cursor-not-allowed opacity-40',
         )}
       >
-        <span className="space-y-0.5">
-          {label ? <span className="block font-medium text-foreground">{label}</span> : null}
-          {description ? <span className="text-muted-soft block text-sm">{description}</span> : null}
+        <span className="min-w-0 space-y-0.5">
+          {label ? <span className="block text-body text-label">{label}</span> : null}
+          {description ? <span className="block text-footnote text-label-2">{description}</span> : null}
         </span>
         {control}
       </label>

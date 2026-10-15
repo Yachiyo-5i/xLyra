@@ -29,7 +29,6 @@ import {
 } from '@/features/settings/api/js-plugins'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { resolveText } from '@/features/settings/lib/localized-text'
-import { useResolvedTheme } from '@/hooks/theme-context'
 import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
 
@@ -104,9 +103,8 @@ export function JSPluginAutomationSection({
 
   // An object may come with a brand key (a site's type, an account's provider); the
   // picker shows that brand's logo next to its name, whatever the object type is.
-  const resolvedMode = useResolvedTheme()
   const optionIcon = (option: JSPluginAutomationOption) =>
-    option.icon_key ? siteTypeIconPath(option.icon_key, resolvedMode) : undefined
+    option.icon_key ? siteTypeIconPath(option.icon_key) : undefined
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: jsPluginAutomationQueryKeys.list(pluginId) })

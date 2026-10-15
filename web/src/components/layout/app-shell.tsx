@@ -1,10 +1,12 @@
-import type { PropsWithChildren } from 'react'
+import type { CSSProperties, PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
+import { LiquidGlass } from '@/components/glass/liquid-glass'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppTopbar } from '@/components/layout/app-topbar'
+import { InlineTitleProvider } from '@/components/layout/inline-title-provider'
 import { MobileAppShell } from '@/components/layout/mobile-app-shell'
 import { SystemVersionText } from '@/components/layout/system-version-text'
 import { Button } from '@/components/ui/button'
@@ -13,11 +15,12 @@ import { useMobileLayout } from '@/hooks/use-media-query'
 export function AppShell({ children }: PropsWithChildren) {
   const isMobile = useMobileLayout()
 
-  if (isMobile) {
-    return <MobileAppShell>{children}</MobileAppShell>
-  }
-
-  return <DesktopAppShell>{children}</DesktopAppShell>
+  // 大标题收起：PageHeader 写入、顶栏读取
+  return (
+    <InlineTitleProvider>
+      {isMobile ? <MobileAppShell>{children}</MobileAppShell> : <DesktopAppShell>{children}</DesktopAppShell>}
+    </InlineTitleProvider>
+  )
 }
 
 function DesktopAppShell({ children }: PropsWithChildren) {
@@ -30,7 +33,6 @@ function DesktopAppShell({ children }: PropsWithChildren) {
     return (
       <div className="app-viewport">
         <div className="ambient-background" />
-        <div className="noise-overlay" />
         <main className="relative z-10 h-full min-h-0 overflow-hidden">{children}</main>
       </div>
     )
@@ -39,20 +41,23 @@ function DesktopAppShell({ children }: PropsWithChildren) {
   return (
     <div className="app-viewport">
       <div className="ambient-background" />
-      <div className="noise-overlay" />
-      <div className="flex h-full w-full relative z-0">
-        <aside className="hidden h-[calc(100vh-2rem)] my-4 ml-4 w-[280px] shrink-0 lg:block rounded-[24px] overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.12)] border border-[hsl(var(--glass-border))] z-20">
-          <AppSidebar className="border-none rounded-none" />
-        </aside>
+      <div className="relative z-0 flex h-full w-full">
+        {/* 功能层：浮动的 Liquid Glass 侧边栏，280 宽、距窗口 16、圆角 24 */}
+        <LiquidGlass
+          as="aside"
+          className="z-20 my-4 ml-4 hidden h-[calc(100%-2rem)] w-[280px] shrink-0 overflow-hidden rounded-shell lg:flex lg:flex-col"
+        >
+          <AppSidebar />
+        </LiquidGlass>
 
-        <div className="relative flex min-w-0 flex-1 flex-col z-10">
-          <AppTopbar onMenuClick={() => setMobileSidebarOpen(true)} />
-
-          <main className="min-h-0 flex-1 overflow-hidden">
-            <div className="h-full min-h-0 overflow-y-auto px-4 py-6 md:px-8 lg:py-8 lg:px-10">{children}</div>
+        <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+          {/* 内容在浮动顶栏下方滚过；页脚跟随内容滚动 */}
+          <main data-scroll-container="true" className="min-h-0 flex-1 overflow-y-auto">
+            <div className="px-4 pb-6 pt-[84px] md:px-8 lg:px-10">{children}</div>
+            <AppFooter />
           </main>
-
-          <AppFooter />
+          <div className="scroll-edge-top z-20" style={{ '--scroll-edge-height': '84px' } as CSSProperties} />
+          <AppTopbar onMenuClick={() => setMobileSidebarOpen(true)} />
         </div>
       </div>
 
@@ -60,23 +65,23 @@ function DesktopAppShell({ children }: PropsWithChildren) {
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             aria-label={t('navigation.closeOverlay')}
-            className="absolute inset-0 bg-[rgb(var(--dialog-overlay))] backdrop-blur-md transition-opacity"
+            className="absolute inset-0 bg-black/45 transition-opacity"
             type="button"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          <div className="absolute bottom-0 left-0 right-0 h-[85vh] rounded-t-[24px] overflow-hidden shadow-[0_-20px_40px_rgba(0,0,0,0.2)] animate-in slide-in-from-bottom-full duration-300 ease-out bg-[hsl(var(--surface-base))] border-t border-[hsl(var(--glass-border))]">
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 rounded-full bg-[hsl(var(--divider))] z-20" />
+          <div className="lg-thick absolute inset-x-2 bottom-2 h-[85vh] overflow-hidden rounded-shell animate-in slide-in-from-bottom-full duration-300 ease-out">
+            <div className="absolute left-1/2 top-2 z-20 h-[5px] w-9 -translate-x-1/2 rounded-full bg-fill-1" />
             <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 z-20 bg-background/50 backdrop-blur-md rounded-full size-8 border border-[hsl(var(--glass-border))]"
+              variant="secondary"
+              size="icon-sm"
+              className="absolute right-4 top-4 z-20"
               aria-label={t('navigation.close')}
               onClick={() => setMobileSidebarOpen(false)}
             >
               <X className="h-4 w-4" />
             </Button>
             <AppSidebar
-              className="h-full pt-8 rounded-none border-none"
+              className="h-full pt-4"
               onNavigate={() => setMobileSidebarOpen(false)}
             />
           </div>
@@ -88,13 +93,13 @@ function DesktopAppShell({ children }: PropsWithChildren) {
 
 function AppFooter() {
   return (
-    <footer className="shrink-0 bg-transparent px-4 py-4 lg:px-8 lg:py-5">
-      <div className="flex flex-col gap-3 text-xs text-[hsl(var(--text-muted-soft))] sm:flex-row sm:items-center sm:justify-between">
+    <footer className="px-4 pb-6 pt-2 md:px-8 lg:px-10">
+      <div className="flex flex-col gap-3 text-xs text-label-3 sm:flex-row sm:items-center sm:justify-between">
         <a
           href="https://github.com/Yachiyo-5i/xLyra"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex w-fit items-center gap-2 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
+          className="inline-flex w-fit items-center gap-2 rounded-md transition-colors hover:text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint/55"
         >
           <GitHubIcon className="h-4 w-4" />
           <span>GitHub</span>

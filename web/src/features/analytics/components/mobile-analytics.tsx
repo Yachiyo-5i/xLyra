@@ -1,3 +1,4 @@
+import { chartCursorFill, chartGridStroke, chartSliceStroke, chartTick } from '@/components/charts/chart-theme'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownRight,
@@ -193,7 +194,7 @@ export function MobileAnalytics({
           onSelectedKeyChange={onContributionKeyChange}
         />
       ) : (
-        <Card className="h-[400px] rounded-2xl p-5"><Skeleton className="h-full w-full" /></Card>
+        <Card className="h-[400px] p-5"><Skeleton className="h-full w-full" /></Card>
       )}
     </div>
   )
@@ -462,7 +463,7 @@ function MobileKpiCard({
 }) {
   const { t } = useTranslation('analytics')
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-3 flex items-center gap-2 text-muted-soft">
         <Icon className="size-4 shrink-0" />
         <span className="text-xs font-medium">{title}</span>
@@ -536,7 +537,7 @@ function MobileTrendPanel({
   const hasData = series.length > 0 && data.length > 0
 
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <AnalyticsSlashTabs
@@ -617,7 +618,7 @@ function MobileTrendChart({
       tickFormatter={xTickFormatter}
       tickLine={false}
       axisLine={false}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
+      tick={chartTick}
     />
   )
   const yAxis = (
@@ -626,13 +627,13 @@ function MobileTrendChart({
       tickLine={false}
       axisLine={false}
       width={44}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
+      tick={chartTick}
     />
   )
-  const grid = <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
+  const grid = <CartesianGrid stroke={chartGridStroke} vertical={false} />
   const tooltip = (
     <Tooltip
-      cursor={{ fill: 'hsl(var(--surface-subtle))' }}
+      cursor={{ fill: chartCursorFill }}
       content={(props) => (
         <MobileTrendTooltip {...props} series={series} formatValue={formatValue} />
       )}
@@ -642,9 +643,9 @@ function MobileTrendChart({
     <Legend
       iconType="square"
       iconSize={8}
-      wrapperStyle={{ fontSize: 11, paddingTop: 4, color: 'hsl(var(--text-muted-soft))' }}
+      wrapperStyle={{ fontSize: 11, paddingTop: 4, color: 'var(--label-tertiary)' }}
       formatter={(value) => (
-        <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+        <span style={{ color: 'var(--label-primary)' }}>{value}</span>
       )}
     />
   )
@@ -724,7 +725,7 @@ function MobileTrendTooltip({ active, label, payload, series, formatValue }: Mob
       return {
         key: dataKey,
         name: seriesItem?.name ?? String(item.name ?? dataKey),
-        color: seriesItem?.color ?? item.color ?? 'hsl(var(--text-muted-soft))',
+        color: seriesItem?.color ?? item.color ?? 'var(--label-tertiary)',
         value,
       }
     })
@@ -847,7 +848,7 @@ function MobileCostBreakdown({
   const hasActive = activeKeys.length > 0
 
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="min-w-0">
@@ -902,7 +903,7 @@ function MobileCostBreakdown({
                   innerRadius={MOBILE_ROSE_INNER_R}
                   outerRadius={(point: MobileRoseSlice) => point.outerRadius}
                   paddingAngle={roseSlices.length > 8 ? 1 : 2}
-                  stroke="hsl(var(--surface-panel))"
+                  stroke={chartSliceStroke}
                   strokeWidth={1.5}
                   isAnimationActive
                   animationDuration={500}

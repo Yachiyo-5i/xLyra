@@ -1,6 +1,16 @@
 import * as React from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { Check, ChevronDown, ChevronUp, CirclePlus, Search } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, ChevronsUpDown, CirclePlus, Search } from 'lucide-react'
+import { useLiquidGlassRef } from '@/components/glass/use-liquid-glass'
+import {
+  fieldIconClass,
+  fieldTriggerClass,
+  filterTriggerActiveClass,
+  filterTriggerClass,
+  menuItemClass,
+  panelSearchClass,
+  popoverPanelClass,
+} from '@/components/ui/field-styles'
 import { cn } from '@/lib/utils'
 
 const Select = SelectPrimitive.Root
@@ -22,23 +32,23 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       variant === 'filter'
-        ? 'inline-flex h-10 w-fit shrink-0 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[hsl(var(--glass-border-strong))] bg-[hsl(var(--surface-subtle))] px-4 text-left text-sm font-medium text-foreground outline-none transition-[border-color,background-color,box-shadow,color] duration-150 hover:border-[hsl(var(--field-border-focus))] hover:bg-[hsl(var(--surface-soft-hover))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] data-[placeholder]:text-foreground'
-        : 'glass-field flex h-11 w-full items-center justify-between gap-3 rounded-md px-4 text-left text-sm text-foreground outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] data-[placeholder]:text-[hsl(var(--input-placeholder))]',
-      variant === 'filter' && active && 'border-[hsl(var(--primary)/0.54)] bg-[hsl(var(--primary)/0.08)] text-primary',
+        ? filterTriggerClass
+        : cn(fieldTriggerClass, 'data-[placeholder]:text-label-3'),
+      variant === 'filter' && active && filterTriggerActiveClass,
       className,
     )}
     {...props}
   >
     {variant === 'filter' ? (
       <>
-        <CirclePlus className="h-4 w-4 shrink-0" strokeWidth={2} />
+        <CirclePlus className="size-3.5 shrink-0" strokeWidth={2} />
         <span className="min-w-0 truncate">{active ? children : filterLabel ?? children}</span>
       </>
     ) : (
       <>
         <span className="min-w-0 flex-1 truncate">{children}</span>
         <SelectPrimitive.Icon asChild>
-          <ChevronDown className="text-muted-soft h-4 w-4 shrink-0" />
+          <ChevronsUpDown className={fieldIconClass} />
         </SelectPrimitive.Icon>
       </>
     )}
@@ -56,6 +66,8 @@ const SelectContent = React.forwardRef<
   SelectContentProps
 >(({ className, children, searchable = true, widthMode = 'trigger', position = 'popper', style, ...props }, ref) => {
   const [search, setSearch] = React.useState('')
+  // 下拉面板属于功能层：展开时挂上 Liquid Glass 折射
+  const glassRef = useLiquidGlassRef('regular', ref)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const contentWidthStyle = widthMode === 'content'
     ? {
@@ -72,7 +84,7 @@ const SelectContent = React.forwardRef<
     <SelectSearchContext.Provider value={search}>
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content
-          ref={ref}
+          ref={glassRef}
           position={position}
           sideOffset={8}
           onCloseAutoFocus={() => setSearch('')}
@@ -80,8 +92,8 @@ const SelectContent = React.forwardRef<
           onWheel={(event) => event.stopPropagation()}
           onTouchMove={(event) => event.stopPropagation()}
           className={cn(
-            'glass-panel-strong relative z-[120] max-h-[min(var(--radix-select-content-available-height),32rem)] overflow-hidden rounded-xl',
-            position === 'popper' && 'translate-y-1',
+            popoverPanelClass,
+            'relative z-[120] max-h-[min(var(--radix-select-content-available-height),32rem)] origin-(--radix-select-content-transform-origin) overflow-hidden p-0',
             className,
           )}
           style={{
@@ -91,14 +103,14 @@ const SelectContent = React.forwardRef<
           {...props}
         >
           {searchable ? (
-            <div className="p-2 pb-0">
-              <div className="flex items-center gap-2 rounded-lg border border-[hsl(var(--glass-border-strong))] bg-[hsl(var(--surface-field))] px-3 py-2">
-                <Search className="h-4 w-4 shrink-0 text-muted-soft" />
+            <div className="p-1.5 pb-0">
+              <div className={panelSearchClass}>
+                <Search className={fieldIconClass} />
                 <input
                   ref={inputRef}
                   type="text"
                   placeholder="Search..."
-                  className="w-full bg-transparent text-base text-foreground outline-none placeholder:text-[hsl(var(--input-placeholder))] md:text-sm"
+                  className="w-full bg-transparent text-callout text-label outline-none placeholder:text-label-3"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
@@ -106,11 +118,11 @@ const SelectContent = React.forwardRef<
               </div>
             </div>
           ) : null}
-          <SelectPrimitive.ScrollUpButton className="text-muted-soft flex cursor-default items-center justify-center py-2">
+          <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1.5 text-label-3">
             <ChevronUp className="h-4 w-4" />
           </SelectPrimitive.ScrollUpButton>
-          <SelectPrimitive.Viewport className="p-2">{children}</SelectPrimitive.Viewport>
-          <SelectPrimitive.ScrollDownButton className="text-muted-soft flex cursor-default items-center justify-center py-2">
+          <SelectPrimitive.Viewport className="p-1.5">{children}</SelectPrimitive.Viewport>
+          <SelectPrimitive.ScrollDownButton className="flex cursor-default items-center justify-center py-1.5 text-label-3">
             <ChevronDown className="h-4 w-4" />
           </SelectPrimitive.ScrollDownButton>
         </SelectPrimitive.Content>
@@ -139,8 +151,8 @@ const SelectItem = React.forwardRef<
     <SelectPrimitive.Item
       ref={ref}
       className={cn(
-        'text-muted-soft relative flex w-full cursor-default select-none items-center rounded-lg py-2.5 pr-3 text-sm outline-none transition-colors duration-150 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[hsl(var(--surface-subtle))] data-[highlighted]:text-foreground data-[state=checked]:bg-[hsl(var(--surface-selected))] data-[state=checked]:text-foreground',
-        hideIndicator ? 'pl-3' : 'pl-9',
+        menuItemClass,
+        hideIndicator ? 'pl-2.5' : 'pl-8',
         !visible && 'hidden',
         className,
       )}
@@ -148,9 +160,9 @@ const SelectItem = React.forwardRef<
       {...props}
     >
       {hideIndicator ? null : (
-        <span className="absolute left-3 flex h-4 w-4 items-center justify-center">
+        <span className="absolute left-2.5 flex size-4 items-center justify-center">
           <SelectPrimitive.ItemIndicator>
-            <Check className="h-3.5 w-3.5 text-primary" />
+            <Check className="size-3.5 text-label" strokeWidth={2.5} />
           </SelectPrimitive.ItemIndicator>
         </span>
       )}

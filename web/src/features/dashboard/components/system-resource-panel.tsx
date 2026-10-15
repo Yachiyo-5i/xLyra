@@ -1,3 +1,4 @@
+import { chartGridStroke, chartTick } from '@/components/charts/chart-theme'
 import { useEffect, useMemo, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { Activity, Cpu, Database, HardDrive, Network } from 'lucide-react'
@@ -81,7 +82,7 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
   const resourceMeta = useMemo(() => buildResourceMeta(activeTab, latest, t), [activeTab, latest, t])
 
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-lg p-5', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 shrink-0 space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <h3 className="text-base font-semibold text-foreground">{t('resources.title')}</h3>
@@ -313,13 +314,13 @@ function ResourceChart({ tab, data, t }: { tab: Exclude<ResourceTab, 'overview' 
     <div className="min-h-0 flex-1">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
+          <CartesianGrid stroke={chartGridStroke} vertical={false} />
           <XAxis
             dataKey="time"
             minTickGap={28}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
+            tick={chartTick}
           />
           <YAxis
             domain={[0, 100]}
@@ -327,7 +328,7 @@ function ResourceChart({ tab, data, t }: { tab: Exclude<ResourceTab, 'overview' 
             tickLine={false}
             axisLine={false}
             width={48}
-            tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
+            tick={chartTick}
           />
           <Tooltip
             contentStyle={dashboardTooltipStyle}

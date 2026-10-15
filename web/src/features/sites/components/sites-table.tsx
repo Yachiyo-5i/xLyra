@@ -41,7 +41,7 @@ export function SitesTable({
   items, modelsMap, apiKeysMap, validationSnapshots, refreshingSiteIds, togglingSiteId, deletingSiteId,
   abnormalItems = [], abnormalCollapsed = true, onAbnormalCollapsedChange,
   updatedAtMode, now, onUpdatedAtModeChange,
-  onRefresh, onToggleEnabled, onEdit, onDelete, onOpenModels, onOpenAPIKeys, onOpenGrokAccounts, onOpenTest, onOpenUsageSplit, resolvedMode, siteTypes,
+  onRefresh, onToggleEnabled, onEdit, onDelete, onOpenModels, onOpenAPIKeys, onOpenGrokAccounts, onOpenTest, onOpenUsageSplit, siteTypes,
   className,
 }: {
   items: Site[]
@@ -66,7 +66,6 @@ export function SitesTable({
   onOpenGrokAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
-  resolvedMode: 'light' | 'dark'
   siteTypes: SiteTypeInfo[]
   className?: string
 }) {
@@ -105,7 +104,7 @@ export function SitesTable({
       cell: ({ row }) => {
         const site = row.original
         const oauth = isOAuthSite(site)
-        const icon = siteTypeIcon(site.site_type, siteTypes, resolvedMode) || site.icon_url
+        const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
         return (
           <div className="flex items-center gap-3 min-w-0">
             {icon ? <img src={icon} alt="" className={cn('h-7 w-7 shrink-0 rounded-lg object-contain', siteTypeIconClassName(site.site_type))} /> : null}
@@ -311,7 +310,7 @@ export function SitesTable({
       },
       meta: { align: 'left' as const },
     },
-  ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenGrokAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, resolvedMode, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
+  ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenGrokAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
 
   return (
     <DataTable

@@ -14,7 +14,7 @@ const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'sheet-overlay-animate fixed inset-0 z-50 bg-[rgba(10,14,24,0.42)] backdrop-blur-[10px]',
+      'sheet-overlay-animate fixed inset-0 z-50 bg-black/30',
       className,
     )}
     {...props}
@@ -22,19 +22,21 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+/**
+ * Sheet：覆盖层 Liquid Glass（.lg-thick），与屏幕边缘留出间距浮动、圆角 24，
+ * 而不是贴边铺满（HIG：half sheet 与屏幕边缘内缩，让下方内容透出来）。
+ */
 const sheetVariants = cva(
-  'glass-panel-strong fixed z-50 flex flex-col overflow-hidden border-[hsl(var(--glass-border))] p-0 shadow-[var(--shadow-dialog)] will-change-transform',
+  'lg-thick sheet-content-animate fixed z-50 flex flex-col overflow-hidden rounded-shell p-0 will-change-transform',
   {
     variants: {
       side: {
         right:
-          'sheet-content-animate sheet-content-right inset-y-0 right-0 h-full w-[min(92vw,560px)] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]',
+          'sheet-content-right bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] right-3 top-[calc(env(safe-area-inset-top,0px)+12px)] w-[min(calc(100vw-24px),560px)]',
         left:
-          'sheet-content-animate sheet-content-left inset-y-0 left-0 h-full w-[min(92vw,560px)] pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]',
-        top:
-          'sheet-content-animate sheet-content-top inset-x-0 top-0 h-auto max-h-[85vh] w-full rounded-b-2xl pt-[env(safe-area-inset-top,0px)]',
-        bottom:
-          'sheet-content-animate sheet-content-bottom inset-x-0 bottom-0 h-auto max-h-[85vh] w-full rounded-t-2xl pb-[env(safe-area-inset-bottom,0px)]',
+          'sheet-content-left bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] left-3 top-[calc(env(safe-area-inset-top,0px)+12px)] w-[min(calc(100vw-24px),560px)]',
+        top: 'sheet-content-top inset-x-2 top-[calc(env(safe-area-inset-top,0px)+8px)] h-auto max-h-[85vh]',
+        bottom: 'sheet-content-bottom inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] h-auto max-h-[88dvh]',
       },
     },
     defaultVariants: {
@@ -57,22 +59,22 @@ const SheetContent = React.forwardRef<
 SheetContent.displayName = DialogPrimitive.Content.displayName
 
 function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-b border-[hsl(var(--divider))] px-5 py-5', className)} {...props} />
+  return <div className={cn('border-b border-separator px-6 py-5', className)} {...props} />
 }
 
 function SheetBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5', className)} {...props} />
+  return <div className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-5', className)} {...props} />
 }
 
 function SheetFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-t border-[hsl(var(--divider))] px-5 py-4', className)} {...props} />
+  return <div className={cn('border-t border-separator px-6 py-4', className)} {...props} />
 }
 
 const SheetTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('text-lg font-semibold text-foreground', className)} {...props} />
+  <DialogPrimitive.Title ref={ref} className={cn('text-title-2 text-label', className)} {...props} />
 ))
 SheetTitle.displayName = DialogPrimitive.Title.displayName
 
@@ -82,7 +84,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-muted-soft mt-1 text-sm leading-6', className)}
+    className={cn('mt-1 text-body text-label-2', className)}
     {...props}
   />
 ))

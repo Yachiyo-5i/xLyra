@@ -438,7 +438,7 @@ function DashboardSkeleton() {
 
 function DashboardMetricSkeleton({ children }: { children: ReactNode }) {
   return (
-    <Card className="@container/metric min-h-[132px] rounded-lg p-4">
+    <Card className="@container/metric min-h-[132px] p-4">
       {children}
     </Card>
   )

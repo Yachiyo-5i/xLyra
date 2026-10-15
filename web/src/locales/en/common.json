@@ -73,14 +73,6 @@
     "logoutSuccess": "Logged out",
     "logoutFailed": "Logout failed"
   },
-  "theme": {
-    "modeLight": "Light",
-    "modeDark": "Dark",
-    "modeSystem": "System",
-    "baseDefault": "Default",
-    "displayDark": "Dark",
-    "displayLight": "Light"
-  },
   "brands": {
     "otherBrand": "Other Brands",
     "all": "All"

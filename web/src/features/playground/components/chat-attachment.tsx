@@ -76,13 +76,13 @@ function attachmentIcon(attachment: ChatAttachment): AttachmentIcon {
     return { Icon: FileArchive, className: 'bg-amber-500/10 text-amber-500' }
   }
   if (extension === 'json' || extension === 'jsonl' || mimeType === 'application/json') {
-    return { Icon: FileJson, className: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' }
+    return { Icon: FileJson, className: 'bg-yellow-500/10 text-yellow-400' }
   }
   if (DATABASE_EXTENSIONS.has(extension) || mimeType.includes('sqlite')) {
-    return { Icon: Database, className: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' }
+    return { Icon: Database, className: 'bg-cyan-500/10 text-cyan-400' }
   }
   if (CODE_EXTENSIONS.has(extension)) {
-    return { Icon: FileCode, className: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' }
+    return { Icon: FileCode, className: 'bg-cyan-500/10 text-cyan-400' }
   }
   if (IMAGE_EXTENSIONS.has(extension) || mimeType.startsWith('image/')) {
     return { Icon: FileImage, className: 'bg-fuchsia-500/10 text-fuchsia-500' }
@@ -94,7 +94,7 @@ function attachmentIcon(attachment: ChatAttachment): AttachmentIcon {
     return { Icon: FileVideo, className: 'bg-rose-500/10 text-rose-500' }
   }
   if (TEXT_EXTENSIONS.has(extension) || mimeType.startsWith('text/')) {
-    return { Icon: FileText, className: 'bg-teal-500/10 text-teal-600 dark:text-teal-400' }
+    return { Icon: FileText, className: 'bg-teal-500/10 text-teal-400' }
   }
   return { Icon: File, className: 'bg-[hsl(var(--surface-base))] text-muted-soft' }
 }

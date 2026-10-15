@@ -15,9 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BrandMark } from '@/components/common/brand-mark'
-import { resolveThemedIconPath } from '@/components/common/brand-utils'
-import { useResolvedTheme } from '@/hooks/theme-context'
+import { FilterColumn } from '@/components/common/filter-column'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import {
   buildBrandItems,
@@ -419,7 +417,6 @@ function MobileFilterSelectIcon({
   label?: string
   fallbackText?: string
 }) {
-  const resolvedMode = useResolvedTheme()
   const label = labelOverride ?? item?.label ?? ''
   const fallback = Array.from(
     fallbackText ?? item?.fallbackText ?? label.trim() ?? '?',
@@ -430,7 +427,7 @@ function MobileFilterSelectIcon({
   if (item?.iconPath) {
     return (
       <img
-        src={resolveThemedIconPath(item.iconPath, label, resolvedMode)}
+        src={item.iconPath}
         alt=""
         className="h-4 w-4 object-contain"
       />
@@ -444,65 +441,6 @@ function MobileFilterSelectIcon({
   )
 }
 
-function FilterColumn({
-  title,
-  items,
-  selectedKey,
-  onSelect,
-}: {
-  title: string
-  items: {
-    key: string
-    label: string
-    count: number
-    iconPath?: string
-    fallbackText?: string
-  }[]
-  selectedKey: string | null
-  onSelect: (key: string) => void
-}) {
-  return (
-    <div className="space-y-2">
-      <h2 className="px-1 text-sm font-medium text-foreground">{title}</h2>
-      <div className="space-y-1">
-        {items.map((item) => {
-          const active = selectedKey === item.key
-
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onSelect(item.key)}
-              className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                active
-                  ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                  : 'bg-transparent text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground'
-              }`}
-            >
-              <BrandMark
-                iconPath={item.iconPath}
-                label={item.label}
-                fallback={item.label}
-                fallbackText={item.fallbackText}
-                size="sm"
-              />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              <span
-                className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
-                  active
-                    ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                    : 'bg-[hsl(var(--surface-subtle))] text-muted-soft'
-                }`}
-              >
-                {item.count}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 function ModelsWorkspaceSkeleton({ isMobile = false }: { isMobile?: boolean }) {
   if (isMobile) {

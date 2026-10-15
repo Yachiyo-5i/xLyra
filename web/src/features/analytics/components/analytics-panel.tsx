@@ -21,7 +21,7 @@ export function AnalyticsPanel({
   bodyClassName,
 }: AnalyticsPanelProps) {
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-lg p-5', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <h3 className="text-base font-semibold text-foreground">{title}</h3>

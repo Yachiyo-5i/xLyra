@@ -85,7 +85,6 @@ describe('GLM quota details', () => {
           onOpenGrokAccounts={noop}
           onOpenTest={noop}
           onOpenUsageSplit={noop}
-          resolvedMode="light"
           siteTypes={[]}
         />
       </I18nextProvider>,
@@ -182,7 +181,6 @@ describe('DeepSeek balance details', () => {
           onOpenGrokAccounts={noop}
           onOpenTest={noop}
           onOpenUsageSplit={noop}
-          resolvedMode="light"
           siteTypes={[]}
         />
       </I18nextProvider>,
@@ -275,7 +273,6 @@ describe('Moonshot balance details', () => {
           onOpenGrokAccounts={noop}
           onOpenTest={noop}
           onOpenUsageSplit={noop}
-          resolvedMode="light"
           siteTypes={[]}
         />
       </I18nextProvider>,

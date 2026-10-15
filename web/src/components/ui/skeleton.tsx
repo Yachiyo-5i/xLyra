@@ -3,14 +3,7 @@ import { cn } from '@/lib/utils'
 
 type SkeletonProps = HTMLAttributes<HTMLDivElement>
 
+/** 占位：fill-4 底 + 1.6s 微光扫过；减弱动态效果时静止 */
 export function Skeleton({ className, ...props }: SkeletonProps) {
-  return (
-    <div
-      className={cn(
-        'animate-pulse rounded-lg bg-[linear-gradient(110deg,hsl(var(--surface-subtle)),hsl(var(--surface-soft-hover)),hsl(var(--surface-subtle)))] bg-[length:200%_100%]',
-        className,
-      )}
-      {...props}
-    />
-  )
+  return <div aria-hidden="true" className={cn('skeleton-shimmer rounded-small', className)} {...props} />
 }
