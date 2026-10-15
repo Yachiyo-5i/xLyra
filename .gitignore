@@ -9,6 +9,8 @@ CLAUDE.md
 
 # Local environment overrides
 dev*
+# The developer settings page is source code, not a local override.
+!web/src/routes/settings/developer-settings-page.tsx
 
 # Test
 k6-test/
@@ -19,7 +21,9 @@ conf/
 postgres/
 logs/
 tmp/
-docs/
+# Internal design notes stay local; only the plugin developer docs are published.
+docs/*
+!docs/plugins/
 
 # Backend build and runtime output
 server/bin/
