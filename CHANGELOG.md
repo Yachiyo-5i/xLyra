@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.1...v1.15.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* 🐛 修复生成的插件类型里泛型被逗号截断的问题 ([c084bba](https://github.com/Yachiyo-5i/xLyra/commit/c084bba532c2d657217a2e6ca61be095f35071d8))
+
 ## [1.15.1](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.0...v1.15.1) (2026-10-15)
 
 
