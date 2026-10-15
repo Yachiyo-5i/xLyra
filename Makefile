@@ -15,7 +15,7 @@ server-tidy:
 	cd server && go mod tidy
 
 server-run:
-	./dev-server.sh
+	cd server && go run ./cmd/server
 
 server-build:
 	cd server && go build ./cmd/server
