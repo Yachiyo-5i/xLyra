@@ -29,14 +29,12 @@ export function DashboardRiskList({ items, onItemClick, className }: DashboardRi
   return (
     <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 shrink-0 space-y-1">
-        <h3 className="text-base font-semibold text-foreground">{t('risks.title')}</h3>
-        <p className="text-sm text-muted-soft">{t('risks.description')}</p>
+        <h3 className="text-headline text-label">{t('risks.title')}</h3>
+        <p className="text-footnote text-label-3">{t('risks.description')}</p>
       </div>
-      <div className="scrollbar-hidden min-h-0 flex-1 divide-y divide-[hsl(var(--glass-divider))] overflow-auto pr-1">
+      <div className="scrollbar-hidden min-h-0 flex-1 divide-y divide-separator overflow-auto pr-1">
         {items.length === 0 ? (
-          <div className="flex h-full min-h-[120px] items-center justify-center text-sm text-muted-soft">
-            {t('risks.empty')}
-          </div>
+          <p className="flex h-full min-h-[120px] items-center justify-center text-footnote text-label-3">{t('risks.empty')}</p>
         ) : items.map((item) => {
           const tone = item.tone ?? 'neutral'
           return (
@@ -52,21 +50,21 @@ export function DashboardRiskList({ items, onItemClick, className }: DashboardRi
                   onItemClick(item)
                 }
               }}
-              className="flex items-start gap-3 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle)/0.55)] data-[clickable=true]:cursor-pointer"
+              className="flex items-start gap-3 py-3 transition-colors hover:bg-fill-4 data-[clickable=true]:cursor-pointer"
               data-clickable={Boolean(onItemClick)}
             >
-              <div className="mt-0.5 text-muted-soft">
+              <div className="mt-0.5 text-label-2">
                 {item.icon ?? (tone === 'neutral' ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />)}
               </div>
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">{item.title}</p>
+                  <p className="text-body font-medium text-label">{item.title}</p>
                   <Badge variant={toneVariant[tone]}>{item.badgeLabel ?? toneLabel[tone]}</Badge>
                 </div>
-                <p className="text-sm text-muted-soft">{item.detail}</p>
+                <p className="text-body text-label-2">{item.detail}</p>
               </div>
               {item.value ? (
-                <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{item.value}</p>
+                <p className="shrink-0 text-body font-semibold tabular-nums text-label">{item.value}</p>
               ) : null}
             </div>
           )

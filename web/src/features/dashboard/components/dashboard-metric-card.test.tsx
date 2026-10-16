@@ -16,7 +16,7 @@ describe('DashboardMetricCard', () => {
 
     expect(markup).toContain('@container/metric')
     expect(markup).toContain('grid-cols-1')
-    expect(markup).toContain('@[21rem]/metric:grid-cols-')
+    expect(markup).toContain('@[16rem]/metric:grid-cols-')
     expect(markup).toContain('whitespace-nowrap')
     expect(markup).toContain('192 / 90.8K')
     expect(markup).toContain('21.7M / 2.4B')

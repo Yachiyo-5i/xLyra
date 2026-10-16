@@ -36,8 +36,8 @@ export function DashboardChartPanel({
     <Card className={cn('p-5', className)}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          {description ? <p className="text-sm text-muted-soft">{description}</p> : null}
+          <h3 className="text-headline text-label">{title}</h3>
+          {description ? <p className="text-body text-label-2">{description}</p> : null}
         </div>
         <div className="flex items-center gap-2">
           {range ? (
@@ -47,7 +47,7 @@ export function DashboardChartPanel({
                 <TabsTrigger
                   key={option.value}
                   value={option.value}
-                  className="text-xs"
+                  className="text-footnote"
                 >
                   {option.label}
                 </TabsTrigger>

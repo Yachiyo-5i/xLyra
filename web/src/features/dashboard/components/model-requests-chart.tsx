@@ -95,15 +95,15 @@ function ModelRequestsTooltip({ active, label, payload, series, unit }: ModelReq
 
   return (
     <div style={dashboardTooltipStyle} className="min-w-[164px]">
-      <div className="mb-2 flex items-center justify-between gap-5 text-xs">
-        <span className="text-muted-soft">{label}</span>
-        <span className="font-medium tabular-nums text-foreground">
+      <div className="mb-2 flex items-center justify-between gap-5 text-footnote">
+        <span className="text-label-2">{label}</span>
+        <span className="font-medium tabular-nums text-label">
           {total.toLocaleString()} {unit}
         </span>
       </div>
       <div className="space-y-1">
         {items.map((item) => (
-          <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-xs text-foreground">
+          <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-footnote text-label">
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
               <span className="truncate">{item.name}</span>

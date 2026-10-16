@@ -266,7 +266,7 @@ export function DashboardPage() {
         description={t('page.description')}
         actions={
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-soft">
+            <span className="text-footnote text-label-3">
               {t('page.update')} {formatDashboardRefreshTime(overview.meta.generated_at, i18n.language)}
             </span>
             <Button
@@ -325,19 +325,19 @@ export function DashboardPage() {
 
         <div className="grid gap-4 xl:grid-cols-2">
           <DashboardRiskList
-            className="h-[360px]"
+            className="max-h-[440px]"
             items={riskItems}
             onItemClick={handleRiskClick}
           />
           <DashboardCooldownList
-            className="h-[360px]"
+            className="max-h-[440px]"
             items={cooldownItems}
             action={
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 text-muted-soft hover:text-foreground"
+                  className="text-label-2"
                   disabled={cooldownsQuery.isFetching}
                   onClick={() => cooldownsQuery.refetch()}
                 >
@@ -348,7 +348,7 @@ export function DashboardPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 text-muted-soft hover:text-foreground"
+                  className="text-label-2"
                   disabled={clearAllCooldownsMutation.isPending}
                   onClick={() => clearAllCooldownsMutation.mutate()}
                 >
@@ -362,8 +362,8 @@ export function DashboardPage() {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-2">
-          <SiteUptimeStrip className="h-[320px]" sites={uptimeRows} />
-          <SystemResourcePanel className="h-[320px]" />
+          <SiteUptimeStrip sites={uptimeRows} />
+          <SystemResourcePanel />
         </div>
       </div>
     </div>
@@ -395,7 +395,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <div className="h-px w-full bg-separator @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -406,7 +406,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <div className="h-px w-full bg-separator @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -417,7 +417,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <div className="h-px w-full bg-separator @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -474,7 +474,7 @@ function DashboardPanelSkeleton({
 function DashboardPanelSkeletonContent({ variant }: { variant: DashboardPanelSkeletonVariant }) {
   if (variant === 'list') {
     return (
-      <div className="min-h-0 flex-1 divide-y divide-[hsl(var(--glass-divider))] overflow-hidden">
+      <div className="min-h-0 flex-1 divide-y divide-separator overflow-hidden">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 py-3">
             <Skeleton className="mt-0.5 size-4 rounded-full" />

@@ -10,21 +10,22 @@ type DashboardMetricCardProps = {
   secondaryLabel: string
   secondaryValue: string
   icon?: ReactNode
+  /** 旧版每个数值前的小图标，现已不显示，保留参数以兼容调用方 */
   primaryIcon?: ReactNode
   secondaryIcon?: ReactNode
   secondaryTokenUsage?: TokenUsageColumn[]
   tokenUsageLabels?: TokenUsageLabels
+  /** 旧版按卡片区分的图标颜色，现统一为单色，保留参数以兼容调用方 */
   accent?: 'cost' | 'traffic' | 'performance'
   note?: ReactNode
   className?: string
 }
 
-const accentClasses = {
-  cost: 'text-[hsl(190_88%_42%)]',
-  traffic: 'text-[hsl(154_70%_38%)]',
-  performance: 'text-[hsl(42_88%_48%)]',
-}
-
+/**
+ * 概览指标卡：标题行（单色图标 + Footnote）→ 两栏数值 → 底部补充说明。
+ * 数值用等宽 KPI 字号；「今日 / 累计」这类成对数值只放大前半部分，后半部分用小号 label-3，
+ * 一眼先看到今日。卡片足够宽时两栏并排，窄时上下排列（容器查询）。
+ */
 export function DashboardMetricCard({
   title,
   primaryLabel,
@@ -32,44 +33,43 @@ export function DashboardMetricCard({
   secondaryLabel,
   secondaryValue,
   icon,
-  primaryIcon,
-  secondaryIcon,
   secondaryTokenUsage,
   tokenUsageLabels,
-  accent = 'cost',
   note,
   className,
 }: DashboardMetricCardProps) {
   return (
-    <Card className={cn('@container/metric p-4', className)}>
-      <div className="relative space-y-3">
-        <div className="flex items-center gap-2">
-          {icon ? (
-            <span className={cn('flex size-5 items-center justify-center [&>svg]:size-4', accentClasses[accent])}>
-              {icon}
-            </span>
-          ) : null}
-          <p className="text-sm font-medium text-muted-soft">{title}</p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] @[21rem]/metric:items-stretch">
-          <MetricValue label={primaryLabel} value={primaryValue} icon={primaryIcon} />
-          <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:my-1 @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
-          <MetricValue label={secondaryLabel} value={secondaryValue} icon={secondaryIcon} tokenUsage={secondaryTokenUsage} tokenUsageLabels={tokenUsageLabels} />
-        </div>
-        {note ? <div className="text-xs text-muted-soft">{note}</div> : null}
+    <Card className={cn('@container/metric flex flex-col gap-4 p-5', className)}>
+      <div className="flex items-center gap-2">
+        {icon ? <span className="flex size-4 items-center justify-center text-label-3 [&>svg]:size-4">{icon}</span> : null}
+        <p className="text-footnote font-medium text-label-2">{title}</p>
       </div>
+      <div className="grid grid-cols-1 gap-3 @[16rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] @[16rem]/metric:gap-4">
+        <MetricValue label={primaryLabel} value={primaryValue} />
+        <div className="h-px w-full bg-separator @[16rem]/metric:h-auto @[16rem]/metric:w-px" />
+        <MetricValue label={secondaryLabel} value={secondaryValue} tokenUsage={secondaryTokenUsage} tokenUsageLabels={tokenUsageLabels} />
+      </div>
+      {note ? <div className="mt-auto text-caption-1 text-label-3">{note}</div> : null}
     </Card>
   )
 }
 
-function MetricValue({ label, value, icon, tokenUsage, tokenUsageLabels }: { label: string; value: string; icon?: ReactNode; tokenUsage?: TokenUsageColumn[]; tokenUsageLabels?: TokenUsageLabels }) {
+/** 「1 / 540.4K」→ 主值「1」+ 次值「/ 540.4K」 */
+function splitPair(value: string) {
+  const index = value.indexOf(' / ')
+  if (index < 0) return { main: value, rest: '' }
+  return { main: value.slice(0, index), rest: value.slice(index + 1) }
+}
+
+function MetricValue({ label, value, tokenUsage, tokenUsageLabels }: { label: string; value: string; tokenUsage?: TokenUsageColumn[]; tokenUsageLabels?: TokenUsageLabels }) {
+  const { main, rest } = splitPair(value)
   const content = (
-    <div className="flex min-w-0 flex-col px-1 py-1">
-      <div className="mb-1.5 flex min-w-0 items-start gap-1.5 text-faint">
-        {icon ? <span className="flex size-4 items-center justify-center [&>svg]:size-3.5">{icon}</span> : null}
-        <p className="min-w-0 break-words text-xs font-medium leading-4">{label}</p>
-      </div>
-      <p className="mt-auto whitespace-nowrap text-lg font-semibold tracking-tight text-foreground">{value}</p>
+    <div className="flex min-w-0 flex-col" aria-label={`${label} ${value}`}>
+      <p className="min-w-0 truncate text-caption-1 text-label-3">{label}</p>
+      <p className="mt-1.5 flex min-w-0 items-baseline gap-1.5 whitespace-nowrap font-mono tabular-nums">
+        <span className="truncate text-[22px] font-semibold leading-7 text-label @[26rem]/metric:text-kpi">{main}</span>
+        {rest ? <span className="shrink-0 text-callout text-label-3">{rest}</span> : null}
+      </p>
     </div>
   )
   if (!tokenUsage || !tokenUsageLabels) return content

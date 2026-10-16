@@ -12,10 +12,10 @@ type SiteUptimeStripProps = {
 }
 
 const uptimeStatusClasses: Record<UptimeStatus, string> = {
-  healthy: 'bg-[hsl(var(--badge-success-text))]',
-  degraded: 'bg-[hsl(var(--badge-warning-text))]',
-  down: 'bg-[hsl(var(--destructive))]',
-  idle: 'bg-[hsl(var(--text-faint)/0.22)]',
+  healthy: 'bg-success',
+  degraded: 'bg-warning',
+  down: 'bg-danger',
+  idle: 'bg-label-4',
 }
 
 export function SiteUptimeStrip({ sites, className }: SiteUptimeStripProps) {
@@ -35,20 +35,20 @@ export function SiteUptimeStrip({ sites, className }: SiteUptimeStripProps) {
     <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 shrink-0 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <h3 className="text-base font-semibold text-foreground">{t('uptime.title')}</h3>
+          <h3 className="text-headline text-label">{t('uptime.title')}</h3>
           <Tabs variant="slash" value={activeGroup} onValueChange={(value) => setActiveGroup(value as UptimeSiteGroup)}>
             <TabsList>
-              <TabsTrigger value="sites" className="text-sm">
+              <TabsTrigger value="sites" className="text-body">
                 Sites
               </TabsTrigger>
-              <TabsTrigger value="oauth" className="text-sm">
+              <TabsTrigger value="oauth" className="text-body">
                 OAuth
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <p className="text-sm text-muted-soft">{t('uptime.recent24h')}</p>
+          <p className="text-body text-label-2">{t('uptime.recent24h')}</p>
           <div className="flex flex-wrap gap-2">
             {legendItems.map((item) => (
               <Badge key={item.status} variant="neutral" className="gap-2 whitespace-nowrap">
@@ -67,7 +67,7 @@ export function SiteUptimeStrip({ sites, className }: SiteUptimeStripProps) {
               className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 sm:grid-cols-[150px_minmax(0,1fr)_56px] sm:gap-3"
             >
               <div className="min-w-0 sm:col-start-1 sm:row-start-1">
-                <p className="break-words text-sm font-medium text-foreground" title={site.name}>{site.name}</p>
+                <p className="break-words text-body font-medium text-label" title={site.name}>{site.name}</p>
               </div>
               <div
                 className="col-span-2 row-start-2 grid gap-0.5 sm:col-span-1 sm:col-start-2 sm:row-start-1"
@@ -81,13 +81,13 @@ export function SiteUptimeStrip({ sites, className }: SiteUptimeStripProps) {
                   />
                 ))}
               </div>
-              <p className="col-start-2 row-start-1 text-right text-sm font-medium tabular-nums text-foreground sm:col-start-3">
+              <p className="col-start-2 row-start-1 text-right text-body font-medium tabular-nums text-label sm:col-start-3">
                 {site.uptime}
               </p>
             </div>
           ))
         ) : (
-          <p className="rounded-lg bg-[hsl(var(--surface-subtle)/0.42)] px-4 py-5 text-center text-sm text-muted-soft">
+          <p className="rounded-lg bg-fill-4 px-4 py-5 text-center text-body text-label-2">
             {t('uptime.empty', { type: activeGroup === 'oauth' ? 'OAuth' : 'Sites' })}
           </p>
         )}
