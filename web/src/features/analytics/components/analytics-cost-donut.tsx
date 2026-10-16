@@ -125,25 +125,25 @@ export function AnalyticsCostDonut({
       action={(
         <div className="flex flex-wrap items-center gap-3">
           {hasActive && (
-            <span className="flex flex-wrap items-center gap-1 text-xs text-muted-soft">
+            <span className="flex flex-wrap items-center gap-1 text-footnote text-label-2">
               {activeLabels.slice(0, 2).map((label) => (
                 <span
                   key={label}
-                  className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full bg-[hsl(var(--surface-subtle))] px-2 py-0.5 text-foreground"
+                  className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full bg-fill-3 px-2 py-0.5 text-label"
                   title={label}
                 >
                   {label}
                 </span>
               ))}
               {activeLabels.length > 2 && (
-                <span className="rounded-full bg-[hsl(var(--surface-subtle))] px-2 py-0.5 text-foreground">
+                <span className="rounded-full bg-fill-3 px-2 py-0.5 text-label">
                   +{activeLabels.length - 2}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => onClearDrillDown(dimension)}
-                className="ml-1 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-xs text-muted-soft hover:text-foreground"
+                className="ml-1 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-fill-3 px-1.5 py-0.5 text-footnote text-label-2 hover:text-label"
                 title={t('donut.clearFilter')}
               >
                 <X className="h-3 w-3" />
@@ -211,11 +211,11 @@ export function AnalyticsCostDonut({
             </ResponsiveContainer>
             {/* 中心总费用：pointer-events-none + z-0，Tooltip 在其上方 */}
             <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
-              <span className="leading-tight text-muted-soft" style={{ fontSize: roseCenterLabelSize }}>
+              <span className="leading-tight text-label-2" style={{ fontSize: roseCenterLabelSize }}>
                 {t('donut.total')}
               </span>
               <span
-                className="font-semibold tabular-nums leading-tight text-foreground"
+                className="font-semibold tabular-nums leading-tight text-label"
                 style={{ fontSize: roseCenterValueSize }}
               >
                 {formatDashboardCurrency(total, currency)}
@@ -224,7 +224,7 @@ export function AnalyticsCostDonut({
           </div>
 
           <div className="min-h-0 min-w-0 flex-1 self-center overflow-y-auto pr-2" style={{ maxHeight: roseSize }}>
-            <div className="grid grid-cols-1 divide-y divide-[hsl(var(--glass-divider))]">
+            <div className="grid grid-cols-1 divide-y divide-separator">
               {slices.map((slice) => (
                 <button
                   key={slice.key}
@@ -233,23 +233,24 @@ export function AnalyticsCostDonut({
                     if (slice.key === 'unknown') return
                     onDrillDown(dimension, { key: slice.key, id: slice.id })
                   }}
-                  className="flex min-w-0 items-center gap-2 py-2 text-left text-xs first:pt-0 last:pb-0 disabled:cursor-default"
+                  className="flex min-w-0 items-start gap-2 py-2 text-left first:pt-0 last:pb-0 disabled:cursor-default"
                   disabled={slice.key === 'unknown'}
                 >
                   <span
-                    className="size-2 shrink-0 rounded-[2px]"
+                    className="mt-1.5 size-2 shrink-0 rounded-[2px]"
                     style={{
                       backgroundColor: slice.color,
                       opacity: slice.key === 'unknown' ? 0.5 : 1,
                     }}
                   />
-                  <span className="min-w-0 flex-1 truncate text-foreground" title={slice.name}>
-                    {slice.name}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-muted-soft">
-                    {formatDashboardCurrency(slice.value, currency, 2)}
-                    {` · ${formatDashboardTokens(slice.tokens)}`}
-                    {total > 0 ? ` · ${((slice.value / total) * 100).toFixed(1)}%` : ''}
+                  {/* 名称完整显示（可换行），金额 · Token · 占比放在第二行，窄卡片里不再被截成「gpt…」 */}
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-all text-body text-label">{slice.name}</span>
+                    <span className="mt-0.5 block font-mono text-caption-1 tabular-nums text-label-3">
+                      {formatDashboardCurrency(slice.value, currency, 2)}
+                      {` · ${formatDashboardTokens(slice.tokens)}`}
+                      {total > 0 ? ` · ${((slice.value / total) * 100).toFixed(1)}%` : ''}
+                    </span>
                   </span>
                 </button>
               ))}
@@ -257,7 +258,7 @@ export function AnalyticsCostDonut({
           </div>
         </div>
       ) : (
-        <div className="flex h-full items-center justify-center text-sm text-muted-soft">
+        <div className="flex h-full items-center justify-center text-body text-label-2">
           {t('donut.empty')}
         </div>
       )}
@@ -271,12 +272,12 @@ function DonutTooltip({ active, payload, currency, total }: TooltipContentProps 
   const value = Number(item.value ?? 0)
   const tokens = Number((item.payload as DonutSlice | undefined)?.tokens ?? 0)
   return (
-    <div style={dashboardTooltipStyle} className="min-w-[160px] text-xs">
-      <div className="mb-1 flex items-center gap-1.5 text-foreground">
+    <div style={dashboardTooltipStyle} className="min-w-[160px] text-footnote">
+      <div className="mb-1 flex items-center gap-1.5 text-label">
         <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.payload?.fill ?? item.color }} />
         <span className="truncate font-medium">{item.name}</span>
       </div>
-      <div className="tabular-nums text-muted-soft">
+      <div className="tabular-nums text-label-2">
         {formatDashboardCurrency(value, currency, 4)}
         {` · ${formatDashboardTokens(tokens)}`}
         {total > 0 ? ` · ${((value / total) * 100).toFixed(1)}%` : ''}

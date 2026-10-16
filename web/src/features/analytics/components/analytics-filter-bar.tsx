@@ -98,9 +98,8 @@ export function AnalyticsFilterBar({
           disabledDates={toDateObj ? { after: toDateObj } : undefined}
           placeholder={t('filters.from')}
           clearable={false}
-          triggerClassName="h-10"
         />
-        <span className="text-xs text-faint">→</span>
+        <span className="text-footnote text-label-3">→</span>
         <DatePicker
           value={toDateObj}
           onValueChange={(date) => {
@@ -111,7 +110,6 @@ export function AnalyticsFilterBar({
           disabledDates={fromDateObj ? { before: fromDateObj } : undefined}
           placeholder={t('filters.to')}
           clearable={false}
-          triggerClassName="h-10"
         />
       </div>
 
@@ -124,7 +122,6 @@ export function AnalyticsFilterBar({
           variant="filter"
           filterLabel={t('filters.ranges.label')}
           active
-          className="h-10"
         >
           <SelectValue />
         </SelectTrigger>
@@ -176,7 +173,7 @@ export function AnalyticsFilterBar({
           value={selectedCurrency}
           onValueChange={(currency) => onChange({ ...filters, currency })}
         >
-          <SelectTrigger variant="filter" filterLabel={t('filters.currency')} active className="h-10">
+          <SelectTrigger variant="filter" filterLabel={t('filters.currency')} active>
             <SelectValue placeholder={t('filters.currency')} />
           </SelectTrigger>
           <SelectContent searchable={false} widthMode="content">
@@ -193,7 +190,7 @@ export function AnalyticsFilterBar({
       {onRefresh ? (
         <div className="ml-auto flex items-center gap-2">
           {updatedAt ? (
-            <span className="text-xs text-muted-soft">
+            <span className="text-footnote text-label-2">
               {t('page.update')} {formatDashboardRefreshTime(updatedAt, language)}
             </span>
           ) : null}
@@ -205,7 +202,7 @@ export function AnalyticsFilterBar({
       ) : null}
 
       {optionsError ? (
-        <div className="flex basis-full items-center justify-between gap-3 rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">
+        <div className="flex basis-full items-center justify-between gap-3 rounded-inner bg-danger/12 px-3 py-2 text-footnote text-danger">
           <span>{t('page.optionsLoadFailed')}: {optionsError}</span>
           {onRetryOptions ? <Button variant="outline" size="sm" onClick={onRetryOptions}>{t('page.retry')}</Button> : null}
         </div>

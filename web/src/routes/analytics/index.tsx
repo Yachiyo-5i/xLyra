@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RefreshCw } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
 import { PageHeader } from '@/components/common/page-header'
@@ -35,12 +36,11 @@ import {
 } from '@/features/analytics/lib/analytics-utils'
 import { ApiKeyContributionsPanel } from '@/features/dashboard/components'
 import type { DashboardOverview } from '@/features/dashboard/api/dashboard'
-import {
-  buildApiKeyContributions,
-} from '@/features/dashboard/lib/dashboard-utils'
+import { buildApiKeyContributions, formatDashboardRefreshTime } from '@/features/dashboard/lib/dashboard-utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { modelNameIconInfo } from '@/features/sites/lib/model-icon'
 import { APIError } from '@/lib/http'
+import { cn } from '@/lib/utils'
 
 export function AnalyticsPage() {
   const { t, i18n } = useTranslation('analytics')
@@ -268,10 +268,22 @@ export function AnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* 与仪表盘一致：更新时间与刷新放在标题右侧，筛选行只放筛选 */}
       <PageHeader
         eyebrow={t('page.eyebrow')}
         title={t('page.title')}
         description={t('page.description')}
+        actions={
+          <>
+            <span className="text-footnote text-label-3">
+              {t('page.update')} {formatDashboardRefreshTime(usage.meta.generated_at, i18n.language)}
+            </span>
+            <Button variant="secondary" onClick={handleRefresh} disabled={isFetching}>
+              <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
+              {t('page.refresh')}
+            </Button>
+          </>
+        }
       />
 
       <AnalyticsFilterBar
@@ -285,17 +297,14 @@ export function AnalyticsPage() {
         onRetryOptions={() => optionsQuery.refetch()}
         onChange={handleFiltersChange}
         dataFrom={usage.meta.data_from}
-        updatedAt={usage.meta.generated_at}
-        language={i18n.language}
-        isFetching={isFetching}
-        onRefresh={handleRefresh}
       />
 
       <AnalyticsKpiCards usage={usage} />
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      {/* 较窄的桌面宽度下趋势图与排行榜 2:1，足够宽时 3:1，排行榜里的名字不被截断 */}
+      <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-4">
         <AnalyticsTrendPanel
-          className="h-[420px] xl:col-span-3"
+          className="h-[420px] xl:col-span-2 2xl:col-span-3"
           usage={usage}
           metric={trendMetric}
           dimension={trendDimension}
@@ -412,7 +421,7 @@ function AnalyticsSkeleton({ isMobile }: { isMobile: boolean }) {
           </div>
           <div className="flex min-h-0 items-center gap-6">
             <Skeleton className="aspect-square w-[clamp(160px,30%,240px)] shrink-0 rounded-full" />
-            <div className="min-w-0 flex-1 divide-y divide-[hsl(var(--glass-divider))]">
+            <div className="min-w-0 flex-1 divide-y divide-separator">
               {Array.from({ length: 5 }).map((_, index) => (
                 <div key={index} className="flex items-center gap-2 py-2 first:pt-0 last:pb-0">
                   <Skeleton className="size-2 shrink-0 rounded-sm" />
@@ -515,7 +524,7 @@ function MobileAnalyticsSkeleton() {
           <Skeleton className="h-5 w-28" />
         </div>
         <Skeleton className="mx-auto size-[150px] rounded-full" />
-        <div className="mt-3 divide-y divide-[hsl(var(--glass-divider))]">
+        <div className="mt-3 divide-y divide-separator">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="flex items-center gap-1.5 py-2 first:pt-0 last:pb-0">
               <Skeleton className="size-2 shrink-0 rounded-sm" />

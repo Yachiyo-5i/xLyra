@@ -24,8 +24,8 @@ export function AnalyticsPanel({
     <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          {description ? <p className="text-sm text-muted-soft">{description}</p> : null}
+          <h3 className="text-headline text-label">{title}</h3>
+          {description ? <p className="text-footnote text-label-3">{description}</p> : null}
         </div>
         {action ? <div className="flex flex-wrap items-center gap-2">{action}</div> : null}
       </div>
@@ -47,7 +47,7 @@ export function AnalyticsSlashTabs<T extends string>({
     <Tabs variant="slash" value={value} onValueChange={(next) => onValueChange(next as T)}>
       <TabsList>
         {items.map((item) => (
-          <TabsTrigger key={item.value} value={item.value} className="text-sm">
+          <TabsTrigger key={item.value} value={item.value}>
             {item.label}
           </TabsTrigger>
         ))}
