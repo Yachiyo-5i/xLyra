@@ -174,7 +174,7 @@ export const MobileModelsPriceList = forwardRef<
 
   if (loading && groups.length === 0) {
     return (
-      <p className="px-1 py-8 text-sm text-muted-soft">
+      <p className="px-1 py-8 text-body text-label-2">
         {t('modelsPrice.loading')}
       </p>
     )
@@ -192,7 +192,7 @@ export const MobileModelsPriceList = forwardRef<
   if (siteGroup) {
     return (
       <div className="space-y-3">
-        <article className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))] shadow-[var(--button-secondary-shadow)]">
+        <article className="overflow-hidden rounded-card mat-regular">
           <button
             type="button"
             className="flex w-full items-start gap-3 p-3 text-left focus:outline-none focus-visible:outline-none focus-visible:ring-0"
@@ -208,19 +208,19 @@ export const MobileModelsPriceList = forwardRef<
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-2">
                 <h3
-                  className="min-w-0 flex-1 truncate text-base font-semibold text-foreground"
+                  className="min-w-0 flex-1 truncate text-headline text-label"
                   title={siteGroup.siteName}
                 >
                   {siteGroup.siteName}
                 </h3>
                 <ChevronDown
                   className={cn(
-                    'h-4 w-4 shrink-0 text-muted-soft transition-transform',
+                    'h-4 w-4 shrink-0 text-label-2 transition-transform',
                     siteExpanded && 'rotate-180',
                   )}
                 />
               </div>
-              <p className="mt-1 truncate text-xs text-muted-soft">
+              <p className="mt-1 truncate text-footnote text-label-2">
                 {t('modelsPrice.siteView.summary', {
                   total: siteGroup.totalCount,
                   manual: siteGroup.manualCount,
@@ -229,7 +229,7 @@ export const MobileModelsPriceList = forwardRef<
             </div>
           </button>
 
-          <div className="mb-3 grid grid-cols-3 gap-2 px-3 text-xs">
+          <div className="mb-3 grid grid-cols-3 gap-2 px-3 text-footnote">
             <Metric
               label={t('modelsPrice.subtitle.sites', { count: 1 })}
               value={t('modelsPrice.siteView.modelCount', {
@@ -250,7 +250,7 @@ export const MobileModelsPriceList = forwardRef<
           {siteGroup.manualCount > 0 && onResetSite ? (
             <div className="flex justify-end px-3 pb-3">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="gap-1.5"
                 onClick={() => setResetSiteTarget(siteGroup.siteId)}
@@ -262,7 +262,7 @@ export const MobileModelsPriceList = forwardRef<
           ) : null}
 
           {siteExpanded ? (
-            <div className="border-t border-[hsl(var(--glass-divider))] bg-[hsl(var(--surface-subtle)/0.12)]">
+            <div className="border-t border-separator bg-fill-4">
               {siteGroup.rows.length === 0 ? (
                 <div className="px-3 py-6">
                   <EmptyState
@@ -271,7 +271,7 @@ export const MobileModelsPriceList = forwardRef<
                   />
                 </div>
               ) : (
-                <div className="divide-y divide-[hsl(var(--glass-divider))] px-3">
+                <div className="divide-y divide-separator px-3">
                   {siteGroup.rows.map((row) => {
                     const rowKey = siteRowDraftKey(row)
                     const rowFallback = createDraftFromPricing(row)
@@ -289,13 +289,13 @@ export const MobileModelsPriceList = forwardRef<
                             />
                             <div className="min-w-0">
                               <p
-                                className="truncate text-sm font-semibold text-foreground"
+                                className="truncate text-headline text-label"
                                 title={row.displayKey}
                               >
                                 {row.displayKey}
                               </p>
                               <span
-                                className="mt-0.5 block min-w-0 truncate text-xs text-muted-soft"
+                                className="mt-0.5 block min-w-0 truncate text-footnote text-label-2"
                                 title={row.model.upstream_model_name}
                               >
                                 {row.model.upstream_model_name}
@@ -322,7 +322,7 @@ export const MobileModelsPriceList = forwardRef<
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 gap-1 px-1.5 text-xs"
+                                className="h-6 gap-1 px-1.5 text-footnote"
                                 disabled={rowPending}
                                 title={t('modelsPrice.resetTooltip')}
                                 onClick={() => setResetTarget(row)}
@@ -425,7 +425,7 @@ export const MobileModelsPriceList = forwardRef<
         return (
           <article
             key={group.id}
-            className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))] shadow-[var(--button-secondary-shadow)]"
+            className="overflow-hidden rounded-card mat-regular"
           >
             <button
               type="button"
@@ -444,20 +444,20 @@ export const MobileModelsPriceList = forwardRef<
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <h3
-                    className="min-w-0 flex-1 truncate text-base font-semibold text-foreground"
+                    className="min-w-0 flex-1 truncate text-headline text-label"
                     title={group.modelKey}
                   >
                     {group.modelKey}
                   </h3>
                   <ChevronDown
                     className={cn(
-                      'h-4 w-4 shrink-0 text-muted-soft transition-transform',
+                      'h-4 w-4 shrink-0 text-label-2 transition-transform',
                       expanded && 'rotate-180',
                     )}
                   />
                 </div>
                 <p
-                  className="mt-1 truncate text-xs text-muted-soft"
+                  className="mt-1 truncate text-footnote text-label-2"
                   title={pricingSummary(group, t)}
                 >
                   {pricingSummary(group, t)}
@@ -465,7 +465,7 @@ export const MobileModelsPriceList = forwardRef<
               </div>
             </button>
 
-            <div className="mb-3 grid grid-cols-3 gap-2 px-3 text-xs">
+            <div className="mb-3 grid grid-cols-3 gap-2 px-3 text-footnote">
               <Metric
                 label={t('modelsPrice.subtitle.sites', {
                   count: group.uniqueSiteCount,
@@ -486,14 +486,14 @@ export const MobileModelsPriceList = forwardRef<
             </div>
 
             {expanded ? (
-              <div className="border-t border-[hsl(var(--glass-divider))] bg-[hsl(var(--surface-subtle)/0.12)]">
+              <div className="border-t border-separator bg-fill-4">
                 <div className="p-3">
-                  <div className="rounded-lg bg-[hsl(var(--card)/0.36)] p-3">
+                  <div className="rounded-inner bg-fill-3 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-headline text-label">
                         {t('modelsPrice.batchEdit')}
                       </p>
-                      <span className="shrink-0 text-xs text-muted-soft">
+                      <span className="shrink-0 text-footnote text-label-2">
                         {t('modelsPrice.subtitle.editable', {
                           count: group.editableCount,
                         })}
@@ -514,7 +514,7 @@ export const MobileModelsPriceList = forwardRef<
                       }
                     />
                     {bulkDisabled ? (
-                      <p className="mt-2 text-xs text-muted-soft">
+                      <p className="mt-2 text-footnote text-label-2">
                         {!group.canonicalModelId
                           ? t('modelsPrice.badges.noBatchTooltip')
                           : t('modelsPrice.badges.noEditableTooltip')}
@@ -524,7 +524,7 @@ export const MobileModelsPriceList = forwardRef<
                 </div>
 
                 <div className="px-3 pb-3">
-                  <div className="divide-y divide-[hsl(var(--glass-divider))] rounded-lg bg-[hsl(var(--card)/0.18)] px-3">
+                  <div className="divide-y divide-separator rounded-inner bg-fill-4 px-3">
                     {group.rows.map((row) => {
                       const rowKey = rowDraftKey(row)
                       const rowFallback = createDraftFromPricing(row)
@@ -537,12 +537,12 @@ export const MobileModelsPriceList = forwardRef<
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p
-                                className="truncate text-sm font-semibold text-foreground"
+                                className="truncate text-headline text-label"
                                 title={row.site.name}
                               >
                                 {row.site.name}
                               </p>
-                              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-soft">
+                              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-footnote text-label-2">
                                 <span
                                   className="min-w-0 truncate"
                                   title={row.model.upstream_model_name}
@@ -621,13 +621,13 @@ function Metric({
 }) {
   return (
     <div className="min-w-0 px-2 py-2">
-      <span className="block truncate text-[11px] text-muted-soft">
+      <span className="block truncate text-[11px] text-label-2">
         {label}
       </span>
       <span
         className={cn(
-          'mt-1 block truncate font-semibold tabular-nums text-foreground',
-          tone === 'warning' && 'text-amber-600',
+          'mt-1 block truncate font-semibold tabular-nums text-label',
+          tone === 'warning' && 'text-warning',
         )}
       >
         {value}
@@ -644,21 +644,21 @@ function MobileCredentialPricings({
   const { t } = useTranslation('settings')
   if (!items?.length) return null
   return (
-    <div className="mt-3 space-y-2 border-t border-[hsl(var(--glass-divider))] pt-3">
+    <div className="mt-3 space-y-2 border-t border-separator pt-3">
       {items.map((item) => (
         <div
           key={item.credential_id}
-          className="rounded-md bg-[hsl(var(--surface-subtle)/0.58)] px-3 py-2.5"
+          className="rounded-control bg-fill-4 px-3 py-2.5"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div
-                className="truncate text-xs font-medium text-foreground"
+                className="truncate text-footnote font-medium text-label"
                 title={item.credential_name}
               >
                 {item.credential_name}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted-soft">
+              <div className="mt-0.5 text-[11px] text-label-2">
                 x{item.group_ratio}
               </div>
             </div>
@@ -674,7 +674,7 @@ function MobileCredentialPricings({
                 : t('common:status.disabled')}
             </Badge>
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-muted-soft">
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-label-2">
             <MobileCredentialValue
               label={t('modelsPrice.headers.inputPrice')}
               value={item.input_value ?? item.per_request_value}
@@ -700,7 +700,7 @@ function MobileCredentialValue({
   return (
     <div className="flex min-w-0 justify-between gap-2">
       <span className="truncate">{label}</span>
-      <span className="shrink-0 tabular-nums text-foreground">
+      <span className="shrink-0 tabular-nums text-label">
         {typeof value === 'number'
           ? value.toLocaleString(undefined, { maximumFractionDigits: 6 })
           : '-'}
@@ -736,7 +736,7 @@ function PriceEditor({
       {compact ? (
         <div className="grid grid-cols-3 gap-2">
           <span className="min-w-0">
-            <span className="mb-1 block truncate text-[11px] text-muted-soft">
+            <span className="mb-1 block truncate text-[11px] text-label-2">
               {t('modelsPrice.headers.billing')}
             </span>
             <Select
@@ -874,7 +874,7 @@ function PriceInput({
 }) {
   return (
     <label className="min-w-0">
-      <span className="mb-1 block truncate text-[11px] text-muted-soft">
+      <span className="mb-1 block truncate text-[11px] text-label-2">
         {label}
       </span>
       <Input
@@ -883,7 +883,7 @@ function PriceInput({
         disabled={disabled}
         inputMode="decimal"
         placeholder="$"
-        className={cn('px-2 text-sm', compact ? 'h-9' : 'h-10')}
+        className={cn('px-2 text-body', compact ? 'h-9' : 'h-10')}
       />
     </label>
   )
@@ -902,10 +902,10 @@ function ProviderMark({
   return (
     <span
       className={cn(
-        'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md',
+        'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-control',
         !entry
-          ? 'bg-[hsl(var(--primary)/0.18)] text-primary'
-          : 'bg-[hsl(var(--surface-subtle))]',
+          ? 'bg-tint/18 text-tint'
+          : 'bg-fill-3',
       )}
     >
       {entry?.iconPath ? (
@@ -917,8 +917,8 @@ function ProviderMark({
       ) : (
         <span
           className={cn(
-            !entry ? 'text-primary' : 'text-foreground',
-            'text-xs font-semibold',
+            !entry ? 'text-tint' : 'text-label',
+            'text-footnote font-semibold',
           )}
         >
           {buildModelGlyph(modelKey)}
