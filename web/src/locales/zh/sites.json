@@ -33,7 +33,10 @@
       "refreshPartialDescFallback": "部分站点刷新失败",
       "statusFailed": "站点状态更新失败",
       "syncQueued": "已保存，正在后台同步"
-    }
+    },
+    "count": "共 {{count}} 个站点",
+    "clearFilters": "清除筛选",
+    "typeFilter": "类型"
   },
   "table": {
     "headers": {

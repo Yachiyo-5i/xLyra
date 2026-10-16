@@ -39,7 +39,7 @@ export function SiteBalanceDetailsContent({ site, apiKeys = [] }: { site: Site; 
         {details.map((detail, index) => (
           <div key={`${detail.label}-${index}`} className="contents">
             <span className="text-muted-foreground">{detail.labelText ?? t(`table.quotaDetails.${detail.label}`)}</span>
-            <span className="text-foreground tabular-nums">{detailValue(detail)}</span>
+            <span className="text-label tabular-nums">{detailValue(detail)}</span>
           </div>
         ))}
       </div>
@@ -47,7 +47,7 @@ export function SiteBalanceDetailsContent({ site, apiKeys = [] }: { site: Site; 
   }
 
   return (
-    <div className="divide-y divide-[hsl(var(--glass-divider))] text-left">
+    <div className="divide-y divide-separator text-left">
       {keyDetails.map(({ apiKey, details: apiKeyDetails }) => {
         const probe = apiKey.quota_probe
         const expiresAt = probe?.expires_at ? formatDateTime(probe.expires_at, i18n.language, 'h23') : ''
@@ -57,29 +57,29 @@ export function SiteBalanceDetailsContent({ site, apiKeys = [] }: { site: Site; 
         return (
           <div key={apiKey.id} className="py-2 first:pt-0 last:pb-0">
             <div className="flex min-w-0 items-center justify-between gap-3">
-              <span className="truncate text-foreground">{keyName || apiKey.key}</span>
+              <span className="truncate text-label">{keyName || apiKey.key}</span>
               {apiKey.group ? <span className="shrink-0 text-muted-foreground">{apiKey.group}</span> : null}
             </div>
             {keyName ? <div className="truncate font-mono text-muted-foreground">{apiKey.key}</div> : null}
-            {failure ? <div className="mt-1 text-amber-400">{failure}</div> : null}
+            {failure ? <div className="mt-1 text-warning">{failure}</div> : null}
             {plan || expiresAt || apiKeyDetails.length > 0 ? (
               <div className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-0.5">
                 {plan ? (
                   <>
                     <span className="text-muted-foreground">{t('table.quotaDetails.plan')}</span>
-                    <span className="text-foreground">{plan}</span>
+                    <span className="text-label">{plan}</span>
                   </>
                 ) : null}
                 {apiKeyDetails.map((detail, index) => (
                   <div key={`${detail.label}-${index}`} className="contents">
                     <span className="text-muted-foreground">{detail.labelText ?? t(`table.quotaDetails.${detail.label}`)}</span>
-                    <span className="text-foreground tabular-nums">{detailValue(detail)}</span>
+                    <span className="text-label tabular-nums">{detailValue(detail)}</span>
                   </div>
                 ))}
                 {expiresAt ? (
                   <>
                     <span className="text-muted-foreground">{t('table.quotaDetails.expiresAt')}</span>
-                    <span className="text-foreground tabular-nums">{expiresAt}</span>
+                    <span className="text-label tabular-nums">{expiresAt}</span>
                   </>
                 ) : null}
               </div>
@@ -138,7 +138,7 @@ export function SiteBalanceCell({ site, apiKeys = [], className }: { site: Site;
       contentClassName="w-[440px]"
       content={<SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />}
     >
-      <span className={cn('text-sm text-foreground tabular-nums', className)}>{value}</span>
+      <span className={cn('text-body text-label tabular-nums', className)}>{value}</span>
     </HoverDetails>
   )
 }

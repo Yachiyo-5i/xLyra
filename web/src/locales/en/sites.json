@@ -33,7 +33,10 @@
       "refreshPartialDescFallback": "Some sites failed to refresh",
       "statusFailed": "Failed to update site status",
       "syncQueued": "Saved and syncing in the background"
-    }
+    },
+    "count": "{{count}} sites",
+    "clearFilters": "Clear filters",
+    "typeFilter": "Type"
   },
   "table": {
     "headers": {

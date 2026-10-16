@@ -10,8 +10,10 @@ import { LoaderCircle, Plus, RotateCcw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogBody,
@@ -836,12 +838,13 @@ export function SitesWorkspace({
         placeholder={t('page.search')}
         className="pl-10"
       />
-      <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+      <Search className="text-label-3 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
     </div>
   )
 
   const tabControls = (
-    <div className="min-w-0 overflow-x-auto">
+    // 类型较多时横向滚动：右侧淡出提示还有更多，末尾留白让最后一项能完整滑出
+    <div className="scrollbar-hidden min-w-0 overflow-x-auto pr-8 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)]">
       <Tabs value={effectiveTypeTab} onValueChange={setTypeTab}>
         <TabsList className="inline-flex w-max">
           <TabsTrigger value="all">{t('page.all')}</TabsTrigger>
@@ -897,10 +900,13 @@ export function SitesWorkspace({
     isMobile ? (
       <MobileSitesList {...tableProps} />
     ) : (
-      <SitesTable
-        {...tableProps}
-        className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1120px]"
-      />
+      // 表格放在 thick 卡片里，卡片占满剩余高度，表格在内部滚动
+      <Card material="thick" className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <SitesTable
+          {...tableProps}
+          className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1120px]"
+        />
+      </Card>
     )
   ) : (
     <EmptyState
@@ -921,37 +927,59 @@ export function SitesWorkspace({
         />
       </div>
 
-      <div className="sticky top-0 z-20 -mx-1">
-        <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-          <div className="flex items-center gap-2">
-            {searchControl}
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-10 w-10 shrink-0 bg-[hsl(var(--card)/0.34)] backdrop-blur-[24px] hover:bg-[hsl(var(--card)/0.46)]"
-              onClick={() => refreshAllMutation.mutate()}
-              disabled={refreshAllMutation.isPending}
-              aria-label={t('page.refreshAll')}
-            >
-              {refreshAllMutation.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <RotateCcw className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          <div className="mt-2">{tabControls}</div>
-        </div>
-      </div>
+      {/* 移动端筛选区：不吸顶、不套方框 */}
+      <MobileFilterBar
+        search={{
+          value: effectiveSearch,
+          onChange: (event) => {
+            setURLSiteFilterActive(false)
+            setSearch(event.target.value)
+          },
+          placeholder: t('page.search'),
+        }}
+        actions={
+          <Button
+            variant="secondary"
+            size="icon"
+            className="rounded-full"
+            onClick={() => refreshAllMutation.mutate()}
+            disabled={refreshAllMutation.isPending}
+            aria-label={t('page.refreshAll')}
+          >
+            {refreshAllMutation.isPending ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+          </Button>
+        }
+        // 站点页只有「类型」一个分类维度：用与桌面一致的横条（可横向滑动、右侧渐隐），一点即切
+        segments={tabControls}
+        summary={
+          <>
+            <span className="tabular-nums">{t('page.count', { count: filteredSites.length })}</span>
+            {effectiveSearch || effectiveTypeTab !== 'all' ? (
+              <button
+                type="button"
+                className="text-label-2 transition-colors active:text-label"
+                onClick={() => {
+                  setURLSiteFilterActive(false)
+                  setSearch('')
+                  setTypeTab('all')
+                }}
+              >
+                {t('page.clearFilters')}
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {content}
 
+      {/* 悬浮添加按钮：56 强调色圆形，停在 Tab Bar 上方并留出间距 */}
       <Button
-        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] right-5 z-20 h-12 w-12 rounded-full p-0 shadow-[0_18px_34px_rgba(15,23,42,0.22)]"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
         onClick={openCreateSheet}
         aria-label={t('page.addSite')}
       >
-        <Plus className="h-5 w-5" />
+        <Plus />
       </Button>
     </div>
   ) : (
@@ -1126,7 +1154,7 @@ export function SitesWorkspace({
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('page.deleteDialog.title')}</DialogTitle>
           </DialogHeader>
-          <DialogBody className="pt-0 text-sm text-muted-soft">
+          <DialogBody className="pt-0 text-body text-label-2">
             <DialogDescription className="mt-0">
               {deleteTargetSite
                 ? t('page.deleteDialog.confirm', {

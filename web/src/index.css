@@ -537,6 +537,24 @@ body[data-scroll-locked] {
   height: 100%;
 }
 
+/* 表格里固定在右侧的列（如操作列）：横向滚动时停在可见区域右端。
+   底色与 thick 卡片合成后的颜色一致，左侧一道淡阴影提示下面还有内容；行悬停时同步提亮 */
+.table-sticky-end {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background-color: rgb(21 22 27);
+  box-shadow: -14px 0 14px -14px rgb(0 0 0 / 0.7);
+}
+
+thead .table-sticky-end {
+  z-index: 2;
+}
+
+tr:hover > .table-sticky-end {
+  background-color: rgb(28 29 34);
+}
+
 /* 背景（L0）：纯色、不做渐变光与动画。保留独立图层，便于统一调整 */
 .ambient-background {
   content: "";

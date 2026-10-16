@@ -33,7 +33,10 @@
       "refreshPartialDescFallback": "一部のサイト更新に失敗しました",
       "statusFailed": "サイト状態の更新に失敗しました",
       "syncQueued": "保存しました。バックグラウンドで同期しています"
-    }
+    },
+    "count": "{{count}} 件のサイト",
+    "clearFilters": "絞り込みを解除",
+    "typeFilter": "タイプ"
   },
   "table": {
     "headers": {
