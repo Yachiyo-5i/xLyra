@@ -118,7 +118,7 @@ export function AuditLogsPage() {
       accessorKey: 'request_id',
       header: t('headers.requestId'),
       cell: ({ row }) => (
-        <div className="truncate font-mono text-xs" title={row.original.request_id}>
+        <div className="truncate font-mono text-footnote" title={row.original.request_id}>
           {row.original.request_id || '-'}
         </div>
       ),
@@ -149,7 +149,7 @@ export function AuditLogsPage() {
         setPage(1)
       }}
       disabled={auditQuery.isFetching}
-      className={isMobile ? 'mt-3 justify-end border-t border-[hsl(var(--glass-divider))] pb-2 pt-3' : 'shrink-0 justify-end'}
+      className={isMobile ? 'mt-3 justify-end border-t border-separator pb-2 pt-3' : 'shrink-0 justify-end'}
     />
   )
 
@@ -263,7 +263,7 @@ export function AuditLogsPage() {
             <DrawBody className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t('filters.dateFrom')}</label>
+                  <label className="text-body font-medium text-label">{t('filters.dateFrom')}</label>
                   <DatePicker
                     value={dateFrom}
                     onValueChange={(date) => {
@@ -277,7 +277,7 @@ export function AuditLogsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t('filters.dateTo')}</label>
+                  <label className="text-body font-medium text-label">{t('filters.dateTo')}</label>
                   <DatePicker
                     value={dateTo}
                     onValueChange={(date) => {
@@ -293,7 +293,7 @@ export function AuditLogsPage() {
               </div>
             </DrawBody>
             <DrawFooter className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" onClick={clearFilters} disabled={!hasFilters}>
+              <Button type="button" variant="secondary" onClick={clearFilters} disabled={!hasFilters}>
                 <X className="h-4 w-4" />
                 {t('filters.clearFilters')}
               </Button>
@@ -372,7 +372,7 @@ export function AuditLogsPage() {
           </>
         )}
         actions={hasFilters ? (
-          <Button type="button" variant="outline" onClick={clearFilters}>
+          <Button type="button" variant="secondary" onClick={clearFilters}>
             <X className="h-4 w-4" />
             {t('filters.clearFilters')}
           </Button>
@@ -415,13 +415,13 @@ function MobileAuditCard({
   t: TFunction
 }) {
   return (
-    <article className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))] p-3 shadow-[var(--button-secondary-shadow)]">
+    <article className="mat-regular rounded-card p-4">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-semibold text-foreground" title={actionLabel}>{actionLabel}</div>
+          <div className="truncate text-headline text-label" title={actionLabel}>{actionLabel}</div>
           <div className="mt-1.5 flex min-w-0 items-center gap-2">
             <StatusBadge status="idle" className="shrink-0 px-1.5 py-0 text-[11px]">{actorLabel}</StatusBadge>
-            <span className="min-w-0 truncate text-xs text-muted-soft">{timeLabel}</span>
+            <span className="min-w-0 truncate text-footnote text-label-2">{timeLabel}</span>
           </div>
         </div>
         <StatusBadge status={item.success ? 'success' : 'warning'} className="shrink-0">
@@ -429,7 +429,7 @@ function MobileAuditCard({
         </StatusBadge>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-footnote">
         <MobileField icon={UserRound} label={t('headers.actor')} value={actorLabel} />
         <MobileField icon={Shield} label={t('headers.result')} value={item.success ? t('filters.success') : item.error_code || t('filters.failure')} />
         <MobileField icon={MapPin} label={t('headers.ip')} value={ipLabel} />
@@ -452,11 +452,11 @@ function MobileField({
 }) {
   return (
     <div className="min-w-0 px-1 py-1">
-      <span className="flex items-center gap-1.5 text-[11px] text-muted-soft">
+      <span className="flex items-center gap-1.5 text-[11px] text-label-2">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </span>
-      <span className={`mt-1 block truncate font-medium text-foreground ${mono ? 'font-mono text-[11px]' : 'tabular-nums'}`} title={value}>{value}</span>
+      <span className={`mt-1 block truncate font-medium text-label ${mono ? 'font-mono text-[11px]' : 'tabular-nums'}`} title={value}>{value}</span>
     </div>
   )
 }
