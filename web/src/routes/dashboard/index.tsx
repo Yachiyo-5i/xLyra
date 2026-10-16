@@ -362,7 +362,11 @@ export function DashboardPage() {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-2">
-          <SiteUptimeStrip sites={uptimeRows} />
+          {/* 站点可用性不撑高这一行：并排时绝对定位填满格子，行高只由系统资源卡片决定，站点多了在卡片内部滚动；
+              单列时没有参照，限高 480 */}
+          <div className="relative min-w-0">
+            <SiteUptimeStrip sites={uptimeRows} className="max-h-[480px] xl:absolute xl:inset-0 xl:max-h-none" />
+          </div>
           <SystemResourcePanel />
         </div>
       </div>

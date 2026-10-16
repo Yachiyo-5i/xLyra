@@ -149,9 +149,11 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
 function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint; t: (key: string) => string }) {
   if (!latest) return null
 
+  // 四项指标铺满卡片的可用高度：不加底色，用细分隔线分成田字格（窄屏单列、上下分隔）
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-2 sm:grid-rows-2">
       <ResourceOverviewItem
+        position="top-left"
         icon={Cpu}
         label="CPU"
         value={`${formatFixed(latest.cpu.usage_percent)}%`}
@@ -160,6 +162,7 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
         progress={latest.cpu.usage_percent}
       />
       <ResourceOverviewItem
+        position="top-right"
         icon={Database}
         label={t('resources.tabs.memory')}
         value={`${formatFixed(latest.memory.usage_percent)}%`}
@@ -168,6 +171,7 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
         progress={latest.memory.usage_percent}
       />
       <ResourceOverviewItem
+        position="bottom-left"
         icon={HardDrive}
         label={t('resources.tabs.disk')}
         value={`${formatFixed(latest.disk.usage_percent)}%`}
@@ -176,6 +180,7 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
         progress={latest.disk.usage_percent}
       />
       <ResourceOverviewItem
+        position="bottom-right"
         icon={Network}
         label={t('resources.tabs.network')}
         value={formatBytesPerSecond(latest.network.rx_bytes_per_sec + latest.network.tx_bytes_per_sec)}
@@ -188,7 +193,15 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
   )
 }
 
+const overviewCellClasses: Record<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', string> = {
+  'top-left': 'border-b sm:border-r sm:pr-5',
+  'top-right': 'border-b sm:pl-5',
+  'bottom-left': 'border-b sm:border-b-0 sm:border-r sm:pr-5',
+  'bottom-right': 'sm:pl-5',
+}
+
 function ResourceOverviewItem({
+  position,
   icon: Icon,
   label,
   value,
@@ -197,6 +210,7 @@ function ResourceOverviewItem({
   progress,
   children,
 }: {
+  position: keyof typeof overviewCellClasses
   icon: ComponentType<{ className?: string }>
   label: string
   value: string
@@ -206,23 +220,21 @@ function ResourceOverviewItem({
   children?: ReactNode
 }) {
   return (
-    <div className="flex flex-col rounded-lg bg-fill-4 p-3">
-      <div className="flex min-w-0 items-start justify-between gap-3">
+    <div className={cn('flex min-w-0 flex-col justify-center gap-2.5 border-separator py-4', overviewCellClasses[position])}>
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Icon className="h-4 w-4 shrink-0 text-label-2" />
-          <span className="text-body font-medium text-label">{label}</span>
+          <Icon className="size-4 shrink-0 text-label-3" />
+          <span className="text-footnote font-medium text-label-2">{label}</span>
         </div>
-        <span className="text-body font-semibold tabular-nums text-label">{value}</span>
+        <span className="font-mono text-[20px] font-semibold leading-6 tabular-nums text-label">{value}</span>
       </div>
-      <div className="mt-2 min-w-0 space-y-2">
-        <p className="truncate text-footnote text-label-2" title={description}>{description}</p>
-        {typeof progress === 'number' ? (
-          <Progress value={progress} thresholds={usageThresholds} className="h-1.5" />
-        ) : (
-          children
-        )}
-        <p className="truncate text-footnote text-label-2" title={caption}>{caption}</p>
-      </div>
+      <p className="truncate text-footnote text-label-2" title={description}>{description}</p>
+      {typeof progress === 'number' ? (
+        <Progress value={progress} thresholds={usageThresholds} className="h-1.5" />
+      ) : (
+        children
+      )}
+      <p className="truncate text-caption-1 text-label-3" title={caption}>{caption}</p>
     </div>
   )
 }
