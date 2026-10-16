@@ -362,7 +362,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
         />
 
         {expandedModelKey && !filteredOverviewItems.some((item) => item.canonical_model.model_key === expandedModelKey) ? (
-          <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))]">
+          <div className="overflow-hidden rounded-card mat-regular">
             {renderRouteDetails(undefined, true)}
           </div>
         ) : null}
@@ -380,7 +380,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-72 shrink-0">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-label/40" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -389,7 +389,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
           />
         </div>
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={refreshAll}
           disabled={overviewQuery.isFetching || selectionQuery.isFetching || tracesQuery.isFetching || cooldownsQuery.isFetching}
         >

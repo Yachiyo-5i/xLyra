@@ -33,8 +33,8 @@ export function RouteModelCard({
   return (
     <div
       className={cn(
-        'section-soft w-full rounded-lg transition-[background-color,border-color,box-shadow]',
-        expanded && 'border-[hsl(var(--primary)/0.45)] bg-[hsl(var(--surface-subtle))] shadow-sm',
+        'section-soft w-full rounded-inner transition-[background-color,border-color,box-shadow]',
+        expanded && 'border-tint/45 bg-fill-3 shadow-sm',
       )}
     >
       <button
@@ -42,7 +42,7 @@ export function RouteModelCard({
         onClick={onClick}
         className={cn(
           'flex w-full items-center gap-4 p-4 text-left transition-colors',
-          'hover:bg-[hsl(var(--surface-subtle)/0.5)]',
+          'hover:bg-fill-4',
         )}
       >
         <BrandMark
@@ -53,7 +53,7 @@ export function RouteModelCard({
         />
         <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold text-foreground" title={modelName}>
+            <div className="truncate text-headline text-label" title={modelName}>
               {modelName}
             </div>
             <div className="mt-1.5 flex flex-wrap gap-2">
@@ -74,7 +74,7 @@ export function RouteModelCard({
             {item.candidate_summary.cooldown_count > 0 ? (
               <Badge variant="warning">{t('card.cooldown', { count: item.candidate_summary.cooldown_count })}</Badge>
             ) : null}
-            <Chevron className="h-4 w-4 text-muted-soft" />
+            <Chevron className="h-4 w-4 text-label-2" />
           </div>
         </div>
       </button>
@@ -88,14 +88,14 @@ function SmallMetric({ label, value, tone = 'neutral', hint }: { label: string; 
     <div
       title={hint}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
+        'inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-footnote',
         tone === 'accent'
-          ? 'bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]'
-          : 'bg-[hsl(var(--surface-subtle))] text-muted-soft',
+          ? 'bg-tint/10 text-tint'
+          : 'bg-fill-3 text-label-2',
       )}
     >
       <span>{label}</span>
-      <span className="font-semibold text-foreground">{value}</span>
+      <span className="font-semibold text-label">{value}</span>
     </div>
   )
 }
