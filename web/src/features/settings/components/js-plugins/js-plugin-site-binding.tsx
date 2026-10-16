@@ -18,7 +18,7 @@ function SiteName({ site }: { site: Site }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       {icon ? <img src={icon} alt="" className="h-4 w-4 shrink-0 rounded-sm object-contain" /> : null}
-      <span className="truncate text-sm text-foreground">{site.name}</span>
+      <span className="truncate text-body text-label">{site.name}</span>
     </span>
   )
 }
@@ -54,15 +54,15 @@ export function JSPluginSiteBindingSection({
   const newSites = sites.filter((site) => binding.toBind.includes(site.id))
 
   return (
-    <section className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-4">
+    <section className="space-y-3 border-t border-separator pt-4">
       <div className="space-y-1">
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-        <p className="text-xs text-muted-soft">{hint}</p>
-        <p className="text-xs text-muted-soft">{t('settings:jsPlugins.siteBinding.optional')}</p>
+        <h4 className="text-headline text-label">{title}</h4>
+        <p className="text-footnote text-label-2">{hint}</p>
+        <p className="text-footnote text-label-2">{t('settings:jsPlugins.siteBinding.optional')}</p>
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-3 text-sm text-muted-soft">
+        <div className="flex items-center gap-2 py-3 text-body text-label-2">
           <LoaderCircle className="h-4 w-4 animate-spin" />
           {t('settings:jsPlugins.loading')}
         </div>
@@ -81,7 +81,7 @@ export function JSPluginSiteBindingSection({
       )}
 
       {binding.pricing && newSites.length > 0 ? (
-        <div className="divide-y divide-[hsl(var(--glass-divider))] border-t border-[hsl(var(--glass-divider))]">
+        <div className="divide-y divide-separator border-t border-separator">
           {newSites.map((site) => {
             const summary = binding.previews[site.id]
             return (
@@ -91,7 +91,7 @@ export function JSPluginSiteBindingSection({
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     className="shrink-0"
                     disabled={binding.previewing !== null || binding.applying}
                     onClick={() => void binding.preview(site.id)}
@@ -104,7 +104,7 @@ export function JSPluginSiteBindingSection({
                   </Button>
                 </div>
                 {summary ? (
-                  <p className="mt-1 text-xs text-muted-soft">{t('settings:jsPlugins.pricingPreviewSummary', summary)}</p>
+                  <p className="mt-1 text-footnote text-label-2">{t('settings:jsPlugins.pricingPreviewSummary', summary)}</p>
                 ) : null}
               </div>
             )

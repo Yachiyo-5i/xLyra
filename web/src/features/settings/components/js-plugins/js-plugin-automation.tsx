@@ -202,7 +202,7 @@ export function JSPluginAutomationSection({
               </SelectContent>
             </Select>
           )}
-          {!loading && options.length === 0 ? <p className="text-xs text-muted-soft">{emptyOptions}</p> : null}
+          {!loading && options.length === 0 ? <p className="text-footnote text-label-2">{emptyOptions}</p> : null}
         </FormField>
       )
     }
@@ -329,13 +329,13 @@ export function JSPluginAutomationSection({
   }
 
   return (
-    <section className="space-y-4 border-t border-[hsl(var(--glass-divider))] pt-4">
+    <section className="space-y-4 border-t border-separator pt-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-          <p className="text-xs text-muted-soft">{description}</p>
+          <h4 className="text-headline text-label">{title}</h4>
+          <p className="text-footnote text-label-2">{description}</p>
           {manifest.schedule?.everyMinutes ? (
-            <p className="text-xs text-muted-soft">
+            <p className="text-footnote text-label-2">
               {t('settings:jsPlugins.automation.schedule', { minutes: manifest.schedule.everyMinutes })}
             </p>
           ) : null}
@@ -343,7 +343,7 @@ export function JSPluginAutomationSection({
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="secondary"
           className="shrink-0"
           onClick={() => setForm({ editing: null, values: initialValues(manifest) })}
         >
@@ -353,22 +353,22 @@ export function JSPluginAutomationSection({
       </div>
 
       {automationsQuery.isLoading ? (
-        <div className="flex items-center gap-2 py-3 text-sm text-muted-soft">
+        <div className="flex items-center gap-2 py-3 text-body text-label-2">
           <LoaderCircle className="h-4 w-4 animate-spin" />
           {t('settings:jsPlugins.loading')}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-soft">{emptyText}</p>
+        <p className="text-body text-label-2">{emptyText}</p>
       ) : (
-        <ul className="divide-y divide-[hsl(var(--glass-divider))]">
+        <ul className="divide-y divide-separator">
           {items.map((item) => {
             const { heading, rest } = describe(item)
             return (
               <li key={item.id} className="flex items-start justify-between gap-3 py-3">
                 <div className="min-w-0 space-y-1">
-                  <div className="truncate text-sm font-medium text-foreground">{heading}</div>
+                  <div className="truncate text-body font-medium text-label">{heading}</div>
                   {rest.map((line) => (
-                    <p key={line} className="break-words text-xs text-muted-soft">
+                    <p key={line} className="break-words text-footnote text-label-2">
                       {line}
                     </p>
                   ))}
@@ -409,7 +409,7 @@ export function JSPluginAutomationSection({
           <DialogBody className="space-y-4">{form ? manifest.inputs.map((input) => renderInput(input, form)) : null}</DialogBody>
           <DialogFooter
             cancel={
-              <Button type="button" variant="outline" onClick={() => setForm(null)} disabled={saveMutation.isPending}>
+              <Button type="button" variant="secondary" onClick={() => setForm(null)} disabled={saveMutation.isPending}>
                 {t('common:actions.cancel')}
               </Button>
             }
@@ -423,21 +423,21 @@ export function JSPluginAutomationSection({
       </Dialog>
 
       <div className="space-y-2">
-        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-soft">
+        <h5 className="text-footnote font-semibold uppercase tracking-wide text-label-2">
           {t('settings:jsPlugins.automation.log.title')}
         </h5>
         {(logQuery.data ?? []).length === 0 ? (
-          <p className="text-sm text-muted-soft">{t('settings:jsPlugins.automation.log.empty')}</p>
+          <p className="text-body text-label-2">{t('settings:jsPlugins.automation.log.empty')}</p>
         ) : (
           <ul className="space-y-1.5">
             {(logQuery.data ?? []).slice(0, 10).map((entry) => (
-              <li key={entry.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                <span className="tabular-nums text-muted-soft">{formatTime(entry.created_at)}</span>
+              <li key={entry.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-footnote">
+                <span className="tabular-nums text-label-2">{formatTime(entry.created_at)}</span>
                 <StatusBadge status={entry.status === 'applied' ? 'success' : entry.status === 'failed' ? 'error' : 'idle'}>
                   {statusLabel(entry.status)}
                 </StatusBadge>
-                <span className="text-foreground">{actionLabel(entry)}</span>
-                {entry.detail ? <span className="break-words text-muted-soft">{entry.detail}</span> : null}
+                <span className="text-label">{actionLabel(entry)}</span>
+                {entry.detail ? <span className="break-words text-label-2">{entry.detail}</span> : null}
               </li>
             ))}
           </ul>

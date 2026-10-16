@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { KeyRound, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
+import { Card } from '@/components/ui/card'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
@@ -451,7 +452,7 @@ export function JSPluginsSettingsWorkspace() {
         id: 'name',
         header: t('settings:jsPlugins.columns.name'),
         cell: ({ row }) => (
-          <div className="truncate font-medium text-foreground" title={row.original.name}>
+          <div className="truncate font-medium text-label" title={row.original.name}>
             {row.original.name || '—'}
           </div>
         ),
@@ -461,7 +462,7 @@ export function JSPluginsSettingsWorkspace() {
         id: 'id',
         header: t('settings:jsPlugins.columns.id'),
         cell: ({ row }) => (
-          <div className="truncate font-mono text-xs text-muted-soft" title={row.original.id}>
+          <div className="truncate font-mono text-footnote text-label-2" title={row.original.id}>
             {row.original.id}
           </div>
         ),
@@ -470,7 +471,7 @@ export function JSPluginsSettingsWorkspace() {
       {
         id: 'kind',
         header: t('settings:jsPlugins.columns.kind'),
-        cell: ({ row }) => <span className="text-sm">{kindLabel(t, row.original.kind ?? '')}</span>,
+        cell: ({ row }) => <span className="text-body">{kindLabel(t, row.original.kind ?? '')}</span>,
         meta: { align: 'center' },
       },
       {
@@ -480,7 +481,7 @@ export function JSPluginsSettingsWorkspace() {
           row.original.enabled_version ? (
             <StatusBadge status="success">{row.original.enabled_version}</StatusBadge>
           ) : (
-            <span className="text-sm text-muted-soft">—</span>
+            <span className="text-body text-label-2">—</span>
           ),
         meta: { align: 'center' },
       },
@@ -488,7 +489,7 @@ export function JSPluginsSettingsWorkspace() {
         id: 'metrics_24h',
         header: t('settings:jsPlugins.columns.metrics24h'),
         cell: ({ row }) => (
-          <span className="text-sm tabular-nums text-muted-soft">{formatMetrics24h(t, row.original.metrics_24h)}</span>
+          <span className="text-body tabular-nums text-label-2">{formatMetrics24h(t, row.original.metrics_24h)}</span>
         ),
         meta: { align: 'center' },
       },
@@ -497,13 +498,13 @@ export function JSPluginsSettingsWorkspace() {
         header: '',
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => openManage(row.original)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => openManage(row.original)}>
               {t('settings:jsPlugins.manageVersions')}
             </Button>
             {row.original.enabled_version ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={busy}
                 onClick={() => disablePlugin(row.original.id)}
@@ -513,9 +514,9 @@ export function JSPluginsSettingsWorkspace() {
             ) : (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                className="text-[hsl(var(--destructive))]"
+                className="text-danger"
                 disabled={busy}
                 onClick={() => requestUninstall(row.original)}
               >
@@ -554,7 +555,7 @@ export function JSPluginsSettingsWorkspace() {
         title={t('settings:jsPlugins.title')}
         description={t('settings:jsPlugins.description')}
         actions={
-          <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={busy}>
+          <Button type="button" variant="secondary" size="sm" onClick={refresh} disabled={busy}>
             <RefreshCw
               className={cn(
                 'mr-2 h-4 w-4',
@@ -569,14 +570,14 @@ export function JSPluginsSettingsWorkspace() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h3 className="text-sm font-semibold text-foreground">{t('settings:jsPlugins.uploadedTitle')}</h3>
-            <p className="text-sm text-muted-soft">{t('settings:jsPlugins.uploadedHint')}</p>
+            <h3 className="text-headline text-label">{t('settings:jsPlugins.uploadedTitle')}</h3>
+            <p className="text-body text-label-2">{t('settings:jsPlugins.uploadedHint')}</p>
           </div>
           {!uploadedUnavailable ? (
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={busy}
                 onClick={() => setTrustedKeysOpen(true)}
@@ -603,7 +604,7 @@ export function JSPluginsSettingsWorkspace() {
                   plugin.enabled_version ? (
                     <StatusBadge status="success">{plugin.enabled_version}</StatusBadge>
                   ) : (
-                    <span className="text-muted-soft">—</span>
+                    <span className="text-label-2">—</span>
                   )
                 }
                 metrics={formatMetrics24h(t, plugin.metrics_24h)}
@@ -614,19 +615,19 @@ export function JSPluginsSettingsWorkspace() {
                 }}
                 actions={
                   <>
-                    <Button type="button" variant="outline" size="sm" onClick={() => openManage(plugin)}>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => openManage(plugin)}>
                       {t('settings:jsPlugins.manageVersions')}
                     </Button>
                     {plugin.enabled_version ? (
-                      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => disablePlugin(plugin.id)}>
+                      <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => disablePlugin(plugin.id)}>
                         {t('settings:jsPlugins.disable')}
                       </Button>
                     ) : (
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
-                        className="text-[hsl(var(--destructive))]"
+                        className="text-danger"
                         disabled={busy}
                         onClick={() => requestUninstall(plugin)}
                       >
@@ -639,25 +640,27 @@ export function JSPluginsSettingsWorkspace() {
             ))}
           </MobileCardList>
         ) : (
-          <DataTable
-            columnSizing={UPLOADED_COLUMN_SIZING}
-            columns={uploadedColumns}
-            data={uploadedUnavailable ? [] : uploadedQuery.data ?? []}
-            getRowId={(plugin) => plugin.id}
-            emptyState={
-              <EmptyState
-                title={
-                  uploadedUnavailable
-                    ? t('settings:jsPlugins.unavailable')
-                    : uploadedQuery.isLoading
-                      ? t('settings:jsPlugins.loading')
-                      : t('settings:jsPlugins.emptyUploaded')
-                }
-                description={t('settings:jsPlugins.emptyUploadedHint')}
-              />
-            }
-            hideHeaderWhenEmpty
-          />
+          <Card material="thick" className="overflow-hidden p-0">
+            <DataTable
+              columnSizing={UPLOADED_COLUMN_SIZING}
+              columns={uploadedColumns}
+              data={uploadedUnavailable ? [] : uploadedQuery.data ?? []}
+              getRowId={(plugin) => plugin.id}
+              emptyState={
+                <EmptyState
+                  title={
+                    uploadedUnavailable
+                      ? t('settings:jsPlugins.unavailable')
+                      : uploadedQuery.isLoading
+                        ? t('settings:jsPlugins.loading')
+                        : t('settings:jsPlugins.emptyUploaded')
+                  }
+                  description={t('settings:jsPlugins.emptyUploadedHint')}
+                />
+              }
+              hideHeaderWhenEmpty
+            />
+          </Card>
         )}
       </section>
 
@@ -671,12 +674,12 @@ export function JSPluginsSettingsWorkspace() {
           <DialogHeader>
             <DialogTitle>{managePlugin?.name || t('settings:jsPlugins.versionsDialogTitle')}</DialogTitle>
             <DialogDescription className="space-y-1">
-              <span className="block font-mono text-xs">{managePlugin?.id}</span>
+              <span className="block font-mono text-footnote">{managePlugin?.id}</span>
               {managePlugin?.kind ? (
-                <span className="block text-xs">{kindLabel(t, managePlugin.kind)}</span>
+                <span className="block text-footnote">{kindLabel(t, managePlugin.kind)}</span>
               ) : null}
               {managePlugin?.enabled_version && managePlugin.metrics_24h ? (
-                <span className="block text-xs text-muted-soft">
+                <span className="block text-footnote text-label-2">
                   {t('settings:jsPlugins.metricsLabel')}: {formatMetrics24h(t, managePlugin.metrics_24h)}
                 </span>
               ) : null}
@@ -684,12 +687,12 @@ export function JSPluginsSettingsWorkspace() {
           </DialogHeader>
           <DialogBody className="space-y-4">
             {detailQuery.isLoading ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-soft">
+              <div className="flex items-center justify-center gap-2 py-8 text-body text-label-2">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 {t('settings:jsPlugins.loading')}
               </div>
             ) : detailQuery.isError ? (
-              <p className="text-sm text-destructive">{t('settings:jsPlugins.loadFailed')}</p>
+              <p className="text-body text-destructive">{t('settings:jsPlugins.loadFailed')}</p>
             ) : (
               <>
                 {isMobile ? (
@@ -709,9 +712,9 @@ export function JSPluginsSettingsWorkspace() {
                     ))}
                   </MobileRowList>
                 ) : (
-                  <table className="w-full min-w-full border-collapse text-left text-sm">
+                  <table className="w-full min-w-full border-collapse text-left text-body">
                     <thead>
-                      <tr className="border-b border-[hsl(var(--glass-border))] text-muted-soft">
+                      <tr className="border-b border-separator text-label-2">
                         <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.version')}</th>
                         <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.status')}</th>
                         <th className="px-3 py-2 font-medium">{t('settings:jsPlugins.columns.package')}</th>
@@ -738,14 +741,14 @@ export function JSPluginsSettingsWorkspace() {
                 )}
 
                 {enabledVersionRow && managePlugin?.scope === 'endpoint' ? (
-                  <section className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-4">
+                  <section className="space-y-3 border-t border-separator pt-4">
                     <FormField
                       label={t('settings:jsPlugins.bindProtocolTitle')}
                       description={t('settings:jsPlugins.bindProtocolHint')}
                     >
                       <div className="flex flex-wrap gap-2">
                         <Input
-                          className="max-w-xs font-mono text-sm"
+                          className="max-w-xs font-mono text-body"
                           placeholder={t('settings:jsPlugins.protocolSlugPlaceholder')}
                           value={protocolSlug}
                           onChange={(e) => setProtocolSlug(e.target.value)}
@@ -785,7 +788,7 @@ export function JSPluginsSettingsWorkspace() {
                 ) : null}
 
                 {enabledVersionRow && managePlugin?.scope === 'global' ? (
-                  <p className="border-t border-[hsl(var(--glass-divider))] pt-4 text-sm text-muted-soft">
+                  <p className="border-t border-separator pt-4 text-body text-label-2">
                     {t(`settings:jsPlugins.globalKindHint.${managePlugin.kind}`)}
                   </p>
                 ) : null}
@@ -794,7 +797,7 @@ export function JSPluginsSettingsWorkspace() {
           </DialogBody>
           <DialogFooter
             cancel={
-              <Button type="button" variant="outline" onClick={closeManage}>
+              <Button type="button" variant="secondary" onClick={closeManage}>
                 {siteBinding.applicable ? t('common:actions.cancel') : t('common:actions.close')}
               </Button>
             }
@@ -835,14 +838,14 @@ export function JSPluginsSettingsWorkspace() {
           </DialogHeader>
           <DialogBody className="space-y-4">
             {trustedKeysQuery.isLoading ? (
-              <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-soft">
+              <div className="flex items-center justify-center gap-2 py-6 text-body text-label-2">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
                 {t('settings:jsPlugins.loading')}
               </div>
             ) : (trustedKeysQuery.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-soft">{t('settings:jsPlugins.trustedKeysEmpty')}</p>
+              <p className="text-body text-label-2">{t('settings:jsPlugins.trustedKeysEmpty')}</p>
             ) : (
-              <ul className="divide-y divide-[hsl(var(--glass-divider))] text-sm">
+              <ul className="divide-y divide-separator text-body">
                 {(trustedKeysQuery.data ?? []).map((key: JSPluginTrustedKey) => (
                   <li
                     key={key.id}
@@ -850,14 +853,14 @@ export function JSPluginsSettingsWorkspace() {
                   >
                     <div className="min-w-0">
                       <div className="font-medium">{key.name}</div>
-                      <div className="truncate font-mono text-xs text-muted-soft" title={key.fingerprint}>
+                      <div className="truncate font-mono text-footnote text-label-2" title={key.fingerprint}>
                         {key.fingerprint}
                       </div>
                     </div>
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       disabled={busy}
                       onClick={() => deleteTrustedKeyMutation.mutate(key.id)}
                     >
@@ -869,7 +872,7 @@ export function JSPluginsSettingsWorkspace() {
             )}
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setTrustedKeysOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setTrustedKeysOpen(false)}>
               {t('common:actions.close')}
             </Button>
             <Button type="button" size="sm" disabled={busy} onClick={() => setTrustedKeyAddOpen(true)}>
@@ -912,20 +915,20 @@ export function JSPluginsSettingsWorkspace() {
               }}
               onClick={() => !uploadMutation.isPending && fileInputRef.current?.click()}
               className={cn(
-                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-10 text-center transition-colors',
+                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-inner border-2 border-dashed px-4 py-10 text-center transition-colors',
                 uploadMutation.isPending && 'pointer-events-none opacity-70',
                 uploadDragging
-                  ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))]/5'
-                  : 'border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] hover:border-[hsl(var(--accent))]/50 hover:bg-[hsl(var(--surface-subtle))]',
+                  ? 'border-tint bg-tint/5'
+                  : 'border-separator bg-fill-4 hover:border-tint/50 hover:bg-fill-3',
               )}
             >
               {uploadMutation.isPending ? (
-                <LoaderCircle className="h-8 w-8 animate-spin text-muted-soft" />
+                <LoaderCircle className="h-8 w-8 animate-spin text-label-2" />
               ) : (
-                <Upload className="h-8 w-8 text-muted-soft" />
+                <Upload className="h-8 w-8 text-label-2" />
               )}
-              <div className="text-sm font-medium text-foreground">{t('settings:jsPlugins.uploadDropzone')}</div>
-              <div className="text-xs text-muted-soft">{t('settings:jsPlugins.uploadFileHint')}</div>
+              <div className="text-body font-medium text-label">{t('settings:jsPlugins.uploadDropzone')}</div>
+              <div className="text-footnote text-label-2">{t('settings:jsPlugins.uploadFileHint')}</div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -936,7 +939,7 @@ export function JSPluginsSettingsWorkspace() {
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setUploadOpen(false)} disabled={uploadMutation.isPending}>
+            <Button type="button" variant="secondary" onClick={() => setUploadOpen(false)} disabled={uploadMutation.isPending}>
               {t('common:actions.cancel')}
             </Button>
           </DialogFooter>
@@ -979,7 +982,7 @@ export function JSPluginsSettingsWorkspace() {
             >
               <Input
                 id="js-plugin-trusted-key-public"
-                className="font-mono text-xs"
+                className="font-mono text-footnote"
                 placeholder={t('settings:jsPlugins.trustedKeyPublicPlaceholder')}
                 value={trustedKeyPublic}
                 onChange={(e) => setTrustedKeyPublic(e.target.value)}
@@ -988,7 +991,7 @@ export function JSPluginsSettingsWorkspace() {
           </DialogBody>
           <DialogFooter
             cancel={
-              <Button type="button" variant="outline" onClick={() => setTrustedKeyAddOpen(false)}>
+              <Button type="button" variant="secondary" onClick={() => setTrustedKeyAddOpen(false)}>
                 {t('common:actions.cancel')}
               </Button>
             }
@@ -1021,7 +1024,7 @@ export function JSPluginsSettingsWorkspace() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+            <Button type="button" variant="secondary" onClick={() => setDeleteTarget(null)}>
               {t('common:actions.cancel')}
             </Button>
             <Button
@@ -1050,7 +1053,7 @@ export function JSPluginsSettingsWorkspace() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setUninstallTarget(null)}>
+            <Button type="button" variant="secondary" onClick={() => setUninstallTarget(null)}>
               {t('common:actions.cancel')}
             </Button>
             <Button
@@ -1095,29 +1098,29 @@ export function JSPluginsSettingsWorkspace() {
                   ? t('settings:jsPlugins.permissionsBody')
                   : t('settings:jsPlugins.unsignedBody')}
               {enableConfirm?.signer ? (
-                <span className="mt-2 block font-mono text-xs">{enableConfirm.signer}</span>
+                <span className="mt-2 block font-mono text-footnote">{enableConfirm.signer}</span>
               ) : null}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
             {enableConfirm && enableConfirm.permissions.length > 0 ? (
               <div className="mb-4 space-y-2">
-                <p className="text-sm font-medium text-foreground">{t('settings:jsPlugins.permissionsList')}</p>
-                <ul className="space-y-1.5 text-sm">
+                <p className="text-body font-medium text-label">{t('settings:jsPlugins.permissionsList')}</p>
+                <ul className="space-y-1.5 text-body">
                   {enableConfirm.permissions.map((permission) => {
                     const key = permissionLabelKey(permission)
                     return (
                       <li key={permission} className="flex flex-col">
-                        <span className="font-mono text-xs text-foreground">{permission}</span>
-                        {key ? <span className="text-xs text-muted-soft">{t(key)}</span> : null}
+                        <span className="font-mono text-footnote text-label">{permission}</span>
+                        {key ? <span className="text-footnote text-label-2">{t(key)}</span> : null}
                       </li>
                     )
                   })}
                 </ul>
-                <p className="text-xs text-muted-soft">{t('settings:jsPlugins.permissionsScopeHint')}</p>
+                <p className="text-footnote text-label-2">{t('settings:jsPlugins.permissionsScopeHint')}</p>
               </div>
             ) : null}
-            <label className="flex items-start gap-3 text-sm">
+            <label className="flex items-start gap-3 text-body">
               <Checkbox checked={enableConfirmed} onCheckedChange={(v) => setEnableConfirmed(v === true)} />
               <span>
                 {enableConfirm?.trust === 'trusted'
@@ -1127,7 +1130,7 @@ export function JSPluginsSettingsWorkspace() {
             </label>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEnableConfirm(null)}>
+            <Button type="button" variant="secondary" onClick={() => setEnableConfirm(null)}>
               {t('common:actions.cancel')}
             </Button>
             <Button
@@ -1186,7 +1189,7 @@ function TrialStatus({ trial, t }: { trial: TrialState; t: TFunction }) {
           {trial.ok ? t('settings:jsPlugins.trialPassed') : t('settings:jsPlugins.trialFailed')}
         </StatusBadge>
         {trial.durationUs != null ? (
-          <span className="font-mono tabular-nums text-muted-soft">{formatDurationUs(trial.durationUs)}</span>
+          <span className="font-mono tabular-nums text-label-2">{formatDurationUs(trial.durationUs)}</span>
         ) : null}
       </div>
       {trial.error ? <p className="whitespace-pre-wrap break-words text-destructive">{trial.error}</p> : null}
@@ -1213,7 +1216,7 @@ function selftestSummary(row: JSPluginVersion, t: TFunction) {
 function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }: VersionRowProps) {
   return (
     <>
-      <Button type="button" size="sm" variant="outline" disabled={busy || tryPending} onClick={onTry}>
+      <Button type="button" size="sm" variant="secondary" disabled={busy || tryPending} onClick={onTry}>
         {tryPending ? <LoaderCircle className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
         {t('settings:jsPlugins.try')}
       </Button>
@@ -1223,7 +1226,7 @@ function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }:
         </Button>
       ) : null}
       {row.status !== 'enabled' ? (
-        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onDelete}>
+        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={onDelete}>
           {t('settings:jsPlugins.uninstall')}
         </Button>
       ) : null}
@@ -1255,20 +1258,20 @@ function VersionRow(props: VersionRowProps) {
   const manifestKind = manifestString(row.manifest, 'kind')
 
   return (
-    <tr className="border-b border-[hsl(var(--glass-border))]/60 last:border-0">
+    <tr className="border-b border-separator/60 last:border-0">
       <td className="px-3 py-2">
-        <div className="font-mono text-sm">{row.version}</div>
-        {manifestName ? <div className="text-xs text-muted-soft">{manifestName}</div> : null}
-        {manifestKind ? <div className="text-xs text-muted-soft">{kindLabel(t, manifestKind)}</div> : null}
+        <div className="font-mono text-body">{row.version}</div>
+        {manifestName ? <div className="text-footnote text-label-2">{manifestName}</div> : null}
+        {manifestKind ? <div className="text-footnote text-label-2">{kindLabel(t, manifestKind)}</div> : null}
       </td>
       <td className="px-3 py-2">{versionStatusBadge(row.status)}</td>
-      <td className="px-3 py-2 text-xs">
+      <td className="px-3 py-2 text-footnote">
         <div>{versionTrustBadge(row, t)}</div>
-        <div className="mt-1 font-mono text-muted-soft" title={row.package_sha256}>
+        <div className="mt-1 font-mono text-label-2" title={row.package_sha256}>
           {shortSha256(row.package_sha256)}
         </div>
       </td>
-      <td className="max-w-[180px] px-3 py-2 text-xs text-muted-soft" title={row.selftest?.error ?? undefined}>
+      <td className="max-w-[180px] px-3 py-2 text-footnote text-label-2" title={row.selftest?.error ?? undefined}>
         <span className="line-clamp-2">{selftestSummary(row, t)}</span>
         {props.trial ? (
           <div className="mt-2">
