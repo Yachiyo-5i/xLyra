@@ -123,18 +123,18 @@ export function GeneralSettingsPage() {
   }
 
   if (generalQuery.isLoading) {
-    return <p className="text-muted-soft text-sm">{t('general.loading')}</p>
+    return <p className="text-label-2 text-body">{t('general.loading')}</p>
   }
 
   return (
     <div className="max-w-4xl space-y-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-2">
       <div className="space-y-1.5">
-        <h3 className="text-lg font-semibold text-foreground">{t('general.title')}</h3>
-        <p className="text-muted-soft text-sm">{t('general.description')}</p>
+        <h3 className="text-title-3 text-label">{t('general.title')}</h3>
+        <p className="text-label-2 text-body">{t('general.description')}</p>
       </div>
 
       <section className="space-y-4">
-        <h4 className="text-sm font-semibold text-foreground">{t('general.security.title')}</h4>
+        <h4 className="text-headline text-label">{t('general.security.title')}</h4>
 
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
@@ -152,9 +152,9 @@ export function GeneralSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-4 border-t border-separator pt-6">
         <div className="flex items-center gap-2">
-          <h4 className="text-sm font-semibold text-foreground">{t('general.tasks.title')}</h4>
+          <h4 className="text-headline text-label">{t('general.tasks.title')}</h4>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -186,9 +186,9 @@ export function GeneralSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-4 border-t border-separator pt-6">
         <div className="flex items-center gap-3">
-          <h4 className="text-sm font-semibold text-foreground">{t('general.whitelist.title')}</h4>
+          <h4 className="text-headline text-label">{t('general.whitelist.title')}</h4>
           <Switch
             checked={draft.whitelistEnabled}
             onCheckedChange={(enabled) => patchDraft({ whitelistEnabled: enabled })}
@@ -211,8 +211,8 @@ export function GeneralSettingsPage() {
         </FormField>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
-        <h4 className="text-sm font-semibold text-foreground">{t('general.log.title')}</h4>
+      <section className="space-y-4 border-t border-separator pt-6">
+        <h4 className="text-headline text-label">{t('general.log.title')}</h4>
 
         <FormField label={t('general.log.level')}>
           <Select value={draft.logLevel} onValueChange={(logLevel) => patchDraft({ logLevel })}>
@@ -256,8 +256,8 @@ export function GeneralSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
-        <h4 className="text-sm font-semibold text-foreground">{t('general.data.title')}</h4>
+      <section className="space-y-4 border-t border-separator pt-6">
+        <h4 className="text-headline text-label">{t('general.data.title')}</h4>
 
         <div className="grid gap-4 md:grid-cols-2">
           <FormField label={t('general.data.requestDetailAutoCleanup')}>
@@ -287,12 +287,12 @@ export function GeneralSettingsPage() {
         </div>
       </section>
 
-      <div className="flex items-center gap-3 border-t border-[hsl(var(--divider))] pt-6">
+      <div className="flex items-center gap-3 border-t border-separator pt-6">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {t('common:actions.save', { ns: 'common' })}
         </Button>
-        <Button variant="outline" onClick={handleReset} disabled={saveMutation.isPending || generalQuery.isFetching}>
+        <Button variant="secondary" onClick={handleReset} disabled={saveMutation.isPending || generalQuery.isFetching}>
           <RotateCcw className="h-4 w-4" />
           {t('common:actions.reset', { ns: 'common' })}
         </Button>
