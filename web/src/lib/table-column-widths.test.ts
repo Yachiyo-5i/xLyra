@@ -35,7 +35,7 @@ describe('request table column width preference', () => {
 
     expect(readTableColumnWidths(REQUEST_TABLE_COLUMN_SIZING)).toEqual(widths)
     expect(writeTableColumnWidths(REQUEST_TABLE_COLUMN_SIZING, widths)).toBe(true)
-    expect(window.localStorage.setItem).toHaveBeenCalledWith('xlyra:requests:table-column-widths:v1', JSON.stringify(widths))
+    expect(window.localStorage.setItem).toHaveBeenCalledWith(REQUEST_TABLE_COLUMN_SIZING.storageKey, JSON.stringify(widths))
     expect(writeTableColumnWidths(REQUEST_TABLE_COLUMN_SIZING, [...widths, 0])).toBe(false)
     expect(window.localStorage.setItem).toHaveBeenCalledTimes(1)
   })

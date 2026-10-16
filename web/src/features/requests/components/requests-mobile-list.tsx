@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import type { RequestLogItem } from '@/features/requests/api/requests'
 import { RequestDetailContent } from '@/features/requests/components/request-detail-row'
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
-import { RequestTiming } from '@/features/requests/components/request-timing'
+import { requestTimingFields } from '@/features/requests/lib/request-timing-tones'
 import { requestFailoverBadgeClassName } from '@/features/requests/lib/request-badge-styles'
 import {
   formatCurrency,
@@ -57,79 +56,64 @@ export function RequestsMobileList({
 
         return (
           <Card key={item.id} className="overflow-hidden p-0">
+            {/* 与 OAuth / API 密钥卡片同一结构：标题（模型 + 时间）→ 两列指标；点卡片展开详情 */}
             <button
               type="button"
-              className="w-full p-4 text-left"
+              className="flex w-full flex-col gap-4 p-4 text-left"
+              aria-expanded={expanded}
               onClick={() => onExpandedIdChange(expanded ? null : item.id)}
             >
-              <div className="min-w-0 space-y-3">
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <RequestModelMapping item={item} inline className="text-sm font-semibold text-foreground" />
-                    <div className="text-muted-soft text-xs">
-                      {formatDateTime(item.created_at, i18n.language)}
-                    </div>
-                  </div>
-                  <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
-                    {requestHasFailover(item) ? (
-                      <Badge
-                        variant="neutral"
-                        className={cn(requestFailoverBadgeClassName, 'px-2.5 py-1 text-xs tracking-normal')}
-                      >
-                        {t('table.failover')}
-                      </Badge>
-                    ) : null}
-                    <StatusBadge status={item.success ? 'healthy' : 'error'}>
-                      {item.success ? t('table.success') : t('table.failure')}
-                    </StatusBadge>
-                    <span className="flex size-6 items-center justify-center text-muted-soft">
-                      {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                    </span>
+              <div className="flex w-full min-w-0 items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <RequestModelMapping item={item} inline className="text-headline text-label" />
+                  <div className="mt-1 text-footnote text-label-3 tabular-nums">
+                    {formatDateTime(item.created_at, i18n.language)}
+                    <span className="px-1.5">·</span>
+                    {statusCode}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                  <MobileField label={t('table.headers.site')} value={item.site.name ?? '-'} />
-                  <MobileField
-                    label={t('table.headers.apiKey')}
-                    value={item.is_test ? t('table.test') : item.api_key.name ?? '-'}
-                  />
-                  <RequestTiming item={item} className="pr-2" />
-                  <MobileField label={t('table.headers.cost')} value={formatCurrency(item.usage.estimated_cost, item.usage.currency)} />
-                </div>
-
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Badge
-                    variant={requestResponseModeVariant(item)}
-                    className="px-2.5 py-1 text-xs font-medium tracking-wide"
-                  >
-                    {requestResponseModeLabel(item, t)}
-                  </Badge>
-                  <Badge variant="neutral" className="px-2.5 py-1 text-xs tracking-normal">
-                    {t('mobile.statusCode', { code: statusCode })}
-                  </Badge>
-                  <Badge variant="neutral" className="px-2.5 py-1 text-xs tracking-normal">
-                    {t('mobile.tokens', {
-                      input: formatInteger(item.usage.prompt_tokens),
-                      output: formatInteger(item.usage.completion_tokens),
-                    })}
-                  </Badge>
-                  {(hasCacheRead || hasCacheWrite) ? (
-                    <Badge variant="neutral" className="px-2.5 py-1 text-xs tracking-normal">
-                      {hasCacheRead && hasCacheWrite
-                        ? t('table.cacheReadWrite', { read: formatTokenCompact(cacheTokens), write: formatTokenCompact(cacheWriteTokens) })
-                        : hasCacheRead
-                          ? t('table.cache', { tokens: formatTokenCompact(cacheTokens) })
-                          : t('table.cacheWrite', { tokens: formatTokenCompact(cacheWriteTokens) })
-                      }
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                  {requestHasFailover(item) ? (
+                    <Badge variant="neutral" className={requestFailoverBadgeClassName}>
+                      {t('table.failover')}
                     </Badge>
                   ) : null}
+                  <Badge variant={requestResponseModeVariant(item)}>{requestResponseModeLabel(item, t)}</Badge>
+                  <StatusBadge status={item.success ? 'healthy' : 'error'}>
+                    {item.success ? t('table.success') : t('table.failure')}
+                  </StatusBadge>
                 </div>
+              </div>
+
+              <div className="grid w-full grid-cols-2 items-start gap-x-4 gap-y-3">
+                <MobileField label={t('table.headers.site')} value={item.site.name ?? '-'} />
+                <MobileField
+                  label={t('table.headers.apiKey')}
+                  value={item.is_test ? t('table.test') : item.api_key.name ?? '-'}
+                />
+                {requestTimingFields(item, t).map((field) => (
+                  <MobileField key={field.label} label={field.label} value={field.value} valueClassName={field.className} />
+                ))}
+                <MobileField
+                  label={t('table.headers.tokens')}
+                  value={t('mobile.tokens', {
+                    input: formatInteger(item.usage.prompt_tokens),
+                    output: formatInteger(item.usage.completion_tokens),
+                  })}
+                  secondary={(hasCacheRead || hasCacheWrite)
+                    ? hasCacheRead && hasCacheWrite
+                      ? t('table.cacheReadWrite', { read: formatTokenCompact(cacheTokens), write: formatTokenCompact(cacheWriteTokens) })
+                      : hasCacheRead
+                        ? t('table.cache', { tokens: formatTokenCompact(cacheTokens) })
+                        : t('table.cacheWrite', { tokens: formatTokenCompact(cacheWriteTokens) })
+                    : undefined}
+                />
+                <MobileField label={t('table.headers.cost')} value={formatCurrency(item.usage.estimated_cost, item.usage.currency)} />
               </div>
             </button>
 
             {expanded ? (
-              <div className="border-t border-[hsl(var(--glass-divider))] bg-[hsl(var(--surface-subtle))] px-4 py-4">
+              <div className="border-t border-separator bg-fill-4 px-4 py-4">
                 <RequestDetailContent item={item} />
               </div>
             ) : null}
@@ -140,13 +124,24 @@ export function RequestsMobileList({
   )
 }
 
-function MobileField({ label, value }: { label: string; value: string }) {
+function MobileField({
+  label,
+  value,
+  secondary,
+  valueClassName,
+}: {
+  label: string
+  value: string
+  secondary?: string
+  valueClassName?: string
+}) {
   return (
     <div className="min-w-0">
-      <div className="text-muted-soft">{label}</div>
-      <div className="truncate font-medium text-foreground" title={value}>
+      <div className="truncate text-caption-1 text-label-3">{label}</div>
+      <div className={cn('mt-0.5 truncate text-footnote font-medium tabular-nums text-label', valueClassName)} title={value}>
         {value}
       </div>
+      {secondary ? <div className="truncate text-caption-1 tabular-nums text-label-3">{secondary}</div> : null}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   requestTotalLatencyTone,
   type RequestLatencyTone,
 } from '@/features/requests/lib/request-utils'
+import { timingToneClasses } from '@/features/requests/lib/request-timing-tones'
 import { cn } from '@/lib/utils'
 
 type RequestTimingProps = {
@@ -30,13 +31,6 @@ export function RequestTiming({ item, className }: RequestTimingProps) {
   )
 }
 
-const timingToneClasses: Record<RequestLatencyTone, { dot: string; value: string }> = {
-  healthy: { dot: 'bg-emerald-500', value: 'text-emerald-500' },
-  slow: { dot: 'bg-amber-500', value: 'text-amber-500' },
-  'very-slow': { dot: 'bg-orange-500', value: 'text-orange-500' },
-  critical: { dot: 'bg-red-500', value: 'text-red-500' },
-  muted: { dot: 'bg-[hsl(var(--text-muted-soft))]', value: 'text-muted-soft' },
-}
 
 function TimingLine({
   label,
@@ -48,10 +42,10 @@ function TimingLine({
   tone: RequestLatencyTone
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[0.375rem_minmax(0,1fr)_auto] items-center gap-x-1 text-xs leading-4 lg:gap-x-1.5 lg:leading-5">
+    <div className="grid min-w-0 grid-cols-[0.375rem_minmax(0,1fr)_auto] items-center gap-x-1 text-footnote leading-4 lg:gap-x-1.5 lg:leading-5">
       <span aria-hidden="true" className={cn('h-1.5 w-1.5 shrink-0 rounded-full', timingToneClasses[tone].dot)} />
-      <span className="truncate text-muted-soft" title={label}>{label}</span>
-      <span className={cn('shrink-0 whitespace-nowrap font-medium tabular-nums lg:text-sm lg:font-semibold', timingToneClasses[tone].value)}>
+      <span className="truncate text-label-2" title={label}>{label}</span>
+      <span className={cn('shrink-0 whitespace-nowrap font-medium tabular-nums lg:text-body lg:font-semibold', timingToneClasses[tone].value)}>
         {value}
       </span>
     </div>

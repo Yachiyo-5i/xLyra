@@ -13,7 +13,8 @@
       "reasoning": "推論の強度",
       "input": "入力",
       "output": "出力",
-      "cost": "コスト"
+      "cost": "コスト",
+      "tokens": "Tokens"
     },
     "test": "テスト",
     "success": "成功",
@@ -184,7 +185,8 @@
     "filters": "フィルター",
     "done": "完了",
     "statusCode": "ステータス {{code}}",
-    "tokens": "入力 {{input}} / 出力 {{output}}"
+    "tokens": "入力 {{input}} / 出力 {{output}}",
+    "timeRange": "期間"
   },
   "page": {
     "loadFailed": "リクエストログの読み込みに失敗しました",

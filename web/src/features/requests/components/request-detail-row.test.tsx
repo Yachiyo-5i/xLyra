@@ -14,9 +14,9 @@ beforeAll(async () => {
 
 describe('request detail response model', () => {
   it.each([
-    ['glm-5.3-flash', 'badge-neutral-bg'],
-    ['z-ai/glm-5.3-flash', 'badge-warning-bg'],
-    ['different-model', 'var(--destructive)'],
+    ['glm-5.3-flash', 'bg-fill-3'],
+    ['z-ai/glm-5.3-flash', 'bg-warning/16'],
+    ['different-model', 'bg-danger/16'],
   ])('shows the observed response model with the correct color: %s', (responseModel, color) => {
     const item: RequestLogItem = {
       id: 'log-1', request_id: 'req-1', success: true, created_at: '',
@@ -34,7 +34,7 @@ describe('request detail response model', () => {
     )
     expect(markup).toContain('>响应模型</span>')
     expect(markup).toContain(`>${responseModel}</span>`)
-    const responseBadge = markup.match(/<span class="([^"]*)" title="[^"]*" aria-label="[^"]*"><span class="truncate">[^<]*<\/span><\/span>/)?.[1]
+    const responseBadge = markup.match(/<(?:span|div) class="([^"]*)" title="[^"]*" aria-label="[^"]*"><span class="truncate">[^<]*<\/span><\/(?:span|div)>/)?.[1]
     expect(responseBadge).toContain(color)
     client.clear()
   })
