@@ -229,14 +229,14 @@ export function SiteModelScopePicker({
           >
             <div className="space-y-3">
               {showSiteGroups ? (
-                <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-3 py-2 text-xs leading-5 text-muted-soft">
+                <div className="rounded-inner border border-separator bg-fill-3 px-3 py-2 text-footnote leading-5 text-label-2">
                   {t('form.fields.customSiteCount', { count: effectiveSiteIds.length, direct: siteIds.length, inherited: scope.inheritedSiteIds.length })}
                 </div>
               ) : null}
-              <div className="space-y-3 rounded-lg border border-[hsl(var(--glass-border))] p-3">
+              <div className="space-y-3 rounded-inner border border-separator p-3">
                 <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
                   <div className="relative">
-                    <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+                    <Search className="text-label-3 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
                     <Input
                       value={siteSearch}
                       onChange={(event) => setSiteSearch(event.target.value)}
@@ -265,10 +265,10 @@ export function SiteModelScopePicker({
                     label={t('form.fields.showDisabledSites')}
                   />
                   <div className="ml-auto flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="h-8 border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]" onClick={selectAllSites} disabled={!hasSelectableFilteredSites}>
+                    <Button size="sm" variant="outline" className="h-8 border-separator bg-fill-3" onClick={selectAllSites} disabled={!hasSelectableFilteredSites}>
                       {t('form.fields.selectAll')}
                     </Button>
-                    <Button size="sm" variant="outline" className="h-8 border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]" onClick={clearAllSites} disabled={!hasClearableFilteredSites}>
+                    <Button size="sm" variant="outline" className="h-8 border-separator bg-fill-3" onClick={clearAllSites} disabled={!hasClearableFilteredSites}>
                       {t('form.fields.deselectAll')}
                     </Button>
                   </div>
@@ -287,7 +287,7 @@ export function SiteModelScopePicker({
                       return (
                         <label
                           key={site.id}
-                          className={`flex items-center gap-3 rounded-md px-2 py-2 hover:bg-[hsl(var(--surface-subtle))] ${disabled ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+                          className={`flex items-center gap-3 rounded-inner px-2 py-2 hover:bg-fill-3 ${disabled ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
                         >
                           <Checkbox
                             checked={checked || inherited}
@@ -301,15 +301,15 @@ export function SiteModelScopePicker({
                             }}
                             ariaLabel={site.name}
                           />
-                          <span className="min-w-0 flex-1 truncate text-sm text-foreground">{site.name}</span>
-                          {!site.enabled ? <span className="text-muted-soft shrink-0 text-xs">{t('form.fields.disabledSite')}</span> : null}
-                          {inherited ? <span className="text-primary shrink-0 text-xs">{t('form.fields.inheritedFromGroup')}</span> : null}
-                          <span className="text-muted-soft shrink-0 text-xs">{formatSiteTypeLabel(site.site_type)}</span>
+                          <span className="min-w-0 flex-1 truncate text-body text-label">{site.name}</span>
+                          {!site.enabled ? <span className="text-label-2 shrink-0 text-footnote">{t('form.fields.disabledSite')}</span> : null}
+                          {inherited ? <span className="text-tint shrink-0 text-footnote">{t('form.fields.inheritedFromGroup')}</span> : null}
+                          <span className="text-label-2 shrink-0 text-footnote">{formatSiteTypeLabel(site.site_type)}</span>
                         </label>
                       )
                     })
                   ) : (
-                    <div className="text-muted-soft py-6 text-center text-sm">{t('form.fields.noSites')}</div>
+                    <div className="text-label-2 py-6 text-center text-body">{t('form.fields.noSites')}</div>
                   )}
                 </div>
               </div>
@@ -334,7 +334,7 @@ export function SiteModelScopePicker({
       </FormField>
 
       {sitePolicy === 'allow_list' ? (
-        <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-3 py-2 text-xs leading-5 text-muted-soft">
+        <div className="rounded-inner border border-separator bg-fill-3 px-3 py-2 text-footnote leading-5 text-label-2">
           {siteModelsLoading
             ? t('form.fields.modelScopeSummaryLoading', { siteCount: effectiveSiteIds.length })
             : t('form.fields.modelScopeSummary', { siteCount: effectiveSiteIds.length, modelCount: siteModelRows.length })}
@@ -342,15 +342,15 @@ export function SiteModelScopePicker({
       ) : null}
 
       {effectiveModelPolicy === 'allow_list' ? (
-        <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))]">
+        <div className="overflow-hidden rounded-inner border border-separator">
           {sitePolicy === 'allow_list' && effectiveSiteIds.length === 0 ? (
-            <div className="text-muted-soft px-4 py-6 text-center text-sm">{t('form.fields.selectSitesFirst')}</div>
+            <div className="text-label-2 px-4 py-6 text-center text-body">{t('form.fields.selectSitesFirst')}</div>
           ) : (
             <div className="flex" style={{ height: '320px' }}>
               {/* 左栏：站点列表 */}
-              <div className="flex w-2/5 shrink-0 flex-col border-r border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]">
-                <div className="flex h-11 items-center border-b border-[hsl(var(--glass-border))] px-3">
-                  <span className="text-xs font-medium text-muted-soft">{t('form.fields.sitePanelTitle', { count: modelSitePanelSites.length })}</span>
+              <div className="flex w-2/5 shrink-0 flex-col border-r border-separator bg-fill-3">
+                <div className="flex h-11 items-center border-b border-separator px-3">
+                  <span className="text-footnote font-medium text-label-2">{t('form.fields.sitePanelTitle', { count: modelSitePanelSites.length })}</span>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   {siteModelsLoading && modelSitePanelSites.length === 0 ? (
@@ -368,13 +368,13 @@ export function SiteModelScopePicker({
                         key={site.id}
                         type="button"
                         onClick={() => setPickedSiteId(site.id)}
-                        className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors ${isFocused ? 'bg-[hsl(var(--surface-raised))] text-foreground' : 'text-foreground/70 hover:bg-[hsl(var(--surface-raised))] hover:text-foreground'}`}
+                        className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors ${isFocused ? 'bg-fill-3 text-label' : 'text-label-2 hover:bg-fill-3 hover:text-label'}`}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm leading-5">{site.name}</div>
-                          <div className="truncate text-xs leading-4 text-muted-soft">{formatSiteTypeLabel(site.site_type)}</div>
+                          <div className="truncate text-body leading-5">{site.name}</div>
+                          <div className="truncate text-footnote leading-4 text-label-2">{formatSiteTypeLabel(site.site_type)}</div>
                         </div>
-                        <span className={`shrink-0 text-xs tabular-nums ${selectedCount > 0 ? 'text-primary' : 'text-muted-soft'}`}>
+                        <span className={`shrink-0 text-footnote tabular-nums ${selectedCount > 0 ? 'text-tint' : 'text-label-2'}`}>
                           {selectedCount}/{total}
                         </span>
                       </button>
@@ -385,20 +385,20 @@ export function SiteModelScopePicker({
 
               {/* 右栏：模型列表 */}
               <div className="flex min-w-0 flex-1 flex-col">
-                <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[hsl(var(--glass-border))] px-3">
+                <div className="flex h-11 shrink-0 items-center gap-2 border-b border-separator px-3">
                   <div className="relative flex-1">
-                    <Search className="text-foreground/40 pointer-events-none absolute left-2 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2" />
+                    <Search className="text-label-3 pointer-events-none absolute left-2 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2" />
                     <Input
                       value={modelSearch}
                       onChange={(event) => setModelSearch(event.target.value)}
                       placeholder={t('form.fields.modelSearch')}
-                      className="h-7 pl-7 text-xs"
+                      className="h-7 pl-7 text-footnote"
                     />
                   </div>
-                  <Button size="sm" variant="default" className="h-7 px-2 text-xs" onClick={selectFilteredModels} disabled={!hasSelectableFocusedModels}>
+                  <Button size="sm" variant="default" className="h-7 px-2 text-footnote" onClick={selectFilteredModels} disabled={!hasSelectableFocusedModels}>
                     {t('form.fields.selectAll')}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={clearFilteredModels} disabled={!hasClearableFocusedModels}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-footnote" onClick={clearFilteredModels} disabled={!hasClearableFocusedModels}>
                     {hasSelectableFocusedModels ? t('form.fields.deselectSelected') : t('form.fields.deselectAll')}
                   </Button>
                 </div>
@@ -417,7 +417,7 @@ export function SiteModelScopePicker({
                       return (
                         <label
                           key={model.id}
-                          className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-[hsl(var(--surface-subtle))]"
+                          className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-fill-3"
                         >
                           <Checkbox
                             checked={checked}
@@ -438,18 +438,18 @@ export function SiteModelScopePicker({
                             size="sm"
                           />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm leading-5 text-foreground">{model.upstream_model_name}</div>
-                            <div className="truncate text-xs leading-4 text-muted-soft">{canonical?.model_key ?? model.display_name}</div>
+                            <div className="truncate text-body leading-5 text-label">{model.upstream_model_name}</div>
+                            <div className="truncate text-footnote leading-4 text-label-2">{canonical?.model_key ?? model.display_name}</div>
                           </div>
                         </label>
                       )
                     })
                   ) : (
-                    <div className="text-muted-soft py-8 text-center text-sm">{t('form.fields.noModels')}</div>
+                    <div className="text-label-2 py-8 text-center text-body">{t('form.fields.noModels')}</div>
                   )}
                 </div>
-                <div className="border-t border-[hsl(var(--glass-border))] px-3 py-1.5">
-                  <span className="text-muted-soft text-xs">{t('form.fields.selectedCount', { count: validSelectedSiteModelCount })}</span>
+                <div className="border-t border-separator px-3 py-1.5">
+                  <span className="text-label-2 text-footnote">{t('form.fields.selectedCount', { count: validSelectedSiteModelCount })}</span>
                 </div>
               </div>
             </div>

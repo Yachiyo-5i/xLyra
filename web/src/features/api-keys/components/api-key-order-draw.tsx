@@ -46,7 +46,7 @@ export function APIKeyOrderDraw({ initialData, onClose }: {
             {items.map((item, index) => (
               <li
                 key={item.id}
-                className="flex items-center gap-2 rounded-lg border border-[hsl(var(--glass-border))] p-2"
+                className="flex items-center gap-2 rounded-inner border border-separator p-2"
                 onDragOver={(event) => { if (draggedId && !pending) event.preventDefault() }}
                 onDrop={(event) => {
                   event.preventDefault()
@@ -82,8 +82,8 @@ export function APIKeyOrderDraw({ initialData, onClose }: {
                   <GripVertical className="h-4 w-4" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{item.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">{item.masked_key}</div>
+                  <div className="truncate text-body font-medium">{item.name}</div>
+                  <div className="truncate text-footnote text-label-3">{item.masked_key}</div>
                 </div>
                 <Button variant="ghost" size="icon" disabled={pending || index === 0} aria-label={t('order.up', { name: item.name })} onClick={() => setItems((current) => moveAPIKey(current, item.id, items[index - 1].id))}>
                   <ArrowUp className="h-4 w-4" />

@@ -31,7 +31,9 @@
     "allSites": "All sites allowed",
     "noSites": "No sites",
     "siteDisabled": "Disabled",
-    "filterAll": "All models"
+    "filterAll": "All models",
+    "priority": "Routing weight",
+    "modelCopied": "Model name copied"
   },
   "table": {
     "headers": {

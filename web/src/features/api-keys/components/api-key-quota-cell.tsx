@@ -41,10 +41,10 @@ export function APIKeyQuotaCell({ apiKey, truncateValues = true, compactValues =
   const trigger = (
     <button
       type="button"
-      className="inline-block max-w-full min-w-0 rounded-sm text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
+      className="inline-block max-w-full min-w-0 rounded-sm text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint/40"
     >
       <span className="sr-only">{t('quota.detailsLabel')}, </span>
-      <span className="block space-y-1.5 text-xs tabular-nums">
+      <span className="block space-y-1.5 text-footnote tabular-nums">
         {configuredRows.map((row) => (
           <QuotaScopeRow
             key={row.id}
@@ -114,7 +114,7 @@ function quotaRows(apiKey: DownstreamAPIKey, t: (key: string, options?: Record<s
 
 function QuotaDetails({ rows, compactValues, t }: { rows: QuotaRow[]; compactValues: boolean; t: (key: string, options?: Record<string, unknown>) => string }) {
   return (
-    <div className="divide-y divide-[hsl(var(--glass-divider))] text-xs tabular-nums">
+    <div className="divide-y divide-separator text-footnote tabular-nums">
       {rows.map((row) => <QuotaDetailItem key={row.id} row={row} compactValues={compactValues} t={t} />)}
     </div>
   )
@@ -129,11 +129,11 @@ function QuotaDetailItem({ row, compactValues, t }: { row: QuotaRow; compactValu
     : `${formatValue(row.available ?? Math.max(row.limit! - row.used, 0))} / ${formatValue(row.limit!)} · ${t('quota.used', { amount: formatValue(row.used) })}`
   return (
     <div className="flex min-w-0 items-start justify-between gap-4 py-2.5 first:pt-1 last:pb-1">
-      <div className="flex shrink-0 items-center gap-1.5 text-muted-soft">
+      <div className="flex shrink-0 items-center gap-1.5 text-label-2">
         {row.id !== 'accumulated' && !row.unlimited ? <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${quotaDot(row)}`} /> : null}
         <span>{row.label}</span>
       </div>
-      <span className="min-w-0 text-right font-medium text-foreground">{value}</span>
+      <span className="min-w-0 text-right font-medium text-label">{value}</span>
     </div>
   )
 }
@@ -143,9 +143,9 @@ function QuotaScopeRow({ row, truncateValues, compactValues }: { row: QuotaRow; 
   const available = row.available ?? Math.max(row.limit! - row.used, 0)
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <span className="w-6 shrink-0 text-muted-soft">{row.shortLabel}</span>
+      <span className="min-w-[1em] shrink-0 text-label-3">{row.shortLabel}</span>
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${quotaDot(row)}`} />
-      <span className={truncateValues ? 'truncate font-medium text-foreground' : 'whitespace-nowrap font-medium text-foreground'}>
+      <span className={truncateValues ? 'truncate font-medium text-label' : 'whitespace-nowrap font-medium text-label'}>
         {formatValue(available)} / {formatValue(row.limit!)}
       </span>
     </span>
@@ -155,10 +155,10 @@ function QuotaScopeRow({ row, truncateValues, compactValues }: { row: QuotaRow; 
 function UnlimitedQuotaUsage({ used, truncateValues, compactValues, t }: { used: number; truncateValues: boolean; compactValues: boolean; t: (key: string, options?: Record<string, unknown>) => string }) {
   const formatValue = compactValues ? formatCompactDollarQuota : formatDollarQuota
   return (
-    <div className="space-y-1.5 text-xs tabular-nums">
+    <div className="space-y-1.5 text-footnote tabular-nums">
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="w-6 shrink-0 text-muted-soft">{t('quota.totalShort')}</span>
-        <span className={truncateValues ? 'truncate font-medium text-foreground' : 'whitespace-nowrap font-medium text-foreground'}>
+        <span className="min-w-[1em] shrink-0 text-label-3">{t('quota.totalShort')}</span>
+        <span className={truncateValues ? 'truncate font-medium text-label' : 'whitespace-nowrap font-medium text-label'}>
           {t('quota.unlimited')} · {t('quota.used', { amount: formatValue(used) })}
         </span>
       </div>
