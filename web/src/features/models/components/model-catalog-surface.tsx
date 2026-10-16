@@ -290,9 +290,9 @@ export function ModelCatalogSurface({
   }
 
   const unmatchedSection = (
-    <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-soft))] p-4">
+    <div className="rounded-inner border border-separator bg-fill-3 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h4 className="text-sm font-medium text-foreground">{t('catalog.unmatched')}</h4>
+        <h4 className="text-body font-medium text-label">{t('catalog.unmatched')}</h4>
         <Input
           value={unmatchedSearch}
           onChange={(event) => setUnmatchedSearch(event.target.value)}
@@ -309,13 +309,13 @@ export function ModelCatalogSurface({
             return (
               <div
                 key={item.model.id}
-                className="flex items-center justify-between gap-3 rounded-md bg-[hsl(var(--surface-subtle))] px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-control bg-fill-3 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-foreground">
+                  <div className="truncate text-body font-medium text-label">
                     {item.model.display_name || item.model.upstream_model_name}
                   </div>
-                  <div className="text-muted-soft mt-1 truncate text-xs">{item.siteName}</div>
+                  <div className="text-label-2 mt-1 truncate text-footnote">{item.siteName}</div>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
                   {visibleSelectedModel ? (
@@ -334,7 +334,7 @@ export function ModelCatalogSurface({
                   ) : null}
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => openCreateModelSurface(item)}
                     disabled={createModelMutation.isPending}
                   >
@@ -345,16 +345,16 @@ export function ModelCatalogSurface({
             )
           })
         ) : (
-          <div className="text-muted-soft py-8 text-center text-sm">{t('catalog.noUnmatched')}</div>
+          <div className="text-label-2 py-8 text-center text-body">{t('catalog.noUnmatched')}</div>
         )}
       </div>
     </div>
   )
 
   const mobileUnmatchedSection = (
-    <div className="space-y-3 rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-soft))] p-3">
+    <div className="space-y-3 rounded-card border border-separator bg-fill-3 p-3">
       <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold text-foreground">{t('catalog.unmatched')}</h4>
+        <h4 className="text-headline text-label">{t('catalog.unmatched')}</h4>
         <Badge variant="secondary" className="border-transparent">{unmatchedModels.length}</Badge>
       </div>
       <Input
@@ -372,13 +372,13 @@ export function ModelCatalogSurface({
             return (
               <div
                 key={item.model.id}
-                className="rounded-xl bg-[hsl(var(--surface-subtle))] px-3 py-2.5"
+                className="rounded-card bg-fill-3 px-3 py-2.5"
               >
                 <div className="min-w-0">
-                  <div className="line-clamp-2 break-all text-sm font-medium text-foreground">
+                  <div className="line-clamp-2 break-all text-body font-medium text-label">
                     {item.model.display_name || item.model.upstream_model_name}
                   </div>
-                  <div className="text-muted-soft mt-1 truncate text-xs">{item.siteName}</div>
+                  <div className="text-label-2 mt-1 truncate text-footnote">{item.siteName}</div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {visibleSelectedModel ? (
@@ -397,7 +397,7 @@ export function ModelCatalogSurface({
                   ) : null}
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     className={visibleSelectedModel ? undefined : 'col-span-2'}
                     onClick={() => openCreateModelSurface(item)}
                     disabled={createModelMutation.isPending}
@@ -409,7 +409,7 @@ export function ModelCatalogSurface({
             )
           })
         ) : (
-          <div className="text-muted-soft py-7 text-center text-sm">{t('catalog.noUnmatched')}</div>
+          <div className="text-label-2 py-7 text-center text-body">{t('catalog.noUnmatched')}</div>
         )}
       </div>
     </div>
@@ -430,7 +430,7 @@ export function ModelCatalogSurface({
         </DrawHeader>
         <DrawBody className="space-y-4">
           <div className="space-y-2">
-            <span className="block text-sm font-medium">{t('catalog.createSurface.modelKey')}</span>
+            <span className="block text-body font-medium">{t('catalog.createSurface.modelKey')}</span>
             <Input
               aria-label={t('catalog.createSurface.modelKey')}
               value={createDraft?.modelKey ?? ''}
@@ -443,7 +443,7 @@ export function ModelCatalogSurface({
             />
           </div>
           <div className="space-y-2">
-            <span className="block text-sm font-medium">{t('catalog.createSurface.displayName')}</span>
+            <span className="block text-body font-medium">{t('catalog.createSurface.displayName')}</span>
             <Input
               aria-label={t('catalog.createSurface.displayName')}
               value={createDraft?.displayName ?? ''}
@@ -453,7 +453,7 @@ export function ModelCatalogSurface({
             />
           </div>
           {createDraft?.target ? (
-            <div className="rounded-xl bg-[hsl(var(--surface-subtle))] px-3 py-2 text-sm text-muted-soft">
+            <div className="rounded-card bg-fill-3 px-3 py-2 text-body text-label-2">
               {createDraft.target.model.display_name || createDraft.target.model.upstream_model_name}
             </div>
           ) : null}
@@ -502,7 +502,7 @@ export function ModelCatalogSurface({
           className="border-t-0 pt-2"
           cancel={(
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setArchiveTarget(null)}
               disabled={archiveModelMutation.isPending}
             >
@@ -542,9 +542,9 @@ export function ModelCatalogSurface({
               <DrawTitle>{t('catalog.title')}</DrawTitle>
             </DrawHeader>
             <DrawBody className="space-y-3 px-4 py-4">
-              <div className="sticky top-0 z-10 -mx-1 space-y-2 rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.58)] p-2 shadow-[0_14px_28px_rgba(0,0,0,0.10)] backdrop-blur-[28px] backdrop-saturate-150">
+              <div className="sticky top-0 z-10 -mx-1 space-y-2 rounded-card border border-separator bg-fill-4 p-2 shadow-[0_14px_28px_rgba(0,0,0,0.10)] backdrop-blur-[28px] backdrop-saturate-150">
                 <label className="relative block">
-                  <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+                  <Search className="text-label-2 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
                   <Input
                     value={modelSearch}
                     onChange={(event) => setModelSearch(event.target.value)}
@@ -566,8 +566,8 @@ export function ModelCatalogSurface({
                 <div className="max-h-36 space-y-1.5 overflow-y-auto pr-1">
                   {canonicalModelsQuery.isLoading ? (
                     <div className="space-y-1.5">
-                      <Skeleton className="h-10 w-full rounded-md" />
-                      <Skeleton className="h-10 w-full rounded-md" />
+                      <Skeleton className="h-10 w-full rounded-control" />
+                      <Skeleton className="h-10 w-full rounded-control" />
                     </div>
                   ) : filteredCanonicalModels.length ? (
                     filteredCanonicalModels.map((model) => {
@@ -579,23 +579,23 @@ export function ModelCatalogSurface({
                           type="button"
                           onClick={() => setSelectedModelId(model.id)}
                           className={cn(
-                            'flex h-10 w-full items-center justify-between gap-3 rounded-md px-3 text-left transition-colors',
+                            'flex h-10 w-full items-center justify-between gap-3 rounded-control px-3 text-left transition-colors',
                             active
-                              ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                              : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
+                              ? 'bg-fill-2 text-label'
+                              : 'text-label-2 hover:bg-fill-3 hover:text-label',
                           )}
                         >
-                          <span className="min-w-0 truncate text-sm font-medium" title={model.display_name}>
+                          <span className="min-w-0 truncate text-body font-medium" title={model.display_name}>
                             {model.display_name}
                           </span>
-                          <span className="shrink-0 rounded-full bg-[hsl(var(--surface-subtle))] px-2 py-0.5 text-xs text-muted-soft">
+                          <span className="shrink-0 rounded-full bg-fill-3 px-2 py-0.5 text-footnote text-label-2">
                             {model.site_model_count}
                           </span>
                         </button>
                       )
                     })
                   ) : (
-                    <div className="text-muted-soft px-3 py-2 text-center text-sm">{t('catalog.noStandardModels')}</div>
+                    <div className="text-label-2 px-3 py-2 text-center text-body">{t('catalog.noStandardModels')}</div>
                   )}
                 </div>
               </div>
@@ -611,23 +611,23 @@ export function ModelCatalogSurface({
                     <article
                       key={model.id}
                       className={cn(
-                        'overflow-hidden rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-soft))]',
+                        'overflow-hidden rounded-card border border-separator bg-fill-3',
                         'shadow-[0_18px_34px_rgba(0,0,0,0.10)]',
                       )}
                     >
                       <div className="flex w-full items-start justify-between gap-3 px-3.5 py-3 text-left">
                         <div className="min-w-0">
-                          <div className="line-clamp-2 break-all text-sm font-semibold text-foreground">
+                          <div className="line-clamp-2 break-all text-headline text-label">
                             {model.display_name}
                           </div>
-                          <div className="text-muted-soft mt-1 line-clamp-1 break-all text-xs">
+                          <div className="text-label-2 mt-1 line-clamp-1 break-all text-footnote">
                             {model.model_key}
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
                           <Badge variant="secondary" className="border-transparent">{providerName}</Badge>
                           <div className="flex items-center gap-1.5">
-                            <span className="rounded-full bg-[hsl(var(--surface-subtle))] px-2 py-0.5 text-xs text-muted-soft">
+                            <span className="rounded-full bg-fill-3 px-2 py-0.5 text-footnote text-label-2">
                               {model.site_model_count}
                             </span>
                             {isManualCreatedCanonicalModel(model) && model.site_model_count === 0 ? (
@@ -649,10 +649,10 @@ export function ModelCatalogSurface({
                         </div>
                       </div>
 
-                      <div className="space-y-3 border-t border-[hsl(var(--glass-divider))] px-3.5 pb-3.5 pt-3">
-                        <div className="space-y-3 rounded-2xl bg-[hsl(var(--surface-subtle))] p-3">
+                      <div className="space-y-3 border-t border-separator px-3.5 pb-3.5 pt-3">
+                        <div className="space-y-3 rounded-card bg-fill-3 p-3">
                           <div className="flex items-center justify-between gap-3">
-                            <h4 className="text-sm font-semibold text-foreground">{t('catalog.alias')}</h4>
+                            <h4 className="text-headline text-label">{t('catalog.alias')}</h4>
                             <Badge variant="secondary" className="border-transparent">
                               {model.aliases.length}
                             </Badge>
@@ -687,12 +687,12 @@ export function ModelCatalogSurface({
                                 return (
                                   <span
                                     key={alias.id}
-                                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[hsl(var(--surface-soft))] px-2.5 py-1 text-xs text-foreground"
+                                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-fill-3 px-2.5 py-1 text-footnote text-label"
                                   >
                                     <span className="truncate">{alias.alias}</span>
                                     <button
                                       type="button"
-                                      className="text-muted-soft hover:text-foreground"
+                                      className="text-label-2 hover:text-label"
                                       onClick={() => deleteAliasMutation.mutate({ modelId: model.id, aliasId: alias.id })}
                                       disabled={deleting}
                                       aria-label={t('catalog.deleteAliasLabel', { alias: alias.alias })}
@@ -703,7 +703,7 @@ export function ModelCatalogSurface({
                                 )
                               })
                             ) : (
-                              <span className="text-muted-soft text-sm">{t('catalog.noAliases')}</span>
+                              <span className="text-label-2 text-body">{t('catalog.noAliases')}</span>
                             )}
                           </div>
                         </div>
@@ -722,7 +722,7 @@ export function ModelCatalogSurface({
                   )
                 })()
               ) : (
-                <div className="text-muted-soft px-3 py-8 text-center text-sm">{t('catalog.noStandardModels')}</div>
+                <div className="text-label-2 px-3 py-8 text-center text-body">{t('catalog.noStandardModels')}</div>
               )}
             </DrawBody>
           </DrawContent>
@@ -743,7 +743,7 @@ export function ModelCatalogSurface({
         <DialogBody className="grid max-h-[72vh] min-h-[560px] grid-cols-[300px_minmax(0,1fr)] gap-5 overflow-hidden">
           <aside className="flex min-h-0 flex-col gap-3">
             <div className="relative shrink-0">
-              <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+              <Search className="text-label-2 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
               <Input
                 value={modelSearch}
                 onChange={(event) => setModelSearch(event.target.value)}
@@ -776,10 +776,10 @@ export function ModelCatalogSurface({
                     <div
                       key={model.id}
                       className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left transition-colors',
+                        'flex w-full items-center gap-2 rounded-control px-3 py-2.5 text-left transition-colors',
                         active
-                          ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                          : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
+                          ? 'bg-fill-3 text-label'
+                          : 'text-label-2 hover:bg-fill-3 hover:text-label',
                       )}
                     >
                       <button
@@ -787,11 +787,11 @@ export function ModelCatalogSurface({
                         onClick={() => setSelectedModelId(model.id)}
                         className="min-w-0 flex-1 text-left"
                       >
-                        <span className="block truncate text-sm font-medium" title={model.display_name}>
+                        <span className="block truncate text-body font-medium" title={model.display_name}>
                           {model.display_name}
                         </span>
                       </button>
-                      <span className="shrink-0 rounded-full bg-[hsl(var(--surface-subtle))] px-2 py-0.5 text-xs">
+                      <span className="shrink-0 rounded-full bg-fill-3 px-2 py-0.5 text-footnote">
                         {model.site_model_count}
                       </span>
                       {canArchive ? (
@@ -811,7 +811,7 @@ export function ModelCatalogSurface({
                   )
                 })
               ) : (
-                <div className="text-muted-soft px-3 py-8 text-center text-sm">{t('catalog.noStandardModels')}</div>
+                <div className="text-label-2 px-3 py-8 text-center text-body">{t('catalog.noStandardModels')}</div>
               )}
             </div>
           </aside>
@@ -821,8 +821,8 @@ export function ModelCatalogSurface({
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h3 className="truncate text-base font-semibold text-foreground">{selectedModel.display_name}</h3>
-                    <div className="text-muted-soft mt-1 truncate text-sm">{selectedModel.model_key}</div>
+                    <h3 className="truncate text-headline text-label">{selectedModel.display_name}</h3>
+                    <div className="text-label-2 mt-1 truncate text-body">{selectedModel.model_key}</div>
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <Badge variant="secondary" className="border-transparent">{getProviderCatalogEntry(selectedModel.provider)?.name ?? selectedModel.provider}</Badge>
@@ -844,9 +844,9 @@ export function ModelCatalogSurface({
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-soft))] p-4">
+                <div className="rounded-inner border border-separator bg-fill-3 p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-medium text-foreground">{t('catalog.alias')}</h4>
+                    <h4 className="text-body font-medium text-label">{t('catalog.alias')}</h4>
                     <div className="flex min-w-0 max-w-[420px] flex-1 gap-2">
                       <Input
                         value={aliasInput}
@@ -879,12 +879,12 @@ export function ModelCatalogSurface({
                         return (
                           <span
                             key={alias.id}
-                            className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[hsl(var(--surface-subtle))] px-2.5 py-1 text-xs text-foreground"
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-fill-3 px-2.5 py-1 text-footnote text-label"
                           >
                             <span className="truncate">{alias.alias}</span>
                             <button
                               type="button"
-                              className="text-muted-soft hover:text-foreground"
+                              className="text-label-2 hover:text-label"
                               onClick={() => deleteAliasMutation.mutate({ modelId: selectedModel.id, aliasId: alias.id })}
                               disabled={deleting}
                               aria-label={t('catalog.deleteAliasLabel', { alias: alias.alias })}
@@ -895,7 +895,7 @@ export function ModelCatalogSurface({
                         )
                       })
                     ) : (
-                      <span className="text-muted-soft text-sm">{t('catalog.noAliases')}</span>
+                      <span className="text-label-2 text-body">{t('catalog.noAliases')}</span>
                     )}
                   </div>
                 </div>
@@ -933,7 +933,7 @@ export function ModelCatalogSurface({
           </DialogHeader>
           <DialogBody className="space-y-4">
             <div className="space-y-2">
-              <span className="block text-sm font-medium">{t('catalog.createSurface.modelKey')}</span>
+              <span className="block text-body font-medium">{t('catalog.createSurface.modelKey')}</span>
               <Input
                 aria-label={t('catalog.createSurface.modelKey')}
                 value={createDraft?.modelKey ?? ''}
@@ -946,7 +946,7 @@ export function ModelCatalogSurface({
               />
             </div>
             <div className="space-y-2">
-              <span className="block text-sm font-medium">{t('catalog.createSurface.displayName')}</span>
+              <span className="block text-body font-medium">{t('catalog.createSurface.displayName')}</span>
               <Input
                 aria-label={t('catalog.createSurface.displayName')}
                 value={createDraft?.displayName ?? ''}
@@ -956,12 +956,12 @@ export function ModelCatalogSurface({
               />
             </div>
             {createDraft?.target ? (
-              <div className="rounded-md bg-[hsl(var(--surface-subtle))] px-3 py-2 text-sm text-muted-soft">
+              <div className="rounded-control bg-fill-3 px-3 py-2 text-body text-label-2">
                 {createDraft.target.model.display_name || createDraft.target.model.upstream_model_name}
               </div>
             ) : null}
           </DialogBody>
-          <div className="flex justify-end gap-3 border-t border-[hsl(var(--glass-divider))] px-6 py-4">
+          <div className="flex justify-end gap-3 border-t border-separator px-6 py-4">
             <Button
               variant="ghost"
               onClick={() => setCreateDraft(null)}
@@ -1010,14 +1010,14 @@ function MobileCatalogMatrixList({
   t: TFunction
 }) {
   return (
-    <div className="space-y-2 rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-soft))] p-3">
+    <div className="space-y-2 rounded-card border border-separator bg-fill-3 p-3">
       <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold text-foreground">{t('catalog.headers.model')}</h4>
+        <h4 className="text-headline text-label">{t('catalog.headers.model')}</h4>
         <Badge variant="secondary" className="border-transparent">{rows.length}</Badge>
       </div>
 
       {loading ? (
-        <div className="text-muted-soft py-7 text-center text-sm">{t('catalog.loading')}</div>
+        <div className="text-label-2 py-7 text-center text-body">{t('catalog.loading')}</div>
       ) : rows.length ? (
         rows.map((row) => {
           const pending = pendingSiteModelId === row.site_model_id
@@ -1026,15 +1026,15 @@ function MobileCatalogMatrixList({
           return (
             <div
               key={row.site_model_id}
-              className="rounded-xl bg-[hsl(var(--surface-subtle))] px-3 py-2.5"
+              className="rounded-card bg-fill-3 px-3 py-2.5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-foreground" title={row.site_name}>
+                  <div className="truncate text-headline text-label" title={row.site_name}>
                     {row.site_name}
                   </div>
                   <div
-                    className="text-muted-soft mt-1 line-clamp-2 break-all text-xs"
+                    className="text-label-2 mt-1 line-clamp-2 break-all text-footnote"
                     title={row.display_name || row.upstream_model_name}
                   >
                     {row.display_name || row.upstream_model_name}
@@ -1053,10 +1053,10 @@ function MobileCatalogMatrixList({
               </div>
 
               <div className="mt-2 flex flex-wrap gap-2">
-                <span className="rounded-full bg-[hsl(var(--surface-soft))] px-2 py-0.5 text-xs text-muted-soft">
+                <span className="rounded-full bg-fill-3 px-2 py-0.5 text-footnote text-label-2">
                   {source}
                 </span>
-                <span className="rounded-full bg-[hsl(var(--surface-soft))] px-2 py-0.5 text-xs text-muted-soft">
+                <span className="rounded-full bg-fill-3 px-2 py-0.5 text-footnote text-label-2">
                   {row.canonical_match_confidence}%
                 </span>
               </div>
@@ -1064,7 +1064,7 @@ function MobileCatalogMatrixList({
           )
         })
       ) : (
-        <div className="text-muted-soft py-7 text-center text-sm">{t('catalog.noLinkedModels')}</div>
+        <div className="text-label-2 py-7 text-center text-body">{t('catalog.noLinkedModels')}</div>
       )}
     </div>
   )
@@ -1084,9 +1084,9 @@ function CatalogMatrixTable({
   t: TFunction
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-soft))]">
-      <table className="w-full table-fixed border-collapse text-left text-sm">
-        <thead className="bg-[hsl(var(--surface-subtle))] text-faint text-xs uppercase tracking-[0.16em]">
+    <div className="overflow-hidden rounded-inner border border-separator bg-fill-3">
+      <table className="w-full table-fixed border-collapse text-left text-body">
+        <thead className="bg-fill-3 text-faint text-footnote uppercase tracking-[0.16em]">
           <tr>
             <th className="w-[13%] px-4 py-3 font-medium">{t('catalog.headers.site')}</th>
             <th className="w-[57%] px-4 py-3 font-medium">{t('catalog.headers.model')}</th>
@@ -1098,29 +1098,29 @@ function CatalogMatrixTable({
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-soft">{t('catalog.loading')}</td>
+              <td colSpan={5} className="px-4 py-10 text-center text-body text-label-2">{t('catalog.loading')}</td>
             </tr>
           ) : rows.length ? (
             rows.map((row) => {
               const pending = pendingSiteModelId === row.site_model_id
 
               return (
-                <tr key={row.site_model_id} className="border-t border-[hsl(var(--glass-divider))]">
+                <tr key={row.site_model_id} className="border-t border-separator">
                   <td className="px-4 py-3">
-                    <div className="truncate font-medium text-foreground" title={row.site_name}>{row.site_name}</div>
+                    <div className="truncate font-medium text-label" title={row.site_name}>{row.site_name}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div
-                      className="line-clamp-2 break-all text-foreground"
+                      className="line-clamp-2 break-all text-label"
                       title={row.display_name || row.upstream_model_name}
                     >
                       {row.display_name || row.upstream_model_name}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-soft" title={formatMatchSource(row.canonical_match_source, t)}>
+                  <td className="px-4 py-3 text-label-2" title={formatMatchSource(row.canonical_match_source, t)}>
                     {formatMatchSource(row.canonical_match_source, t)}
                   </td>
-                  <td className="px-4 py-3 text-muted-soft">{row.canonical_match_confidence}%</td>
+                  <td className="px-4 py-3 text-label-2">{row.canonical_match_confidence}%</td>
                   <td className="px-4 py-3 text-right">
                     <Button
                       size="sm"
@@ -1137,7 +1137,7 @@ function CatalogMatrixTable({
             })
           ) : (
             <tr>
-              <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-soft">{t('catalog.noLinkedModels')}</td>
+              <td colSpan={5} className="px-4 py-10 text-center text-body text-label-2">{t('catalog.noLinkedModels')}</td>
             </tr>
           )}
         </tbody>

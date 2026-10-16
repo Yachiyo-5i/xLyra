@@ -344,7 +344,7 @@ export function ModelsWorkspace() {
       {/* Search + Action bar */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-72 shrink-0">
-          <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 z-10" />
+          <Search className="text-label/40 pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 z-10" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -445,7 +445,7 @@ function MobileFilterSelectIcon({
   }
 
   return (
-    <span className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[hsl(var(--surface-subtle))] text-[9px] font-semibold leading-none text-muted-soft">
+    <span className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-fill-3 text-[9px] font-semibold leading-none text-label-2">
       {fallback || '?'}
     </span>
   )
@@ -461,7 +461,7 @@ function ModelsWorkspaceSkeleton({ isMobile = false }: { isMobile?: boolean }) {
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-4 w-64 max-w-full" />
         </div>
-        <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2">
+        <div className="rounded-card border border-separator bg-fill-4 p-2">
           <Skeleton className="h-10 w-full" />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Skeleton className="h-9 w-full" />
