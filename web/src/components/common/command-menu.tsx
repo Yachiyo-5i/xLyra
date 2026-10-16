@@ -163,7 +163,7 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
                         type="button"
                         className={cn(
                           // 面板圆角 24、内边距 8 → 行圆角 16（同心）
-                          'flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition-colors duration-100',
+                          'flex min-h-11 w-full items-center gap-3 rounded-card px-3 py-2 text-left transition-colors duration-100',
                           isActive ? 'bg-fill-3' : 'hover:bg-fill-4',
                         )}
                         onMouseEnter={() => setActiveIndex(idx)}

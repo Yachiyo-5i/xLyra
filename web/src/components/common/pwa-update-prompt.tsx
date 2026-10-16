@@ -134,16 +134,16 @@ export function PwaUpdatePrompt() {
     <div
       aria-labelledby="pwa-update-title"
       aria-live="assertive"
-      className="fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[100] flex w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))] p-3 text-foreground shadow-[0_18px_48px_rgba(4,8,18,0.28)] backdrop-blur-xl sm:p-4"
+      className="fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[100] flex w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 items-center gap-3 lg-regular rounded-card p-3 text-label sm:p-4"
       role="alertdialog"
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <RefreshCw className="mt-0.5 size-5 shrink-0 text-primary" />
+        <RefreshCw className="mt-0.5 size-5 shrink-0 text-tint" />
         <div className="min-w-0">
-          <p id="pwa-update-title" className="text-sm font-semibold">
+          <p id="pwa-update-title" className="text-headline">
             {t('pwaUpdate.title')}
           </p>
-          <p className="mt-0.5 text-xs leading-5 text-[hsl(var(--text-muted-soft))] sm:text-sm">
+          <p className="mt-0.5 text-footnote leading-5 text-label-2 sm:text-body">
             {t('pwaUpdate.description')}
           </p>
         </div>

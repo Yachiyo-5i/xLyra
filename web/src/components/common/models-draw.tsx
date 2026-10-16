@@ -93,12 +93,12 @@ export function ModelsDraw({
   // 桌面 Dialog 内：工具栏固定在滚动区外，表头 sticky，只让表格内部滚动。
   const desktopShell = shell === 'dialog'
   const scrollContainerClassName = cn(
-    'rounded-lg border border-[hsl(var(--glass-border))]',
+    'rounded-inner border border-separator',
     desktopShell ? 'min-h-0 flex-1 overflow-y-auto' : 'scrollbar-hidden overflow-auto',
   )
   const tableHeadClassName = cn(
-    'bg-[hsl(var(--surface-subtle))] text-faint text-xs uppercase tracking-[0.16em]',
-    desktopShell && 'sticky top-0 z-10 shadow-[0_1px_0_hsl(var(--glass-divider))]',
+    'bg-fill-3 text-faint text-footnote uppercase tracking-[0.16em]',
+    desktopShell && 'sticky top-0 z-10 shadow-[0_1px_0_var(--separator)]',
   )
 
   const header = (
@@ -123,7 +123,7 @@ export function ModelsDraw({
     <>
       <div className={cn('space-y-3', desktopShell && 'shrink-0')}>
         <div className="relative min-w-0">
-          <Search className="text-foreground/40 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 pointer-events-none z-10" />
+          <Search className="text-label/40 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 pointer-events-none z-10" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('modelsDraw.searchPlaceholder')} className="pl-10" />
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -142,7 +142,7 @@ export function ModelsDraw({
       </div>
       {children}
       <div className={scrollContainerClassName}>
-        <table className="w-full table-fixed border-collapse text-left text-sm">
+        <table className="w-full table-fixed border-collapse text-left text-body">
           <thead className={tableHeadClassName}>
             <tr>
               <th className="w-[65%] px-4 py-3 font-medium">{t('modelsDraw.headers.model')}</th>
@@ -151,12 +151,12 @@ export function ModelsDraw({
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={2} className="px-4 py-10 text-center text-sm text-muted-soft">{t('modelsDraw.loading')}</td></tr>
+              <tr><td colSpan={2} className="px-4 py-10 text-center text-body text-label-2">{t('modelsDraw.loading')}</td></tr>
             ) : filtered.length ? (
               filtered.map((item) => {
                 const subtitle = item.upstreamName && item.upstreamName !== item.displayName ? item.upstreamName : undefined
                 return (
-                  <tr key={item.id} className="border-t border-[hsl(var(--glass-divider))]">
+                  <tr key={item.id} className="border-t border-separator">
                     <td className="min-w-0 px-4 py-3">
                       <div className={subtitle ? 'flex min-w-0 items-start gap-2' : 'flex min-w-0 items-center gap-2'}>
                         {item.leadingAction ? <div className={subtitle ? 'mt-0.5 shrink-0' : 'shrink-0'}>{item.leadingAction}</div> : null}
@@ -170,11 +170,11 @@ export function ModelsDraw({
                           />
                         ) : null}
                         <div className="min-w-0">
-                          <button type="button" className="block max-w-full cursor-pointer truncate text-left font-medium text-foreground" title={t('modelsDraw.copyName')} onClick={() => copyToClipboard(item.displayName, t('modelsDraw.copied'), t('modelsDraw.copyFailed'))}>
+                          <button type="button" className="block max-w-full cursor-pointer truncate text-left font-medium text-label" title={t('modelsDraw.copyName')} onClick={() => copyToClipboard(item.displayName, t('modelsDraw.copied'), t('modelsDraw.copyFailed'))}>
                             {item.displayName}
                           </button>
                           {item.protocols?.length ? (
-                            <div className="flex flex-wrap gap-1 text-xs text-muted-soft">
+                            <div className="flex flex-wrap gap-1 text-footnote text-label-2">
                               {item.protocols.map((protocol, index) => (
                                 <Fragment key={protocol.label}>
                                   {index > 0 ? <span aria-hidden="true"> / </span> : null}
@@ -182,7 +182,7 @@ export function ModelsDraw({
                                 </Fragment>
                               ))}
                             </div>
-                          ) : subtitle ? <div className="text-muted-soft truncate text-xs">{subtitle}</div> : null}
+                          ) : subtitle ? <div className="text-label-2 truncate text-footnote">{subtitle}</div> : null}
                         </div>
                       </div>
                     </td>
@@ -196,7 +196,7 @@ export function ModelsDraw({
                 )
               })
             ) : (
-              <tr><td colSpan={2} className="px-4 py-10 text-center text-sm text-muted-soft">{t('modelsDraw.noModels')}</td></tr>
+              <tr><td colSpan={2} className="px-4 py-10 text-center text-body text-label-2">{t('modelsDraw.noModels')}</td></tr>
             )}
           </tbody>
         </table>

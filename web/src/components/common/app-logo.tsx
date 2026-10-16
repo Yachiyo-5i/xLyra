@@ -9,7 +9,7 @@ type AppLogoProps = {
 
 export function AppLogo({ className, imageClassName, decorative = false }: AppLogoProps) {
   return (
-    <span className={cn('block shrink-0 overflow-hidden bg-[hsl(var(--surface-subtle))]', className)}>
+    <span className={cn('block shrink-0 overflow-hidden bg-fill-3', className)}>
       <img
         src={APP_LOGO_SRC}
         alt={decorative ? '' : APP_NAME}
