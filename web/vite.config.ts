@@ -21,9 +21,10 @@ export default defineConfig(({ command, mode }) => {
       VitePWA({
         includeAssets: [
           'apple-touch-icon.png',
+          'favicon.ico',
           'favicon-16.png',
           'favicon-32.png',
-          'logo.png',
+          'logo-mark.webp',
         ],
         injectRegister: false,
         registerType: 'prompt',
