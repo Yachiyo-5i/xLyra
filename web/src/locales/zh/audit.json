@@ -20,7 +20,8 @@
     "failure": "失败",
     "dateFrom": "起始日期",
     "dateTo": "结束日期",
-    "clearFilters": "清空筛选"
+    "clearFilters": "清空筛选",
+    "date": "日期"
   },
   "empty": {
     "loading": "正在读取审计记录",

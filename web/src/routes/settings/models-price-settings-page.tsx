@@ -14,9 +14,9 @@ import {
 } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -54,7 +54,7 @@ import {
   extractSiteOptions,
   type ModelPriceGroup,
 } from '@/features/settings/lib/model-price-utils'
-import { LoaderCircle, Save, Search } from 'lucide-react'
+import { LoaderCircle, Save } from 'lucide-react'
 import { useMobileLayout } from '@/hooks/use-media-query'
 
 type ModelsPriceTab = 'all' | 'missing'
@@ -330,18 +330,30 @@ function ModelsPriceSettingsWorkspace({
           description={t('modelsPrice.description')}
         />
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-soft" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('modelsPrice.searchPlaceholder')}
-                className="h-10 pl-10"
-              />
-            </label>
-
+        <MobileFilterBar
+          search={{
+            value: search,
+            onChange: (event) => setSearch(event.target.value),
+            placeholder: t('modelsPrice.searchPlaceholder'),
+          }}
+          actions={
+            // 批量保存：有未保存改动时右上角带数量角标
+            <Button
+              size="icon"
+              className="relative rounded-full"
+              aria-label={t('modelsPrice.saveChanges')}
+              onClick={() => mobileListRef.current?.saveAll()}
+              disabled={mobileSaveState.dirtyCount === 0 || mobileSaveState.saving}
+            >
+              {mobileSaveState.saving ? <LoaderCircle className="animate-spin" /> : <Save />}
+              {mobileSaveState.dirtyCount ? (
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-none text-white tabular-nums">
+                  {mobileSaveState.dirtyCount}
+                </span>
+              ) : null}
+            </Button>
+          }
+          segments={
             <Tabs
               value={activeTab}
               onValueChange={(value) => {
@@ -350,122 +362,116 @@ function ModelsPriceSettingsWorkspace({
                 setPricingStatus(nextTab === 'missing' ? 'missing' : 'all')
               }}
               variant="segmented"
-              className="mt-2"
             >
               <TabsList className="w-full">
-                <TabsTrigger value="all">
-                  {t('modelsPrice.allPrices')}
-                </TabsTrigger>
-                <TabsTrigger value="missing">
-                  {t('modelsPrice.missingPrices')}
-                </TabsTrigger>
+                <TabsTrigger value="all">{t('modelsPrice.allPrices')}</TabsTrigger>
+                <TabsTrigger value="missing">{t('modelsPrice.missingPrices')}</TabsTrigger>
               </TabsList>
             </Tabs>
-
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-              <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5">
-                <Select
-                  value={billingType}
-                  onValueChange={(value) =>
-                    setBillingType(value as ModelsPriceBillingFilter)
-                  }
-                >
-                  <SelectTrigger
-                    variant="filter"
-                    filterLabel={t('modelsPrice.headers.billing')}
-                    active={billingType !== 'all'}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent searchable={false} widthMode="content">
-                    <SelectItem value="all">
-                      {t('modelsPrice.billingLabels.all')}
-                    </SelectItem>
-                    <SelectItem value="tokens">
-                      {t('modelsPrice.billingLabels.tokens')}
-                    </SelectItem>
-                    <SelectItem value="per_request">
-                      {t('modelsPrice.billingLabels.perRequest')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={pricingStatus}
-                  onValueChange={(value) => {
-                    const nextStatus = value as ModelsPriceStatusFilter
-                    setPricingStatus(nextStatus)
-                    setActiveTab(nextStatus === 'missing' ? 'missing' : 'all')
-                  }}
-                >
-                  <SelectTrigger
-                    variant="filter"
-                    filterLabel={t('modelsPrice.headers.status')}
-                    active={pricingStatus !== 'all'}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent searchable={false} widthMode="content">
-                    <SelectItem value="all">
-                      {t('modelsPrice.statusFilter.all')}
-                    </SelectItem>
-                    <SelectItem value="manual">
-                      {t('modelsPrice.statusFilter.manual')}
-                    </SelectItem>
-                    <SelectItem value="synced">
-                      {t('modelsPrice.statusFilter.synced')}
-                    </SelectItem>
-                    <SelectItem value="missing">
-                      {t('modelsPrice.statusFilter.missing')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {sites.length > 0 ? (
-                  <Select value={siteId} onValueChange={setSiteId}>
-                    <SelectTrigger
-                      variant="filter"
-                      filterLabel={t('modelsPrice.siteFilter.label')}
-                      active={siteId !== 'all'}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent searchable={false} widthMode="content">
-                      <SelectItem value="all">
-                        {t('modelsPrice.siteFilter.all')}
-                      </SelectItem>
-                      {sites.map((site) => (
-                        <SelectItem key={site.id} value={site.id}>
-                          {site.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </div>
-
-              <Button
-                className="h-10 max-w-[8.5rem] shrink-0 px-2 text-sm"
-                onClick={() => mobileListRef.current?.saveAll()}
-                disabled={
-                  mobileSaveState.dirtyCount === 0 || mobileSaveState.saving
+          }
+          filters={
+            <>
+              <Select
+                value={billingType}
+                onValueChange={(value) =>
+                  setBillingType(value as ModelsPriceBillingFilter)
                 }
               >
-                {mobileSaveState.saving ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                <span className="min-w-0 truncate">
-                  {t('modelsPrice.saveChanges')}
-                  {mobileSaveState.dirtyCount
-                    ? ` ${mobileSaveState.dirtyCount}`
-                    : ''}
-                </span>
-              </Button>
-            </div>
-          </div>
-        </div>
+                <SelectTrigger
+                  variant="filter"
+                  filterLabel={t('modelsPrice.headers.billing')}
+                  active={billingType !== 'all'}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent searchable={false} widthMode="content">
+                  <SelectItem value="all">
+                    {t('modelsPrice.billingLabels.all')}
+                  </SelectItem>
+                  <SelectItem value="tokens">
+                    {t('modelsPrice.billingLabels.tokens')}
+                  </SelectItem>
+                  <SelectItem value="per_request">
+                    {t('modelsPrice.billingLabels.perRequest')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={pricingStatus}
+                onValueChange={(value) => {
+                  const nextStatus = value as ModelsPriceStatusFilter
+                  setPricingStatus(nextStatus)
+                  setActiveTab(nextStatus === 'missing' ? 'missing' : 'all')
+                }}
+              >
+                <SelectTrigger
+                  variant="filter"
+                  filterLabel={t('modelsPrice.headers.status')}
+                  active={pricingStatus !== 'all'}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent searchable={false} widthMode="content">
+                  <SelectItem value="all">
+                    {t('modelsPrice.statusFilter.all')}
+                  </SelectItem>
+                  <SelectItem value="manual">
+                    {t('modelsPrice.statusFilter.manual')}
+                  </SelectItem>
+                  <SelectItem value="synced">
+                    {t('modelsPrice.statusFilter.synced')}
+                  </SelectItem>
+                  <SelectItem value="missing">
+                    {t('modelsPrice.statusFilter.missing')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              {sites.length > 0 ? (
+                <Select value={siteId} onValueChange={setSiteId}>
+                  <SelectTrigger
+                    variant="filter"
+                    filterLabel={t('modelsPrice.siteFilter.label')}
+                    active={siteId !== 'all'}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent searchable={false} widthMode="content">
+                    <SelectItem value="all">
+                      {t('modelsPrice.siteFilter.all')}
+                    </SelectItem>
+                    {sites.map((site) => (
+                      <SelectItem key={site.id} value={site.id}>
+                        {site.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </>
+          }
+          summary={
+            <>
+              <span className="tabular-nums">{t('common:list.count', { count: groups.length })}</span>
+              {search || billingType !== 'all' || pricingStatus !== 'all' || siteId !== 'all' ? (
+                <button
+                  type="button"
+                  className="text-label-2 transition-colors active:text-label"
+                  onClick={() => {
+                    setSearch('')
+                    setBillingType('all')
+                    setPricingStatus('all')
+                    setActiveTab('all')
+                    setSiteId('all')
+                  }}
+                >
+                  {t('common:list.clearFilters')}
+                </button>
+              ) : null}
+            </>
+          }
+        />
 
         <MobileModelsPriceList
           ref={mobileListRef}

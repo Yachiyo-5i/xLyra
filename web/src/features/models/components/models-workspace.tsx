@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ListChecks, Search } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -211,19 +212,10 @@ export function ModelsWorkspace() {
           description={t('page.description')}
         />
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <label className="relative block min-w-0">
-              <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('filters.search')}
-                className="h-10 pl-10"
-              />
-            </label>
-
-            <div className="mt-2 flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5">
+        <MobileFilterBar
+          search={{ value: search, onChange: (event) => setSearch(event.target.value), placeholder: t('filters.search') }}
+          filters={
+            <>
               <Select value={selectedBrand} onValueChange={setSelectedBrand}>
                 <SelectTrigger
                   variant="filter"
@@ -288,9 +280,27 @@ export function ModelsWorkspace() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+          summary={
+            <>
+              <span className="tabular-nums">{t('common:list.count', { count: filteredModels.length })}</span>
+              {search || selectedBrand !== 'all' || selectedSite ? (
+                <button
+                  type="button"
+                  className="text-label-2 transition-colors active:text-label"
+                  onClick={() => {
+                    setSearch('')
+                    setSelectedBrand('all')
+                    setSelectedSite(null)
+                  }}
+                >
+                  {t('common:list.clearFilters')}
+                </button>
+              ) : null}
+            </>
+          }
+        />
 
         {filteredModels.length ? (
           <MobileModelsList
@@ -306,7 +316,7 @@ export function ModelsWorkspace() {
         )}
 
         <Button
-          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] right-5 z-20 h-12 w-12 rounded-full p-0 shadow-[0_18px_34px_rgba(15,23,42,0.22)]"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
           onClick={() => setCatalogOpen(true)}
           aria-label={t('filters.catalog')}
         >

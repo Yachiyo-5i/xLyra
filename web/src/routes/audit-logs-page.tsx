@@ -2,18 +2,20 @@ import { useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { Filter, Hash, LoaderCircle, MapPin, RotateCcw, Search, Shield, UserRound, X } from 'lucide-react'
+import { CalendarDays, Hash, LoaderCircle, MapPin, RotateCcw, Shield, UserRound, X } from 'lucide-react'
 import { localeFromLanguage } from '@/lib/locale'
+import { cn } from '@/lib/utils'
 import { DataTable } from '@/components/common/data-table'
 import { defaultTableColumnWidths } from '@/lib/table-column-widths'
 import { EmptyState } from '@/components/common/empty-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
 import { TableToolbar } from '@/components/common/table-toolbar'
 import { Button } from '@/components/ui/button'
+import { filterTriggerActiveClass, filterTriggerClass } from '@/components/ui/field-styles'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
-import { Input } from '@/components/ui/input'
 import { PaginationControls } from '@/components/ui/pagination'
 import {
   Select,
@@ -33,6 +35,11 @@ const AUDIT_COLUMN_SIZING = {
   storageKey: 'xlyra:audit:table-column-widths:v1',
   defaultWidths: defaultTableColumnWidths([18, 13, 29, 10, 13, 17]),
   minimumWidths: [9, 7, 12, 6, 7, 9],
+}
+
+/** 日期胶囊上显示的短日期：MM-DD */
+function formatShortDate(date: Date) {
+  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 export function AuditLogsPage() {
@@ -155,68 +162,75 @@ export function AuditLogsPage() {
           description={t('page.description')}
         />
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <section>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
-                <label className="relative min-w-0">
-                  <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
-                  <Input
-                    value={action}
-                    onChange={(event) => {
-                      setAction(event.target.value)
-                      setPage(1)
-                    }}
-                    placeholder={t('filters.searchAction')}
-                    className="h-10 pl-10"
-                  />
-                </label>
-                <Button
-                  type="button"
-                  variant={hasFilters ? 'secondary' : 'outline'}
-                  size="icon"
-                  aria-label={t('mobile.filters')}
-                  onClick={() => setMobileFiltersOpen(true)}
-                >
-                  <Filter className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label={t('mobile.refresh')}
-                  disabled={auditQuery.isFetching}
-                  onClick={() => auditQuery.refetch()}
-                >
-                  {auditQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                </Button>
-              </div>
-              <div className="mt-2 flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5">
-                <Select value={actorType} onValueChange={(value) => { setActorType(value); setPage(1) }}>
-                  <SelectTrigger variant="filter" filterLabel={t('headers.actor')} active={actorType !== 'all'}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent searchable={false} widthMode="content">
-                    <SelectItem value="all">{t('filters.allActors')}</SelectItem>
-                    <SelectItem value="session">Session</SelectItem>
-                    <SelectItem value="access_token">Access Token</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={success} onValueChange={(value) => { setSuccess(value as 'all' | 'true' | 'false'); setPage(1) }}>
-                  <SelectTrigger variant="filter" filterLabel={t('headers.result')} active={success !== 'all'}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent searchable={false} widthMode="content">
-                    <SelectItem value="all">{t('filters.allResults')}</SelectItem>
-                    <SelectItem value="true">{t('filters.success')}</SelectItem>
-                    <SelectItem value="false">{t('filters.failure')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </section>
-          </div>
-        </div>
+        <MobileFilterBar
+          search={{
+            value: action,
+            onChange: (event) => {
+              setAction(event.target.value)
+              setPage(1)
+            },
+            placeholder: t('filters.searchAction'),
+          }}
+          actions={
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="rounded-full"
+              aria-label={t('mobile.refresh')}
+              disabled={auditQuery.isFetching}
+              onClick={() => auditQuery.refetch()}
+            >
+              {auditQuery.isFetching ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+            </Button>
+          }
+          filters={
+            <>
+            <Select value={actorType} onValueChange={(value) => { setActorType(value); setPage(1) }}>
+              <SelectTrigger variant="filter" filterLabel={t('headers.actor')} active={actorType !== 'all'}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent searchable={false} widthMode="content">
+                <SelectItem value="all">{t('filters.allActors')}</SelectItem>
+                <SelectItem value="session">Session</SelectItem>
+                <SelectItem value="access_token">Access Token</SelectItem>
+                <SelectItem value="system">System</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={success} onValueChange={(value) => { setSuccess(value as 'all' | 'true' | 'false'); setPage(1) }}>
+              <SelectTrigger variant="filter" filterLabel={t('headers.result')} active={success !== 'all'}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent searchable={false} widthMode="content">
+                <SelectItem value="all">{t('filters.allResults')}</SelectItem>
+                <SelectItem value="true">{t('filters.success')}</SelectItem>
+                <SelectItem value="false">{t('filters.failure')}</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* 日期范围需要两个日期选择器：胶囊点开底部抽屉 */}
+            <button
+              type="button"
+              className={cn(filterTriggerClass, (dateFrom || dateTo) && filterTriggerActiveClass)}
+              onClick={() => setMobileFiltersOpen(true)}
+            >
+              <CalendarDays className="size-3.5" />
+              {dateFrom || dateTo
+                ? `${dateFrom ? formatShortDate(dateFrom) : '…'} → ${dateTo ? formatShortDate(dateTo) : '…'}`
+                : t('filters.date')}
+            </button>
+            </>
+          }
+          summary={
+            <>
+              <span className="tabular-nums">{t('mobile.total', { count: auditQuery.data?.meta.total ?? items.length })}</span>
+              {hasFilters ? (
+                <button type="button" className="text-label-2 transition-colors active:text-label" onClick={clearFilters}>
+                  {t('filters.clearFilters')}
+                </button>
+              ) : null}
+            </>
+          }
+        />
 
         {items.length ? (
           <div className="space-y-3">

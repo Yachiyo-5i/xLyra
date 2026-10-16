@@ -338,24 +338,20 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
           />
         </div>
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <MobileRoutesFilterBar
-              search={search}
-              brandItems={brandItems}
-              siteItems={siteItems}
-              selectedBrand={selectedBrand}
-              selectedSite={selectedSite}
-              sortMode={sortMode}
-              isFetching={overviewQuery.isFetching || selectionQuery.isFetching || tracesQuery.isFetching || cooldownsQuery.isFetching}
-              onSearchChange={setSearch}
-              onBrandChange={setSelectedBrand}
-              onSiteChange={setSelectedSite}
-              onSortModeChange={setSortMode}
-              onRefresh={refreshAll}
-            />
-          </div>
-        </div>
+        <MobileRoutesFilterBar
+          search={search}
+          brandItems={brandItems}
+          siteItems={siteItems}
+          selectedBrand={selectedBrand}
+          selectedSite={selectedSite}
+          sortMode={sortMode}
+          isFetching={overviewQuery.isFetching || selectionQuery.isFetching || tracesQuery.isFetching || cooldownsQuery.isFetching}
+          onSearchChange={setSearch}
+          onBrandChange={setSelectedBrand}
+          onSiteChange={setSelectedSite}
+          onSortModeChange={setSortMode}
+          onRefresh={refreshAll}
+        />
 
         <MobileRoutesList
           items={filteredOverviewItems}
