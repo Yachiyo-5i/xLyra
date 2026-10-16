@@ -228,8 +228,8 @@ export function ProfileSettingsPage() {
   return (
     <div className="scrollbar-hidden h-full min-h-0 max-w-5xl space-y-8 overflow-y-auto pr-2">
       <div className="space-y-1.5">
-        <h3 className="text-lg font-semibold text-foreground">{t('profile.title')}</h3>
-        <p className="text-muted-soft text-sm">{t('profile.description')}</p>
+        <h3 className="text-title-3 text-label">{t('profile.title')}</h3>
+        <p className="text-label-2 text-body">{t('profile.description')}</p>
       </div>
 
       <section className="space-y-4">
@@ -272,7 +272,7 @@ export function ProfileSettingsPage() {
         </form>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-4 border-t border-separator pt-6">
         <SectionTitle title={t('profile.password.title')} />
         <div className="grid max-w-2xl gap-4">
           <FormField label={t('profile.password.currentPassword')}>
@@ -292,7 +292,7 @@ export function ProfileSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-4 border-t border-separator pt-6">
         <div className="flex items-center gap-2">
           <SectionTitle title={t('profile.totp.title')} />
           <Badge variant={admin?.totpEnabled ? 'success' : 'neutral'}>{admin?.totpEnabled ? t('profile.totp.enabled') : t('profile.totp.disabled')}</Badge>
@@ -329,7 +329,7 @@ export function ProfileSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-4 border-t border-separator pt-6">
         <div className="flex items-center gap-2">
           <SectionTitle title={t('profile.accessToken.title')} />
           <Badge variant={accessToken ? (accessToken.enabled ? 'success' : 'neutral') : 'neutral'}>
@@ -362,16 +362,16 @@ export function ProfileSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-4 border-t border-separator pt-6">
         <div className="flex items-center justify-between gap-3">
           <SectionTitle title={t('profile.sessions.title')} />
           <Button variant="secondary" disabled={deleteOtherSessionsMutation.isPending} onClick={() => deleteOtherSessionsMutation.mutate()}>
             {t('profile.sessions.deleteOtherSessions')}
           </Button>
         </div>
-        <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))]">
-          <table className="w-full table-fixed text-left text-sm">
-            <thead className="bg-[hsl(var(--surface-subtle))] text-muted-soft">
+        <div className="overflow-hidden rounded-card border border-separator">
+          <table className="w-full table-fixed text-left text-body">
+            <thead className="bg-fill-3 text-label-2">
               <tr>
                 <th className="px-3 py-3 font-medium">{t('profile.sessions.status')}</th>
                 <th className="px-3 py-3 font-medium">{t('profile.sessions.ip')}</th>
@@ -380,7 +380,7 @@ export function ProfileSettingsPage() {
                 <th className="px-3 py-3 text-right font-medium">{t('profile.sessions.actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[hsl(var(--divider))]">
+            <tbody className="divide-y divide-separator">
               {(sessionsQuery.data?.items ?? []).map((item) => (
                 <tr key={item.id}>
                   <td className="px-3 py-3">{item.current ? <Badge variant="success">{t('profile.sessions.current')}</Badge> : <Badge variant="neutral">{t('profile.sessions.other')}</Badge>}</td>
@@ -436,8 +436,8 @@ export function ProfileSettingsPage() {
 function SectionTitle({ title, description }: { title: string; description?: string }) {
   return (
     <div className="space-y-1">
-      <h4 className="font-semibold text-foreground">{title}</h4>
-      {description ? <p className="text-muted-soft text-sm">{description}</p> : null}
+      <h4 className="font-semibold text-label">{title}</h4>
+      {description ? <p className="text-label-2 text-body">{description}</p> : null}
     </div>
   )
 }
