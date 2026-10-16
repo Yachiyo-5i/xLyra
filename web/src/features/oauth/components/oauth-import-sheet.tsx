@@ -212,17 +212,17 @@ export function OAuthImportSheet({
                 onClick={() => inputRef.current?.click()}
                 className={cn(
                   IMPORT_INPUT_AREA_CLASS,
-                  'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 transition-colors',
+                  'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-inner border-2 border-dashed px-4 py-8 transition-colors',
                   dragging
-                    ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))]/5'
-                    : 'border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] hover:border-[hsl(var(--accent))]/50 hover:bg-[hsl(var(--surface-subtle))]',
+                    ? 'border-tint bg-tint/5'
+                    : 'border-separator bg-elevated-1 hover:border-tint/50 hover:bg-fill-3',
                 )}
               >
-                <Upload className="h-8 w-8 text-muted-soft" />
-                <div className="text-sm font-medium text-foreground">
+                <Upload className="h-8 w-8 text-label-2" />
+                <div className="text-body font-medium text-label">
                   {t('import.dropzone')}
                 </div>
-                <div className="text-xs text-muted-soft">
+                <div className="text-footnote text-label-2">
                   {t('import.fileHint')}
                 </div>
                 <input
@@ -243,24 +243,24 @@ export function OAuthImportSheet({
 
               {files.length > 0 ? (
                 <div className="flex min-h-0 flex-1 flex-col gap-2">
-                  <div className="text-sm font-medium text-foreground">
+                  <div className="text-body font-medium text-label">
                     {t('import.selectedCount', { count: files.length })}
                   </div>
                   <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                     {files.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-2"
+                        className="flex items-center gap-3 rounded-inner border border-separator bg-elevated-1 px-3 py-2"
                       >
-                        <FileJson className="h-4 w-4 shrink-0 text-muted-soft" />
+                        <FileJson className="h-4 w-4 shrink-0 text-label-2" />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm text-foreground">{item.file.name}</div>
-                          <div className="text-xs text-muted-soft">{formatSize(item.file.size)}</div>
+                          <div className="truncate text-body text-label">{item.file.name}</div>
+                          <div className="text-footnote text-label-2">{formatSize(item.file.size)}</div>
                         </div>
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); removeFile(item.id) }}
-                          className="shrink-0 rounded p-1 text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+                          className="shrink-0 rounded p-1 text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -279,10 +279,10 @@ export function OAuthImportSheet({
                   if (jsonError) setJsonError('')
                 }}
                 placeholder={t('import.jsonPlaceholder')}
-                className={cn(IMPORT_INPUT_AREA_CLASS, 'resize-none font-mono text-xs leading-relaxed')}
+                className={cn(IMPORT_INPUT_AREA_CLASS, 'resize-none font-mono text-footnote leading-relaxed')}
                 spellCheck={false}
               />
-              {jsonError ? <div className="text-xs text-red-500">{jsonError}</div> : null}
+              {jsonError ? <div className="text-footnote text-danger">{jsonError}</div> : null}
               <OAuthProxySelect
                 value={proxyId}
                 disabled={pending}
@@ -293,11 +293,11 @@ export function OAuthImportSheet({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="flex items-center gap-3 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-4 py-3">
-            <div className="text-sm">
+          <div className="flex items-center gap-3 rounded-inner border border-separator bg-fill-3 px-4 py-3">
+            <div className="text-body">
               {t('import.result.total', { total: result.meta.total })}，
               <span className="font-semibold text-green-500">{t('import.result.succeeded', { count: result.meta.succeeded })}</span>，
-              <span className="font-semibold text-red-500">{t('import.result.failed', { count: result.meta.failed })}</span>
+              <span className="font-semibold text-danger">{t('import.result.failed', { count: result.meta.failed })}</span>
             </div>
           </div>
 
@@ -305,29 +305,29 @@ export function OAuthImportSheet({
             {result.items.map((item, index) => (
               <div
                 key={index}
-                className="flex items-start gap-3 rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-2"
+                className="flex items-start gap-3 rounded-inner border border-separator bg-elevated-1 px-3 py-2"
               >
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{item.email || '-'}</span>
+                    <span className="text-body font-medium text-label">{item.email || '-'}</span>
                     {item.provider && (
-                      <Badge variant="neutral" className="text-xs">{item.provider}</Badge>
+                      <Badge variant="neutral" className="text-footnote">{item.provider}</Badge>
                     )}
                     <Badge
                       variant={item.status === 'queued' ? 'info' : 'warning'}
-                      className="text-xs"
+                      className="text-footnote"
                     >
                       {t(`import.result.status.${item.status}`, { defaultValue: t('import.result.status.unknown') })}
                     </Badge>
                   </div>
                   {item.site_name && (
-                    <div className="text-xs text-muted-soft">{t('import.result.site', { name: item.site_name })}</div>
+                    <div className="text-footnote text-label-2">{t('import.result.site', { name: item.site_name })}</div>
                   )}
                   {item.error && (
-                    <div className="text-xs text-red-500">{item.error}</div>
+                    <div className="text-footnote text-danger">{item.error}</div>
                   )}
                   {item.warning && (
-                    <div className="text-xs text-amber-500">{item.warning}</div>
+                    <div className="text-footnote text-warning">{item.warning}</div>
                   )}
                 </div>
               </div>

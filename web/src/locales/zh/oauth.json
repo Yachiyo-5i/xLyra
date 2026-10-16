@@ -304,7 +304,8 @@
         "nothingToReset": "当前没有可重置的额度窗口",
         "noCredit": "没有可用的额度重置卡"
       }
-    }
+    },
+    "resetsAt": "{{time}} 重置"
   },
   "callback": {
     "emptyUrl": "请先粘贴登录后的结果",

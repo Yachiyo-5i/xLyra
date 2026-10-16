@@ -304,7 +304,8 @@
         "nothingToReset": "No eligible quota window to reset",
         "noCredit": "No quota reset cards available"
       }
-    }
+    },
+    "resetsAt": "Resets {{time}}"
   },
   "callback": {
     "emptyUrl": "Please paste the post-login result first",

@@ -26,12 +26,12 @@ const EMPTY_SITE_GROUPS: SiteGroup[] = []
 
 function FieldHint({ children }: { children?: string }) {
   if (!children) return null
-  return <p className="text-muted-soft text-xs leading-5">{children}</p>
+  return <p className="text-label-2 text-footnote leading-5">{children}</p>
 }
 
 function FieldError({ children }: { children?: string }) {
   if (!children) return null
-  return <p className="text-xs leading-5 text-red-300">{children}</p>
+  return <p className="text-footnote leading-5 text-danger">{children}</p>
 }
 
 function FormField({
@@ -47,7 +47,7 @@ function FormField({
 }) {
   return (
     <div className="space-y-2">
-      <span className="block text-sm font-medium">{label}</span>
+      <span className="block text-body font-medium">{label}</span>
       {children}
       {error ? <FieldError>{error}</FieldError> : hint ? <FieldHint>{hint}</FieldHint> : null}
     </div>
@@ -64,8 +64,8 @@ function FormSection({
   children: React.ReactNode
 }) {
   return (
-    <section className={cn('space-y-4 py-5', divided ? 'border-t border-[hsl(var(--glass-divider))]' : 'pt-0')}>
-      {typeof title === 'string' ? <h3 className="text-sm font-semibold text-foreground">{title}</h3> : title}
+    <section className={cn('space-y-4 py-5', divided ? 'border-t border-separator' : 'pt-0')}>
+      {typeof title === 'string' ? <h3 className="text-body font-semibold text-label">{title}</h3> : title}
       <div className="space-y-4">{children}</div>
     </section>
   )

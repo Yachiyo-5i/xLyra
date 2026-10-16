@@ -146,7 +146,7 @@ export function QuotaPanel({
   }
 
   return (
-    <div className="py-1">
+    <div>
       <HoverDetails
         className="block"
         disabled={!hoverEnabled}
@@ -173,14 +173,14 @@ export function QuotaPanel({
           )
         }
       >
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-sm font-medium text-foreground">{t('quota.title')}</div>
+        <div className="mb-2.5 flex items-center justify-between gap-3">
+          <div className="text-footnote font-medium text-label-2">{t('quota.title')}</div>
           {isCodex ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 shrink-0 gap-1.5 px-2 text-xs text-muted-soft hover:text-foreground"
+              className="h-7 shrink-0 gap-1.5 px-2 text-footnote text-label-2 hover:text-label"
               disabled={!connectionId || loading}
               onClick={(event) => {
                 event.stopPropagation()
@@ -260,7 +260,7 @@ export function QuotaPanel({
                   language={i18n.language}
                 />
               </div>
-              <p className="mt-3 text-xs text-muted-soft">{t('quota.resetCredits.priorityHint')}</p>
+              <p className="mt-3 text-footnote text-label-2">{t('quota.resetCredits.priorityHint')}</p>
             </DialogBody>
             <DialogFooter className="border-t-0 pt-2">
               <Button
@@ -389,14 +389,14 @@ function QuotaModelRow({ item, label, t, language }: { item: OAuthQuotaWindowLik
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <span className="text-muted-soft truncate">{label ?? quotaModelKeyLabel(item, t)}</span>
+      <div className="flex items-center justify-between gap-3 text-footnote">
+        <span className="text-label-2 truncate">{label ?? quotaModelKeyLabel(item, t)}</span>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-foreground tabular-nums">{formatPercent(item.remaining_percent, language)}</span>
-          {resetLabel !== '-' ? <span className="text-muted-soft tabular-nums">{resetLabel}</span> : null}
+          <span className="text-label tabular-nums">{formatPercent(item.remaining_percent, language)}</span>
+          {resetLabel !== '-' ? <span className="text-label-2 tabular-nums">{resetLabel}</span> : null}
         </div>
       </div>
-      <Progress value={remaining ?? 0} variant={remaining === null ? 'muted' : 'auto'} thresholds={QUOTA_PROGRESS_THRESHOLDS} className="h-1.5 mt-1 bg-[hsl(var(--surface-panel))]" />
+      <Progress value={remaining ?? 0} variant={remaining === null ? 'muted' : 'auto'} thresholds={QUOTA_PROGRESS_THRESHOLDS} className="mt-1 h-1.5" />
     </div>
   )
 }
@@ -419,11 +419,11 @@ function QuotaProgress({
   if (!window) {
     return (
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="text-muted-soft">{label}</span>
-          <span className="text-foreground">-</span>
+        <div className="flex items-center justify-between gap-3 text-footnote">
+          <span className="text-label-2">{label}</span>
+          <span className="text-label-3">-</span>
         </div>
-        <Progress value={0} variant="muted" className="h-2.5 bg-[hsl(var(--surface-panel))]" />
+        <Progress value={0} variant="muted" className="h-1.5" />
       </div>
     )
   }
@@ -431,23 +431,29 @@ function QuotaProgress({
   const remaining = clampPercent(window.remaining_percent)
   const resetLabel = formatQuotaResetTime(parseQuotaResetAt(window.reset_at), language)
   const totalLabel = formatEstimateMoney(estimatedTotal, currency)
+  const hasMeta = totalLabel !== '—' || resetLabel !== '-'
 
+  // 第一行：窗口名 + 剩余百分比；进度条下方一行小字放估算总额与重置时间，窄屏也不挤
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <span className="text-muted-soft">{label}</span>
-        <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 text-foreground">
-          <span>{t('quota.remaining', { percent: formatPercent(window.remaining_percent, language) })}</span>
-          {totalLabel !== '—' ? <span className="tabular-nums text-muted-soft">{totalLabel}</span> : null}
-          {resetLabel !== '-' ? <span className="tabular-nums text-muted-soft">{resetLabel}</span> : null}
+      <div className="flex items-baseline justify-between gap-3 text-footnote">
+        <span className="min-w-0 truncate text-label-2">{label}</span>
+        <span className="shrink-0 font-medium text-label tabular-nums">
+          {t('quota.remaining', { percent: formatPercent(window.remaining_percent, language) })}
         </span>
       </div>
       <Progress
         value={remaining ?? 0}
         variant={remaining === null ? 'muted' : 'auto'}
         thresholds={QUOTA_PROGRESS_THRESHOLDS}
-        className="h-2.5 bg-[hsl(var(--surface-panel))]"
+        className="h-1.5"
       />
+      {hasMeta ? (
+        <div className="flex items-center justify-between gap-3 text-caption-1 text-label-3 tabular-nums">
+          <span>{totalLabel !== '—' ? totalLabel : null}</span>
+          <span>{resetLabel !== '-' ? t('quota.resetsAt', { time: resetLabel }) : null}</span>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -463,14 +469,14 @@ function QuotaEstimateWindowBlock({
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="font-medium text-foreground">{label}</div>
+      <div className="font-medium text-label">{label}</div>
       <div className="space-y-1 tabular-nums">
         <EstimateRow label={t('quota.estimate.total')} value={formatEstimateMoney(estimate?.estimated_total, estimate?.currency)} />
         <EstimateRow label={t('quota.estimate.exhaust')} value={formatExhaustDuration(estimate?.exhaust_in_seconds, t)} />
         <EstimateRow label={t('quota.estimate.previous')} value={formatEstimateMoney(estimate?.previous_estimated_total, estimate?.currency)} />
       </div>
       {estimate?.external_usage_hint ? (
-        <div className="text-muted-soft">{t('quota.estimate.externalHint')}</div>
+        <div className="text-label-2">{t('quota.estimate.externalHint')}</div>
       ) : null}
     </div>
   )
@@ -479,8 +485,8 @@ function QuotaEstimateWindowBlock({
 function EstimateRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <span className="shrink-0 text-muted-soft">{label}</span>
-      <span className="text-right font-medium text-foreground [overflow-wrap:anywhere]">{value}</span>
+      <span className="shrink-0 text-label-2">{label}</span>
+      <span className="text-right font-medium text-label [overflow-wrap:anywhere]">{value}</span>
     </div>
   )
 }
@@ -525,15 +531,15 @@ function ResetCreditTable({
   }
   if (!credits.length) {
     return (
-      <div className="rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle)/0.5)] px-3 py-4 text-sm text-muted-soft">
+      <div className="rounded-inner border border-separator bg-fill-4 px-3 py-4 text-body text-label-2">
         {t('quota.resetCredits.empty')}
       </div>
     )
   }
   return (
-    <table className="w-full table-fixed border-collapse text-left text-sm">
+    <table className="w-full table-fixed border-collapse text-left text-body">
       <thead>
-        <tr className="text-faint text-xs uppercase tracking-[0.16em]">
+        <tr className="text-label-3 text-footnote uppercase tracking-[0.16em]">
           <th className="w-[8%] px-3 py-3 font-medium md:px-4">#</th>
           <th className="w-[46%] px-3 py-3 font-medium md:px-4">{t('quota.resetCredits.tableHeaders.granted')}</th>
           <th className="w-[46%] px-3 py-3 font-medium md:px-4">{t('quota.resetCredits.tableHeaders.expires')}</th>
@@ -549,8 +555,8 @@ function ResetCreditTable({
               aria-checked={selected}
               tabIndex={0}
               className={cn(
-                'cursor-pointer border-t border-[hsl(var(--glass-divider))] text-foreground transition-colors',
-                selected ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle)/0.5)]',
+                'cursor-pointer border-t border-separator text-label transition-colors',
+                selected ? 'bg-fill-3' : 'hover:bg-fill-4',
               )}
               onClick={() => onSelect(credit.id)}
               onKeyDown={(event) => {
@@ -566,11 +572,11 @@ function ResetCreditTable({
                     className={cn(
                       'inline-block size-3 shrink-0 rounded-full border transition-colors',
                       selected
-                        ? 'border-4 border-[hsl(var(--primary))]'
-                        : 'border-[hsl(var(--glass-divider))]',
+                        ? 'border-4 border-tint'
+                        : 'border-separator',
                     )}
                   />
-                  <span className="tabular-nums text-muted-soft">{index + 1}</span>
+                  <span className="tabular-nums text-label-2">{index + 1}</span>
                 </span>
               </td>
               <td className="px-3 py-3 align-middle md:px-4">{formatResetCreditDate(credit.granted_at, language) || '-'}</td>

@@ -1,36 +1,28 @@
 import { HoverDetails } from '@/components/common/hover-details'
-import { cn } from '@/lib/utils'
 
+/**
+ * 异常账号卡片里的错误信息：标题 + 一行红字摘要，悬停（移动端点击）展开完整内容。
+ * 与「额度」标题同级，不再套红色底框。
+ */
 export function OAuthErrorPreview({
   label,
   message,
-  compact = false,
 }: {
   label: string
   message: string
-  compact?: boolean
 }) {
   return (
-    <>
-      <div className={cn('font-medium text-foreground', compact ? 'mb-1 text-xs' : 'mb-2 text-sm')}>{label}</div>
+    <div className="min-w-0">
+      <div className="mb-1.5 text-footnote font-medium text-label-2">{label}</div>
       <HoverDetails
         asChild
         title={label}
-        titleClassName="text-red-300"
-        contentClassName="w-[560px]"
-        content={<div className="whitespace-pre-wrap break-words text-muted-foreground">{message}</div>}
+        titleClassName="text-danger"
+        contentClassName="w-[min(560px,calc(100vw-2rem))]"
+        content={<div className="whitespace-pre-wrap break-words text-label-2">{message}</div>}
       >
-        <div className={cn('rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2', compact ? 'h-[54px]' : 'h-[64px]')}>
-          <div
-            className={cn(
-              'overflow-hidden break-words text-red-300',
-              compact ? 'line-clamp-2 text-xs leading-5' : 'line-clamp-2 text-sm leading-5',
-            )}
-          >
-            {message}
-          </div>
-        </div>
+        <p className="line-clamp-1 break-all text-footnote text-danger">{message}</p>
       </HoverDetails>
-    </>
+    </div>
   )
 }

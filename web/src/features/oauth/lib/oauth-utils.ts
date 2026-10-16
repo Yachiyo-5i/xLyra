@@ -344,6 +344,15 @@ export function formatUsage(usage?: { total_tokens?: number; estimated_cost?: nu
   return tokens ?? cost ?? '-'
 }
 
+/** 用量拆成两行展示：Token 为主值，费用为次值 */
+export function formatUsageParts(usage?: { total_tokens?: number; estimated_cost?: number; currency?: string } | null) {
+  if (!usage) return { main: '-', secondary: undefined }
+  const tokens = typeof usage.total_tokens === 'number' ? formatTokenCount(usage.total_tokens) : null
+  const cost = typeof usage.estimated_cost === 'number' ? formatCost(usage.estimated_cost, usage.currency) : null
+  if (tokens) return { main: tokens, secondary: cost ?? undefined }
+  return { main: cost ?? '-', secondary: undefined }
+}
+
 function formatTokenCount(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
