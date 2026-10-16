@@ -51,10 +51,12 @@ function DesktopAppShell({ children }: PropsWithChildren) {
         </LiquidGlass>
 
         <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-          {/* 内容在浮动顶栏下方滚过；页脚跟随内容滚动，内容不足一屏时贴在窗口底部 */}
+          {/* 内容在浮动顶栏下方滚过。内容区是「内容 + 页脚」两行网格：
+              内容行至少占满剩余高度，页脚在内容不足一屏时贴在窗口底部、内容较长时跟在内容后面；
+              根元素是 h-full 的页面（工作台、内部滚动的表格页）会让网格固定为窗口高度，见 index.css .app-content-grid */}
           <main data-scroll-container="true" className="min-h-0 flex-1 overflow-y-auto">
-            <div className="flex min-h-full flex-col">
-              <div className="px-4 pb-6 pt-[84px] md:px-8 lg:px-10">{children}</div>
+            <div className="app-content-grid">
+              <div className="app-content min-h-0 px-4 pb-6 pt-[84px] md:px-8 lg:px-10">{children}</div>
               <AppFooter />
             </div>
           </main>
@@ -95,7 +97,7 @@ function DesktopAppShell({ children }: PropsWithChildren) {
 
 function AppFooter() {
   return (
-    <footer className="mt-auto px-4 pb-6 pt-2 md:px-8 lg:px-10">
+    <footer className="px-4 pb-6 pt-2 md:px-8 lg:px-10">
       <div className="flex flex-col gap-3 text-xs text-label-3 sm:flex-row sm:items-center sm:justify-between">
         <a
           href="https://github.com/Yachiyo-5i/xLyra"

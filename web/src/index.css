@@ -491,6 +491,22 @@ body[data-scroll-locked] {
   overscroll-behavior: contain;
 }
 
+/* 桌面内容区（components/layout/app-shell.tsx）：「内容 + 页脚」两行网格。
+   默认至少占满一屏，内容长时随内容增高、页脚跟在后面；
+   页面根元素是 h-full / lg:h-full 时（工作台、表格在内部滚动的列表页），网格固定为窗口高度，
+   内容行正好是页脚以上的剩余空间，页面自己处理滚动。 */
+.app-content-grid {
+  display: grid;
+  min-height: 100%;
+  /* 列宽必须显式限制为容器宽度：默认的 auto 列会被内容（如 min-width 1120 的表格）撑宽，整页溢出窗口 */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.app-content-grid:has(> .app-content > :is(.h-full, .lg\:h-full)) {
+  height: 100%;
+}
+
 /* 背景（L0）：纯色、不做渐变光与动画。保留独立图层，便于统一调整 */
 .ambient-background {
   content: "";
