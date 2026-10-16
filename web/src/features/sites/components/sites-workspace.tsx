@@ -886,7 +886,7 @@ export function SitesWorkspace({
       }
       action={
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => {
             sitesQuery.refetch()
             void Promise.all(siteAPIKeyQueries.map((query) => query.refetch()))
@@ -1167,7 +1167,7 @@ export function SitesWorkspace({
             className="border-t-0 pt-2"
             cancel={(
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => setDeleteTargetSite(null)}
                 disabled={isDeleteTargetPending}
               >

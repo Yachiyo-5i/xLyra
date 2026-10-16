@@ -178,7 +178,7 @@ export function SiteModelTestSheet({
   const loadingState = (
     <div className="space-y-2">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="h-14 rounded-lg bg-[hsl(var(--surface-subtle))]" />
+        <div key={index} className="h-14 rounded-inner bg-fill-3" />
       ))}
     </div>
   )
@@ -186,7 +186,7 @@ export function SiteModelTestSheet({
   const toolbar = (
     <>
       <div className="relative min-w-0">
-        <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+        <Search className="text-label/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -254,10 +254,10 @@ export function SiteModelTestSheet({
   const modelsTable = (
     <table className="w-full table-fixed border-collapse text-left">
       <thead className={isMobile
-        ? 'bg-[hsl(var(--surface-subtle))]'
-        : 'sticky top-0 z-10 bg-[hsl(var(--surface-subtle))] shadow-[0_1px_0_hsl(var(--glass-divider))]'}
+        ? 'bg-fill-3'
+        : 'sticky top-0 z-10 bg-fill-3 shadow-[0_1px_0_var(--separator)]'}
       >
-        <tr className="text-faint text-xs uppercase tracking-[0.16em]">
+        <tr className="text-faint text-footnote uppercase tracking-[0.16em]">
           <th className="w-[42%] px-3 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.model')}</th>
           <th className="w-[26%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.status')}</th>
           <th className="w-[20%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.latency')}</th>
@@ -274,7 +274,7 @@ export function SiteModelTestSheet({
             : ''
           const icon = siteModelIconInfo(model, canonicalMap, site)
           return (
-            <tr key={model.id} className="border-t border-[hsl(var(--glass-divider))]">
+            <tr key={model.id} className="border-t border-separator">
               <td className="px-3 py-2.5 align-middle md:px-4 md:py-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <BrandMark
@@ -284,7 +284,7 @@ export function SiteModelTestSheet({
                     fallbackText={icon.fallbackText}
                     size="sm"
                   />
-                  <div className="truncate text-sm font-medium text-foreground" title={model.upstream_model_name}>
+                  <div className="truncate text-body font-medium text-label" title={model.upstream_model_name}>
                     {model.upstream_model_name}
                   </div>
                 </div>
@@ -295,41 +295,41 @@ export function SiteModelTestSheet({
                     record.status === 'success' ? (
                       failureResponse ? (
                         <ErrorDetails message={failureResponse}>
-                          <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
+                          <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-footnote">
                             {record.result.ok ? t('test.status.success') : t('test.status.failed')}
                           </StatusBadge>
                         </ErrorDetails>
                       ) : (
-                        <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-xs">
+                        <StatusBadge status={record.result.ok ? 'healthy' : 'error'} className="whitespace-nowrap px-2 py-0.5 text-footnote">
                           {record.result.ok ? t('test.status.success') : t('test.status.failed')}
                         </StatusBadge>
                       )
                     ) : (
                       <ErrorDetails message={record.message}>
-                        <StatusBadge status="error" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.failed')}</StatusBadge>
+                        <StatusBadge status="error" className="whitespace-nowrap px-2 py-0.5 text-footnote">{t('test.status.failed')}</StatusBadge>
                       </ErrorDetails>
                     )
                   ) : (
-                    <StatusBadge status="idle" className="whitespace-nowrap px-2 py-0.5 text-xs">{t('test.status.untested')}</StatusBadge>
+                    <StatusBadge status="idle" className="whitespace-nowrap px-2 py-0.5 text-footnote">{t('test.status.untested')}</StatusBadge>
                   )}
                   {result?.result.status_code ? (
-                    <span className="shrink-0 text-xs text-muted-soft">{result.result.status_code}</span>
+                    <span className="shrink-0 text-footnote text-label-2">{result.result.status_code}</span>
                   ) : null}
                   {result?.request.credential_name ? (
-                    <span className="min-w-0 truncate text-xs text-muted-soft" title={result.request.credential_name}>
+                    <span className="min-w-0 truncate text-footnote text-label-2" title={result.request.credential_name}>
                       {result.request.credential_name}
                     </span>
                   ) : null}
                 </div>
               </td>
-              <td className="px-2 py-2.5 align-middle text-sm tabular-nums text-foreground md:px-4 md:py-3">
+              <td className="px-2 py-2.5 align-middle text-body tabular-nums text-label md:px-4 md:py-3">
                 {result?.result.latency_ms != null ? `${result.result.latency_ms} ms` : '-'}
               </td>
               <td className="px-2 py-2.5 align-middle text-right md:px-4 md:py-3">
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8 border-0 bg-transparent p-0 shadow-none hover:bg-transparent hover:text-primary hover:shadow-none"
+                  className="h-8 w-8 border-0 bg-transparent p-0 shadow-none hover:bg-transparent hover:text-tint hover:shadow-none"
                   onClick={() => testMutation.mutate(model)}
                   disabled={pending}
                   aria-label={t('test.test')}
@@ -342,7 +342,7 @@ export function SiteModelTestSheet({
           )
         }) : (
           <tr>
-            <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-soft">{t('components:modelsDraw.noModels')}</td>
+            <td colSpan={4} className="px-4 py-10 text-center text-body text-label-2">{t('components:modelsDraw.noModels')}</td>
           </tr>
         )}
       </tbody>
@@ -360,7 +360,7 @@ export function SiteModelTestSheet({
             {modelsQuery.isLoading ? loadingState : availableModels.length ? (
               <>
                 {toolbar}
-                <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))]">
+                <div className="overflow-hidden rounded-inner border border-separator">
                   {modelsTable}
                 </div>
               </>
@@ -381,7 +381,7 @@ export function SiteModelTestSheet({
           {modelsQuery.isLoading ? loadingState : availableModels.length ? (
             <>
               <div className="shrink-0 space-y-3 pb-3">{toolbar}</div>
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-[hsl(var(--glass-border))]">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-inner border border-separator">
                 {modelsTable}
               </div>
             </>

@@ -551,11 +551,11 @@ export function SiteAPIKeysDraw({
   const listBody = (
     <>
       {apiKeysQuery.isLoading ? (
-        <p className="text-muted-soft text-center text-sm py-10">
+        <p className="text-label-2 text-center text-body py-10">
           {t('apiKeys.loading')}
         </p>
       ) : items.length ? (
-        <div className={isMobile ? 'space-y-3' : 'divide-y divide-[hsl(var(--glass-divider))]'}>
+        <div className={isMobile ? 'space-y-3' : 'divide-y divide-separator'}>
           {items.map((item) => {
             const ensureSKPrefix = site ? isNewAPISite(site) : false
                   const displayKey = formatAPIKeyValue(item.key, {
@@ -608,11 +608,11 @@ export function SiteAPIKeysDraw({
             return (
               <div
                 key={item.id}
-                className={isMobile ? 'section-soft space-y-3 rounded-lg p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
+                className={isMobile ? 'section-soft space-y-3 rounded-inner p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
               >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="truncate font-medium text-sm text-foreground">
+                          <span className="truncate font-medium text-body text-label">
                             {item.name || t('apiKeys.defaultKey')}
                           </span>
                           {item.group ? (
@@ -643,7 +643,7 @@ export function SiteAPIKeysDraw({
                         />
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-soft">
+                      <div className="flex flex-wrap items-center gap-2 text-footnote text-label-2">
                         {site?.supports_multiple_api_keys ? (
                           <>
                             <Badge variant="neutral">
@@ -671,7 +671,7 @@ export function SiteAPIKeysDraw({
 
                       <button
                         type="button"
-                        className="block w-full cursor-pointer rounded-md bg-[hsl(var(--surface-field))] px-3 py-2 text-left font-mono text-xs text-foreground truncate hover:bg-[hsl(var(--surface-soft-hover))] transition-colors"
+                        className="block w-full cursor-pointer rounded-control bg-fill-3 px-3 py-2 text-left font-mono text-footnote text-label truncate hover:bg-fill-2 transition-colors"
                         title={
                           canCopy
                             ? t('apiKeys.copyTooltip')
@@ -708,10 +708,10 @@ export function SiteAPIKeysDraw({
                         {displayKey}
                       </button>
 
-                      <div className="flex items-center justify-between text-xs text-muted-soft">
+                      <div className="flex items-center justify-between text-footnote text-label-2">
                         <div className="flex min-w-0 flex-wrap items-center gap-3">
                           {probeFailed ? (
-                            <span className="text-red-400" title={probe?.error}>
+                            <span className="text-danger" title={probe?.error}>
                               {t('apiKeys.quotaProbeFailed')}
                             </span>
                           ) : balanceDetails.length > 0 ? (
@@ -719,7 +719,7 @@ export function SiteAPIKeysDraw({
                               {balanceDetails.map((detail, index) => (
                                 <div key={`${detail.label}-${index}`} className="contents">
                                   <span>{t(`table.quotaDetails.${detail.label}`)}</span>
-                                  <span className="text-foreground tabular-nums">{detail.value}</span>
+                                  <span className="text-label tabular-nums">{detail.value}</span>
                                 </div>
                               ))}
                             </div>
@@ -732,7 +732,7 @@ export function SiteAPIKeysDraw({
                           )}
                           <button
                             type="button"
-                            className="hover:text-foreground cursor-pointer"
+                            className="hover:text-label cursor-pointer"
                             onClick={() => setModelsAPIKey(item)}
                           >
                             {item.models.length} {t('apiKeys.modelsTitle')}
@@ -743,7 +743,7 @@ export function SiteAPIKeysDraw({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 text-xs"
+                              className="h-7 text-footnote"
                               onClick={() => {
                                 setEditingAPIKey(item)
                                 setSecretInput('')
@@ -805,7 +805,7 @@ export function SiteAPIKeysDraw({
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                            className="h-7 w-7 text-danger hover:bg-danger/10 hover:text-danger"
                             disabled={deleteMutation.isPending}
                             title={t('apiKeys.delete')}
                             aria-label={t('apiKeys.deleteLabel', {
@@ -822,7 +822,7 @@ export function SiteAPIKeysDraw({
           })}
         </div>
       ) : (
-        <p className="text-muted-soft text-center text-sm py-10">
+        <p className="text-label-2 text-center text-body py-10">
           {t('apiKeys.noKey')}
         </p>
       )}
@@ -947,7 +947,7 @@ export function SiteAPIKeysDraw({
 
   const secretForm = (
     <>
-      <span className="block text-sm font-medium">ApiKey</span>
+      <span className="block text-body font-medium">ApiKey</span>
       <Input
         value={secretInput}
         autoComplete="off"
@@ -1148,7 +1148,7 @@ export function SiteAPIKeysDraw({
             className="border-t-0 pt-2"
             cancel={(
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => setDeletingAPIKey(null)}
                 disabled={deleteMutation.isPending}
               >
@@ -1272,17 +1272,17 @@ export function SiteAPIKeysDraw({
                 <button
                   key={model.id}
                   type="button"
-                  className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${selected ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'}`}
+                  className={`w-full rounded-inner px-3 py-2.5 text-left transition-colors ${selected ? 'bg-fill-3' : 'hover:bg-fill-3'}`}
                   onClick={() => setSelectedSiteModel(model)}
                 >
-                  <div className="truncate text-sm font-medium text-foreground">{model.display_name || model.upstream_model_name}</div>
+                  <div className="truncate text-body font-medium text-label">{model.display_name || model.upstream_model_name}</div>
                   {model.display_name && model.display_name !== model.upstream_model_name ? (
-                    <div className="truncate text-xs text-muted-soft">{model.upstream_model_name}</div>
+                    <div className="truncate text-footnote text-label-2">{model.upstream_model_name}</div>
                   ) : null}
                 </button>
               )
             }) : (
-              <p className="py-8 text-center text-sm text-muted-soft">{t('apiKeys.addSiteModelEmpty')}</p>
+              <p className="py-8 text-center text-body text-label-2">{t('apiKeys.addSiteModelEmpty')}</p>
             )}
           </DialogBody>
           <DialogFooter
@@ -1336,7 +1336,7 @@ export function SiteAPIKeysDraw({
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-            <p className="text-sm text-muted-soft">
+            <p className="text-body text-label-2">
               {modelProtocolMode === 'disabled'
                 ? t('apiKeys.protocol.modeDisabled')
                 : modelProtocolMode === 'allowlist'
@@ -1344,7 +1344,7 @@ export function SiteAPIKeysDraw({
                   : t('apiKeys.protocol.modeInherit')}
             </p>
             {protocolOptions.length ? (
-              <div className="divide-y divide-[hsl(var(--glass-divider))]">
+              <div className="divide-y divide-separator">
                 {protocolOptions.map((endpointType) => {
                   const checked = modelProtocolTypes.includes(endpointType)
                   return (
@@ -1362,8 +1362,8 @@ export function SiteAPIKeysDraw({
                       }}
                     >
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium text-foreground">{formatEndpointTypeLabel(endpointType)}</span>
-                        <span className="block text-xs text-muted-soft">{endpointType}</span>
+                        <span className="block text-body font-medium text-label">{formatEndpointTypeLabel(endpointType)}</span>
+                        <span className="block text-footnote text-label-2">{endpointType}</span>
                       </span>
                       <Checkbox
                         checked={checked}
@@ -1376,7 +1376,7 @@ export function SiteAPIKeysDraw({
                 })}
               </div>
             ) : (
-              <p className="text-sm text-muted-soft">{t('apiKeys.protocol.empty')}</p>
+              <p className="text-body text-label-2">{t('apiKeys.protocol.empty')}</p>
             )}
           </DialogBody>
           <DialogFooter
@@ -1494,7 +1494,7 @@ function APIKeySyncStatusBadge({ apiKey }: { apiKey: SiteAPIKey }) {
       message={message}
       description={apiKey.name || t('apiKeys.defaultKey')}
     >
-      <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
+      <Badge variant="secondary" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
         {syncBadge.label(t)}
       </Badge>
     </ErrorDetails>
@@ -1508,37 +1508,37 @@ function apiKeySyncBadge(status?: string | null): {
   switch ((status || '').toLowerCase()) {
     case 'synced':
       return {
-        className: 'border-emerald-500/40 text-emerald-400',
+        className: 'border-success/40 text-success',
         label: (t) => t('apiKeys.sync.synced'),
       }
     case 'failed':
       return {
-        className: 'border-red-500/40 text-red-400',
+        className: 'border-danger/40 text-danger',
         label: (t) => t('apiKeys.sync.failed'),
       }
     case 'partial':
       return {
-        className: 'border-amber-500/40 text-amber-400',
+        className: 'border-warning/40 text-warning',
         label: (t) => t('apiKeys.sync.partial'),
       }
     case 'stale':
       return {
-        className: 'border-red-500/40 text-red-400',
+        className: 'border-danger/40 text-danger',
         label: (t) => t('apiKeys.sync.stale'),
       }
     case 'pending':
       return {
-        className: 'border-sky-500/40 text-sky-400',
+        className: 'border-info/40 text-info',
         label: (t) => t('apiKeys.sync.pending'),
       }
     case 'syncing':
       return {
-        className: 'border-sky-500/40 text-sky-400',
+        className: 'border-info/40 text-info',
         label: (t) => t('apiKeys.sync.syncing'),
       }
     default:
       return {
-        className: 'text-muted-soft',
+        className: 'text-label-2',
         label: (t) => t('apiKeys.sync.unknown'),
       }
   }

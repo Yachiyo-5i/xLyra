@@ -191,7 +191,7 @@ export function GrokAccountsDraw({
           <DrawHeader className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
             <DrawTitle>{t('grokAccounts.title')}</DrawTitle>
             <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center">
-              <Button size="sm" variant="outline" className="w-full min-[420px]:w-auto" disabled={refreshAllMutation.isPending} onClick={() => refreshAllMutation.mutate()}>
+              <Button size="sm" variant="secondary" className="w-full min-[420px]:w-auto" disabled={refreshAllMutation.isPending} onClick={() => refreshAllMutation.mutate()}>
                 {refreshAllMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('grokAccounts.refreshAll')}
               </Button>
               <Button size="sm" className="w-full min-[420px]:w-auto" disabled={Boolean(device)} onClick={() => startDeviceLogin('add')}>
@@ -201,9 +201,9 @@ export function GrokAccountsDraw({
           </DrawHeader>
           <DrawBody>
             {accountsQuery.isLoading ? (
-              <p className="py-10 text-center text-sm text-muted-soft">{t('grokAccounts.loading')}</p>
+              <p className="py-10 text-center text-body text-label-2">{t('grokAccounts.loading')}</p>
             ) : accountsQuery.isError ? (
-              <p className="py-10 text-center text-sm text-red-400">{accountsQuery.error.message}</p>
+              <p className="py-10 text-center text-body text-danger">{accountsQuery.error.message}</p>
             ) : items.length ? (
               <div className="space-y-3">
                 {items.map((account) => {
@@ -211,13 +211,13 @@ export function GrokAccountsDraw({
                   const syncBadge = grokSyncBadge(account.sync_status)
                   const reauthRequired = account.sync_status?.toLowerCase() === 'reauth_required'
                   return (
-                    <div key={account.credential_id} className="section-soft space-y-3 rounded-lg p-4">
+                    <div key={account.credential_id} className="section-soft space-y-3 rounded-inner p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1.5">
-                          <span className="block truncate text-sm font-medium text-foreground">{account.masked_token || t('grokAccounts.unnamed')}</span>
+                          <span className="block truncate text-body font-medium text-label">{account.masked_token || t('grokAccounts.unnamed')}</span>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {account.tier ? <Badge variant="outline" className="px-1.5 py-0 text-[10px]">{account.tier}</Badge> : null}
-                            <Badge variant="outline" className={`px-1.5 py-0 text-[10px] ${syncBadge.className}`}>{syncBadge.label(t)}</Badge>
+                            {account.tier ? <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{account.tier}</Badge> : null}
+                            <Badge variant="secondary" className={`px-1.5 py-0 text-[10px] ${syncBadge.className}`}>{syncBadge.label(t)}</Badge>
                           </div>
                         </div>
                         <Switch
@@ -228,12 +228,12 @@ export function GrokAccountsDraw({
                         />
                       </div>
 
-                      {account.sync_message ? <p className="text-xs text-red-400">{account.sync_message}</p> : null}
+                      {account.sync_message ? <p className="text-footnote text-danger">{account.sync_message}</p> : null}
 
-                      <div className="flex items-center justify-between text-xs text-muted-soft">
+                      <div className="flex items-center justify-between text-footnote text-label-2">
                         <div className="flex items-center gap-3">
                           <span>-</span>
-                          <button type="button" className="hover:text-foreground cursor-pointer" onClick={() => setModelsAccount(account)}>
+                          <button type="button" className="hover:text-label cursor-pointer" onClick={() => setModelsAccount(account)}>
                             {account.model_count ?? account.models?.length ?? 0} {t('grokAccounts.models')}
                           </button>
                         </div>
@@ -242,7 +242,7 @@ export function GrokAccountsDraw({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-red-400"
+                              className="h-7 w-7 text-danger"
                               disabled={Boolean(device)}
                               title={t('grokAccounts.reauthorize')}
                               aria-label={t('grokAccounts.reauthorize')}
@@ -265,7 +265,7 @@ export function GrokAccountsDraw({
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                            className="h-7 w-7 text-danger hover:bg-danger/10 hover:text-danger"
                             disabled={deleteMutation.isPending}
                             title={t('grokAccounts.delete')}
                             aria-label={t('grokAccounts.delete')}
@@ -280,7 +280,7 @@ export function GrokAccountsDraw({
                 })}
               </div>
             ) : (
-              <p className="py-10 text-center text-sm text-muted-soft">{t('grokAccounts.empty')}</p>
+              <p className="py-10 text-center text-body text-label-2">{t('grokAccounts.empty')}</p>
             )}
           </DrawBody>
         </DrawContent>
@@ -291,19 +291,19 @@ export function GrokAccountsDraw({
           <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t(device?.purpose === 'reauth' ? 'grokAccounts.device.reauthTitle' : 'grokAccounts.device.title')}</DialogTitle></DialogHeader>
           <DialogBody className="space-y-4 pt-0">
             {device?.status === 'starting' ? (
-              <p className="flex items-center gap-2 text-sm text-muted-soft"><LoaderCircle className="h-4 w-4 animate-spin" />{t('grokAccounts.device.starting')}</p>
+              <p className="flex items-center gap-2 text-body text-label-2"><LoaderCircle className="h-4 w-4 animate-spin" />{t('grokAccounts.device.starting')}</p>
             ) : device?.status === 'error' ? (
-              <p className="text-sm text-red-400">{device.error}</p>
+              <p className="text-body text-danger">{device.error}</p>
             ) : device?.info ? (
               <>
                 <DialogDescription className="mt-0">{t('grokAccounts.device.instructions')}</DialogDescription>
-                <div className="rounded-lg border border-[hsl(var(--glass-divider))] bg-background/40 py-4 text-center">
-                  <span className="font-mono text-2xl font-semibold tracking-[0.3em] text-foreground">{device.info.user_code}</span>
+                <div className="rounded-inner border border-separator bg-background/40 py-4 text-center">
+                  <span className="font-mono text-2xl font-semibold tracking-[0.3em] text-label">{device.info.user_code}</span>
                 </div>
-                <Button variant="outline" className="w-full" onClick={() => window.open(device.info!.verification_uri_complete || device.info!.verification_uri, '_blank', 'noopener')}>
+                <Button variant="secondary" className="w-full" onClick={() => window.open(device.info!.verification_uri_complete || device.info!.verification_uri, '_blank', 'noopener')}>
                   <ExternalLink className="h-4 w-4" />{t('grokAccounts.device.authorize')}
                 </Button>
-                <p className="flex items-center justify-center gap-2 text-xs text-muted-soft"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{t('grokAccounts.device.waiting')}</p>
+                <p className="flex items-center justify-center gap-2 text-footnote text-label-2"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{t('grokAccounts.device.waiting')}</p>
               </>
             ) : null}
           </DialogBody>
@@ -321,7 +321,7 @@ export function GrokAccountsDraw({
           </DialogBody>
           <DialogFooter
             className="border-t-0 pt-2"
-            cancel={<Button variant="outline" disabled={deleteMutation.isPending} onClick={() => setDeleting(null)}>{t('grokAccounts.cancel')}</Button>}
+            cancel={<Button variant="secondary" disabled={deleteMutation.isPending} onClick={() => setDeleting(null)}>{t('grokAccounts.cancel')}</Button>}
             confirm={(
               <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => { if (deleting) deleteMutation.mutate(deleting) }}>
                 {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{t('grokAccounts.deleteDialog.delete')}
@@ -354,16 +354,16 @@ export function GrokAccountsDraw({
 function grokSyncBadge(status?: string | null): { className: string; label: (t: (key: string) => string) => string } {
   switch ((status || '').toLowerCase()) {
     case 'synced':
-      return { className: 'border-emerald-500/40 text-emerald-400', label: (t) => t('grokAccounts.sync.synced') }
+      return { className: 'border-success/40 text-success', label: (t) => t('grokAccounts.sync.synced') }
     case 'failed':
-      return { className: 'border-red-500/40 text-red-400', label: (t) => t('grokAccounts.sync.failed') }
+      return { className: 'border-danger/40 text-danger', label: (t) => t('grokAccounts.sync.failed') }
     case 'reauth_required':
-      return { className: 'border-red-500/40 text-red-400', label: (t) => t('grokAccounts.sync.reauthRequired') }
+      return { className: 'border-danger/40 text-danger', label: (t) => t('grokAccounts.sync.reauthRequired') }
     case 'stale':
-      return { className: 'border-amber-500/40 text-amber-400', label: (t) => t('grokAccounts.sync.stale') }
+      return { className: 'border-warning/40 text-warning', label: (t) => t('grokAccounts.sync.stale') }
     case 'partial':
-      return { className: 'border-amber-500/40 text-amber-400', label: (t) => t('grokAccounts.sync.partial') }
+      return { className: 'border-warning/40 text-warning', label: (t) => t('grokAccounts.sync.partial') }
     default:
-      return { className: 'text-muted-soft', label: (t) => t('grokAccounts.sync.unknown') }
+      return { className: 'text-label-2', label: (t) => t('grokAccounts.sync.unknown') }
   }
 }

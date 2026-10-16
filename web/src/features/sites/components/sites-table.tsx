@@ -107,11 +107,11 @@ export function SitesTable({
         const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
         return (
           <div className="flex items-center gap-3 min-w-0">
-            {icon ? <img src={icon} alt="" className={cn('h-7 w-7 shrink-0 rounded-lg object-contain', siteTypeIconClassName(site.site_type))} /> : null}
+            {icon ? <img src={icon} alt="" className={cn('h-7 w-7 shrink-0 rounded-inner object-contain', siteTypeIconClassName(site.site_type))} /> : null}
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="truncate font-medium text-label">{site.name}</span>
-                <Badge variant="outline" className="shrink-0 select-none">{formatSiteTypeLabel(site.site_type)}</Badge>
+                <Badge variant="secondary" className="shrink-0 select-none">{formatSiteTypeLabel(site.site_type)}</Badge>
                 <SitePlanBadge site={site} />
               </div>
               <div className="text-label-2 truncate text-footnote">
@@ -302,7 +302,7 @@ export function SitesTable({
             <Button size="icon-sm" variant="ghost" className="size-7" disabled={togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onEdit(row.original) }} aria-label={t('table.ariaLabels.edit', { name: row.original.name })}>
               <PencilLine className="h-4 w-4" />
             </Button>
-            <Button size="icon-sm" variant="ghost" className="size-7 text-danger hover:text-red-300" disabled={deletingSiteId === row.original.id || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onDelete(row.original) }} aria-label={t('table.ariaLabels.delete', { name: row.original.name })}>
+            <Button size="icon-sm" variant="ghost" className="size-7 text-danger hover:text-danger" disabled={deletingSiteId === row.original.id || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onDelete(row.original) }} aria-label={t('table.ariaLabels.delete', { name: row.original.name })}>
               {deletingSiteId === row.original.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             </Button>
           </div>

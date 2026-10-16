@@ -349,17 +349,17 @@ function toSlug(input: string) {
 
 function FieldHint({ children }: { children?: string }) {
   if (!children) return null
-  return <p className="text-muted-soft text-xs leading-5">{children}</p>
+  return <p className="text-label-2 text-footnote leading-5">{children}</p>
 }
 
 function FieldError({ children }: { children?: string }) {
   if (!children) return null
-  return <p className="text-xs leading-5 text-red-300">{children}</p>
+  return <p className="text-footnote leading-5 text-danger">{children}</p>
 }
 
 function FieldWarning({ children }: { children?: string }) {
   if (!children) return null
-  return <p className="text-xs leading-5 text-red-400">{children}</p>
+  return <p className="text-footnote leading-5 text-danger">{children}</p>
 }
 
 function FormField({
@@ -385,7 +385,7 @@ function FormField({
           action && 'min-h-8',
         )}
       >
-        <span className="block text-sm font-medium">{label}</span>
+        <span className="block text-body font-medium">{label}</span>
         {action}
       </div>
       {children}
@@ -404,8 +404,8 @@ function FormSection({
   children: ReactNode
 }) {
   return (
-    <section className={cn('space-y-4 py-5', divided ? 'border-t border-[hsl(var(--glass-divider))]' : 'pt-0')}>
-      {typeof title === 'string' ? <h3 className="text-sm font-semibold text-foreground">{title}</h3> : title}
+    <section className={cn('space-y-4 py-5', divided ? 'border-t border-separator' : 'pt-0')}>
+      {typeof title === 'string' ? <h3 className="text-headline text-label">{title}</h3> : title}
       <div className="space-y-4">{children}</div>
     </section>
   )
@@ -416,8 +416,8 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
   return (
     <div className="space-y-5">
       {groups.map((group) => (
-        <section key={group.title} className="space-y-2.5 border-t border-[hsl(var(--glass-divider))] pt-5 first:border-t-0 first:pt-0">
-          <div className="text-muted-soft text-xs font-medium">{group.title}</div>
+        <section key={group.title} className="space-y-2.5 border-t border-separator pt-5 first:border-t-0 first:pt-0">
+          <div className="text-label-2 text-footnote font-medium">{group.title}</div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {group.items.map((st) => {
               const icon = siteTypeIconPath(st.site_type) ?? st.icon_url
@@ -426,24 +426,24 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
                 <button
                   key={st.site_type}
                   type="button"
-                  className="flex w-full items-center gap-3 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-4 py-3 text-left hover:bg-[hsl(var(--surface-subtle))] transition-colors cursor-pointer"
+                  className="flex w-full items-center gap-3 rounded-inner border border-separator bg-fill-4 px-4 py-3 text-left hover:bg-fill-3 transition-colors cursor-pointer"
                   onClick={() => onSelect(st.site_type)}
                 >
                   {icon ? (
                     <img
                       src={icon}
                       alt=""
-                      className={cn('h-8 w-8 shrink-0 rounded-md object-contain', siteTypeIconClassName(st.site_type))}
+                      className={cn('h-8 w-8 shrink-0 rounded-control object-contain', siteTypeIconClassName(st.site_type))}
                     />
                   ) : (
-                    <div className="h-8 w-8 shrink-0 rounded-md bg-[hsl(var(--surface-soft))] flex items-center justify-center text-sm font-medium text-muted-soft">
+                    <div className="h-8 w-8 shrink-0 rounded-control bg-fill-3 flex items-center justify-center text-body font-medium text-label-2">
                       {st.display_name.charAt(0)}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-foreground">{st.display_name}</div>
+                    <div className="text-headline text-label">{st.display_name}</div>
                     {subtitle ? (
-                      <div className="truncate text-xs text-muted-soft">{subtitle}</div>
+                      <div className="truncate text-footnote text-label-2">{subtitle}</div>
                     ) : null}
                   </div>
                 </button>
@@ -747,7 +747,7 @@ export function SiteCreateSheet({
                 <img
                   src={selectedProviderIcon}
                   alt=""
-                  className={cn('h-6 w-6 shrink-0 rounded-md object-contain', siteTypeIconClassName(selectedProvider))}
+                  className={cn('h-6 w-6 shrink-0 rounded-control object-contain', siteTypeIconClassName(selectedProvider))}
                 />
               ) : null}
               <DrawTitle>
@@ -808,7 +808,7 @@ export function SiteCreateSheet({
 
               {isGrok && mode === 'create' ? (
                 <FormSection title={t('form.sections.grokAccounts')} divided>
-                  <p className="text-sm text-muted-soft">{t('form.grokDeviceHint')}</p>
+                  <p className="text-body text-label-2">{t('form.grokDeviceHint')}</p>
                 </FormSection>
               ) : null}
 
@@ -893,7 +893,7 @@ export function SiteCreateSheet({
                           <Button
                             type="button"
                             size="sm"
-                            variant="outline"
+                            variant="secondary"
                             className="h-8"
                             onClick={openNewAPIKeyForm}
                           >
@@ -911,17 +911,17 @@ export function SiteCreateSheet({
                             return (
                               <div
                                 key={`${index}:${apiKey.name}`}
-                                className="group flex min-h-14 items-center justify-between gap-3 rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-2.5 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
+                                className="group flex min-h-14 items-center justify-between gap-3 rounded-control border border-separator bg-fill-4 px-3 py-2.5 transition-colors hover:bg-fill-3"
                               >
                                 <div className="flex min-w-0 items-center gap-3">
-                                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--surface-subtle))] text-muted-soft">
+                                  <div className="flex size-8 shrink-0 items-center justify-center rounded-control bg-fill-3 text-label-2">
                                     <KeyRound className="h-4 w-4" />
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="truncate text-sm font-medium text-foreground">
+                                    <div className="truncate text-body font-medium text-label">
                                       {keyName}
                                     </div>
-                                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-soft">
+                                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-footnote text-label-2">
                                       <span>
                                         {t('apiKeys.routingPriority')} {apiKey.routingPriority}
                                       </span>
@@ -938,7 +938,7 @@ export function SiteCreateSheet({
                                     type="button"
                                     size="icon"
                                     variant="ghost"
-                                    className="h-8 w-8 text-muted-soft hover:text-foreground"
+                                    className="h-8 w-8 text-label-2 hover:text-label"
                                     title={t('apiKeys.editConfig')}
                                     aria-label={t('apiKeys.editConfigLabel', {
                                       name: keyName,
@@ -953,7 +953,7 @@ export function SiteCreateSheet({
                                     type="button"
                                     size="icon"
                                     variant="ghost"
-                                    className="h-8 w-8 text-muted-soft hover:bg-red-500/10 hover:text-red-400"
+                                    className="h-8 w-8 text-label-2 hover:bg-danger/10 hover:text-danger"
                                     title={t('apiKeys.delete')}
                                     aria-label={t('apiKeys.deleteLabel', {
                                       name: keyName,
@@ -982,8 +982,8 @@ export function SiteCreateSheet({
                       ) : (
                         <Button
                           type="button"
-                          variant="outline"
-                          className="h-12 w-full border-dashed text-muted-soft hover:text-foreground"
+                          variant="secondary"
+                          className="h-12 w-full border-dashed text-label-2 hover:text-label"
                           onClick={openNewAPIKeyForm}
                         >
                           <Plus className="h-4 w-4" />
@@ -1060,7 +1060,7 @@ export function SiteCreateSheet({
                 title={(
                   <button
                     type="button"
-                    className="flex w-full items-center gap-1.5 text-left text-sm font-semibold text-foreground transition-colors hover:text-foreground"
+                    className="flex w-full items-center gap-1.5 text-left text-headline text-label transition-colors hover:text-label"
                     onClick={() => setHeadersExpanded((v) => !v)}
                   >
                     <ChevronDown className={cn('h-4 w-4 transition-transform', headersExpanded ? 'rotate-0' : '-rotate-90')} />
@@ -1121,10 +1121,10 @@ export function SiteCreateSheet({
                         />
 
                         {responsesToolPolicy === 'compatibility' ? (
-                          <div className="space-y-3 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-4 py-3">
+                          <div className="space-y-3 rounded-inner border border-separator bg-fill-3 px-4 py-3">
                             <div>
-                              <span className="block text-sm font-medium">{t('form.fields.disabledResponsesTools')}</span>
-                              <p className="text-muted-soft mt-1 text-xs">{t('form.fields.disabledResponsesToolsDesc')}</p>
+                              <span className="block text-body font-medium">{t('form.fields.disabledResponsesTools')}</span>
+                              <p className="text-label-2 mt-1 text-footnote">{t('form.fields.disabledResponsesToolsDesc')}</p>
                             </div>
                             <Controller
                               control={control}
@@ -1144,8 +1144,8 @@ export function SiteCreateSheet({
 
                         <div className="space-y-3">
                           <div>
-                            <span className="block text-sm font-medium">{t('form.fields.clientImpersonation')}</span>
-                            <p className="text-muted-soft mt-1 text-xs">{t('form.fields.clientImpersonationDesc')}</p>
+                            <span className="block text-body font-medium">{t('form.fields.clientImpersonation')}</span>
+                            <p className="text-label-2 mt-1 text-footnote">{t('form.fields.clientImpersonationDesc')}</p>
                           </div>
                           <div className="space-y-2">
                             <Controller
@@ -1179,10 +1179,10 @@ export function SiteCreateSheet({
 
                     <div className="space-y-3">
                       <div>
-                        <span className="block text-sm font-medium">{t('form.fields.requestHeaders')}</span>
-                        <p className="text-muted-soft mt-1 text-xs">{t('form.fields.requestHeadersDesc')}</p>
+                        <span className="block text-body font-medium">{t('form.fields.requestHeaders')}</span>
+                        <p className="text-label-2 mt-1 text-footnote">{t('form.fields.requestHeadersDesc')}</p>
                       </div>
-                      <div className="rounded-lg border border-[hsl(var(--glass-border))]">
+                      <div className="rounded-inner border border-separator">
                         {fields.length ? (
                           <div className="p-3 space-y-2">
                             {fields.map((field, index) => (
@@ -1200,7 +1200,7 @@ export function SiteCreateSheet({
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-9 w-9 shrink-0 text-muted-soft hover:text-red-400"
+                                  className="h-9 w-9 shrink-0 text-label-2 hover:text-danger"
                                   aria-label={t('form.actions.removeHeader')}
                                   onClick={() => remove(index)}
                                 >
@@ -1210,7 +1210,7 @@ export function SiteCreateSheet({
                             ))}
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="secondary"
                               onClick={() => append({ key: '', value: '' })}
                             >
                               <Plus className="h-3.5 w-3.5 mr-1" />{t('form.actions.addHeader')}
@@ -1220,7 +1220,7 @@ export function SiteCreateSheet({
                           <div className="flex items-center justify-center h-24">
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="secondary"
                               onClick={() => append({ key: '', value: '' })}
                             >
                               <Plus className="h-3.5 w-3.5 mr-1" />{t('form.actions.addHeader')}

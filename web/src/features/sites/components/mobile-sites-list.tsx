@@ -203,7 +203,7 @@ function MobileSiteCard({
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-headline text-label">{site.name}</h3>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline">{formatSiteTypeLabel(site.site_type, siteTypes)}</Badge>
+            <Badge variant="secondary">{formatSiteTypeLabel(site.site_type, siteTypes)}</Badge>
             <SitePlanBadge site={site} />
             {statusBadge}
           </div>
@@ -279,7 +279,7 @@ function MobileSiteCard({
         <Button size="icon" variant="ghost" className="h-9 w-9" disabled={isToggling} onClick={() => onEdit(site)} aria-label={t('table.ariaLabels.edit', { name: site.name })}>
           <PencilLine className="h-4 w-4" />
         </Button>
-        <Button size="icon" variant="ghost" className="h-9 w-9 text-danger hover:text-red-300" disabled={isDeleting || isToggling} onClick={() => onDelete(site)} aria-label={t('table.ariaLabels.delete', { name: site.name })}>
+        <Button size="icon" variant="ghost" className="h-9 w-9 text-danger hover:text-danger" disabled={isDeleting || isToggling} onClick={() => onDelete(site)} aria-label={t('table.ariaLabels.delete', { name: site.name })}>
           {isDeleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
         </Button>
       </div>
@@ -337,7 +337,7 @@ function MobileAbnormalToggle({ count, collapsed, onToggle }: { count: number; c
       <div className="mb-3 border-t border-separator" />
       <button
         type="button"
-        className="flex w-full items-center gap-2 rounded-lg bg-fill-4 px-3 py-2.5 text-left text-body text-label-2 transition-colors hover:text-label"
+        className="flex w-full items-center gap-2 rounded-inner bg-fill-4 px-3 py-2.5 text-left text-body text-label-2 transition-colors hover:text-label"
         onClick={onToggle}
       >
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', collapsed && '-rotate-90')} />
