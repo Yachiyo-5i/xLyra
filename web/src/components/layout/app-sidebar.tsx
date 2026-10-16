@@ -29,8 +29,8 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
 
   // 尺寸沿用原侧边栏：14 / 500、行高 20、内边距 12 × 12
   const navItemClass =
-    'relative flex w-full appearance-none items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium leading-5 transition-colors duration-150'
-  const navItemActiveClass = 'bg-fill-3 text-label'
+    'relative flex w-full appearance-none items-center gap-3 rounded-full px-3 py-3 text-left text-sm font-medium leading-5 transition-colors duration-150'
+  const navItemActiveClass = 'nav-item-selected text-label'
   const navItemIdleClass = 'text-label-2 hover:bg-fill-4 hover:text-label'
   const navLabelClass = 'truncate text-sm font-medium leading-5'
 
@@ -101,7 +101,7 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
                                   onClick={handleNavigate}
                                   className={({ isActive }) =>
                                     cn(
-                                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150',
+                                      'flex items-center gap-3 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-150',
                                       isActive ? navItemActiveClass : navItemIdleClass,
                                     )
                                   }

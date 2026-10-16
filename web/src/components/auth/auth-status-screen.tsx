@@ -1,7 +1,9 @@
 import { LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { AuthShell } from '@/features/auth/components/auth-shell'
 import { inferStatusCode } from '@/components/auth/auth-utils'
+import { AuthCard } from '@/features/auth/components/auth-card'
+import { AuthViewport } from '@/features/auth/components/auth-viewport'
+import { LyraAuthScene } from '@/features/auth/components/lyra-auth-scene'
 
 type AuthStatusScreenProps = {
   title: string
@@ -10,46 +12,33 @@ type AuthStatusScreenProps = {
   statusCode?: number | null
 }
 
-export function AuthStatusScreen({
-  title,
-  description,
-  state = 'loading',
-  statusCode,
-}: AuthStatusScreenProps) {
+/** 鉴权检查中 / 服务不可用时的全屏状态页：与登录页同一片夜空，卡片始终显示、不可关闭 */
+export function AuthStatusScreen({ title, description, state = 'loading', statusCode }: AuthStatusScreenProps) {
   const { t } = useTranslation('components')
   const displayStatusCode = statusCode ?? inferStatusCode(description) ?? 502
 
-  if (state === 'error') {
-    return (
-      <AuthShell mode="status" eyebrow="xLyra Auth" title={title} description={description}>
-        <div className="text-center">
-          <p className="text-[clamp(4rem,5vw,5.75rem)] font-semibold leading-none tracking-tight text-foreground">
-            {displayStatusCode}
-          </p>
-          <h1 className="mt-5 text-lg font-semibold tracking-tight text-foreground md:text-xl">
-            {t('authGuard.serviceErrorTitle')}
-          </h1>
-          <p className="mx-auto mt-4 max-w-[22rem] text-sm leading-6 text-muted-soft">
-            {t('authGuard.serviceErrorDesc')}
-          </p>
-          <p className="mt-3 text-xs font-medium text-faint">
-            HTTP {displayStatusCode}
-          </p>
-        </div>
-      </AuthShell>
-    )
-  }
-
   return (
-    <AuthShell mode="status" eyebrow="xLyra Auth" title={title} description={description}>
-      <div className="text-center">
-        <div className="mx-auto mb-6 grid size-12 place-items-center rounded-2xl bg-[hsl(var(--primary)/0.1)] text-primary">
-          <LoaderCircle className="h-5 w-5 animate-spin" />
-        </div>
-        <p className="mx-auto max-w-[22rem] text-sm leading-6 text-muted-soft">
-          {description}
-        </p>
-      </div>
-    </AuthShell>
+    <AuthViewport>
+      <LyraAuthScene>
+        {() =>
+          state === 'error' ? (
+            <AuthCard title={t('authGuard.serviceErrorTitle')} description={t('authGuard.serviceErrorDesc')}>
+              <div className="flex items-baseline justify-between gap-3 rounded-inner bg-fill-3 px-4 py-3">
+                <span className="font-mono text-kpi text-label">{displayStatusCode}</span>
+                <span className="font-mono text-footnote text-label-3">HTTP {displayStatusCode}</span>
+              </div>
+              <p className="mt-3 break-words text-footnote text-label-3">{description}</p>
+            </AuthCard>
+          ) : (
+            <AuthCard title={title}>
+              <div className="flex items-center gap-3 text-subhead text-label-2">
+                <LoaderCircle className="size-4 shrink-0 animate-spin text-label-3" />
+                {description}
+              </div>
+            </AuthCard>
+          )
+        }
+      </LyraAuthScene>
+    </AuthViewport>
   )
 }

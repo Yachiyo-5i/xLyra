@@ -51,10 +51,12 @@ function DesktopAppShell({ children }: PropsWithChildren) {
         </LiquidGlass>
 
         <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-          {/* 内容在浮动顶栏下方滚过；页脚跟随内容滚动 */}
+          {/* 内容在浮动顶栏下方滚过；页脚跟随内容滚动，内容不足一屏时贴在窗口底部 */}
           <main data-scroll-container="true" className="min-h-0 flex-1 overflow-y-auto">
-            <div className="px-4 pb-6 pt-[84px] md:px-8 lg:px-10">{children}</div>
-            <AppFooter />
+            <div className="flex min-h-full flex-col">
+              <div className="px-4 pb-6 pt-[84px] md:px-8 lg:px-10">{children}</div>
+              <AppFooter />
+            </div>
           </main>
           <div className="scroll-edge-top z-20" style={{ '--scroll-edge-height': '84px' } as CSSProperties} />
           <AppTopbar onMenuClick={() => setMobileSidebarOpen(true)} />
@@ -93,7 +95,7 @@ function DesktopAppShell({ children }: PropsWithChildren) {
 
 function AppFooter() {
   return (
-    <footer className="px-4 pb-6 pt-2 md:px-8 lg:px-10">
+    <footer className="mt-auto px-4 pb-6 pt-2 md:px-8 lg:px-10">
       <div className="flex flex-col gap-3 text-xs text-label-3 sm:flex-row sm:items-center sm:justify-between">
         <a
           href="https://github.com/Yachiyo-5i/xLyra"

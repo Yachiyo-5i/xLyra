@@ -3,6 +3,8 @@
 /* 字体：均为 OFL 授权，随 npm 包自托管。
    每个字体按 unicode-range 切片，浏览器只下载页面实际用到的字符所在切片。 */
 @import "@fontsource-variable/literata/opsz.css";
+/* 斜体只在用到时按需下载（登录页字标 x*Lyra*） */
+@import "@fontsource-variable/literata/opsz-italic.css";
 @import "@fontsource-variable/noto-serif-sc";
 @import "@fontsource-variable/jetbrains-mono";
 
@@ -77,7 +79,7 @@
 
 /* 工具栏变形菜单（components/layout/morph-toolbar.tsx）关闭时被吸回按钮的小液滴 */
 .morph-drip {
-  background: rgb(44 44 47 / 0.78);
+  background: rgb(26 27 32 / 0.78);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.14),
     0 4px 10px rgb(0 0 0 / 0.3);
@@ -259,22 +261,26 @@ html[data-standalone='true'] .mobile-dock-anchor {
   color-scheme: dark;
 
   /* ---- 新语义 token ---- */
-  --bg-base: #1c1c1e;
-  --bg-elevated-1: #262628;
-  --bg-elevated-2: #2f2f32;
-  --bg-elevated-3: #3a3a3c;
+  --bg-base: #0a0b0d;
+  --bg-elevated-1: #131418;
+  --bg-elevated-2: #1a1b20;
+  --bg-elevated-3: #23242a;
 
   --label-primary: rgb(255 255 255 / 0.95);
-  --label-secondary: rgb(235 235 245 / 0.62);
-  --label-tertiary: rgb(235 235 245 / 0.4);
-  --label-quaternary: rgb(235 235 245 / 0.18);
+  --label-secondary: rgb(235 235 245 / 0.68);
+  --label-tertiary: rgb(235 235 245 / 0.44);
+  --label-quaternary: rgb(235 235 245 / 0.2);
 
-  --fill-primary: rgb(120 120 128 / 0.36);
-  --fill-secondary: rgb(120 120 128 / 0.28);
-  --fill-tertiary: rgb(118 118 128 / 0.2);
-  --fill-quaternary: rgb(116 116 128 / 0.14);
-  --separator: rgb(255 255 255 / 0.09);
-  --separator-opaque: #38383a;
+  --fill-primary: rgb(255 255 255 / 0.14);
+  --fill-secondary: rgb(255 255 255 / 0.1);
+  --fill-tertiary: rgb(255 255 255 / 0.07);
+  --fill-quaternary: rgb(255 255 255 / 0.045);
+  --separator: rgb(255 255 255 / 0.07);
+  --separator-opaque: #26272c;
+
+  /* 组件顶光：从顶边往下 160px 内淡出；描边顶边亮、往下变暗 */
+  --top-light: linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.018) 64px, rgb(255 255 255 / 0) 160px);
+  --rim-light: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.05) 48px, rgb(255 255 255 / 0.035));
 
   /* 强调色：主按钮背景、选中态、焦点环。浅色底，所以前景（按钮文字）用深色 */
   --tint: #e7ebf3;
@@ -313,37 +319,37 @@ html[data-standalone='true'] .mobile-dock-anchor {
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* ---- 旧 token 别名（HSL 三元组，格式与旧版保持一致；过渡期使用） ---- */
-  --background: 240 3% 11%;
+  --background: 220 13% 4.5%;
   --foreground: 240 20% 97%;
-  --card: 240 3% 15%;
+  --card: 228 12% 8.5%;
   --card-foreground: 240 20% 97%;
-  --popover: 240 3% 19%;
+  --popover: 230 10% 11.4%;
   --popover-foreground: 240 20% 97%;
   --primary: 220 33% 93%;
-  --primary-foreground: 240 3% 11%;
-  --secondary: 240 3% 19%;
+  --primary-foreground: 220 13% 4.5%;
+  --secondary: 230 10% 11.4%;
   --secondary-foreground: 240 20% 97%;
-  --muted: 240 3% 19%;
+  --muted: 230 10% 11.4%;
   --muted-foreground: 240 6% 66%;
   --accent: 220 33% 93%;
-  --accent-foreground: 240 3% 11%;
+  --accent-foreground: 220 13% 4.5%;
   --destructive: 3 100% 61%;
   --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 100% / 0.09;
-  --input: 240 4% 48% / 0.2;
+  --border: 0 0% 100% / 0.08;
+  --input: 0 0% 100% / 0.07;
   --ring: 220 33% 93%;
   --ring-soft: 220 33% 93% / 0.16;
   --ring-strong: 220 33% 93% / 0.42;
-  --surface-base: 240 3% 11%;
-  --surface-panel: 240 3% 15%;
-  --surface-elevated: 240 3% 17% / 0.82;
-  --surface-field: 240 4% 48% / 0.2;
-  --surface-selected: 240 2% 23%;
-  --surface-soft: 240 3% 15% / 0.62;
-  --surface-soft-hover: 240 3% 20% / 0.72;
-  --surface-subtle: 240 4% 48% / 0.2;
-  --surface-strong: 240 3% 15% / 0.8;
-  --glass-border: 0 0% 100% / 0.09;
+  --surface-base: 220 13% 4.5%;
+  --surface-panel: 228 12% 8.5%;
+  --surface-elevated: 230 10% 11% / 0.82;
+  --surface-field: 0 0% 100% / 0.07;
+  --surface-selected: 230 8% 16%;
+  --surface-soft: 228 12% 8.5% / 0.72;
+  --surface-soft-hover: 230 10% 13% / 0.8;
+  --surface-subtle: 0 0% 100% / 0.07;
+  --surface-strong: 228 12% 8.5% / 0.88;
+  --glass-border: 0 0% 100% / 0.08;
   --glass-border-strong: 0 0% 100% / 0.14;
   --glass-divider: 0 0% 100% / 0.07;
   --divider: 0 0% 100% / 0.07;
@@ -351,13 +357,13 @@ html[data-standalone='true'] .mobile-dock-anchor {
   --field-border-focus: 220 33% 93% / 0.45;
   --input-placeholder: 240 4% 46%;
   --icon-soft: 240 5% 62%;
-  --text-muted-soft: 240 6% 66%;
+  --text-muted-soft: 230 8% 70%;
   --text-subtle: 240 8% 84%;
   --text-faint: 240 4% 50%;
-  --ambient-left: 240 3% 11%;
-  --ambient-right: 240 3% 11%;
-  --ambient-base: 240 3% 11%;
-  --ambient-bottom: 240 3% 11%;
+  --ambient-left: 220 13% 4.5%;
+  --ambient-right: 220 13% 4.5%;
+  --ambient-base: 220 13% 4.5%;
+  --ambient-bottom: 220 13% 4.5%;
   --badge-neutral-bg: 0 0% 100% / 0.07;
   --badge-neutral-border: 0 0% 100% / 0.1;
   --badge-neutral-text: 240 8% 86%;
@@ -389,7 +395,7 @@ html[data-standalone='true'] .mobile-dock-anchor {
   --card-hover-translate: 0px;
   --switch-checked-shadow: 0 0 0 4px hsl(var(--ring-soft));
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.45);
-  --dialog-surface: 240 3% 17% / 0.72;
+  --dialog-surface: 230 10% 11% / 0.72;
   --dialog-overlay: 0 0 0 / 0.45;
   --radius-sm: 8px;
   --radius-md: 10px;
@@ -431,75 +437,6 @@ html[data-standalone='true'] .mobile-dock-anchor {
     --text-caption-1: 12px;
     --text-caption-1--line-height: 16px;
   }
-}
-
-/* 认证页（登录 / 注册） */
-.auth-page {
-  background-color: var(--bg-base);
-  color: var(--label-primary);
-}
-
-/* 认证页同样只用纯色背景，不做渐变光 */
-.auth-background-base {
-  background: var(--bg-base);
-}
-
-.auth-orb-primary,
-.auth-orb-secondary,
-.auth-background-wash {
-  background: transparent;
-}
-
-.auth-orbit {
-  border-color: var(--separator);
-}
-
-.auth-heading-text {
-  color: var(--label-primary);
-}
-
-.auth-subtitle-text {
-  color: hsl(var(--text-subtle));
-}
-
-.auth-muted-text {
-  color: var(--label-secondary);
-}
-
-.auth-footer-text {
-  color: var(--label-tertiary);
-}
-
-.auth-feature-item::after,
-.auth-feature-item::before {
-  position: absolute;
-  top: 50%;
-  width: 1px;
-  height: 6rem;
-  content: "";
-  background-color: var(--separator);
-  transform: translateY(-50%);
-}
-
-.auth-feature-item::after {
-  right: 0;
-}
-
-.auth-feature-item::before {
-  left: 0;
-}
-
-.auth-feature-icon {
-  background-color: hsl(var(--surface-elevated));
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
-  border: 1px solid var(--separator);
-}
-
-.auth-card {
-  color: var(--label-primary);
-  background-color: hsl(var(--surface-elevated));
-  border: 1px solid var(--separator);
-  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.42);
 }
 
 * {
@@ -637,8 +574,9 @@ select {
 .lg-regular {
   border: 1px solid transparent;
   background:
-    linear-gradient(rgb(44 44 47 / 0.58), rgb(44 44 47 / 0.58)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0.07) 38%, rgb(255 255 255 / 0.04) 62%, rgb(255 255 255 / 0.16)) border-box;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(26 27 32 / 0.62), rgb(26 27 32 / 0.62)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.06) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.1)) border-box;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.1),
     inset 0 -1px 0 rgb(0 0 0 / 0.18),
@@ -652,12 +590,13 @@ select {
 .lg-thick {
   border: 1px solid transparent;
   background:
-    linear-gradient(rgb(46 46 50 / 0.4), rgb(46 46 50 / 0.4)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.06) 38%, rgb(255 255 255 / 0.04) 62%, rgb(255 255 255 / 0.14)) border-box;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(24 25 30 / 0.55), rgb(24 25 30 / 0.55)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.24), rgb(255 255 255 / 0.06) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.1)) border-box;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.08),
     inset 0 -1px 0 rgb(0 0 0 / 0.2),
-    0 24px 64px rgb(0 0 0 / 0.45);
+    0 24px 64px rgb(0 0 0 / 0.5);
   -webkit-backdrop-filter: blur(26px) saturate(180%) brightness(1.08);
   backdrop-filter: blur(26px) saturate(180%) brightness(1.08);
 }
@@ -666,12 +605,13 @@ select {
 .lg-clear {
   border: 1px solid transparent;
   background:
-    linear-gradient(rgb(36 36 38 / 0.28), rgb(36 36 38 / 0.28)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.08) 36%, rgb(255 255 255 / 0.05) 64%, rgb(255 255 255 / 0.22)) border-box;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(20 21 25 / 0.3), rgb(20 21 25 / 0.3)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.08) 36%, rgb(255 255 255 / 0.05) 64%, rgb(255 255 255 / 0.2)) border-box;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.16),
     inset 0 -1px 0 rgb(0 0 0 / 0.16),
-    0 12px 32px rgb(0 0 0 / 0.32);
+    0 12px 32px rgb(0 0 0 / 0.4);
   -webkit-backdrop-filter: blur(10px) saturate(200%) brightness(1.08);
   backdrop-filter: blur(10px) saturate(200%) brightness(1.08);
 }
@@ -689,14 +629,16 @@ select {
 
 .lg-regular[data-refraction] {
   background:
-    linear-gradient(rgb(44 44 47 / 0.44), rgb(44 44 47 / 0.44)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.08) 38%, rgb(255 255 255 / 0.04) 62%, rgb(255 255 255 / 0.18)) border-box;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(26 27 32 / 0.46), rgb(26 27 32 / 0.46)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0.07) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.12)) border-box;
 }
 
 .lg-clear[data-refraction] {
   background:
-    linear-gradient(rgb(36 36 38 / 0.1), rgb(36 36 38 / 0.1)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.1) 36%, rgb(255 255 255 / 0.05) 64%, rgb(255 255 255 / 0.26)) border-box;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(20 21 25 / 0.12), rgb(20 21 25 / 0.12)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.1) 36%, rgb(255 255 255 / 0.05) 64%, rgb(255 255 255 / 0.24)) border-box;
 }
 
 /* 标题使用 Literata + 思源宋体，KPI 数字使用 JetBrains Mono */
@@ -725,7 +667,7 @@ select {
 .scroll-edge-top {
   top: 0;
   height: var(--scroll-edge-height, 72px);
-  background: linear-gradient(rgb(28 28 30 / 0.72), rgb(28 28 30 / 0));
+  background: linear-gradient(rgb(10 11 13 / 0.78), rgb(10 11 13 / 0));
   -webkit-mask-image: linear-gradient(#000 45%, transparent);
   mask-image: linear-gradient(#000 45%, transparent);
 }
@@ -762,25 +704,39 @@ select {
 /* 标准材质 —— 内容层：文字越多，材质越厚 */
 .mat-thin,
 .mat-regular,
-.mat-thick {
-  border: 1px solid var(--separator);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+.mat-thick,
+.glass-panel,
+.section-soft {
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 1px 2px rgb(0 0 0 / 0.5),
+    0 12px 32px rgb(0 0 0 / 0.28);
 }
 
 .mat-thin {
-  background-color: rgb(38 38 40 / 0.45);
+  background:
+    var(--top-light) padding-box,
+    linear-gradient(rgb(22 23 28 / 0.55), rgb(22 23 28 / 0.55)) padding-box,
+    var(--rim-light) border-box;
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
 }
 
 .mat-regular {
-  background-color: rgb(38 38 40 / 0.62);
+  background:
+    var(--top-light) padding-box,
+    linear-gradient(rgb(22 23 28 / 0.78), rgb(22 23 28 / 0.78)) padding-box,
+    var(--rim-light) border-box;
   -webkit-backdrop-filter: blur(24px) saturate(140%);
   backdrop-filter: blur(24px) saturate(140%);
 }
 
 .mat-thick {
-  background-color: rgb(38 38 40 / 0.8);
+  background:
+    var(--top-light) padding-box,
+    linear-gradient(rgb(22 23 28 / 0.9), rgb(22 23 28 / 0.9)) padding-box,
+    var(--rim-light) border-box;
   -webkit-backdrop-filter: blur(32px) saturate(140%);
   backdrop-filter: blur(32px) saturate(140%);
 }
@@ -788,6 +744,16 @@ select {
 .surface-solid {
   background-color: var(--bg-elevated-1);
   border: 1px solid var(--separator);
+}
+
+/* 侧边栏选中项：上亮下暗的渐变 + 顶边高光 + 极淡描边 + 下方阴影，像一块微微凸起的玻璃片 */
+.nav-item-selected {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.05));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 0 0 1px rgb(255 255 255 / 0.05),
+    0 1px 2px rgb(0 0 0 / 0.45),
+    0 6px 16px rgb(0 0 0 / 0.28);
 }
 
 /* 无障碍：降低透明度时全部退化为实色 */
@@ -818,10 +784,11 @@ select {
 
 /* ---- 旧材质类（过渡期别名，映射到新材质） ---- */
 .glass-panel {
-  background-color: rgb(38 38 40 / 0.62);
-  border: 1px solid var(--separator);
+  background:
+    var(--top-light) padding-box,
+    linear-gradient(rgb(22 23 28 / 0.78), rgb(22 23 28 / 0.78)) padding-box,
+    var(--rim-light) border-box;
   border-radius: var(--radius-lg);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
   -webkit-backdrop-filter: blur(24px) saturate(140%);
   backdrop-filter: blur(24px) saturate(140%);
 }
@@ -830,8 +797,9 @@ select {
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
   background:
-    linear-gradient(rgb(44 44 47 / 0.46), rgb(44 44 47 / 0.46)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.07) 38%, rgb(255 255 255 / 0.04) 62%, rgb(255 255 255 / 0.15)) border-box;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(26 27 32 / 0.46), rgb(26 27 32 / 0.46)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.07) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.12)) border-box;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.1),
     inset 0 -1px 0 rgb(0 0 0 / 0.18),
@@ -861,10 +829,11 @@ select {
 }
 
 .section-soft {
-  background-color: rgb(38 38 40 / 0.62);
-  border: 1px solid var(--separator);
+  background:
+    var(--top-light) padding-box,
+    linear-gradient(rgb(22 23 28 / 0.78), rgb(22 23 28 / 0.78)) padding-box,
+    var(--rim-light) border-box;
   border-radius: var(--radius-lg);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
   -webkit-backdrop-filter: blur(24px) saturate(140%);
   backdrop-filter: blur(24px) saturate(140%);
 }
@@ -1117,8 +1086,9 @@ select {
   border: 1px solid transparent !important;
   border-radius: 20px !important;
   background:
-    linear-gradient(rgb(44 44 47 / 0.46), rgb(44 44 47 / 0.46)) padding-box,
-    linear-gradient(140deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0.07) 38%, rgb(255 255 255 / 0.04) 62%, rgb(255 255 255 / 0.16)) border-box !important;
+    var(--top-light) padding-box,
+    linear-gradient(rgb(26 27 32 / 0.5), rgb(26 27 32 / 0.5)) padding-box,
+    linear-gradient(160deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.06) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.1)) border-box !important;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.1),
     0 12px 32px rgb(0 0 0 / 0.38) !important;

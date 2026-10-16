@@ -1,29 +1,27 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AuthShell } from '@/features/auth/components/auth-shell'
-import { MobileAuthShell } from '@/features/auth/components/mobile-auth-shell'
+import { AuthCard } from '@/features/auth/components/auth-card'
+import { AuthViewport } from '@/features/auth/components/auth-viewport'
+import { LyraAuthScene } from '@/features/auth/components/lyra-auth-scene'
 import { RegisterForm } from '@/features/auth/components/register-form'
-import { useMobileLayout } from '@/hooks/use-media-query'
 
+/** 注册页（实例初始化）：管理员创建成功时织女星亮起 */
 export function RegisterPage() {
   const { t } = useTranslation('auth')
-  const isMobile = useMobileLayout()
-
-  if (isMobile) {
-    return (
-      <MobileAuthShell title={t('register.title')} description={t('register.description')}>
-        <RegisterForm variant="mobile" />
-      </MobileAuthShell>
-    )
-  }
+  const [created, setCreated] = useState(false)
 
   return (
-    <AuthShell
-      mode="register"
-      eyebrow={t('register.eyebrow')}
-      title={t('register.title')}
-      description={t('register.description')}
-    >
-      <RegisterForm />
-    </AuthShell>
+    <AuthViewport>
+      <LyraAuthScene entryLabel={t('register.title')} vegaLit={created}>
+        {() => (
+          <AuthCard
+            title={created ? t('register.createdTitle') : t('register.title')}
+            description={created ? undefined : t('register.description')}
+          >
+            <RegisterForm onCreated={() => setCreated(true)} />
+          </AuthCard>
+        )}
+      </LyraAuthScene>
+    </AuthViewport>
   )
 }

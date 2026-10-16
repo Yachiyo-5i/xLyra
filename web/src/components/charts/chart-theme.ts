@@ -24,7 +24,7 @@ export const chartTooltipStyle: CSSProperties = {
   border: '1px solid transparent',
   borderRadius: 12,
   background:
-    'linear-gradient(rgb(44 44 47 / 0.62), rgb(44 44 47 / 0.62)) padding-box, linear-gradient(140deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0.07) 38%, rgb(255 255 255 / 0.04) 62%, rgb(255 255 255 / 0.16)) border-box',
+    'var(--top-light) padding-box, linear-gradient(rgb(26 27 32 / 0.62), rgb(26 27 32 / 0.62)) padding-box, linear-gradient(160deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.06) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.1)) border-box',
   boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.1), 0 10px 32px rgb(0 0 0 / 0.36)',
   WebkitBackdropFilter: 'blur(28px) saturate(180%)',
   backdropFilter: 'blur(28px) saturate(180%)',
