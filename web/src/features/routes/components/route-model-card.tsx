@@ -33,7 +33,7 @@ export function RouteModelCard({
   return (
     <div
       className={cn(
-        'section-soft w-full rounded-inner transition-[background-color,border-color,box-shadow]',
+        'mat-regular w-full rounded-card transition-[background-color,border-color,box-shadow]',
         expanded && 'border-tint/45 bg-fill-3 shadow-sm',
       )}
     >

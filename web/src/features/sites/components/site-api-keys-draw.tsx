@@ -608,7 +608,7 @@ export function SiteAPIKeysDraw({
             return (
               <div
                 key={item.id}
-                className={isMobile ? 'section-soft space-y-3 rounded-inner p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
+                className={isMobile ? 'mat-regular space-y-3 rounded-card p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
               >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">

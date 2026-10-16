@@ -211,7 +211,7 @@ export function GrokAccountsDraw({
                   const syncBadge = grokSyncBadge(account.sync_status)
                   const reauthRequired = account.sync_status?.toLowerCase() === 'reauth_required'
                   return (
-                    <div key={account.credential_id} className="section-soft space-y-3 rounded-inner p-4">
+                    <div key={account.credential_id} className="mat-regular space-y-3 rounded-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1.5">
                           <span className="block truncate text-body font-medium text-label">{account.masked_token || t('grokAccounts.unnamed')}</span>

@@ -257,7 +257,7 @@ export function SiteModelTestSheet({
         ? 'bg-fill-3'
         : 'sticky top-0 z-10 bg-fill-3 shadow-[0_1px_0_var(--separator)]'}
       >
-        <tr className="text-faint text-footnote uppercase tracking-[0.16em]">
+        <tr className="text-footnote font-semibold text-label-2">
           <th className="w-[42%] px-3 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.model')}</th>
           <th className="w-[26%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.status')}</th>
           <th className="w-[20%] px-2 py-2.5 font-medium md:px-4 md:py-3">{t('test.headers.latency')}</th>

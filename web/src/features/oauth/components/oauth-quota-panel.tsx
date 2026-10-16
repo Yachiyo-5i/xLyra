@@ -539,7 +539,7 @@ function ResetCreditTable({
   return (
     <table className="w-full table-fixed border-collapse text-left text-body">
       <thead>
-        <tr className="text-label-3 text-footnote uppercase tracking-[0.16em]">
+        <tr className="text-footnote font-semibold text-label-2">
           <th className="w-[8%] px-3 py-3 font-medium md:px-4">#</th>
           <th className="w-[46%] px-3 py-3 font-medium md:px-4">{t('quota.resetCredits.tableHeaders.granted')}</th>
           <th className="w-[46%] px-3 py-3 font-medium md:px-4">{t('quota.resetCredits.tableHeaders.expires')}</th>

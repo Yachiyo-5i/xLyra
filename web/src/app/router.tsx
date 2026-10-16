@@ -46,7 +46,7 @@ function lazyElement(element: ReactNode) {
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-[280px] items-center justify-center text-sm text-muted-soft">
+        <div className="flex h-full min-h-[280px] items-center justify-center text-body text-label-2">
           Loading...
         </div>
       }

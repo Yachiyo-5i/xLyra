@@ -56,7 +56,7 @@ function SubPanel<T extends string>({
   const content = (
     <div
       className={cn(
-        'glass-panel-strong max-h-[min(60vh,24rem)] min-w-[10rem] overflow-y-auto overscroll-contain rounded-xl p-1.5 shadow-[var(--shadow-dialog)]',
+        'lg-regular max-h-[min(60vh,24rem)] min-w-[10rem] overflow-y-auto overscroll-contain rounded-card p-1.5',
         mobile && 'w-52 max-w-[calc(100vw-1.5rem)]',
         className,
       )}
@@ -258,7 +258,7 @@ export function ModelParameterPicker<T extends string>({
           sideOffset={8}
           collisionPadding={12}
           onClick={(event) => event.stopPropagation()}
-          className={cn('glass-panel-strong z-[130] w-52 rounded-xl p-1.5 shadow-[var(--shadow-dialog)]', panelClassName)}
+          className={cn('lg-regular z-[130] w-52 rounded-card p-1.5', panelClassName)}
         >
           {panelRenderer ? panelRenderer(panelChildren, 'panel') : panelChildren}
         </PopoverPrimitive.Content>

@@ -1086,7 +1086,7 @@ function CatalogMatrixTable({
   return (
     <div className="overflow-hidden rounded-inner border border-separator bg-fill-3">
       <table className="w-full table-fixed border-collapse text-left text-body">
-        <thead className="bg-fill-3 text-faint text-footnote uppercase tracking-[0.16em]">
+        <thead className="bg-fill-3 text-footnote font-semibold text-label-2">
           <tr>
             <th className="w-[13%] px-4 py-3 font-medium">{t('catalog.headers.site')}</th>
             <th className="w-[57%] px-4 py-3 font-medium">{t('catalog.headers.model')}</th>

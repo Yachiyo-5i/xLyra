@@ -411,7 +411,7 @@ function SplitTable({
     <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden rounded-inner">
       <table className="w-full table-fixed border-collapse text-left">
         <thead className="sticky top-0 z-10 bg-fill-3 shadow-[0_1px_0_var(--separator)]">
-          <tr className="text-faint text-footnote uppercase tracking-[0.16em]">
+          <tr className="text-footnote font-semibold text-label-2">
             <th className="w-[30%] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-3 font-medium">{t('split.table.apiKey')}</th>
             <th className="w-[16%] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-3 text-right font-medium">{t('split.table.cost')}</th>
             <th className="w-[12%] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-3 text-right font-medium">{t('split.table.share')}</th>

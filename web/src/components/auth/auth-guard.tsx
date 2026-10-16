@@ -65,16 +65,16 @@ function ProtectedAuthStatus({
   return (
     <div className="flex min-h-full items-center justify-center px-4 py-10 text-center">
       <div>
-        <p className="text-[clamp(3.75rem,6vw,5.5rem)] font-semibold leading-none tracking-tight text-foreground">
+        <p className="font-mono text-[clamp(3.75rem,6vw,5.5rem)] font-semibold leading-none tabular-nums text-label-3">
           {displayStatusCode}
         </p>
-        <h1 className="mt-5 text-lg font-semibold tracking-tight text-foreground md:text-xl">
+        <h1 className="mt-5 text-title-2 text-label">
           {t('authGuard.serviceErrorTitle')}
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-soft">
+        <p className="mx-auto mt-3 max-w-md text-body text-label-2">
           {t('authGuard.serviceErrorDesc')}
         </p>
-        <p className="mt-3 text-xs font-medium text-faint">HTTP {displayStatusCode}</p>
+        <p className="mt-3 text-footnote font-medium text-label-3">HTTP {displayStatusCode}</p>
       </div>
     </div>
   )

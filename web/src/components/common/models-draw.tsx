@@ -97,7 +97,7 @@ export function ModelsDraw({
     desktopShell ? 'min-h-0 flex-1 overflow-y-auto' : 'scrollbar-hidden overflow-auto',
   )
   const tableHeadClassName = cn(
-    'bg-fill-3 text-faint text-footnote uppercase tracking-[0.16em]',
+    'bg-fill-3 text-footnote font-semibold text-label-2',
     desktopShell && 'sticky top-0 z-10 shadow-[0_1px_0_var(--separator)]',
   )
 

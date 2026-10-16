@@ -423,7 +423,7 @@ export function JSPluginAutomationSection({
       </Dialog>
 
       <div className="space-y-2">
-        <h5 className="text-footnote font-semibold uppercase tracking-wide text-label-2">
+        <h5 className="text-footnote font-semibold text-label-2">
           {t('settings:jsPlugins.automation.log.title')}
         </h5>
         {(logQuery.data ?? []).length === 0 ? (

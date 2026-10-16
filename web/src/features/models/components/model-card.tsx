@@ -89,7 +89,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
         <div className="border-t border-separator px-5 py-4">
           <div className="overflow-hidden rounded-control border border-separator">
             <table className="min-w-full table-fixed border-collapse text-left text-body">
-              <thead className="bg-fill-3 text-faint text-footnote uppercase tracking-[0.16em]">
+              <thead className="bg-fill-3 text-footnote font-semibold text-label-2">
                 <tr>
                   <th className="w-[10%] px-4 py-3 font-medium">
                     {t('card.headers.site')}
