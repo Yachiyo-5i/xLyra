@@ -135,7 +135,7 @@ export function ChannelSplitDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'max-w-none grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-2xl',
+          'max-w-none grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-card',
           isMobile
             ? 'h-[84dvh] w-[min(94vw,1180px)]'
             : 'aspect-[16/10] w-[min(96vw,140.8vh,1180px)]',
@@ -222,7 +222,7 @@ export function ChannelSplitDialog({
             {queryInput && splitQuery.isError ? (
               <ErrorState title={t('split.loadFailed')} description={splitQuery.error.message} />
             ) : queryInput && splitQuery.isLoading ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-soft">
+              <div className="flex min-h-0 flex-1 items-center justify-center text-body text-label-2">
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                 {t('split.loading')}
               </div>
@@ -240,17 +240,17 @@ export function ChannelSplitDialog({
                   isMobile ? 'gap-3' : 'min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-5',
                 )}>
                   <div className={cn(
-                    'flex flex-col rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))]',
+                    'flex flex-col rounded-inner border border-separator bg-fill-4',
                     isMobile ? 'p-3' : 'min-h-0 p-4',
                   )}>
                     <div className={cn('flex shrink-0 flex-wrap items-center justify-between gap-3', isMobile ? 'mb-3' : 'mb-4')}>
                       <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-foreground">{t('split.chart.title')}</h3>
+                        <h3 className="text-headline text-label">{t('split.chart.title')}</h3>
                       </div>
                       <Tabs value={metric} onValueChange={(value) => setMetric(value as ChannelSplitMetric)}>
                         <TabsList className={isMobile ? 'h-8 w-[148px]' : 'h-9 w-[164px]'}>
-                          <TabsTrigger value="cost" className="text-xs">{t('split.metrics.cost')}</TabsTrigger>
-                          <TabsTrigger value="tokens" className="text-xs">{t('split.metrics.tokens')}</TabsTrigger>
+                          <TabsTrigger value="cost" className="text-footnote">{t('split.metrics.cost')}</TabsTrigger>
+                          <TabsTrigger value="tokens" className="text-footnote">{t('split.metrics.tokens')}</TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
@@ -260,14 +260,14 @@ export function ChannelSplitDialog({
                   </div>
 
                   <div className={cn(
-                    'flex min-w-0 flex-col rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))]',
+                    'flex min-w-0 flex-col rounded-inner border border-separator bg-fill-4',
                     isMobile ? 'p-3' : 'min-h-0 p-4',
                   )}>
                     <div className={cn('flex shrink-0 flex-wrap items-center justify-between gap-2', isMobile ? 'mb-3' : 'mb-4')}>
                       <div>
-                        <h3 className="text-sm font-semibold text-foreground">{t('split.table.title')}</h3>
+                        <h3 className="text-headline text-label">{t('split.table.title')}</h3>
                       </div>
-                      <label className="flex items-center gap-2 text-xs text-muted-soft">
+                      <label className="flex items-center gap-2 text-footnote text-label-2">
                         <span className="shrink-0">{t('split.table.totalPrice')}</span>
                         <Input
                           type="number"
@@ -278,7 +278,7 @@ export function ChannelSplitDialog({
                           onChange={(event) => setTotalPriceDraft({ key: totalPriceKey, value: event.target.value })}
                           placeholder={t('split.table.totalPricePlaceholder')}
                           className={cn(
-                            'h-9 px-3 text-right !text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+                            'h-9 px-3 text-right !text-headline tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                             isMobile ? 'w-32' : 'w-36',
                           )}
                         />
@@ -301,11 +301,11 @@ export function ChannelSplitDialog({
 function SplitMetricCard({ compact, label, value }: { compact: boolean; label: string; value: string }) {
   return (
     <div className={cn(
-      'rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))]',
+      'rounded-inner border border-separator bg-fill-4',
       compact ? 'px-3 py-2.5' : 'px-4 py-3',
     )}>
-      <div className="text-xs text-muted-soft">{label}</div>
-      <div className={cn('mt-1 truncate font-semibold tabular-nums text-foreground', compact ? 'text-lg' : 'text-xl')} title={value}>
+      <div className="text-footnote text-label-2">{label}</div>
+      <div className={cn('mt-1 truncate font-semibold tabular-nums text-label', compact ? 'text-title-3' : 'text-xl')} title={value}>
         {value}
       </div>
     </div>
@@ -335,18 +335,18 @@ function SplitContributionBars({
 
         return (
           <div key={item.api_key_id} className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3 text-sm">
+            <div className="flex items-center justify-between gap-3 text-body">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--surface-subtle))] text-[11px] text-muted-soft">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-control bg-fill-3 text-[11px] text-label-2">
                   {index + 1}
                 </span>
-                <span className="truncate font-medium text-foreground" title={item.api_key_name || item.masked_key || item.api_key_id}>
+                <span className="truncate font-medium text-label" title={item.api_key_name || item.masked_key || item.api_key_id}>
                   {item.api_key_name || item.masked_key || item.api_key_id}
                 </span>
               </div>
               <div className="shrink-0 text-right tabular-nums">
-                <span className="text-foreground">{value}</span>
-                <span className="ml-2 text-muted-soft">{formatPercent(share, 1)}</span>
+                <span className="text-label">{value}</span>
+                <span className="ml-2 text-label-2">{formatPercent(share, 1)}</span>
               </div>
             </div>
             <Progress value={share * 100} max={100} variant={index === 0 ? 'accent' : 'info'} className="h-2" />
@@ -376,7 +376,7 @@ function SplitTable({
 
   if (isMobile) {
     return (
-      <div className="divide-y divide-[hsl(var(--glass-divider))]">
+      <div className="divide-y divide-separator">
         {items.map((item) => {
           const name = item.api_key_name || item.api_key_id
           const actualPrice = totalPrice == null ? null : totalPrice * item.cost_share
@@ -384,12 +384,12 @@ function SplitTable({
           return (
             <div key={item.api_key_id} className="py-3 first:pt-0 last:pb-0">
               <div className="flex min-w-0 items-center justify-between gap-3">
-                <div className="truncate text-sm font-semibold text-foreground" title={name}>
+                <div className="truncate text-headline text-label" title={name}>
                   {name}
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-[11px] text-muted-soft">{t('split.table.actualPrice')}</div>
-                  <div className="mt-0.5 text-sm font-semibold tabular-nums text-primary">
+                  <div className="text-[11px] text-label-2">{t('split.table.actualPrice')}</div>
+                  <div className="mt-0.5 text-headline tabular-nums text-tint">
                     {formatPriceValue(actualPrice)}
                   </div>
                 </div>
@@ -408,10 +408,10 @@ function SplitTable({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden rounded-lg">
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden rounded-inner">
       <table className="w-full table-fixed border-collapse text-left">
-        <thead className="sticky top-0 z-10 bg-[hsl(var(--surface-subtle))] shadow-[0_1px_0_hsl(var(--glass-divider))]">
-          <tr className="text-faint text-xs uppercase tracking-[0.16em]">
+        <thead className="sticky top-0 z-10 bg-fill-3 shadow-[0_1px_0_var(--separator)]">
+          <tr className="text-faint text-footnote uppercase tracking-[0.16em]">
             <th className="w-[30%] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-3 font-medium">{t('split.table.apiKey')}</th>
             <th className="w-[16%] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-3 text-right font-medium">{t('split.table.cost')}</th>
             <th className="w-[12%] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-3 text-right font-medium">{t('split.table.share')}</th>
@@ -428,10 +428,10 @@ function SplitTable({
             return (
               <tr
                 key={item.api_key_id}
-                className="border-t border-[hsl(var(--glass-divider))] [&>td]:transition-colors hover:[&>td]:bg-[hsl(var(--surface-subtle))] hover:[&>td:first-child]:rounded-l-md hover:[&>td:last-child]:rounded-r-md"
+                className="border-t border-separator [&>td]:transition-colors hover:[&>td]:bg-fill-3 hover:[&>td:first-child]:rounded-l-md hover:[&>td:last-child]:rounded-r-md"
               >
                 <td className="overflow-hidden px-3 py-2.5 align-middle">
-                  <div className="truncate text-sm font-medium text-foreground" title={name}>
+                  <div className="truncate text-body font-medium text-label" title={name}>
                     {name}
                   </div>
                 </td>
@@ -441,7 +441,7 @@ function SplitTable({
                 <td className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums">
                   {formatPercent(item.cost_share, 1)}
                 </td>
-                <td className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-right align-middle font-semibold tabular-nums text-primary">
+                <td className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-right align-middle font-semibold tabular-nums text-tint">
                   {actualPrice == null ? '-' : formatPriceValue(actualPrice)}
                 </td>
                 <td className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums">
@@ -462,8 +462,8 @@ function SplitTable({
 function SplitMobileValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] text-muted-soft">{label}</div>
-      <div className="mt-0.5 truncate text-sm font-medium tabular-nums text-foreground" title={value}>
+      <div className="text-[11px] text-label-2">{label}</div>
+      <div className="mt-0.5 truncate text-body font-medium tabular-nums text-label" title={value}>
         {value}
       </div>
     </div>
