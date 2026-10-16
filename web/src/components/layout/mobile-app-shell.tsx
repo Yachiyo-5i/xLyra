@@ -64,12 +64,11 @@ export function MobileAppShell({ children }: PropsWithChildren) {
         >
           {children}
         </main>
-        {/* 顶部与底部的 scroll edge effect：内容滚到浮动控件下方时模糊、压暗 */}
+        {/* 顶部的 scroll edge effect：内容滚到浮动顶栏下方时模糊、压暗；底部 Tab Bar 下方不加，内容保持清晰 */}
         <div
           className="scroll-edge-top z-20"
           style={{ '--scroll-edge-height': 'calc(env(safe-area-inset-top, 0px) + 72px)' } as CSSProperties}
         />
-        <div className="scroll-edge-bottom mobile-tabbar-shell z-20" />
         <MobileTopbar />
         <MobileTabbar
           items={primaryItems}

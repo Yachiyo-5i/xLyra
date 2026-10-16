@@ -54,19 +54,23 @@ export function MobileTabbar({
       className="mobile-tabbar-shell mobile-safe-bottom pointer-events-none absolute inset-x-0 bottom-0 z-30 px-[21px] transition-[opacity,transform] duration-200"
       style={{ '--mobile-safe-bottom-extra': '21px' } as CSSProperties}
     >
-      <LiquidTabBar
-        items={tabItems}
-        activeKey={activePrimary?.to ?? MORE_KEY}
-        collapsed={collapsed}
-        onExpand={onExpand}
-        renderItem={(item, slotProps) =>
-          item.key === MORE_KEY ? (
-            <button key={item.key} ref={moreButtonRef} type="button" onClick={onMoreClick} aria-expanded={moreOpen} {...slotProps} />
-          ) : (
-            <NavLink key={item.key} to={item.key} {...slotProps} />
-          )
-        }
-      />
+      {/* 胶囊最宽 480：在屏幕较宽时（如大屏安卓）放进居中的 480 列里，展开时铺满这一列、居中显示；
+          收起时仍缩到这一列的左端 */}
+      <div className="mx-auto w-full max-w-[480px]">
+        <LiquidTabBar
+          items={tabItems}
+          activeKey={activePrimary?.to ?? MORE_KEY}
+          collapsed={collapsed}
+          onExpand={onExpand}
+          renderItem={(item, slotProps) =>
+            item.key === MORE_KEY ? (
+              <button key={item.key} ref={moreButtonRef} type="button" onClick={onMoreClick} aria-expanded={moreOpen} {...slotProps} />
+            ) : (
+              <NavLink key={item.key} to={item.key} {...slotProps} />
+            )
+          }
+        />
+      </div>
     </nav>
   )
 }

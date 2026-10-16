@@ -717,31 +717,19 @@ select {
   font-family: var(--font-mono);
 }
 
-/* Scroll edge effect：滚动内容经过浮动工具栏 / Tab Bar 时逐渐模糊、压暗，
+/* Scroll edge effect：滚动内容经过浮动顶栏时逐渐模糊、压暗，
    代替整条实色顶栏。放在滚动容器之上、浮动控件之下，不拦截点击。 */
-.scroll-edge-top,
-.scroll-edge-bottom {
+.scroll-edge-top {
   position: absolute;
   inset-inline: 0;
   pointer-events: none;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-}
-
-.scroll-edge-top {
   top: 0;
   height: var(--scroll-edge-height, 72px);
   background: linear-gradient(rgb(10 11 13 / 0.78), rgb(10 11 13 / 0));
   -webkit-mask-image: linear-gradient(#000 45%, transparent);
   mask-image: linear-gradient(#000 45%, transparent);
-}
-
-.scroll-edge-bottom {
-  bottom: 0;
-  height: var(--scroll-edge-height, 120px);
-  background: linear-gradient(rgb(0 0 0 / 0), rgb(0 0 0 / 0.4));
-  -webkit-mask-image: linear-gradient(transparent, #000 55%);
-  mask-image: linear-gradient(transparent, #000 55%);
 }
 
 /* Skeleton（components/ui/skeleton.tsx）：fill-4 底，一道微光每 1.6s 扫过 */
