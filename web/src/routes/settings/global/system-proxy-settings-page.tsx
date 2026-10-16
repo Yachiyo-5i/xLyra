@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Gauge, LoaderCircle, PencilLine, Plus, Search, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, Gauge, LoaderCircle, PencilLine, Plus, Trash2, XCircle } from 'lucide-react'
 import { ErrorState } from '@/components/common/error-state'
 import { toSlug } from '@/lib/slug'
+import { TableToolbar } from '@/components/common/table-toolbar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
@@ -156,7 +157,7 @@ export function SystemProxySettingsPage() {
   }
 
   if (systemProxyQuery.isLoading) {
-    return <p className="text-sm text-muted-soft">{t('systemProxy.loading')}</p>
+    return <p className="text-body text-label-2">{t('systemProxy.loading')}</p>
   }
 
   if (systemProxyQuery.isError) {
@@ -166,27 +167,29 @@ export function SystemProxySettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div className="space-y-1.5">
-        <h3 className="text-lg font-semibold text-foreground">{t('systemProxy.title')}</h3>
-        <p className="text-sm text-muted-soft">{t('systemProxy.description')}</p>
+        <h3 className="text-title-3 text-label">{t('systemProxy.title')}</h3>
+        <p className="text-body text-label-2">{t('systemProxy.description')}</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-0 sm:max-w-sm sm:flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-soft" />
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('systemProxy.search')} className="pl-9" />
-        </div>
-        <Button onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          {t('systemProxy.actions.create')}
-        </Button>
-      </div>
+      <TableToolbar
+        searchValue={search}
+        onSearchChange={(event) => setSearch(event.target.value)}
+        searchPlaceholder={t('systemProxy.search')}
+        searchClassName="lg:max-w-sm"
+        actions={
+          <Button onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            {t('systemProxy.actions.create')}
+          </Button>
+        }
+      />
 
       {filteredProxies.length ? (
-        <div className="divide-y divide-[hsl(var(--divider))] border-y border-[hsl(var(--divider))]">
+        <div className="mat-thick divide-y divide-separator rounded-card px-5">
           {filteredProxies.map((proxy) => (
             <div key={proxy.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-4">
               <div className="min-w-0 flex flex-wrap items-center gap-2 pr-1">
-                <span className="min-w-0 truncate font-medium text-foreground">{proxy.name}</span>
+                <span className="min-w-0 truncate font-medium text-label">{proxy.name}</span>
                 <Badge variant="secondary" className="shrink-0">{proxy.type.toUpperCase()}</Badge>
               </div>
               <ProxyActionButtons
@@ -196,7 +199,7 @@ export function SystemProxySettingsPage() {
                 onDelete={setDeleteTarget}
                 onTest={(item) => testMutation.mutate(item)}
               />
-              <p className="min-w-0 truncate text-sm text-muted-soft">{proxy.url}</p>
+              <p className="min-w-0 truncate text-body text-label-2">{proxy.url}</p>
               <ProxyTestStatus
                 testRecord={testResults[proxy.id]}
                 testing={testMutation.isPending && testMutation.variables?.id === proxy.id}
@@ -261,7 +264,7 @@ export function SystemProxySettingsPage() {
           </DialogBody>
           <DialogFooter
             className="border-t-0 pt-2"
-            cancel={<Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('systemProxy.actions.cancel')}</Button>}
+            cancel={<Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('systemProxy.actions.cancel')}</Button>}
             confirm={(
               <Button variant="destructive" onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }} disabled={deleteMutation.isPending}>
                 {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
@@ -299,7 +302,7 @@ function ProxyActionButtons({
       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(proxy)} title={t('systemProxy.actions.edit')}>
         <PencilLine className="h-4 w-4" />
       </Button>
-      <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-500/10 hover:text-red-400" onClick={() => onDelete(proxy)} title={t('systemProxy.actions.delete')}>
+      <Button size="icon" variant="ghost" className="h-8 w-8 text-danger hover:bg-danger/10 hover:text-danger" onClick={() => onDelete(proxy)} title={t('systemProxy.actions.delete')}>
         <Trash2 className="h-4 w-4" />
       </Button>
     </div>
@@ -319,11 +322,11 @@ function ProxyTestStatus({
   const statusLabel = proxyTestStatusLabel(testRecord, t)
   const statusTitle = testRecord?.result.message || statusLabel
   return (
-    <div className={`flex h-8 min-w-[96px] shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs sm:min-w-[112px] ${proxyTestStatusClass(testRecord)} ${className ?? ''}`} title={statusTitle}>
+    <div className={`flex h-8 min-w-[96px] shrink-0 items-center justify-center gap-1.5 rounded-control border px-2 text-footnote sm:min-w-[112px] ${proxyTestStatusClass(testRecord)} ${className ?? ''}`} title={statusTitle}>
       {testing ? (
         <>
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-soft" />
-          <span className="text-muted-soft">{t('systemProxy.test.testing')}</span>
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-label-2" />
+          <span className="text-label-2">{t('systemProxy.test.testing')}</span>
         </>
       ) : testRecord?.status === 'success' ? (
         <>
@@ -332,11 +335,11 @@ function ProxyTestStatus({
         </>
       ) : testRecord?.status === 'error' ? (
         <>
-          <XCircle className="h-3.5 w-3.5 text-red-500" />
-          <span className="text-red-500">{statusLabel}</span>
+          <XCircle className="h-3.5 w-3.5 text-danger" />
+          <span className="text-danger">{statusLabel}</span>
         </>
       ) : (
-        <span className="text-muted-soft">{t('systemProxy.test.untested')}</span>
+        <span className="text-label-2">{t('systemProxy.test.untested')}</span>
       )}
     </div>
   )
@@ -355,9 +358,9 @@ function proxyTestStatusClass(record: ProxyTestRecord | undefined) {
     return 'border-emerald-500/25 bg-emerald-500/10'
   }
   if (record?.status === 'error') {
-    return 'border-red-500/25 bg-red-500/10'
+    return 'border-red-500/25 bg-danger/10'
   }
-  return 'border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] text-muted-soft'
+  return 'border-separator bg-fill-3 text-label-2'
 }
 
 function proxyFromForm(form: ProxyFormValues, editingProxy: ProxyConfig | null): ProxyConfig {
