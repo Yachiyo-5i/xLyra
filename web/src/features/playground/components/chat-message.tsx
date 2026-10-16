@@ -122,10 +122,10 @@ export function ChatMessageItem({
   return (
     <div className="space-y-2">
       {message.reasoning ? (
-        <div className="rounded-xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]/60">
+        <div className="rounded-xl border border-separator bg-fill-4">
           <button
             type="button"
-            className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-soft"
+            className="flex w-full items-center gap-1.5 px-3 py-2 text-footnote font-medium text-label-2"
             onClick={() => setReasoningManualOpen(!reasoningOpen)}
           >
             {isThinking ? (
@@ -138,7 +138,7 @@ export function ChatMessageItem({
           {reasoningOpen ? (
             <MarkdownMessage
               content={message.reasoning}
-              className="playground-markdown-reasoning px-3 pb-3 text-xs leading-5 text-muted-soft"
+              className="playground-markdown-reasoning px-3 pb-3 text-footnote leading-5 text-label-2"
             />
           ) : null}
         </div>
@@ -148,22 +148,22 @@ export function ChatMessageItem({
         <div>
           <MarkdownMessage content={message.content} className="text-[15px] leading-7" />
           {streaming && liveDuration ? (
-            <div className="mt-1 flex items-center gap-1.5 whitespace-nowrap text-xs text-faint">
-              <span className="inline-block h-3 w-1.5 animate-pulse rounded-sm bg-foreground align-middle" />
+            <div className="mt-1 flex items-center gap-1.5 whitespace-nowrap text-footnote text-label-3">
+              <span className="inline-block h-3 w-1.5 animate-pulse rounded-sm bg-label align-middle" />
               <span className="tabular-nums">{t('chat.elapsedDuration', { duration: liveDuration })}</span>
             </div>
           ) : null}
         </div>
       ) : streaming ? (
-        <span className="inline-flex items-center gap-2 text-xs text-faint">
-          <span className="inline-block h-4 w-2 animate-pulse rounded-sm bg-foreground align-middle" />
+        <span className="inline-flex items-center gap-2 text-footnote text-label-3">
+          <span className="inline-block h-4 w-2 animate-pulse rounded-sm bg-label align-middle" />
           {liveDuration ? (
             <span className="tabular-nums">{t('chat.elapsedDuration', { duration: liveDuration })}</span>
           ) : null}
         </span>
       ) : null}
 
-      {message.error ? <p className="text-sm text-red-500">{message.error}</p> : null}
+      {message.error ? <p className="text-body text-danger">{message.error}</p> : null}
 
       {(message.content || message.error || isLast) && !streaming ? (
         <>
@@ -184,7 +184,7 @@ export function ChatMessageItem({
               ) : null}
             </div>
             {hasSource || hasUsage || responseDuration ? (
-              <div className="flex min-w-0 items-center gap-1.5 text-xs text-faint">
+              <div className="flex min-w-0 items-center gap-1.5 text-footnote text-label-3">
                 {message.model ? (
                   <span className="flex min-w-0 items-center gap-1.5">
                     <PlaygroundModelIcon
@@ -233,7 +233,7 @@ export function ChatMessageItem({
                 <Copy className="h-3.5 w-3.5" />
               </PlaygroundMessageAction>
             ) : null}
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-faint">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 text-footnote text-label-3">
               {message.model ? (
                 <span className="flex min-w-0 items-center gap-1.5">
                   <PlaygroundModelIcon
@@ -251,7 +251,7 @@ export function ChatMessageItem({
             </div>
           </div>
           {hasUsage || responseDuration ? (
-            <div className="flex flex-wrap items-center gap-1.5 text-xs leading-5 text-faint md:hidden">
+            <div className="flex flex-wrap items-center gap-1.5 text-footnote leading-5 text-label-3 md:hidden">
               {hasUsage ? (
                 <span>
                   {t('chat.usage', {

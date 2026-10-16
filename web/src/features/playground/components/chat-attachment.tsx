@@ -56,7 +56,7 @@ function attachmentIcon(attachment: ChatAttachment): AttachmentIcon {
   const mimeType = attachment.mimeType.toLowerCase()
 
   if (extension === 'pdf' || mimeType === 'application/pdf') {
-    return { Icon: FileText, className: 'bg-red-500/10 text-red-500' }
+    return { Icon: FileText, className: 'bg-danger/10 text-danger' }
   }
   if (DOCUMENT_EXTENSIONS.has(extension) || mimeType.includes('word') || mimeType.includes('opendocument.text')) {
     return { Icon: FileText, className: 'bg-blue-500/10 text-blue-500' }
@@ -67,13 +67,13 @@ function attachmentIcon(attachment: ChatAttachment): AttachmentIcon {
     || mimeType.includes('spreadsheet')
     || mimeType.includes('excel')
   ) {
-    return { Icon: FileSpreadsheet, className: 'bg-emerald-500/10 text-emerald-500' }
+    return { Icon: FileSpreadsheet, className: 'bg-emerald-500/10 text-success' }
   }
   if (PRESENTATION_EXTENSIONS.has(extension) || mimeType.includes('presentation') || mimeType.includes('powerpoint')) {
     return { Icon: Presentation, className: 'bg-orange-500/10 text-orange-500' }
   }
   if (ARCHIVE_EXTENSIONS.has(extension) || mimeType.includes('zip') || mimeType.includes('compressed')) {
-    return { Icon: FileArchive, className: 'bg-amber-500/10 text-amber-500' }
+    return { Icon: FileArchive, className: 'bg-amber-500/10 text-warning' }
   }
   if (extension === 'json' || extension === 'jsonl' || mimeType === 'application/json') {
     return { Icon: FileJson, className: 'bg-yellow-500/10 text-yellow-400' }
@@ -96,7 +96,7 @@ function attachmentIcon(attachment: ChatAttachment): AttachmentIcon {
   if (TEXT_EXTENSIONS.has(extension) || mimeType.startsWith('text/')) {
     return { Icon: FileText, className: 'bg-teal-500/10 text-teal-400' }
   }
-  return { Icon: File, className: 'bg-[hsl(var(--surface-base))] text-muted-soft' }
+  return { Icon: File, className: 'bg-canvas text-label-2' }
 }
 
 export function ChatAttachmentItem({ attachment, removeLabel, onRemove }: ChatAttachmentItemProps) {
@@ -104,7 +104,7 @@ export function ChatAttachmentItem({ attachment, removeLabel, onRemove }: ChatAt
   const { Icon, className } = attachmentIcon(attachment)
 
   return (
-    <div className="relative flex h-14 min-w-0 max-w-52 items-center gap-2 overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-2.5 pr-7">
+    <div className="relative flex h-14 min-w-0 max-w-52 items-center gap-2 overflow-hidden rounded-lg border border-separator bg-fill-3 px-2.5 pr-7">
       {imageSource ? (
         <img src={imageSource} alt={attachment.name} className="h-9 w-9 shrink-0 rounded-md object-cover" />
       ) : (
@@ -113,16 +113,16 @@ export function ChatAttachmentItem({ attachment, removeLabel, onRemove }: ChatAt
         </span>
       )}
       <span className="min-w-0">
-        <span className="block truncate text-xs font-medium text-foreground" title={attachment.name}>
+        <span className="block truncate text-footnote font-medium text-label" title={attachment.name}>
           {attachment.name}
         </span>
-        <span className="block text-[11px] text-faint">{formatSize(attachment.size)}</span>
+        <span className="block text-caption-1 text-label-3">{formatSize(attachment.size)}</span>
       </span>
       {onRemove ? (
         <button
           type="button"
           onClick={onRemove}
-          className="absolute right-1 top-1 rounded-full p-0.5 text-muted-soft transition-colors hover:bg-[hsl(var(--surface-base))] hover:text-foreground"
+          className="absolute right-1 top-1 rounded-full p-0.5 text-label-2 transition-colors hover:bg-canvas hover:text-label"
           aria-label={removeLabel}
         >
           <X className="h-3.5 w-3.5" />

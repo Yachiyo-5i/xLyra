@@ -34,7 +34,7 @@ export function CollapsibleUserMessage({ content }: CollapsibleUserMessageProps)
   }, [content, expanded])
 
   return (
-    <div className="max-w-[80%] rounded-3xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-selected))] px-4 py-2.5 text-[15px] leading-6 text-foreground">
+    <div className="max-w-[80%] rounded-[18px] bg-fill-2 px-4 py-2.5 text-[15px] leading-6 text-label">
       <div
         ref={contentRef}
         className={cn('whitespace-pre-wrap break-words', !expanded && 'line-clamp-5')}
@@ -44,7 +44,7 @@ export function CollapsibleUserMessage({ content }: CollapsibleUserMessageProps)
       {overflowing ? (
         <button
           type="button"
-          className="ml-auto mt-1 block text-xs font-medium text-muted-soft transition-colors hover:text-foreground"
+          className="ml-auto mt-1 block text-footnote font-medium text-label-2 transition-colors hover:text-label"
           aria-expanded={expanded}
           onClick={() => setExpandedContent(expanded ? null : content)}
         >

@@ -12,7 +12,7 @@ export function JumpToLatestButton({ label, onClick }: JumpToLatestButtonProps) 
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="absolute bottom-4 left-1/2 z-10 flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3.5 text-xs font-medium text-muted-soft shadow-lg backdrop-blur transition-colors hover:text-foreground"
+      className="absolute bottom-4 left-1/2 z-10 flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full border border-separator bg-elevated-1 px-3.5 text-footnote font-medium text-label-2 shadow-lg backdrop-blur transition-colors hover:text-label"
     >
       <ArrowDown className="h-3.5 w-3.5" />
       {label}

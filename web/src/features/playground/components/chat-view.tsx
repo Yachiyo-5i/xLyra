@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ImageIcon, Lightbulb, Paperclip, Sparkles } from 'lucide-react'
+import { ImageIcon, Lightbulb, Sparkles } from 'lucide-react'
 import { APIError } from '@/lib/http'
 import {
   cancelServerRun,
@@ -11,7 +11,8 @@ import {
   type ServerConversationView,
 } from '@/features/playground/api/playground'
 import { Composer } from '@/features/playground/components/composer'
-import { ModelReasoningPicker } from '@/features/playground/components/model-reasoning-picker'
+import { AttachmentMenu } from '@/features/playground/components/attachment-menu'
+import { ReasoningSettingsPicker } from '@/features/playground/components/reasoning-settings-picker'
 import { ChatMessageItem } from '@/features/playground/components/chat-message'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
 import { normalizeReasoningEffort } from '@/features/playground/lib/reasoning'
@@ -42,9 +43,7 @@ function fileToDataURL(file: File): Promise<string> {
 }
 
 type ChatViewProps = {
-  apiKeys: Array<{ id: string; name: string }>
   apiKeyId: string | null
-  onAPIKeyChange: (id: string) => void
   model: string | null
   models: GatewayModel[]
   onModelChange: (id: string) => void
@@ -56,9 +55,7 @@ type ChatViewProps = {
 }
 
 export function ChatView({
-  apiKeys,
   apiKeyId,
-  onAPIKeyChange,
   model,
   models,
   onModelChange,
@@ -77,7 +74,6 @@ export function ChatView({
   const [streamingElapsedMs, setStreamingElapsedMs] = useState<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [stopRequested, setStopRequested] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const { scrollRef, scrollToBottom, showJump } = useStickToBottom()
 
   const isEmpty = conversation.messages.length === 0
@@ -365,28 +361,12 @@ export function ChatView({
       placeholder={t('chat.inputPlaceholder')}
       onPasteFiles={handlePasteFiles}
       controls={
-        <>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(event) => {
-              void addAttachments(event.target.files)
-              event.target.value = ''
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={streaming || attachments.length >= MAX_ATTACHMENTS}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-muted-soft transition-colors active:bg-[hsl(var(--surface-subtle))] active:text-foreground disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8 md:hover:bg-[hsl(var(--surface-subtle))] md:hover:text-foreground"
-            aria-label={t('chat.attach')}
-            title={t('chat.attach')}
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-        </>
+        <AttachmentMenu
+          kinds={['photo', 'camera', 'file']}
+          onFiles={(files) => void addAttachments(files)}
+          disabled={streaming || attachments.length >= MAX_ATTACHMENTS}
+          label={t('chat.attach')}
+        />
       }
       attachments={attachments.length > 0 || attachmentError || sendError ? (
         <div className="space-y-2">
@@ -402,37 +382,20 @@ export function ChatView({
               ))}
             </div>
           ) : null}
-          {attachmentError ? <p className="px-1 text-xs text-red-500">{attachmentError}</p> : null}
-          {sendError ? <p className="px-1 text-xs text-red-500">{sendError}</p> : null}
+          {attachmentError ? <p className="px-1 text-footnote text-danger">{attachmentError}</p> : null}
+          {sendError ? <p className="px-1 text-footnote text-danger">{sendError}</p> : null}
         </div>
       ) : undefined}
       trailingControls={
-        <>
-          <div className="hidden md:block">
-            <ModelReasoningPicker
-              models={models}
-              model={model}
-              onModelChange={onModelChange}
-              effort={effort}
-              onEffortChange={onEffortChange}
-              disabled={!apiKeyId}
-            />
-          </div>
-          <div className="md:hidden">
-            <ModelReasoningPicker
-              apiKeys={apiKeys}
-              apiKeyId={apiKeyId}
-              onAPIKeyChange={onAPIKeyChange}
-              models={models}
-              model={model}
-              onModelChange={onModelChange}
-              effort={effort}
-              onEffortChange={onEffortChange}
-              disabled={apiKeys.length === 0}
-              triggerClassName="h-11"
-            />
-          </div>
-        </>
+        <ReasoningSettingsPicker
+          models={models}
+          model={model}
+          onModelChange={onModelChange}
+          effort={effort}
+          onEffortChange={onEffortChange}
+          disabled={!apiKeyId}
+          triggerClassName="max-md:h-11"
+        />
       }
     />
   )
@@ -442,14 +405,14 @@ export function ChatView({
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
         <div className="relative w-full max-w-2xl">
           <div className="mb-6 flex h-20 items-center justify-center text-center">
-            <h2 className="text-2xl font-semibold text-foreground">{t('chat.greeting')}</h2>
+            <h2 className="text-title-1 text-label">{t('chat.greeting')}</h2>
           </div>
           {composer}
           <div className="absolute left-0 right-0 top-full mt-4 flex flex-wrap justify-center gap-2">
             <button
               type="button"
               onClick={onImageMode}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--glass-border))] px-3.5 py-1.5 text-sm text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full border border-separator px-3.5 py-1.5 text-body text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
             >
               <ImageIcon className="h-4 w-4" />
               {t('chat.suggestImage')}
@@ -457,7 +420,7 @@ export function ChatView({
             <button
               type="button"
               onClick={() => setInput(t('chat.suggestWritePrompt'))}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--glass-border))] px-3.5 py-1.5 text-sm text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full border border-separator px-3.5 py-1.5 text-body text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
             >
               <Sparkles className="h-4 w-4" />
               {t('chat.suggestWrite')}
@@ -465,7 +428,7 @@ export function ChatView({
             <button
               type="button"
               onClick={() => setInput(t('chat.suggestExplainPrompt'))}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--glass-border))] px-3.5 py-1.5 text-sm text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full border border-separator px-3.5 py-1.5 text-body text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
             >
               <Lightbulb className="h-4 w-4" />
               {t('chat.suggestExplain')}
@@ -499,10 +462,10 @@ export function ChatView({
         </div>
         {showJump ? <JumpToLatestButton label={t('chat.scrollToLatest')} onClick={scrollToBottom} /> : null}
       </div>
-      <div className="shrink-0 px-4 pb-4">
+      <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
         <div className="mx-auto max-w-3xl">
           {composer}
-          <p className="mt-2 text-center text-xs text-faint">{t('chat.disclaimer')}</p>
+          <p className="mt-2 text-center text-footnote text-label-3">{t('chat.disclaimer')}</p>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Download, ImagePlus, Loader2, Paperclip, Pencil } from 'lucide-react'
+import { Copy, Download, ImagePlus, Loader2, Pencil } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { TextArea } from '@/components/ui/textarea'
@@ -16,7 +16,8 @@ import {
 } from '@/features/playground/api/playground'
 import { Composer } from '@/features/playground/components/composer'
 import { ChatAttachmentItem } from '@/features/playground/components/chat-attachment'
-import { ModelParameterPicker } from '@/features/playground/components/model-parameter-picker'
+import { AttachmentMenu } from '@/features/playground/components/attachment-menu'
+import { ModelSettingsPicker } from '@/features/playground/components/model-settings-picker'
 import {
   PlaygroundMessageAction,
   PlaygroundRegenerateAction,
@@ -34,9 +35,7 @@ import { JumpToLatestButton } from '@/components/common/jump-to-latest-button'
 import type { GatewayModel, ImageConversation, ImageHistoryEntry } from '@/features/playground/lib/types'
 
 type ImageViewProps = {
-  apiKeys: Array<{ id: string; name: string }>
   apiKeyId: string | null
-  onAPIKeyChange: (id: string) => void
   model: string | null
   models: GatewayModel[]
   onModelChange: (id: string) => void
@@ -115,9 +114,7 @@ async function resyncServerConversation(
 }
 
 export function ImageView({
-  apiKeys,
   apiKeyId,
-  onAPIKeyChange,
   model,
   models,
   onModelChange,
@@ -135,7 +132,6 @@ export function ImageView({
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const [stopRequested, setStopRequested] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const { scrollRef, scrollToBottom, showJump } = useStickToBottom()
 
@@ -466,33 +462,12 @@ export function ImageView({
             ))}
           </div>
         ) : null}
-        {sendError ? <p className="px-1 text-xs text-red-500">{sendError}</p> : null}
+        {sendError ? <p className="px-1 text-footnote text-danger">{sendError}</p> : null}
       </div>
     ) : null
 
   const controls = (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(event) => {
-          addFiles(event.target.files)
-          event.target.value = ''
-        }}
-      />
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-muted-soft transition-colors active:bg-[hsl(var(--surface-subtle))] active:text-foreground md:h-8 md:w-8 md:hover:bg-[hsl(var(--surface-subtle))] md:hover:text-foreground"
-        aria-label={t('image.attach')}
-        title={t('image.attach')}
-      >
-        <Paperclip className="h-4 w-4" />
-      </button>
-    </>
+    <AttachmentMenu kinds={['photo', 'camera']} onFiles={(files) => addFiles(files)} label={t('image.attach')} />
   )
 
   const sizeOptions = SIZE_OPTIONS.map((option) => ({
@@ -501,36 +476,21 @@ export function ImageView({
   }))
 
   const trailingControls = (
-    <>
-      <div className="hidden md:block">
-        <ModelParameterPicker
-          models={models}
-          model={model}
-          onModelChange={onModelChange}
-          parameterLabel={t('image.size')}
-          parameterValue={size}
-          parameterOptions={sizeOptions}
-          onParameterChange={setSize}
-          disabled={!apiKeyId}
-        />
-      </div>
-      <div className="md:hidden">
-        <ModelParameterPicker
-          apiKeys={apiKeys}
-          apiKeyId={apiKeyId}
-          onAPIKeyChange={onAPIKeyChange}
-          models={models}
-          model={model}
-          onModelChange={onModelChange}
-          parameterLabel={t('image.size')}
-          parameterValue={size}
-          parameterOptions={sizeOptions}
-          onParameterChange={setSize}
-          disabled={apiKeys.length === 0}
-          triggerClassName="h-11"
-        />
-      </div>
-    </>
+    <ModelSettingsPicker
+      models={models}
+      model={model}
+      onModelChange={onModelChange}
+      parameter={{
+        kind: 'chips',
+        label: t('image.size'),
+        value: size,
+        options: sizeOptions,
+        onChange: setSize,
+        defaultValue: 'auto',
+      }}
+      disabled={!apiKeyId}
+      triggerClassName="max-md:h-11"
+    />
   )
 
   const composer = (
@@ -565,7 +525,7 @@ export function ImageView({
             <a
               href={lightbox}
               download={`${newId()}.png`}
-              className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-base))] px-4 py-2 text-sm text-foreground shadow-sm transition-colors hover:bg-[hsl(var(--surface-subtle))]"
+              className="inline-flex items-center gap-2 rounded-full bg-canvas px-4 py-2 text-body text-label shadow-sm transition-colors hover:bg-fill-3"
             >
               <Download className="h-4 w-4" />
               {t('image.download')}
@@ -579,13 +539,13 @@ export function ImageView({
   const renderImages = (entry: ImageHistoryEntry) => {
     if (entry.pending) {
       return (
-        <div className="flex h-48 w-48 items-center justify-center rounded-xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-soft" />
+        <div className="flex h-48 w-48 items-center justify-center rounded-xl border border-separator bg-fill-3">
+          <Loader2 className="h-6 w-6 animate-spin text-label-2" />
         </div>
       )
     }
     if (entry.error) {
-      return <p className="text-sm text-red-500">{entry.error}</p>
+      return <p className="text-body text-danger">{entry.error}</p>
     }
     return (
       <div className="flex flex-wrap gap-2">
@@ -594,7 +554,7 @@ export function ImageView({
             key={image.id}
             type="button"
             onClick={() => setLightbox(image.src)}
-            className="block max-w-full overflow-hidden rounded-xl border border-[hsl(var(--glass-border))] transition-transform hover:scale-[1.01]"
+            className="block max-w-full overflow-hidden rounded-xl border border-separator transition-transform hover:scale-[1.01]"
           >
             <img src={image.src} alt={entry.prompt} className="h-auto w-auto max-h-48 max-w-full object-contain" />
           </button>
@@ -608,8 +568,8 @@ export function ImageView({
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
         <div className="relative w-full max-w-2xl">
           <div className="mb-6 flex h-20 flex-col items-center justify-center gap-2 text-center">
-            <ImagePlus className="h-8 w-8 text-muted-soft" />
-            <h2 className="text-2xl font-semibold text-foreground">{t('image.greeting')}</h2>
+            <ImagePlus className="h-8 w-8 text-label-2" />
+            <h2 className="text-title-1 text-label">{t('image.greeting')}</h2>
           </div>
           {composer}
         </div>
@@ -644,7 +604,7 @@ export function ImageView({
                             key={`${entry.id}-source-${sourceIndex}`}
                             type="button"
                             onClick={() => setLightbox(source)}
-                            className="block overflow-hidden rounded-xl border border-[hsl(var(--glass-border))] transition-transform hover:scale-[1.01]"
+                            className="block overflow-hidden rounded-xl border border-separator transition-transform hover:scale-[1.01]"
                           >
                             <img
                               src={source}
@@ -714,7 +674,7 @@ export function ImageView({
                         onConfirm={() => void handleRetryEntry(entry)}
                       />
                     ) : null}
-                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-faint">
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-footnote text-label-3">
                       <PlaygroundModelIcon
                         modelId={entry.model}
                         displayName={entryModel?.displayName}
@@ -741,7 +701,7 @@ export function ImageView({
         </div>
         {showJump ? <JumpToLatestButton label={t('image.scrollToLatest')} onClick={scrollToBottom} /> : null}
       </div>
-      <div className="shrink-0 px-4 pb-4">
+      <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
         <div className="mx-auto max-w-3xl">
           {composer}
           <div className="mt-2 h-4" aria-hidden="true" />

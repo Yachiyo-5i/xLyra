@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { ConfirmPopover } from '@/components/common/confirm-popover'
 
 const ACTION_BUTTON_CLASS =
-  'flex h-7 w-7 items-center justify-center rounded-md text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground disabled:opacity-40'
+  'flex h-7 w-7 items-center justify-center rounded-md text-label-2 transition-colors hover:bg-fill-3 hover:text-label disabled:opacity-40'
 
 type PlaygroundMessageActionProps = {
   label: string

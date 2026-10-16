@@ -28,6 +28,19 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   useIOSViewportBounceLock(viewportRef)
 
   const isAgentWorkspace = location.pathname === '/agent' || location.pathname.startsWith('/agent/')
+  // 模型体验：独占整屏的工作台，自带返回与会话抽屉，不显示全局顶栏和底部 Tab Bar
+  const isPlayground = location.pathname === '/playground' || location.pathname.startsWith('/playground/')
+
+  if (isPlayground) {
+    return (
+      <div ref={viewportRef} className="app-viewport">
+        <div className="ambient-background" />
+        <main data-scroll-container="true" className="relative z-0 h-full min-h-0 overflow-hidden">
+          {children}
+        </main>
+      </div>
+    )
+  }
 
   if (isAgentWorkspace) {
     return (

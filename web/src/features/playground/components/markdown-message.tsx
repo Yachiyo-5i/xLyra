@@ -30,7 +30,7 @@ function MarkdownCodeBlock({ children }: ComponentPropsWithoutRef<'pre'>) {
       <button
         type="button"
         onClick={() => void copyToClipboard(code, t('actions.copied'), t('actions.copyFailed'))}
-        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-base))]/90 text-muted-soft shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-separator bg-canvas/90 text-label-2 shadow-sm backdrop-blur-sm transition-colors hover:text-label"
         aria-label={t('actions.copy')}
         title={t('actions.copy')}
       >
@@ -49,7 +49,7 @@ function normalizeMathDelimiters(content: string): string {
 
 function MarkdownMessageImpl({ content, className }: MarkdownMessageProps) {
   return (
-    <div className={cn('playground-markdown text-sm leading-6 text-foreground', className)}>
+    <div className={cn('playground-markdown text-body leading-6 text-label', className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ pre: MarkdownCodeBlock }}>
         {normalizeMathDelimiters(content)}
       </ReactMarkdown>

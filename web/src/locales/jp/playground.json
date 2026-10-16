@@ -92,7 +92,10 @@
   "picker": {
     "model": "モデル",
     "reasoning": "推論強度",
-    "noModels": "利用可能なモデルがありません"
+    "noModels": "利用可能なモデルがありません",
+    "selectModel": "モデルを選択",
+    "reset": "デフォルトに戻す",
+    "back": "戻る"
   },
   "protocol": {
     "chat": "Chat Completions",
@@ -109,5 +112,17 @@
     "xhigh": "極高",
     "max": "最高",
     "ultra": "超高"
+  },
+  "attach": {
+    "menu": "追加",
+    "photo": "写真",
+    "camera": "写真を撮る",
+    "file": "ファイル"
+  },
+  "mobile": {
+    "back": "戻る",
+    "menu": "会話一覧",
+    "newChat": "新しい会話",
+    "delete": "会話を削除"
   }
 }
