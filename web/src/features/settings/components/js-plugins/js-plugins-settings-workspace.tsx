@@ -159,7 +159,9 @@ export function JSPluginsSettingsWorkspace() {
     enabled: managePlugin != null,
   })
   const sitesQuery = useQuery({
-    queryKey: sitesQueryKeys.listWithOAuth(),
+    // 与其他页面共用 list('all') 前缀，但缓存的是 items 数组而不是 { items, meta }，必须用独立的 key，
+    // 否则先访问过站点分组、模型、API 密钥页时，这里会读到对象而不是数组
+    queryKey: [...sitesQueryKeys.listWithOAuth(), 'items'],
     queryFn: async () => {
       const result = await listSites({ oauth: 'all' })
       return result.items ?? []
