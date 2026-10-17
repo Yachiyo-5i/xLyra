@@ -3,7 +3,7 @@ import { ChevronDown, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -318,16 +318,14 @@ export function APIKeyFormDraw({
     : undefined
 
   return (
-    <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent
-        side="right"
-       
-        onOpenAutoFocus={(event) => event.preventDefault()}
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DrawHeader>
-          <DrawTitle>{initialKey ? t('form.editTitle') : t('form.createTitle')}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className="space-y-0">
+        <SheetHeader>
+          <SheetTitle>{initialKey ? t('form.editTitle') : t('form.createTitle')}</SheetTitle>
+        </SheetHeader>
+        <SheetBody className="space-y-0">
           <FormSection title={t('form.sections.basic')}>
             <FormField label={t('form.fields.name')} required>
               <Input
@@ -685,22 +683,22 @@ export function APIKeyFormDraw({
               </div>
             ) : null}
           </FormSection>
-        </DrawBody>
-        <DrawFooter>
+        </SheetBody>
+        <SheetFooter>
           <Button onClick={handleSubmit} disabled={saveDisabled}>
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {t('form.actions.save')}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             onClick={() => onOpenChange(false)}
             disabled={pending}
           >
             {t('form.actions.cancel')}
           </Button>
-        </DrawFooter>
-      </DrawContent>
-    </Draw>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 

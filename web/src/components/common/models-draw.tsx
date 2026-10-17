@@ -2,12 +2,12 @@ import { Fragment, type ReactNode, useState } from 'react'
 import { ChevronLeft, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
-  Draw,
-  DrawBody,
-  DrawContent,
-  DrawHeader,
-  DrawTitle,
-} from '@/components/ui/draw'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
   Dialog,
   DialogBody,
@@ -115,7 +115,7 @@ export function ModelsDraw({
           <ChevronLeft className="h-4 w-4" />
         </Button>
       ) : null}
-      {shell === 'dialog' ? <DialogTitle>{title}</DialogTitle> : <DrawTitle>{title}</DrawTitle>}
+      {shell === 'dialog' ? <DialogTitle>{title}</DialogTitle> : <SheetTitle>{title}</SheetTitle>}
     </div>
   )
 
@@ -234,13 +234,13 @@ export function ModelsDraw({
   }
 
   return (
-    <Draw open={open} onOpenChange={handleOpenChange}>
-      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-        <DrawHeader>{header}</DrawHeader>
-        <DrawBody className="space-y-4">
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+        <SheetHeader>{header}</SheetHeader>
+        <SheetBody className="space-y-4">
           {body}
-        </DrawBody>
-      </DrawContent>
-    </Draw>
+        </SheetBody>
+      </SheetContent>
+    </Sheet>
   )
 }

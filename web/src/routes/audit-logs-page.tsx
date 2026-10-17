@@ -256,7 +256,7 @@ export function AuditLogsPage() {
         {pagination}
 
         <Draw open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
-          <DrawContent side="bottom">
+          <DrawContent>
             <DrawHeader>
               <DrawTitle>{t('mobile.filters')}</DrawTitle>
             </DrawHeader>
@@ -292,15 +292,19 @@ export function AuditLogsPage() {
                 </div>
               </div>
             </DrawBody>
-            <DrawFooter className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="secondary" onClick={clearFilters} disabled={!hasFilters}>
-                <X className="h-4 w-4" />
-                {t('filters.clearFilters')}
-              </Button>
-              <Button type="button" onClick={() => setMobileFiltersOpen(false)}>
-                {t('mobile.done')}
-              </Button>
-            </DrawFooter>
+            <DrawFooter
+              cancel={(
+                <Button type="button" variant="secondary" onClick={clearFilters} disabled={!hasFilters}>
+                  <X className="h-4 w-4" />
+                  {t('filters.clearFilters')}
+                </Button>
+              )}
+              confirm={(
+                <Button type="button" onClick={() => setMobileFiltersOpen(false)}>
+                  {t('mobile.done')}
+                </Button>
+              )}
+            />
           </DrawContent>
         </Draw>
       </div>

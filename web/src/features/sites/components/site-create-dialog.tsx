@@ -1267,7 +1267,7 @@ export function SiteCreateDialog({
           {showProviderWall ? null : (
             <DialogFooter
               cancel={(
-                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
+                <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isPending}>
                   {t('form.actions.cancel')}
                 </Button>
               )}
@@ -1318,7 +1318,7 @@ export function SiteCreateDialog({
             cancel={(
               <Button
                 type="button"
-                variant="ghost"
+                variant="secondary"
                 onClick={closeAPIKeyEditor}
               >
                 {t('apiKeys.cancel')}

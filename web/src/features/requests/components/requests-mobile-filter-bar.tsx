@@ -259,11 +259,11 @@ export function RequestsMobileFilterBar({
       />
 
       <Draw open={sheetOpen} onOpenChange={setSheetOpen}>
-        <DrawContent className="max-h-[82vh]">
-          <DrawHeader className="py-4">
+        <DrawContent>
+          <DrawHeader>
             <DrawTitle>{t('mobile.filters')}</DrawTitle>
           </DrawHeader>
-          <DrawBody className="space-y-4 px-4 py-4">
+          <DrawBody className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
               <DateTimePicker
                 value={mergeDateAndTime(filters.createdFromDate, filters.createdFromTime)}
@@ -304,18 +304,22 @@ export function RequestsMobileFilterBar({
               </label>
             </div>
           </DrawBody>
-          <DrawFooter className="grid grid-cols-2 gap-2 px-4">
-            <Button type="button" variant="outline" onClick={clearFilters} disabled={!hasFilters}>
-              <X className="h-4 w-4" />
-              {t('filters.clearFilters')}
-            </Button>
-            <Button type="button" onClick={() => {
-              applySearchInputs()
-              setSheetOpen(false)
-            }}>
-              {t('mobile.done')}
-            </Button>
-          </DrawFooter>
+          <DrawFooter
+            cancel={(
+              <Button type="button" variant="secondary" onClick={clearFilters} disabled={!hasFilters}>
+                <X className="h-4 w-4" />
+                {t('filters.clearFilters')}
+              </Button>
+            )}
+            confirm={(
+              <Button type="button" onClick={() => {
+                applySearchInputs()
+                setSheetOpen(false)
+              }}>
+                {t('mobile.done')}
+              </Button>
+            )}
+          />
         </DrawContent>
       </Draw>
     </>

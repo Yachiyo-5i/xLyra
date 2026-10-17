@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
@@ -142,7 +142,7 @@ export function OAuthCreateDraw({
 
   const cancelButton = state.authorize ? (
     <Button
-      variant="ghost"
+      variant="secondary"
       onClick={() => onStateChange({ ...DEFAULT_CREATE_STATE })}
       disabled={completePending}
     >
@@ -159,19 +159,19 @@ export function OAuthCreateDraw({
 
   if (isMobile) {
     return (
-      <Draw open={open} onOpenChange={onOpenChange}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{dialogTitle}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="min-w-0 max-w-full space-y-5">
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{dialogTitle}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="min-w-0 max-w-full space-y-5">
             {body}
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             {footer}
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     )
   }
 

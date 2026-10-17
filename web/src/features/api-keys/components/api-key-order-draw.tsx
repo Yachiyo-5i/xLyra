@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, GripVertical, LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Draw, DrawBody, DrawContent, DrawDescription, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { downstreamAPIKeyQueryKeys, listDownstreamAPIKeys, reorderDownstreamAPIKeys } from '@/features/api-keys/api/api-keys'
 import { moveAPIKey } from '@/features/api-keys/lib/api-key-order'
 import { analyticsQueryKeys } from '@/features/analytics/api/analytics'
@@ -35,13 +35,13 @@ export function APIKeyOrderDraw({ initialData, onClose }: {
   const changed = items.some((item, index) => item.id !== snapshot.items[index]?.id)
 
   return (
-    <Draw open onOpenChange={(open) => { if (!open && !pending) onClose() }}>
-      <DrawContent side="right">
-        <DrawHeader>
-          <DrawTitle>{t('order.title')}</DrawTitle>
-          <DrawDescription>{t('order.description')}</DrawDescription>
-        </DrawHeader>
-        <DrawBody className="space-y-2">
+    <Sheet open onOpenChange={(open) => { if (!open && !pending) onClose() }}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>{t('order.title')}</SheetTitle>
+          <SheetDescription>{t('order.description')}</SheetDescription>
+        </SheetHeader>
+        <SheetBody className="space-y-2">
           <ol className="space-y-2" aria-label={t('order.title')}>
             {items.map((item, index) => (
               <li
@@ -94,15 +94,15 @@ export function APIKeyOrderDraw({ initialData, onClose }: {
               </li>
             ))}
           </ol>
-        </DrawBody>
-        <DrawFooter className="flex justify-start gap-2">
+        </SheetBody>
+        <SheetFooter className="flex justify-start gap-2">
           <Button disabled={pending || !changed} onClick={() => saveMutation.mutate()}>
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {t('form.actions.save')}
           </Button>
-          <Button variant="ghost" disabled={pending} onClick={onClose}>{t('workspace.deleteDialog.cancel')}</Button>
-        </DrawFooter>
-      </DrawContent>
-    </Draw>
+          <Button variant="secondary" disabled={pending} onClick={onClose}>{t('workspace.deleteDialog.cancel')}</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

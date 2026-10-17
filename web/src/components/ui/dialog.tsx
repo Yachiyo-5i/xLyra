@@ -42,41 +42,26 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
    * none：不带任何外观，由调用方自己绘制（图片查看器、Agent 页自带液态玻璃的弹窗）
    */
   surface?: 'glass' | 'none'
-  /**
-   * auto：桌面居中，移动端（< 1024）变为从底部弹出的 Sheet，默认；
-   * center：始终居中（提醒类弹窗，如 ConfirmDialog）
-   */
-  presentation?: 'auto' | 'center'
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', presentation, ...props }, ref) => {
-  // 自绘外观的弹窗布局由调用方控制，不自动变成 Sheet
-  const resolvedPresentation = presentation ?? (surface === 'none' ? 'center' : 'auto')
-  const sheetOnMobile = resolvedPresentation === 'auto'
-
+>(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', ...props }, ref) => {
+  // Dialog 在所有屏幕上都居中；需要底部抽屉用 Draw，需要右侧面板用 Sheet
   return (
     <DialogPortal container={container ?? undefined}>
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         ref={ref}
-        data-presentation={resolvedPresentation}
         className={cn(
           'dialog-content fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 gap-0 p-0 outline-none',
           surface === 'glass' && 'lg-thick rounded-shell',
           dialogSizeClassName[size],
-          // 移动端 Sheet：左右与底部各内缩 8，圆角 24；宽度随屏幕，最高 88dvh
-          sheetOnMobile &&
-            'max-lg:inset-x-2 max-lg:bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] max-lg:top-auto max-lg:w-auto max-lg:max-w-none max-lg:translate-x-0 max-lg:translate-y-0',
           className,
         )}
         {...props}
       >
-        {sheetOnMobile && surface === 'glass' ? (
-          <span aria-hidden="true" className="mx-auto mt-2 block h-[5px] w-9 shrink-0 rounded-full bg-fill-1 lg:hidden" />
-        ) : null}
         {children}
       </DialogPrimitive.Content>
     </DialogPortal>
@@ -99,16 +84,12 @@ type DialogFooterProps = React.HTMLAttributes<HTMLDivElement> & {
   confirm?: React.ReactNode
 }
 
-/**
- * 页脚：桌面右对齐、取消在左、主按钮在右；
- * 移动端全宽垂直堆叠，主按钮在上（DOM 顺序不变，用 flex-col-reverse 翻转）。
- */
+/** 页脚：整体靠右，取消在左、确认在右（所有屏幕一致）。 */
 function DialogFooter({ className, cancel, confirm, children, ...props }: DialogFooterProps) {
   return (
     <div
       className={cn(
         'flex items-center justify-end gap-2 border-t border-separator px-6 py-4',
-        'max-lg:flex-col-reverse max-lg:items-stretch max-lg:[&>*]:w-full',
         className,
       )}
       {...props}

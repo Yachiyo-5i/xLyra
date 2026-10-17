@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TextArea } from '@/components/ui/textarea'
 import { useMobileLayout } from '@/hooks/use-media-query'
@@ -352,7 +352,7 @@ export function OAuthImportSheet({
 
   const cancelButton = (
     <Button
-      variant="ghost"
+      variant="secondary"
       onClick={() => handleClose(false)}
       disabled={pending}
     >
@@ -375,19 +375,19 @@ export function OAuthImportSheet({
 
   if (isMobile) {
     return (
-      <Draw open={open} onOpenChange={handleClose}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{t('import.title')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className={bodyClassName} onPaste={handlePasteFiles}>
+      <Sheet open={open} onOpenChange={handleClose}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{t('import.title')}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className={bodyClassName} onPaste={handlePasteFiles}>
             {body}
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             {footer}
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     )
   }
 

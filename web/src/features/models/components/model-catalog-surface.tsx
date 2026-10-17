@@ -424,7 +424,7 @@ export function ModelCatalogSurface({
         }
       }}
     >
-      <DrawContent side="bottom">
+      <DrawContent>
         <DrawHeader>
           <DrawTitle>{t('catalog.createSurface.title')}</DrawTitle>
         </DrawHeader>
@@ -458,22 +458,26 @@ export function ModelCatalogSurface({
             </div>
           ) : null}
         </DrawBody>
-        <DrawFooter className="grid grid-cols-2 gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => setCreateDraft(null)}
-            disabled={createModelMutation.isPending}
-          >
-            {t('catalog.createSurface.cancel')}
-          </Button>
-          <Button
-            onClick={handleCreateModel}
-            disabled={!createDraft?.modelKey.trim() || createModelMutation.isPending}
-          >
-            {createModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            {t('catalog.createSurface.save')}
-          </Button>
-        </DrawFooter>
+        <DrawFooter
+          cancel={(
+            <Button
+              variant="secondary"
+              onClick={() => setCreateDraft(null)}
+              disabled={createModelMutation.isPending}
+            >
+              {t('catalog.createSurface.cancel')}
+            </Button>
+          )}
+          confirm={(
+            <Button
+              onClick={handleCreateModel}
+              disabled={!createDraft?.modelKey.trim() || createModelMutation.isPending}
+            >
+              {createModelMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {t('catalog.createSurface.save')}
+            </Button>
+          )}
+        />
       </DrawContent>
     </Draw>
   ) : null
@@ -532,16 +536,11 @@ export function ModelCatalogSurface({
     return (
       <>
         <Draw open={open} onOpenChange={onOpenChange}>
-          <DrawContent
-            side="bottom"
-           
-            className="max-h-[92dvh]"
-            onOpenAutoFocus={(event) => event.preventDefault()}
-          >
-            <DrawHeader className="pb-3">
+          <DrawContent onOpenAutoFocus={(event) => event.preventDefault()}>
+            <DrawHeader>
               <DrawTitle>{t('catalog.title')}</DrawTitle>
             </DrawHeader>
-            <DrawBody className="space-y-3 px-4 py-4">
+            <DrawBody className="space-y-3">
               <div className="sticky top-0 z-10 -mx-1 space-y-2 rounded-card border border-separator bg-fill-4 p-2 shadow-[0_14px_28px_rgba(0,0,0,0.10)] backdrop-blur-[28px] backdrop-saturate-150">
                 <label className="relative block">
                   <Search className="text-label-2 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
@@ -725,6 +724,7 @@ export function ModelCatalogSurface({
                 <div className="text-label-2 px-3 py-8 text-center text-body">{t('catalog.noStandardModels')}</div>
               )}
             </DrawBody>
+            <DrawFooter />
           </DrawContent>
         </Draw>
 

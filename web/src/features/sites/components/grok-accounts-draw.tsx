@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { ModelsDraw, type ModelsDrawItem } from '@/components/common/models-draw'
 import { toast } from '@/lib/toast'
@@ -180,16 +180,16 @@ export function GrokAccountsDraw({
 
   return (
     <>
-      <Draw open={open} onOpenChange={(next) => {
+      <Sheet open={open} onOpenChange={(next) => {
         if (!next) {
           setDeleting(null)
           setDevice(null)
         }
         onOpenChange(next)
       }}>
-        <DrawContent side="right">
-          <DrawHeader className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <DrawTitle>{t('grokAccounts.title')}</DrawTitle>
+        <SheetContent>
+          <SheetHeader className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <SheetTitle>{t('grokAccounts.title')}</SheetTitle>
             <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center">
               <Button size="sm" variant="secondary" className="w-full min-[420px]:w-auto" disabled={refreshAllMutation.isPending} onClick={() => refreshAllMutation.mutate()}>
                 {refreshAllMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('grokAccounts.refreshAll')}
@@ -198,8 +198,8 @@ export function GrokAccountsDraw({
                 <Plus className="h-4 w-4" />{t('grokAccounts.add')}
               </Button>
             </div>
-          </DrawHeader>
-          <DrawBody>
+          </SheetHeader>
+          <SheetBody>
             {accountsQuery.isLoading ? (
               <p className="py-10 text-center text-body text-label-2">{t('grokAccounts.loading')}</p>
             ) : accountsQuery.isError ? (
@@ -282,9 +282,9 @@ export function GrokAccountsDraw({
             ) : (
               <p className="py-10 text-center text-body text-label-2">{t('grokAccounts.empty')}</p>
             )}
-          </DrawBody>
-        </DrawContent>
-      </Draw>
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={Boolean(device)} onOpenChange={(next) => { if (!next) setDevice(null) }}>
         <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
@@ -308,7 +308,7 @@ export function GrokAccountsDraw({
             ) : null}
           </DialogBody>
           <DialogFooter className="border-t-0 pt-2">
-            <Button variant="ghost" onClick={() => setDevice(null)}>{t('grokAccounts.cancel')}</Button>
+            <Button variant="secondary" onClick={() => setDevice(null)}>{t('grokAccounts.cancel')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

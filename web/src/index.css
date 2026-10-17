@@ -990,7 +990,7 @@ select {
   display: initial;
 }
 
-/* Dialog（components/ui/dialog.tsx）：桌面居中放大淡入；移动端（presentation=auto）从底部滑上来 */
+/* Dialog（components/ui/dialog.tsx）：所有屏幕居中放大淡入 */
 @keyframes dialog-in {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: none; }
@@ -1017,16 +1017,6 @@ select {
 
 .dialog-content[data-state="closed"] {
   animation: dialog-out 160ms ease-in both;
-}
-
-@media (max-width: 1023px) {
-  .dialog-content[data-presentation="auto"][data-state="open"] {
-    animation: dialog-sheet-in 400ms var(--ease-sheet) both;
-  }
-
-  .dialog-content[data-presentation="auto"][data-state="closed"] {
-    animation: dialog-sheet-out 240ms cubic-bezier(0.4, 0, 1, 1) both;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

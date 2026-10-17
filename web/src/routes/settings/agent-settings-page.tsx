@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawDescription, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SiteModelScopePicker, type SiteModelScopePatch, type SiteModelScopePolicy } from '@/features/api-keys/components/site-model-scope-picker'
@@ -402,13 +402,13 @@ export function AgentSettingsPage() {
         </div>
       </section>
 
-      <Draw open={scopeOpen} onOpenChange={setScopeOpen}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{t('settings:agent.scope.title')}</DrawTitle>
-            <DrawDescription>{t('settings:agent.scope.description')}</DrawDescription>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
+      <Sheet open={scopeOpen} onOpenChange={setScopeOpen}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{t('settings:agent.scope.title')}</SheetTitle>
+            <SheetDescription>{t('settings:agent.scope.description')}</SheetDescription>
+          </SheetHeader>
+          <SheetBody className="space-y-4">
             <SiteModelScopePicker
               scope={scope}
               sitesLoading={sitesQuery.isLoading}
@@ -420,25 +420,25 @@ export function AgentSettingsPage() {
               siteModelIds={storedSiteModelIDs}
               onChange={handleScopeChange}
             />
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             <Button onClick={() => saveScope.mutate()} disabled={saveScope.isPending || (effectiveSitePolicy === 'allow_list' && scope.siteModelsLoading)}>
               {saveScope.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {saveScope.isPending ? t('settings:agent.saving') : t('settings:agent.save')}
             </Button>
-            <Button variant="ghost" onClick={() => setScopeOpen(false)} disabled={saveScope.isPending}>
+            <Button variant="secondary" onClick={() => setScopeOpen(false)} disabled={saveScope.isPending}>
               {t('settings:agent.scope.cancel')}
             </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      <Draw open={scopeView !== null} onOpenChange={(open) => { if (!open) setScopeView(null) }}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{scopeView === 'sites' ? t('settings:agent.scope.availableSites') : t('settings:agent.scope.availableModels')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
+      <Sheet open={scopeView !== null} onOpenChange={(open) => { if (!open) setScopeView(null) }}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{scopeView === 'sites' ? t('settings:agent.scope.availableSites') : t('settings:agent.scope.availableModels')}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="space-y-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-label/40" />
               <Input
@@ -494,9 +494,9 @@ export function AgentSettingsPage() {
                 }) : <div className="py-10 text-center text-body text-label-2">{t('settings:agent.scope.noModels')}</div>
               )}
             </div>
-          </DrawBody>
-        </DrawContent>
-      </Draw>
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={clearRunnerOpen} onOpenChange={(open) => { if (!open) setClearRunnerOpen(false) }}>
         <DialogContent className="w-[min(92vw,440px)]">

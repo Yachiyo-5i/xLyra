@@ -7,13 +7,13 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Draw,
-  DrawBody,
-  DrawContent,
-  DrawFooter,
-  DrawHeader,
-  DrawTitle,
-} from '@/components/ui/draw'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
@@ -730,9 +730,9 @@ export function SiteCreateSheet({
 
   return (
     <>
-      <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-        <DrawHeader>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+        <SheetHeader>
           {selectedProvider && mode === 'create' ? (
             <div className="flex items-center gap-2">
               <Button
@@ -750,16 +750,16 @@ export function SiteCreateSheet({
                   className={cn('h-6 w-6 shrink-0 rounded-control object-contain', siteTypeIconClassName(selectedProvider))}
                 />
               ) : null}
-              <DrawTitle>
+              <SheetTitle>
                 {selectedProviderInfo?.display_name ?? t('form.createTitle')}
-              </DrawTitle>
+              </SheetTitle>
             </div>
           ) : (
-            <DrawTitle>{mode === 'edit' ? t('form.editTitle') : t('form.createTitle')}</DrawTitle>
+            <SheetTitle>{mode === 'edit' ? t('form.editTitle') : t('form.createTitle')}</SheetTitle>
           )}
-        </DrawHeader>
+        </SheetHeader>
 
-        <DrawBody className="space-y-0">
+        <SheetBody className="space-y-0">
           {showProviderWall ? (
             <ProviderWall siteTypes={siteTypes ?? []} onSelect={handleSelectProvider} language={i18n.language} t={t} />
           ) : (
@@ -1234,23 +1234,23 @@ export function SiteCreateSheet({
               </FormSection>
             </>
           )}
-        </DrawBody>
+        </SheetBody>
 
         {showProviderWall ? null : (
-          <DrawFooter>
+          <SheetFooter>
             <Button onClick={handleSubmit(handleFormSubmit)} disabled={isPending}>
               {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {mode === 'edit' ? t('form.actions.save') : t('form.actions.create')}
             </Button>
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
+            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isPending}>
               {t('form.actions.cancel')}
             </Button>
-          </DrawFooter>
+          </SheetFooter>
         )}
-      </DrawContent>
-      </Draw>
+      </SheetContent>
+      </Sheet>
 
-      <Draw
+      <Sheet
         open={apiKeyEditorOpen}
         onOpenChange={(next) => {
           setAPIKeyEditorOpen(next)
@@ -1260,8 +1260,8 @@ export function SiteCreateSheet({
           }
         }}
       >
-        <DrawContent side="right">
-          <DrawHeader>
+        <SheetContent>
+          <SheetHeader>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -1274,14 +1274,14 @@ export function SiteCreateSheet({
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <DrawTitle>
+              <SheetTitle>
                 {editingAPIKeyIndex == null
                   ? t('apiKeys.addTitle')
                   : t('apiKeys.editConfig')}
-              </DrawTitle>
+              </SheetTitle>
             </div>
-          </DrawHeader>
-          <DrawBody>
+          </SheetHeader>
+          <SheetBody>
             <SiteAPIKeyFormFields
               draft={apiKeyDraft}
               onChange={setAPIKeyDraft}
@@ -1289,8 +1289,8 @@ export function SiteCreateSheet({
               showCostMultiplier={supportsAPIKeyCostMultiplier}
               t={t}
             />
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             <Button
               type="button"
               onClick={saveAPIKeyDraft}
@@ -1305,14 +1305,14 @@ export function SiteCreateSheet({
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => setAPIKeyEditorOpen(false)}
             >
               {t('apiKeys.cancel')}
             </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

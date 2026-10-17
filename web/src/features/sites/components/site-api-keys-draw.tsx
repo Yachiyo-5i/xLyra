@@ -26,13 +26,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Draw,
-  DrawBody,
-  DrawContent,
-  DrawFooter,
-  DrawHeader,
-  DrawTitle,
-} from '@/components/ui/draw'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
@@ -995,17 +995,17 @@ export function SiteAPIKeysDraw({
   return (
     <>
       {isMobile ? (
-        <Draw open={open} onOpenChange={handleMainOpenChange}>
-          <DrawContent side="right">
-            <DrawHeader className="flex items-center justify-between gap-3">
-              <DrawTitle>{t('apiKeys.title')}</DrawTitle>
+        <Sheet open={open} onOpenChange={handleMainOpenChange}>
+          <SheetContent>
+            <SheetHeader className="flex items-center justify-between gap-3">
+              <SheetTitle>{t('apiKeys.title')}</SheetTitle>
               {headerActions}
-            </DrawHeader>
-            <DrawBody>
+            </SheetHeader>
+            <SheetBody>
               {listBody}
-            </DrawBody>
-          </DrawContent>
-        </Draw>
+            </SheetBody>
+          </SheetContent>
+        </Sheet>
       ) : (
         <Dialog open={open} onOpenChange={handleMainOpenChange}>
           <DialogContent
@@ -1381,7 +1381,7 @@ export function SiteAPIKeysDraw({
           </DialogBody>
           <DialogFooter
             cancel={(
-              <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>
+              <Button variant="secondary" onClick={() => setModelProtocolTarget(null)}>
                 {t('apiKeys.cancel')}
               </Button>
             )}
@@ -1428,15 +1428,15 @@ function NestedDraw({
   onOpenChange: (open: boolean) => void
 }) {
   return (
-    <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right">
-        <DrawHeader>
-          <DrawTitle>{title}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className={bodyClassName}>{children}</DrawBody>
-        <DrawFooter>{footer}</DrawFooter>
-      </DrawContent>
-    </Draw>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
+        </SheetHeader>
+        <SheetBody className={bodyClassName}>{children}</SheetBody>
+        <SheetFooter>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 

@@ -4,7 +4,7 @@ import { LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { MultiSelect } from '@/components/ui/multi-select'
 import {
@@ -90,11 +90,11 @@ export function OAuthEditSheet({
 
   if (isMobile) {
     return (
-      <Draw open={open} onOpenChange={onOpenChange}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{title}</DrawTitle>
-          </DrawHeader>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
           {site ? (
             <OAuthEditForm
               key={site.id}
@@ -105,8 +105,8 @@ export function OAuthEditSheet({
               onSaved={onSaved}
             />
           ) : null}
-        </DrawContent>
-      </Draw>
+        </SheetContent>
+      </Sheet>
     )
   }
 
@@ -295,7 +295,7 @@ function OAuthEditForm({
   )
 
   const cancelButton = (
-    <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={saving}>
       {t('edit.actions.cancel')}
     </Button>
   )
@@ -310,12 +310,12 @@ function OAuthEditForm({
   if (isMobile) {
     return (
       <>
-        <DrawBody className="space-y-0">
+        <SheetBody className="space-y-0">
           {body}
-        </DrawBody>
-        <DrawFooter>
+        </SheetBody>
+        <SheetFooter>
           {footer}
-        </DrawFooter>
+        </SheetFooter>
       </>
     )
   }

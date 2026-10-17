@@ -5,7 +5,7 @@ import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph, siteTypeIconPath } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { Badge } from '@/components/ui/badge'
-import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
@@ -124,15 +124,14 @@ export function APIKeyModelsDraw({
   }, [allRows, search, filterModel])
 
   return (
-    <Draw open={Boolean(apiKey)} onOpenChange={onOpenChange}>
-      <DrawContent
-        side="right"
-        onOpenAutoFocus={(event) => event.preventDefault()}
+    <Sheet open={Boolean(apiKey)} onOpenChange={onOpenChange}>
+      <SheetContent
+onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DrawHeader>
-          <DrawTitle>{t('modelsDraw.title')}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className="flex flex-col gap-3 overflow-hidden">
+        <SheetHeader>
+          <SheetTitle>{t('modelsDraw.title')}</SheetTitle>
+        </SheetHeader>
+        <SheetBody className="flex flex-col gap-3 overflow-hidden">
           <div className="flex shrink-0 gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-label-3" />
@@ -195,9 +194,9 @@ export function APIKeyModelsDraw({
               })
             )}
           </div>
-        </DrawBody>
-      </DrawContent>
-    </Draw>
+        </SheetBody>
+      </SheetContent>
+    </Sheet>
   )
 }
 

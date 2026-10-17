@@ -1,11 +1,14 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { cva, type VariantProps } from 'class-variance-authority'
+import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const Draw = DialogPrimitive.Root
 const DrawTrigger = DialogPrimitive.Trigger
 const DrawPortal = DialogPrimitive.Portal
+const DrawClose = DialogPrimitive.Close
 
 const DrawOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -13,63 +16,111 @@ const DrawOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'sheet-overlay-animate fixed inset-0 z-50 bg-black/30',
-      className,
-    )}
+    className={cn('sheet-overlay-animate fixed inset-0 z-50 bg-black/30', className)}
     {...props}
   />
 ))
 DrawOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 /**
- * 抽屉：覆盖层 Liquid Glass（.lg-thick），浮动、圆角 24。
- * - bottom：底部 Sheet，左右与底部内缩 8，顶部有 grabber；
- * - right：移动端同 bottom，桌面（≥ 1024）为右侧浮动面板，距边 12、宽 560。
- * 进场方向由 index.css 中的 .draw-content[data-side] 按屏幕宽度决定。
+ * Draw：从底部向上展开的抽屉（Liquid Glass thick，圆角 24）。
+ *
+ * - 手机：左右与底部各内缩 8，最高 88dvh；
+ * - 桌面：同样贴底，但宽度收窄并居中（最宽 640）；
+ * - 顶部固定有 grabber，右上角固定有关闭按钮；
+ * - 页脚固定为全宽等分：取消在左、确认在右；只有一个关闭动作时单个全宽按钮。
+ *
+ * 其他两个覆盖层：居中弹窗用 Dialog，右侧滑入的面板用 Sheet。
  */
-const drawVariants = cva(
-  'lg-thick draw-content fixed z-50 flex flex-col overflow-hidden rounded-shell p-0 will-change-transform',
-  {
-    variants: {
-      side: {
-        bottom: 'inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] h-auto max-h-[88dvh]',
-        right:
-          'inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] h-auto max-h-[88dvh] lg:left-auto lg:right-3 lg:top-3 lg:bottom-3 lg:max-h-none lg:w-[min(calc(100vw-24px),560px)]',
-      },
-    },
-    defaultVariants: {
-      side: 'bottom',
-    },
-  },
-)
-
 const DrawContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & VariantProps<typeof drawVariants>
->(({ side, className, children, ...props }, ref) => (
-  <DrawPortal>
-    <DrawOverlay />
-    <DialogPrimitive.Content ref={ref} data-side={side ?? 'bottom'} className={cn(drawVariants({ side }), className)} {...props}>
-      <div className={cn('flex shrink-0 justify-center pt-2', side === 'right' && 'lg:hidden')}>
-        <span className="h-[5px] w-9 rounded-full bg-fill-1" />
-      </div>
-      {children}
-    </DialogPrimitive.Content>
-  </DrawPortal>
-))
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => {
+  const { t } = useTranslation('common')
+
+  return (
+    <DrawPortal>
+      <DrawOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          'lg-thick draw-content fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] z-50 flex h-auto max-h-[88dvh] flex-col overflow-hidden rounded-shell p-0 will-change-transform',
+          'lg:inset-x-0 lg:mx-auto lg:w-[min(calc(100vw-16px),640px)]',
+          className,
+        )}
+        {...props}
+      >
+        <div className="flex shrink-0 justify-center pt-2">
+          <span className="h-[5px] w-9 rounded-full bg-fill-1" />
+        </div>
+        <DialogPrimitive.Close asChild>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon-sm"
+            className="absolute right-4 top-4 z-10 rounded-full"
+            aria-label={t('actions.close')}
+          >
+            <X />
+          </Button>
+        </DialogPrimitive.Close>
+        {children}
+      </DialogPrimitive.Content>
+    </DrawPortal>
+  )
+})
 DrawContent.displayName = DialogPrimitive.Content.displayName
 
 function DrawHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-b border-separator px-6 py-4 lg:py-5', className)} {...props} />
+  return <div className={cn('border-b border-separator py-4 pl-6 pr-16', className)} {...props} />
 }
 
 function DrawBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-5', className)} {...props} />
 }
 
-function DrawFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-t border-separator px-6 py-4', className)} {...props} />
+type DrawFooterProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> & {
+  /** 取消动作，固定在左侧 */
+  cancel?: React.ReactNode
+  /** 确认动作，固定在右侧 */
+  confirm?: React.ReactNode
+}
+
+/**
+ * 页脚：全宽等分。
+ * - 同时有 cancel 与 confirm：两列，取消在左、确认在右；
+ * - 只给其中一个：单个按钮全宽；
+ * - 两个都不给（没有保存动作的抽屉）：自动放一个全宽「关闭」按钮。
+ */
+function DrawFooter({ className, cancel, confirm, ...props }: DrawFooterProps) {
+  const { t } = useTranslation('common')
+  const hasAction = Boolean(cancel || confirm)
+  const columns = cancel && confirm ? 'grid-cols-2' : 'grid-cols-1'
+
+  return (
+    <div
+      className={cn(
+        'grid gap-3 border-t border-separator px-6 py-4',
+        columns,
+        '[&>*]:w-full',
+        className,
+      )}
+      {...props}
+    >
+      {hasAction ? (
+        <>
+          {cancel}
+          {confirm}
+        </>
+      ) : (
+        <DialogPrimitive.Close asChild>
+          <Button type="button" variant="secondary">
+            {t('actions.close')}
+          </Button>
+        </DialogPrimitive.Close>
+      )}
+    </div>
+  )
 }
 
 const DrawTitle = React.forwardRef<
@@ -84,17 +135,14 @@ const DrawDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cn('mt-1 text-body text-label-2', className)}
-    {...props}
-  />
+  <DialogPrimitive.Description ref={ref} className={cn('mt-1 text-body text-label-2', className)} {...props} />
 ))
 DrawDescription.displayName = DialogPrimitive.Description.displayName
 
 export {
   Draw,
   DrawBody,
+  DrawClose,
   DrawContent,
   DrawDescription,
   DrawFooter,

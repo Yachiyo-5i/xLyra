@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/common/empty-state'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/lib/toast'
@@ -351,12 +351,12 @@ export function SiteModelTestSheet({
 
   if (isMobile) {
     return (
-      <Draw open={open} onOpenChange={handleOpenChange}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{title}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-3">
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="space-y-3">
             {modelsQuery.isLoading ? loadingState : availableModels.length ? (
               <>
                 {toolbar}
@@ -365,9 +365,9 @@ export function SiteModelTestSheet({
                 </div>
               </>
             ) : emptyState}
-          </DrawBody>
-        </DrawContent>
-      </Draw>
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
     )
   }
 

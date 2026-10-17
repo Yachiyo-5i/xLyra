@@ -34,7 +34,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel() }}>
       {/* 提醒类弹窗（仿 iOS Alert）：始终居中，文字居中，两个按钮等宽并排 */}
-      <DialogContent presentation="center" className="w-[min(92vw,380px)]">
+      <DialogContent className="w-[min(92vw,380px)]">
         <DialogHeader className="border-0 px-6 pb-1 pt-6 text-center">
           <DialogTitle className="text-title-3">{title}</DialogTitle>
           <DialogDescription className="mt-2">{description}</DialogDescription>

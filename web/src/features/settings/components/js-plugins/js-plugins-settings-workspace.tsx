@@ -877,7 +877,7 @@ export function JSPluginsSettingsWorkspace() {
             <Button type="button" variant="secondary" onClick={() => setTrustedKeysOpen(false)}>
               {t('common:actions.close')}
             </Button>
-            <Button type="button" size="sm" disabled={busy} onClick={() => setTrustedKeyAddOpen(true)}>
+            <Button type="button" disabled={busy} onClick={() => setTrustedKeyAddOpen(true)}>
               {t('settings:jsPlugins.trustedKeyAdd')}
             </Button>
           </DialogFooter>

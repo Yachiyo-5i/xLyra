@@ -7,7 +7,7 @@ import { toSlug } from '@/lib/slug'
 import { TableToolbar } from '@/components/common/table-toolbar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import {
@@ -209,12 +209,12 @@ export function SystemProxySettingsPage() {
         </div>
       ) : null}
 
-      <Draw open={formOpen} onOpenChange={(open) => { if (!open && !saveMutation.isPending) closeForm() }}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{editingProxy ? t('systemProxy.form.editTitle') : t('systemProxy.form.createTitle')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
+      <Sheet open={formOpen} onOpenChange={(open) => { if (!open && !saveMutation.isPending) closeForm() }}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{editingProxy ? t('systemProxy.form.editTitle') : t('systemProxy.form.createTitle')}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="space-y-4">
             <FormField label={t('systemProxy.form.name')} required>
               <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder={t('systemProxy.form.namePlaceholder')} />
             </FormField>
@@ -241,16 +241,16 @@ export function SystemProxySettingsPage() {
                 placeholder={form.type === 'socks5' ? 'socks5://127.0.0.1:7890' : 'http://127.0.0.1:7890'}
               />
             </FormField>
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {editingProxy ? t('systemProxy.actions.save') : t('systemProxy.actions.create')}
             </Button>
-            <Button variant="ghost" onClick={closeForm} disabled={saveMutation.isPending}>{t('systemProxy.actions.cancel')}</Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+            <Button variant="secondary" onClick={closeForm} disabled={saveMutation.isPending}>{t('systemProxy.actions.cancel')}</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleteMutation.isPending) setDeleteTarget(null) }}>
         <DialogContent className="w-[min(92vw,520px)] overflow-hidden">

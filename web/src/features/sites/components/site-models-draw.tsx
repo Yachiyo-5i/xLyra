@@ -469,7 +469,7 @@ export function SiteModelsDraw({
           <DialogFooter
             className="gap-4 px-6 py-5"
             cancel={(
-              <Button type="button" variant="ghost" onClick={() => { resetAddForm(); setAddOpen(false) }}>
+              <Button type="button" variant="secondary" onClick={() => { resetAddForm(); setAddOpen(false) }}>
                 {t('models.add.cancel')}
               </Button>
             )}

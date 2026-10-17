@@ -264,7 +264,7 @@ export function QuotaPanel({
             </DialogBody>
             <DialogFooter className="border-t-0 pt-2">
               <Button
-                variant="outline"
+                variant="secondary"
                 disabled={consumeResetMutation.isPending}
                 onClick={() => setResetCreditsOpen(false)}
               >
@@ -296,7 +296,7 @@ export function QuotaPanel({
             </DialogDescription>
           </DialogBody>
           <DialogFooter className="border-t-0 pt-2">
-            <Button variant="outline" disabled={consumeResetMutation.isPending} onClick={() => setConfirmResetOpen(false)}>
+            <Button variant="secondary" disabled={consumeResetMutation.isPending} onClick={() => setConfirmResetOpen(false)}>
               {t('quota.resetCredits.cancel')}
             </Button>
             <Button disabled={consumeResetMutation.isPending} onClick={handleConfirmReset}>

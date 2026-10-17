@@ -686,7 +686,7 @@ export function APIKeyFormDialog({
         <DialogFooter
           cancel={(
             <Button
-              variant="ghost"
+              variant="secondary"
               onClick={() => onOpenChange(false)}
               disabled={pending}
             >

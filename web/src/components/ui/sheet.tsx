@@ -23,8 +23,11 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 /**
- * Sheet：覆盖层 Liquid Glass（.lg-thick），与屏幕边缘留出间距浮动、圆角 24，
- * 而不是贴边铺满（HIG：half sheet 与屏幕边缘内缩，让下方内容透出来）。
+ * Sheet：从右侧滑入的面板（左侧仅供移动端导航抽屉使用）。
+ * Liquid Glass thick，与屏幕边缘留出间距浮动、圆角 24，而不是贴边铺满。
+ * 没有关闭按钮：点遮罩或按 Esc 关闭；页脚固定为「确认在左、取消在右」，整体靠左。
+ *
+ * 其他两个覆盖层：居中弹窗用 Dialog，从底部展开的抽屉用 Draw。
  */
 const sheetVariants = cva(
   'lg-thick sheet-content-animate fixed z-50 flex flex-col overflow-hidden rounded-shell p-0 will-change-transform',
@@ -35,8 +38,6 @@ const sheetVariants = cva(
           'sheet-content-right bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] right-3 top-[calc(env(safe-area-inset-top,0px)+12px)] w-[min(calc(100vw-24px),560px)]',
         left:
           'sheet-content-left bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] left-3 top-[calc(env(safe-area-inset-top,0px)+12px)] w-[min(calc(100vw-24px),560px)]',
-        top: 'sheet-content-top inset-x-2 top-[calc(env(safe-area-inset-top,0px)+8px)] h-auto max-h-[85vh]',
-        bottom: 'sheet-content-bottom inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+8px)] h-auto max-h-[88dvh]',
       },
     },
     defaultVariants: {
@@ -66,8 +67,22 @@ function SheetBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>
   return <div className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-5', className)} {...props} />
 }
 
-function SheetFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-t border-separator px-6 py-4', className)} {...props} />
+type SheetFooterProps = React.HTMLAttributes<HTMLDivElement> & {
+  /** 确认动作，固定在最左侧 */
+  confirm?: React.ReactNode
+  /** 取消动作，紧跟在确认之后 */
+  cancel?: React.ReactNode
+}
+
+/** 页脚：确认在左、取消在右，整体靠左；按钮文本与样式由调用方决定。 */
+function SheetFooter({ className, confirm, cancel, children, ...props }: SheetFooterProps) {
+  return (
+    <div className={cn('flex items-center justify-start gap-2 border-t border-separator px-6 py-4', className)} {...props}>
+      {confirm}
+      {cancel}
+      {children}
+    </div>
+  )
 }
 
 const SheetTitle = React.forwardRef<
