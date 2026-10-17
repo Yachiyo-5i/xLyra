@@ -254,7 +254,7 @@ export function SiteGroupsSettingsPage() {
       </Sheet>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleteMutation.isPending) setDeleteTarget(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('siteGroups.deleteDialog.title')}</DialogTitle>
           </DialogHeader>

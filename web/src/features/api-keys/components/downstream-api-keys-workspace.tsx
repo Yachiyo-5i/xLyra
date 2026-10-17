@@ -332,7 +332,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.resetQuotaDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -412,7 +412,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.rotateDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -457,7 +457,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.rotateResultDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -499,7 +499,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.deleteDialog.title')}</DialogTitle>
           </DialogHeader>

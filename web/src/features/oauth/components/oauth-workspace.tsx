@@ -619,7 +619,7 @@ export function OAuthWorkspace() {
       ) : null}
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(next) => { if (!next && !deleteTargetPending) setDeleteTarget(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t('workspace.deleteDialog.title')}</DialogTitle></DialogHeader>
           <DialogBody className="pt-0 text-body text-label-2">
             <DialogDescription className="mt-0">

@@ -830,7 +830,7 @@ function ConfirmDialog({
   const { t } = useTranslation('settings')
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel() }}>
-      <DialogContent className="w-[min(92vw,520px)]">
+      <DialogContent presentation="center" className="w-[min(92vw,520px)]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

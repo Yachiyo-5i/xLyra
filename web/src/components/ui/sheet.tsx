@@ -1,6 +1,9 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { DrawContent, DrawFooter } from '@/components/ui/draw'
+import { OverlayModeContext, useOverlayMode } from '@/components/ui/overlay-mode'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 const Sheet = DialogPrimitive.Root
@@ -49,18 +52,39 @@ const sheetVariants = cva(
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & VariantProps<typeof sheetVariants>
->(({ side, className, children, ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-      {children}
-    </DialogPrimitive.Content>
-  </SheetPortal>
-))
+>(({ side, className, children, ...props }, ref) => {
+  const isMobile = useMobileLayout()
+
+  // 右侧面板在移动端（< 1024）变成底部 Draw：有 grabber 与右上角关闭按钮；
+  // 没有页脚的只读面板自动补一个全宽「关闭」。左侧导航抽屉保持原样。
+  if (isMobile && side !== 'left') {
+    const hasFooter = React.Children.toArray(children).some(
+      (child) => React.isValidElement(child) && child.type === SheetFooter,
+    )
+    const drawClassName = className?.split(/\s+/).filter((token) => token && !/^(w-|max-w-|min-w-|overflow-)/.test(token)).join(' ')
+    return (
+      <DrawContent ref={ref} className={drawClassName} {...props}>
+        {children}
+        {hasFooter ? null : <DrawFooter />}
+      </DrawContent>
+    )
+  }
+
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+        <OverlayModeContext.Provider value="side">{children}</OverlayModeContext.Provider>
+      </DialogPrimitive.Content>
+    </SheetPortal>
+  )
+})
 SheetContent.displayName = DialogPrimitive.Content.displayName
 
 function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-b border-separator px-6 py-5', className)} {...props} />
+  // 作为 Draw 呈现时，右上角有关闭按钮，标题区右侧要留出位置
+  const draw = useOverlayMode() === 'draw'
+  return <div className={cn('border-b border-separator', draw ? 'py-4 pl-6 pr-16' : 'px-6 py-5', className)} {...props} />
 }
 
 function SheetBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -74,10 +98,21 @@ type SheetFooterProps = React.HTMLAttributes<HTMLDivElement> & {
   cancel?: React.ReactNode
 }
 
-/** 页脚：确认在左、取消在右，整体靠左；按钮文本与样式由调用方决定。 */
+/**
+ * 页脚：右侧面板里确认在左、取消在右，整体靠左；
+ * 作为 Draw 呈现时全宽等分，取消在左、确认在右（DOM 顺序不变，用 flex-row-reverse 翻转）。
+ */
 function SheetFooter({ className, confirm, cancel, children, ...props }: SheetFooterProps) {
+  const draw = useOverlayMode() === 'draw'
   return (
-    <div className={cn('flex items-center justify-start gap-2 border-t border-separator px-6 py-4', className)} {...props}>
+    <div
+      className={cn(
+        'border-t border-separator px-6 py-4',
+        draw ? 'flex flex-row-reverse gap-3 [&>*]:flex-1' : 'flex items-center justify-start gap-2',
+        className,
+      )}
+      {...props}
+    >
       {confirm}
       {cancel}
       {children}

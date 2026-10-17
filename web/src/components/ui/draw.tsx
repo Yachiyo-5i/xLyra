@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { OverlayModeContext } from '@/components/ui/overlay-mode'
 import { cn } from '@/lib/utils'
 
 const Draw = DialogPrimitive.Root
@@ -34,13 +35,13 @@ DrawOverlay.displayName = DialogPrimitive.Overlay.displayName
  */
 const DrawContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { overlayClassName?: string }
+>(({ className, children, overlayClassName, ...props }, ref) => {
   const { t } = useTranslation('common')
 
   return (
     <DrawPortal>
-      <DrawOverlay />
+      <DrawOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
@@ -64,7 +65,7 @@ const DrawContent = React.forwardRef<
             <X />
           </Button>
         </DialogPrimitive.Close>
-        {children}
+        <OverlayModeContext.Provider value="draw">{children}</OverlayModeContext.Provider>
       </DialogPrimitive.Content>
     </DrawPortal>
   )

@@ -287,7 +287,7 @@ export function GrokAccountsDraw({
       </Sheet>
 
       <Dialog open={Boolean(device)} onOpenChange={(next) => { if (!next) setDevice(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t(device?.purpose === 'reauth' ? 'grokAccounts.device.reauthTitle' : 'grokAccounts.device.title')}</DialogTitle></DialogHeader>
           <DialogBody className="space-y-4 pt-0">
             {device?.status === 'starting' ? (
@@ -314,7 +314,7 @@ export function GrokAccountsDraw({
       </Dialog>
 
       <Dialog open={Boolean(deleting)} onOpenChange={(next) => { if (!next && !deleteMutation.isPending) setDeleting(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t('grokAccounts.deleteDialog.title')}</DialogTitle></DialogHeader>
           <DialogBody className="pt-0">
             <DialogDescription className="mt-0">{t('grokAccounts.deleteDialog.confirm', { name: deleting?.masked_token || t('grokAccounts.unnamed') })}</DialogDescription>

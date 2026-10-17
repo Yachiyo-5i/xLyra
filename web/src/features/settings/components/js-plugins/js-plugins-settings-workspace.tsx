@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { KeyRound, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { KeyRound, LoaderCircle, PowerOff, RefreshCw, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
-import { Card } from '@/components/ui/card'
+import { Card, CardAction } from '@/components/ui/card'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
@@ -617,24 +617,22 @@ export function JSPluginsSettingsWorkspace() {
                 }}
                 actions={
                   <>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => openManage(plugin)}>
-                      {t('settings:jsPlugins.manageVersions')}
-                    </Button>
+                    <CardAction label={t('settings:jsPlugins.manageVersions')} onClick={() => openManage(plugin)}>
+                      <SlidersHorizontal />
+                    </CardAction>
                     {plugin.enabled_version ? (
-                      <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => disablePlugin(plugin.id)}>
-                        {t('settings:jsPlugins.disable')}
-                      </Button>
+                      <CardAction label={t('settings:jsPlugins.disable')} disabled={busy} onClick={() => disablePlugin(plugin.id)}>
+                        <PowerOff />
+                      </CardAction>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="text-danger"
+                      <CardAction
+                        label={t('settings:jsPlugins.uninstall')}
+                        className="text-danger hover:text-danger"
                         disabled={busy}
                         onClick={() => requestUninstall(plugin)}
                       >
-                        {t('settings:jsPlugins.uninstall')}
-                      </Button>
+                        <Trash2 />
+                      </CardAction>
                     )}
                   </>
                 }
@@ -1015,7 +1013,7 @@ export function JSPluginsSettingsWorkspace() {
       </Dialog>
 
       <Dialog open={deleteTarget != null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
+        <DialogContent presentation="center">
           <DialogHeader>
             <DialogTitle>{t('settings:jsPlugins.deleteConfirmTitle')}</DialogTitle>
             <DialogDescription>
@@ -1047,7 +1045,7 @@ export function JSPluginsSettingsWorkspace() {
       </Dialog>
 
       <Dialog open={uninstallTarget != null} onOpenChange={(open) => !open && setUninstallTarget(null)}>
-        <DialogContent>
+        <DialogContent presentation="center">
           <DialogHeader>
             <DialogTitle>{t('settings:jsPlugins.uninstallAllTitle')}</DialogTitle>
             <DialogDescription>
@@ -1084,7 +1082,7 @@ export function JSPluginsSettingsWorkspace() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent presentation="center">
           <DialogHeader>
             <DialogTitle>
               {enableConfirm?.trust === 'untrusted_signer'

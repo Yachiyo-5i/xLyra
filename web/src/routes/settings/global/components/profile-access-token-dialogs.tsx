@@ -31,7 +31,7 @@ export function CreatedAccessTokenDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(92vw,560px)] overflow-hidden">
+      <DialogContent presentation="center" className="w-[min(92vw,560px)] overflow-hidden">
         <DialogHeader>
           <div className="space-y-1.5">
             <DialogTitle>{t('profile.accessToken.createdDialog.title')}</DialogTitle>
@@ -82,7 +82,7 @@ export function DeleteAccessTokenDialog({
         onOpenChange(nextOpen)
       }}
     >
-      <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+      <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('profile.accessToken.deleteDialog.title')}</DialogTitle>
         </DialogHeader>

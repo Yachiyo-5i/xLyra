@@ -489,7 +489,7 @@ export function SiteModelsDraw({
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(nextOpen) => {
         if (!nextOpen && !deleteMutation.isPending) setDeleteTarget(null)
       }}>
-        <DialogContent
+        <DialogContent presentation="center"
           overlayClassName="z-[60]"
           size="sm"
           className="z-[60]"

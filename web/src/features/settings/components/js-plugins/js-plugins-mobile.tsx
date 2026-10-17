@@ -45,7 +45,7 @@ export function MobileUploadedCard({ name, id, kind, enabledVersion, metrics, la
         <CardMetric label={labels.enabledVersion} value={enabledVersion} />
         <CardMetric className="col-span-2" label={labels.metrics} value={metrics} />
       </CardMetrics>
-      <CardFooter className="gap-2">{actions}</CardFooter>
+      <CardFooter>{actions}</CardFooter>
     </ItemCard>
   )
 }

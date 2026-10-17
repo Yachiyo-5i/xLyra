@@ -1127,7 +1127,7 @@ export function SiteAPIKeysDraw({
           if (!next && !deleteMutation.isPending) setDeletingAPIKey(null)
         }}
       >
-        <DialogContent
+        <DialogContent presentation="center"
           size="sm"
           overlayClassName={isMobile ? undefined : 'z-[60]'}
           className={isMobile ? undefined : 'z-[60]'}

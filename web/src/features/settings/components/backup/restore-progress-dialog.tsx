@@ -258,7 +258,7 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && outcome !== 'running') onClose() }}>
-      <DialogContent className="w-[min(92vw,560px)]">
+      <DialogContent presentation="center" className="w-[min(92vw,560px)]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

@@ -239,7 +239,7 @@ export function QuotaPanel({
             setResetCreditsOpen(open)
           }}
         >
-          <DialogContent
+          <DialogContent presentation="center"
             className="w-[min(96vw,640px)] overflow-hidden"
             onPointerDownOutside={(event) => { if (confirmResetOpen) event.preventDefault() }}
             onInteractOutside={(event) => { if (confirmResetOpen) event.preventDefault() }}
@@ -283,7 +283,7 @@ export function QuotaPanel({
 
       {isCodex ? (
         <Dialog open={confirmResetOpen} onOpenChange={(open) => { if (!open && !consumeResetMutation.isPending) setConfirmResetOpen(false) }}>
-        <DialogContent
+        <DialogContent presentation="center"
           className="z-[60] w-[min(92vw,460px)] overflow-hidden"
           overlayClassName="z-[60]"
         >

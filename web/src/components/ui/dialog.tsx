@@ -1,5 +1,8 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { DrawContent } from '@/components/ui/draw'
+import { OverlayModeContext, useOverlayMode } from '@/components/ui/overlay-mode'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 const Dialog = DialogPrimitive.Root
@@ -42,13 +45,31 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
    * none：不带任何外观，由调用方自己绘制（图片查看器、Agent 页自带液态玻璃的弹窗）
    */
   surface?: 'glass' | 'none'
+  /**
+   * auto：桌面居中；移动端（< 1024）变为底部 Draw，默认——用于各类配置、编辑弹窗；
+   * center：所有屏幕都居中——只用于确认类弹窗（删除确认、重置确认、结果提示）
+   */
+  presentation?: 'auto' | 'center'
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', ...props }, ref) => {
-  // Dialog 在所有屏幕上都居中；需要底部抽屉用 Draw，需要右侧面板用 Sheet
+>(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', presentation, ...props }, ref) => {
+  const isMobile = useMobileLayout()
+  // 自绘外观的弹窗布局由调用方控制，始终居中
+  const resolvedPresentation = presentation ?? (surface === 'none' ? 'center' : 'auto')
+
+  if (isMobile && resolvedPresentation === 'auto') {
+    // 移动端配置弹窗 → 底部 Draw；宽度、尺寸类只对居中弹窗有意义，这里去掉，保留 z-index 等其他类
+    const drawClassName = className?.split(/\s+/).filter((token) => token && !/^(w-|max-w-|min-w-|overflow-)/.test(token)).join(' ')
+    return (
+      <DrawContent ref={ref} className={drawClassName} overlayClassName={overlayClassName} {...props}>
+        {children}
+      </DrawContent>
+    )
+  }
+
   return (
     <DialogPortal container={container ?? undefined}>
       <DialogOverlay className={overlayClassName} />
@@ -62,7 +83,7 @@ const DialogContent = React.forwardRef<
         )}
         {...props}
       >
-        {children}
+        <OverlayModeContext.Provider value="center">{children}</OverlayModeContext.Provider>
       </DialogPrimitive.Content>
     </DialogPortal>
   )
@@ -70,7 +91,14 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-b border-separator px-6 py-5 text-left', className)} {...props} />
+  // 作为 Draw 呈现时，右上角有关闭按钮，标题区右侧要留出位置
+  const draw = useOverlayMode() === 'draw'
+  return (
+    <div
+      className={cn('border-b border-separator text-left', draw ? 'py-4 pl-6 pr-16' : 'px-6 py-5', className)}
+      {...props}
+    />
+  )
 }
 
 function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -84,12 +112,17 @@ type DialogFooterProps = React.HTMLAttributes<HTMLDivElement> & {
   confirm?: React.ReactNode
 }
 
-/** 页脚：整体靠右，取消在左、确认在右（所有屏幕一致）。 */
+/**
+ * 页脚：居中弹窗整体靠右，取消在左、确认在右；
+ * 作为 Draw 呈现时全宽等分，取消在左、确认在右。
+ */
 function DialogFooter({ className, cancel, confirm, children, ...props }: DialogFooterProps) {
+  const draw = useOverlayMode() === 'draw'
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-2 border-t border-separator px-6 py-4',
+        'border-t border-separator px-6 py-4',
+        draw ? 'grid grid-flow-col auto-cols-fr gap-3 [&>*]:w-full' : 'flex items-center justify-end gap-2',
         className,
       )}
       {...props}
