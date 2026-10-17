@@ -631,11 +631,6 @@
       "confirmDefault": "确定删除该分组？"
     }
   },
-  "notifications": {
-    "eyebrow": "设置",
-    "title": "通知配置",
-    "description": "配置告警规则、通知渠道和事件升级策略。"
-  },
   "portal": {
     "title": "密钥用量门户",
     "description": "开放一个无需登录的公开页面，用户凭下游 API 密钥即可查看额度与请求详情。",

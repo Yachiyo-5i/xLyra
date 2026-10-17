@@ -631,11 +631,6 @@
       "confirmDefault": "Delete this group?"
     }
   },
-  "notifications": {
-    "eyebrow": "Settings",
-    "title": "Notification Config",
-    "description": "Configure alert rules, notification channels, and incident escalation policies."
-  },
   "portal": {
     "title": "Key Usage Portal",
     "description": "Expose a public, login-free page where users can view quota and request details using their downstream API key.",
