@@ -11,6 +11,7 @@ import { MobileAppShell } from '@/components/layout/mobile-app-shell'
 import { SystemVersionText } from '@/components/layout/system-version-text'
 import { Button } from '@/components/ui/button'
 import { useMobileLayout } from '@/hooks/use-media-query'
+import { AmbientBackground } from '@/components/layout/ambient-background'
 
 export function AppShell({ children }: PropsWithChildren) {
   const isMobile = useMobileLayout()
@@ -32,7 +33,7 @@ function DesktopAppShell({ children }: PropsWithChildren) {
   if (isAgentWorkspace) {
     return (
       <div className="app-viewport">
-        <div className="ambient-background" />
+        <AmbientBackground />
         <main className="relative z-10 h-full min-h-0 overflow-hidden">{children}</main>
       </div>
     )
@@ -40,7 +41,7 @@ function DesktopAppShell({ children }: PropsWithChildren) {
 
   return (
     <div className="app-viewport">
-      <div className="ambient-background" />
+      <AmbientBackground />
       <div className="relative z-0 flex h-full w-full">
         {/* 功能层：浮动的 Liquid Glass 侧边栏，280 宽、距窗口 16、圆角 24 */}
         <LiquidGlass

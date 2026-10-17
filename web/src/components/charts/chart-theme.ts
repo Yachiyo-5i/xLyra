@@ -19,15 +19,15 @@ export const chartCursorFill = 'var(--fill-quaternary)'
 /** 环形图扇区之间的分隔描边：与卡片底色一致，看起来像留了缝 */
 export const chartSliceStroke = 'var(--bg-elevated-1)'
 
-/** Tooltip：功能层 Liquid Glass regular（与 .lg-regular 相同），圆角 12 */
+/** Tooltip：功能层 Liquid Glass regular（与 .lg-regular 一致），圆角 12 */
 export const chartTooltipStyle: CSSProperties = {
   border: '1px solid transparent',
   borderRadius: 12,
   background:
-    'var(--top-light) padding-box, linear-gradient(rgb(26 27 32 / 0.62), rgb(26 27 32 / 0.62)) padding-box, linear-gradient(160deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.06) 36%, rgb(255 255 255 / 0.03) 64%, rgb(255 255 255 / 0.1)) border-box',
-  boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.1), 0 10px 32px rgb(0 0 0 / 0.36)',
-  WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-  backdropFilter: 'blur(28px) saturate(180%)',
+    'var(--top-light) padding-box, linear-gradient(rgb(24 26 33 / 0.58), rgb(24 26 33 / 0.58)) padding-box, linear-gradient(160deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.045) 36%, rgb(255 255 255 / 0.025) 64%, rgb(255 255 255 / 0.07)) border-box',
+  boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.06), 0 8px 26px rgb(0 0 0 / 0.3)',
+  WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+  backdropFilter: 'blur(24px) saturate(150%)',
   color: 'var(--label-primary)',
   padding: '8px 12px',
   fontSize: 12,

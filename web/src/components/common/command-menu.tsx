@@ -116,7 +116,7 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
       {/* 覆盖层：Liquid Glass thick，位于屏幕上部三分之一，类似 Spotlight */}
       <DialogContent
         className="lg-thick top-[14dvh] flex max-h-[min(72dvh,560px)] w-[min(92vw,640px)] translate-y-0 flex-col overflow-hidden rounded-shell"
-        overlayClassName="bg-black/40 backdrop-blur-0"
+        overlayClassName="bg-black/32 backdrop-blur-0"
         onKeyDown={handleKeyDown}
         onOpenAutoFocus={(e) => {
           e.preventDefault()

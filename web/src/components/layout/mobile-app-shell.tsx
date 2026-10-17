@@ -9,6 +9,7 @@ import { useCollapseOnScroll } from '@/hooks/use-collapse-on-scroll'
 import { useIOSViewportBounceLock } from '@/hooks/use-ios-viewport-bounce-lock'
 import { getAppNavSections, type AppNavItem, type AppNavSection } from '@/lib/navigation'
 import { useAgentAvailability } from '@/features/agent/lib/use-agent-availability'
+import { AmbientBackground } from '@/components/layout/ambient-background'
 
 const mobilePrimaryPaths = ['/dashboard', '/sites', '/requests', '/api-keys']
 
@@ -34,7 +35,7 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   if (isPlayground) {
     return (
       <div ref={viewportRef} className="app-viewport">
-        <div className="ambient-background" />
+        <AmbientBackground />
         <main data-scroll-container="true" className="relative z-0 h-full min-h-0 overflow-hidden">
           {children}
         </main>
@@ -45,7 +46,7 @@ export function MobileAppShell({ children }: PropsWithChildren) {
   if (isAgentWorkspace) {
     return (
       <div ref={viewportRef} className="app-viewport">
-        <div className="ambient-background" />
+        <AmbientBackground />
         <main data-scroll-container="true" className="relative z-0 h-full min-h-0 overflow-hidden">
           {children}
         </main>
@@ -55,7 +56,7 @@ export function MobileAppShell({ children }: PropsWithChildren) {
 
   return (
     <div ref={viewportRef} className="app-viewport">
-      <div className="ambient-background" />
+      <AmbientBackground />
       <div className="relative z-0 h-full min-h-0">
         <main
           data-scroll-container="true"
