@@ -11,6 +11,7 @@ import { ChevronDown, RotateCcw } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState } from '@/components/common/empty-state'
 import { Badge } from '@/components/ui/badge'
+import { CardMetric, CardMetrics } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -229,23 +230,23 @@ export const MobileModelsPriceList = forwardRef<
             </div>
           </button>
 
-          <div className="mb-3 grid grid-cols-3 gap-2 px-3 text-footnote">
-            <Metric
+          <CardMetrics columns={3} className="px-3 pb-3">
+            <CardMetric
               label={t('modelsPrice.subtitle.sites', { count: 1 })}
               value={t('modelsPrice.siteView.modelCount', {
                 count: siteGroup.totalCount,
               })}
             />
-            <Metric
+            <CardMetric
               label={t('modelsPrice.statusLabels.synced')}
               value={String(siteGroup.totalCount - siteGroup.manualCount)}
             />
-            <Metric
+            <CardMetric
               label={t('modelsPrice.statusLabels.manual')}
               value={String(siteGroup.manualCount)}
-              tone={siteGroup.manualCount ? 'warning' : undefined}
+              valueClassName={siteGroup.manualCount ? 'text-warning' : undefined}
             />
-          </div>
+          </CardMetrics>
 
           {siteGroup.manualCount > 0 && onResetSite ? (
             <div className="flex justify-end px-3 pb-3">
@@ -465,8 +466,8 @@ export const MobileModelsPriceList = forwardRef<
               </div>
             </button>
 
-            <div className="mb-3 grid grid-cols-3 gap-2 px-3 text-footnote">
-              <Metric
+            <CardMetrics columns={3} className="px-3 pb-3">
+              <CardMetric
                 label={t('modelsPrice.subtitle.sites', {
                   count: group.uniqueSiteCount,
                 })}
@@ -474,16 +475,16 @@ export const MobileModelsPriceList = forwardRef<
                   count: group.editableCount,
                 })}
               />
-              <Metric
+              <CardMetric
                 label={t('modelsPrice.statusLabels.missing')}
                 value={String(group.missingCount)}
-                tone={group.missingCount ? 'warning' : undefined}
+                valueClassName={group.missingCount ? 'text-warning' : undefined}
               />
-              <Metric
+              <CardMetric
                 label={t('modelsPrice.statusLabels.manual')}
                 value={String(group.manualCount)}
               />
-            </div>
+            </CardMetrics>
 
             {expanded ? (
               <div className="border-t border-separator bg-fill-4">
@@ -609,32 +610,6 @@ export const MobileModelsPriceList = forwardRef<
     </div>
   )
 })
-
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: 'warning'
-}) {
-  return (
-    <div className="min-w-0 px-2 py-2">
-      <span className="block truncate text-[11px] text-label-2">
-        {label}
-      </span>
-      <span
-        className={cn(
-          'mt-1 block truncate font-semibold tabular-nums text-label',
-          tone === 'warning' && 'text-warning',
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
 
 function MobileCredentialPricings({
   items,

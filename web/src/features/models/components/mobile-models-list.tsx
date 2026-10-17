@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
+import { Card, CardMetric, CardMetrics } from '@/components/ui/card'
 import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
@@ -199,21 +199,21 @@ function MobilePricingBlock({
 
   return (
     <div className="rounded-inner bg-fill-4 px-3 py-3">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-footnote">
-        <MobileField
+      <CardMetrics>
+        <CardMetric
           label={t('card.headers.upstreamModel')}
           value={pricing.modelName || site.upstreamName || '--'}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.group')}
           value={isNewAPISite(site.siteType) ? pricing.groupName || '--' : '-'}
         />
         <MobileAPIKeyField pricing={pricing} />
-        <MobileField
+        <CardMetric
           label={t('card.headers.groupRatio')}
           value={formatGroupRatio(pricing.groupRatio)}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.inputPrice')}
           value={formatPricingValue(
             pricing.inputValue ?? pricing.perRequestValue,
@@ -222,7 +222,7 @@ function MobilePricingBlock({
             t,
           )}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.outputPrice')}
           value={formatPricingValue(
             pricing.outputValue ?? pricing.audioOutputValue,
@@ -231,7 +231,7 @@ function MobilePricingBlock({
             t,
           )}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.cachePrice')}
           value={formatPricingValue(
             pricing.cacheInputValue,
@@ -240,7 +240,7 @@ function MobilePricingBlock({
             t,
           )}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.cacheWritePrice')}
           value={formatPricingValue(
             pricing.createCacheInputValue,
@@ -254,7 +254,7 @@ function MobilePricingBlock({
               : undefined
           }
         />
-      </div>
+      </CardMetrics>
 
       <div className="mt-3">
         <div className="text-[11px] text-label-2">
@@ -282,32 +282,10 @@ function MobileAPIKeyField({ pricing }: { pricing: PricingRow }) {
     return <MobileKeyGroupField status={pricing.keyGroupStatus} />
   }
   return (
-    <MobileField
+    <CardMetric
       label={t('card.headers.apiKeys')}
       value={pricing.apiKeyName}
     />
-  )
-}
-
-function MobileField({
-  label,
-  value,
-  title,
-}: {
-  label: string
-  value: string
-  title?: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] text-label-2">{label}</div>
-      <div
-        className="mt-1 break-words font-medium leading-4 text-label"
-        title={title ?? value}
-      >
-        {value}
-      </div>
-    </div>
   )
 }
 
@@ -319,7 +297,7 @@ function MobileKeyGroupField({
   const { t } = useTranslation('models')
 
   if (!status) {
-    return <MobileField label={t('card.headers.apiKeys')} value="--" />
+    return <CardMetric label={t('card.headers.apiKeys')} value="--" />
   }
 
   const variant =

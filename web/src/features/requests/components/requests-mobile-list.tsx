@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/common/empty-state'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
+import { Card, CardMetric, CardMetrics } from '@/components/ui/card'
 import type { RequestLogItem } from '@/features/requests/api/requests'
 import { RequestDetailContent } from '@/features/requests/components/request-detail-row'
 import { RequestModelMapping } from '@/features/requests/components/request-model-mapping'
@@ -85,16 +85,16 @@ export function RequestsMobileList({
                 </div>
               </div>
 
-              <div className="grid w-full grid-cols-2 items-start gap-x-4 gap-y-3">
-                <MobileField label={t('table.headers.site')} value={item.site.name ?? '-'} />
-                <MobileField
+              <CardMetrics className="w-full">
+                <CardMetric label={t('table.headers.site')} value={item.site.name ?? '-'} />
+                <CardMetric
                   label={t('table.headers.apiKey')}
                   value={item.is_test ? t('table.test') : item.api_key.name ?? '-'}
                 />
                 {requestTimingFields(item, t).map((field) => (
-                  <MobileField key={field.label} label={field.label} value={field.value} valueClassName={field.className} />
+                  <CardMetric key={field.label} label={field.label} value={field.value} valueClassName={field.className} />
                 ))}
-                <MobileField
+                <CardMetric
                   label={t('table.headers.tokens')}
                   value={t('mobile.tokens', {
                     input: formatInteger(item.usage.prompt_tokens),
@@ -108,8 +108,8 @@ export function RequestsMobileList({
                         : t('table.cacheWrite', { tokens: formatTokenCompact(cacheWriteTokens) })
                     : undefined}
                 />
-                <MobileField label={t('table.headers.cost')} value={formatCurrency(item.usage.estimated_cost, item.usage.currency)} />
-              </div>
+                <CardMetric label={t('table.headers.cost')} value={formatCurrency(item.usage.estimated_cost, item.usage.currency)} />
+              </CardMetrics>
             </button>
 
             {expanded ? (
@@ -120,28 +120,6 @@ export function RequestsMobileList({
           </Card>
         )
       })}
-    </div>
-  )
-}
-
-function MobileField({
-  label,
-  value,
-  secondary,
-  valueClassName,
-}: {
-  label: string
-  value: string
-  secondary?: string
-  valueClassName?: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-caption-1 text-label-3">{label}</div>
-      <div className={cn('mt-0.5 truncate text-footnote font-medium tabular-nums text-label', valueClassName)} title={value}>
-        {value}
-      </div>
-      {secondary ? <div className="truncate text-caption-1 tabular-nums text-label-3">{secondary}</div> : null}
     </div>
   )
 }

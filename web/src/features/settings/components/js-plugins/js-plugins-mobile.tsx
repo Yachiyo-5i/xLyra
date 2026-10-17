@@ -1,13 +1,11 @@
 import type { ReactNode } from 'react'
+import { CardFooter, CardHeading, CardMetric, CardMetrics, ItemCard } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 // Phone layouts for the developer page. The tables there have five or more
 // columns, which on a narrow screen end up with one character per line, so on
 // mobile each row becomes a card instead (the same approach as the OAuth and
 // API key pages).
-
-const CARD_CLASS =
-  'rounded-card mat-regular p-3'
 
 export function MobileCardList({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('space-y-3', className)}>{children}</div>
@@ -16,14 +14,6 @@ export function MobileCardList({ children, className }: { children: ReactNode; c
 // Inside dialogs, rows are separated by thin lines rather than wrapped in cards.
 export function MobileRowList({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('divide-y divide-separator', className)}>{children}</div>
-}
-
-function CardActions({ children }: { children: ReactNode }) {
-  return (
-    <div className="mt-3 flex flex-wrap gap-2 border-t border-separator pt-3 [&>button]:min-w-[7rem] [&>button]:flex-1">
-      {children}
-    </div>
-  )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -48,20 +38,15 @@ type MobileUploadedCardProps = {
 
 export function MobileUploadedCard({ name, id, kind, enabledVersion, metrics, labels, actions }: MobileUploadedCardProps) {
   return (
-    <article className={CARD_CLASS}>
-      <h3 className="break-words text-headline text-label">{name}</h3>
-      <div className="mt-0.5 break-all font-mono text-footnote text-label-2">{id}</div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <Field label={labels.kind}>{kind}</Field>
-        <Field label={labels.enabledVersion}>{enabledVersion}</Field>
-        <div className="col-span-2">
-          <Field label={labels.metrics}>
-            <span className="tabular-nums text-label-2">{metrics}</span>
-          </Field>
-        </div>
-      </div>
-      <CardActions>{actions}</CardActions>
-    </article>
+    <ItemCard>
+      <CardHeading title={name} meta={<span className="font-mono">{id}</span>} />
+      <CardMetrics>
+        <CardMetric label={labels.kind} value={kind} />
+        <CardMetric label={labels.enabledVersion} value={enabledVersion} />
+        <CardMetric className="col-span-2" label={labels.metrics} value={metrics} />
+      </CardMetrics>
+      <CardFooter className="gap-2">{actions}</CardFooter>
+    </ItemCard>
   )
 }
 

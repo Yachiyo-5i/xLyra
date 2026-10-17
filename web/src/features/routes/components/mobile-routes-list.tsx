@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { BrandMark } from '@/components/common/brand-mark'
 import { EmptyState } from '@/components/common/empty-state'
 import { Badge } from '@/components/ui/badge'
+import { CardMetric, CardMetrics } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { RouteOverviewItem } from '@/features/routes/api/routes'
 import type { CanonicalModelItem } from '@/features/sites/api/sites'
@@ -113,35 +114,23 @@ function MobileRouteCard({
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-1.5 text-footnote">
-          <MobileMetric
+        <CardMetrics columns={3} className="mt-3">
+          <CardMetric
             label={t('card.channels')}
             value={t('card.channelsValue', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
-            hint={t('card.channelsHint', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
-            priority
+            title={t('card.channelsHint', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
           />
-          <MobileMetric label={t('card.siteCount')} value={String(item.candidate_summary.site_count)} priority />
-          <MobileMetric label={t('card.request')} value={hasTraffic ? String(item.traffic_24h.request_count) : t('card.noRequest')} />
-          <MobileMetric
+          <CardMetric label={t('card.siteCount')} value={String(item.candidate_summary.site_count)} />
+          <CardMetric label={t('card.request')} value={hasTraffic ? String(item.traffic_24h.request_count) : t('card.noRequest')} />
+          <CardMetric
             label={t('card.successRate')}
             value={hasTraffic ? formatPercent(item.traffic_24h.success_rate, 2) : '-'}
-            accent={hasTraffic}
           />
-          <MobileMetric label={t('card.latency')} value={formatLatency(item.traffic_24h.avg_latency_ms)} />
-        </div>
+          <CardMetric label={t('card.latency')} value={formatLatency(item.traffic_24h.avg_latency_ms)} />
+        </CardMetrics>
       </button>
       {children}
     </article>
   )
 }
 
-function MobileMetric({ label, value, hint }: { label: string; value: string; accent?: boolean; priority?: boolean; hint?: string }) {
-  return (
-    <div className="min-w-0 px-2 py-2" title={hint}>
-      <span className="block truncate text-[11px] text-label-2">{label}</span>
-      <span className="mt-1 block truncate text-headline text-label tabular-nums" title={value}>
-        {value}
-      </span>
-    </div>
-  )
-}

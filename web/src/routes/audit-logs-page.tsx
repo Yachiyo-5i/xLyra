@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
 import { TableToolbar } from '@/components/common/table-toolbar'
 import { Button } from '@/components/ui/button'
+import { CardHeading, CardMetric, CardMetrics, ItemCard } from '@/components/ui/card'
 import { filterTriggerActiveClass, filterTriggerClass } from '@/components/ui/field-styles'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
@@ -418,50 +419,40 @@ function MobileAuditCard({
   timeLabel: string
   t: TFunction
 }) {
+  const resultLabel = item.success ? t('filters.success') : item.error_code || t('filters.failure')
   return (
-    <article className="mat-regular rounded-card p-4">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-headline text-label" title={actionLabel}>{actionLabel}</div>
-          <div className="mt-1.5 flex min-w-0 items-center gap-2">
+    <ItemCard>
+      <CardHeading
+        title={<span title={actionLabel}>{actionLabel}</span>}
+        tags={(
+          <>
             <StatusBadge status="idle" className="shrink-0 px-1.5 py-0 text-[11px]">{actorLabel}</StatusBadge>
             <span className="min-w-0 truncate text-footnote text-label-2">{timeLabel}</span>
-          </div>
-        </div>
-        <StatusBadge status={item.success ? 'success' : 'warning'} className="shrink-0">
-          {item.success ? t('filters.success') : item.error_code || t('filters.failure')}
-        </StatusBadge>
-      </div>
+          </>
+        )}
+        trailing={<StatusBadge status={item.success ? 'success' : 'warning'}>{resultLabel}</StatusBadge>}
+      />
 
-      <div className="mt-3 grid grid-cols-2 gap-2 text-footnote">
-        <MobileField icon={UserRound} label={t('headers.actor')} value={actorLabel} />
-        <MobileField icon={Shield} label={t('headers.result')} value={item.success ? t('filters.success') : item.error_code || t('filters.failure')} />
-        <MobileField icon={MapPin} label={t('headers.ip')} value={ipLabel} />
-        <MobileField icon={Hash} label={t('headers.requestId')} value={item.request_id || '-'} mono />
-      </div>
-    </article>
+      <CardMetrics>
+        <CardMetric label={<MetricLabel icon={UserRound}>{t('headers.actor')}</MetricLabel>} value={actorLabel} />
+        <CardMetric label={<MetricLabel icon={Shield}>{t('headers.result')}</MetricLabel>} value={resultLabel} />
+        <CardMetric label={<MetricLabel icon={MapPin}>{t('headers.ip')}</MetricLabel>} value={ipLabel} />
+        <CardMetric
+          label={<MetricLabel icon={Hash}>{t('headers.requestId')}</MetricLabel>}
+          value={item.request_id || '-'}
+          valueClassName="font-mono text-caption-1"
+        />
+      </CardMetrics>
+    </ItemCard>
   )
 }
 
-function MobileField({
-  icon: Icon,
-  label,
-  mono = false,
-  value,
-}: {
-  icon: typeof UserRound
-  label: string
-  mono?: boolean
-  value: string
-}) {
+function MetricLabel({ icon: Icon, children }: { icon: typeof UserRound; children: ReactNode }) {
   return (
-    <div className="min-w-0 px-1 py-1">
-      <span className="flex items-center gap-1.5 text-[11px] text-label-2">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </span>
-      <span className={`mt-1 block truncate font-medium text-label ${mono ? 'font-mono text-[11px]' : 'tabular-nums'}`} title={value}>{value}</span>
-    </div>
+    <>
+      <Icon className="size-3.5 shrink-0" />
+      {children}
+    </>
   )
 }
 
