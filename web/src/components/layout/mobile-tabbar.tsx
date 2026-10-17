@@ -51,17 +51,23 @@ export function MobileTabbar({
   return (
     <nav
       aria-label={t('nav.workspace')}
-      className="mobile-tabbar-shell mobile-safe-bottom pointer-events-none absolute inset-x-0 bottom-0 z-30 px-[21px] transition-[opacity,transform] duration-200"
+      className="mobile-tabbar-shell mobile-safe-bottom pointer-events-none absolute inset-x-0 bottom-0 z-30 px-[21px] transition-[opacity,transform] duration-200 [container-type:inline-size]"
       style={{ '--mobile-safe-bottom-extra': '21px' } as CSSProperties}
     >
-      {/* 胶囊最宽 480：在屏幕较宽时（如大屏安卓）放进居中的 480 列里，展开时铺满这一列、居中显示；
-          收起时仍缩到这一列的左端 */}
+      {/* 胶囊最宽 480：在屏幕较宽时（如大屏安卓）放进居中的 480 列里，展开时铺满这一列、居中显示。
+          收起时要回到屏幕左边的 21px 处，而不是停在这一列的左端（那里在较宽的屏幕上是中央偏左）：
+          把胶囊整体向左平移「列左端到内容区左端」的距离 = max(0, (内容区宽 − 480) / 2) */}
       <div className="mx-auto w-full max-w-[480px]">
         <LiquidTabBar
           items={tabItems}
           activeKey={activePrimary?.to ?? MORE_KEY}
           collapsed={collapsed}
           onExpand={onExpand}
+          className={
+            collapsed
+              ? 'transition-[max-width,transform] [transform:translateX(calc(-1*max(0px,50cqw-240px)))]'
+              : 'transition-[max-width,transform] [transform:translateX(0)]'
+          }
           renderItem={(item, slotProps) =>
             item.key === MORE_KEY ? (
               <button key={item.key} ref={moreButtonRef} type="button" onClick={onMoreClick} aria-expanded={moreOpen} {...slotProps} />
