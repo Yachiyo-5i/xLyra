@@ -4,20 +4,19 @@ import { ChevronDown, FlaskConical, LoaderCircle, PencilLine, RotateCcw, Trash2 
 import { useTranslation } from 'react-i18next'
 import { DataTable } from '@/components/common/data-table'
 import { defaultTableColumnWidths } from '@/lib/table-column-widths'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { SiteBalanceCell } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
+import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   formatCompactTokens,
   formatDateTime,
   formatRelativeDateTime,
   formatRoutingPriority,
-  formatSiteTypeLabel,
   isOAuthSite,
   isSiteEnableBlockedByAbnormalState,
   siteAccountEmail,
@@ -111,7 +110,7 @@ export function SitesTable({
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="truncate font-medium text-label">{site.name}</span>
-                <Badge variant="secondary" className="shrink-0 select-none">{formatSiteTypeLabel(site.site_type)}</Badge>
+                <SiteTypeBadge siteType={site.site_type} siteTypes={siteTypes} className="shrink-0 select-none" />
                 <SitePlanBadge site={site} />
               </div>
               <div className="text-label-2 truncate text-footnote">

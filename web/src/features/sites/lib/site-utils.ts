@@ -110,6 +110,28 @@ export function siteTypeIcon(siteType: string, siteTypes?: SiteTypeInfo[]): stri
   return null
 }
 
+/**
+ * 站点类型的品牌色：取自各自 logo 的主色。
+ * logo 本身是黑 / 白 / 灰的（Grok、OpenCode、TypeSafe）返回 null，徽标用中性色；
+ * OpenAI、Kimi、智谱的 logo 是单色，用它们对外一贯的品牌色。
+ */
+export function siteTypeColor(siteType: string): string | null {
+  const type = siteType.trim().toLowerCase()
+  if (type === 'openai' || type === 'openai_compatible' || type === 'codex') return '#10a37f'
+  if (type === 'anthropic') return '#de7b54'
+  if (type === 'claude_code') return '#d87656'
+  if (type === 'google_gemini') return '#4285f4'
+  if (type === 'antigravity') return '#5983b9'
+  if (type === 'deepseek') return '#4c6afd'
+  if (type === 'minimax') return '#f4406c'
+  if (type === 'xiaomi_mimo') return '#ff6b04'
+  if (type === 'moonshot' || type === 'kimi_code') return '#1783ff'
+  if (type === 'zhipu' || type === 'glm_code') return '#3859ff'
+  if (type === 'newapi') return '#878ce5'
+  if (type === 'xlyra') return '#5d8cc8'
+  return null
+}
+
 export function siteTypeIconClassName(siteType: string): string | undefined {
   if (siteType === 'grok') return 'bg-white p-1'
   return undefined

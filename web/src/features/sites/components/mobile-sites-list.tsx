@@ -1,6 +1,5 @@
 import { ChevronDown, FlaskConical, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { CardAction, CardFooter, CardHeading, CardMetric, CardMetrics, ItemCard } from '@/components/ui/card'
 import { HoverDetails } from '@/components/common/hover-details'
 import { Switch } from '@/components/ui/switch'
@@ -8,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { SiteBalanceDetailsContent } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
+import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   formatCompactTokens,
@@ -15,7 +15,6 @@ import {
   formatRelativeDateTime,
   formatRoutingPriority,
   formatSiteBalance,
-  formatSiteTypeLabel,
   isOAuthSite,
   isSub2APIQuotaSite,
   isSiteEnableBlockedByAbnormalState,
@@ -201,7 +200,7 @@ function MobileSiteCard({
         title={site.name}
         tags={(
           <>
-            <Badge variant="secondary">{formatSiteTypeLabel(site.site_type, siteTypes)}</Badge>
+            <SiteTypeBadge siteType={site.site_type} siteTypes={siteTypes} />
             <SitePlanBadge site={site} />
             {statusBadge}
           </>

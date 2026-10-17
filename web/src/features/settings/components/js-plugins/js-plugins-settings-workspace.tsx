@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { KeyRound, LoaderCircle, PowerOff, RefreshCw, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import { FlaskConical, KeyRound, LoaderCircle, Power, PowerOff, RefreshCw, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
 import { Card, CardAction } from '@/components/ui/card'
 import { useMobileLayout } from '@/hooks/use-media-query'
@@ -499,30 +499,43 @@ export function JSPluginsSettingsWorkspace() {
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => openManage(row.original)}>
-              {t('settings:jsPlugins.manageVersions')}
+          <div className="flex items-center justify-end gap-0.5">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="size-7"
+              title={t('settings:jsPlugins.manageVersions')}
+              aria-label={t('settings:jsPlugins.manageVersions')}
+              onClick={() => openManage(row.original)}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
             </Button>
             {row.original.enabled_version ? (
               <Button
                 type="button"
-                variant="secondary"
-                size="sm"
+                size="icon-sm"
+                variant="ghost"
+                className="size-7"
+                title={t('settings:jsPlugins.disable')}
+                aria-label={t('settings:jsPlugins.disable')}
                 disabled={busy}
                 onClick={() => disablePlugin(row.original.id)}
               >
-                {t('settings:jsPlugins.disable')}
+                <PowerOff className="h-4 w-4" />
               </Button>
             ) : (
               <Button
                 type="button"
-                variant="secondary"
-                size="sm"
-                className="text-danger"
+                size="icon-sm"
+                variant="ghost"
+                className="size-7 text-danger hover:text-danger"
+                title={t('settings:jsPlugins.uninstall')}
+                aria-label={t('settings:jsPlugins.uninstall')}
                 disabled={busy}
                 onClick={() => requestUninstall(row.original)}
               >
-                {t('settings:jsPlugins.uninstall')}
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
@@ -705,6 +718,7 @@ export function JSPluginsSettingsWorkspace() {
                         trial={trials[trialKey(row.plugin_id, row.version)]}
                         tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
                         onEnable={() => requestEnable(row)}
+                        onDisable={() => disablePlugin(row.plugin_id)}
                         onTry={() => tryMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
                         onDelete={() => setDeleteTarget({ pluginId: row.plugin_id, version: row.version })}
                         t={t}
@@ -731,6 +745,7 @@ export function JSPluginsSettingsWorkspace() {
                           trial={trials[trialKey(row.plugin_id, row.version)]}
                         tryPending={tryMutation.isPending && tryMutation.variables?.version === row.version}
                           onEnable={() => requestEnable(row)}
+                        onDisable={() => disablePlugin(row.plugin_id)}
                           onTry={() => tryMutation.mutate({ pluginId: row.plugin_id, version: row.version })}
                           onDelete={() => setDeleteTarget({ pluginId: row.plugin_id, version: row.version })}
                           t={t}
@@ -1162,6 +1177,7 @@ type VersionRowProps = {
   busy: boolean
   tryPending: boolean
   onEnable: () => void
+  onDisable: () => void
   onTry: () => void
   onDelete: () => void
   t: TFunction
@@ -1213,13 +1229,18 @@ function selftestSummary(row: JSPluginVersion, t: TFunction) {
   return error || (ok === false ? t('settings:jsPlugins.selftestFailed') : '—')
 }
 
-function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }: VersionRowProps) {
+function VersionActions({ row, busy, tryPending, onEnable, onDisable, onTry, onDelete, t }: VersionRowProps) {
   return (
     <>
       <Button type="button" size="sm" variant="secondary" disabled={busy || tryPending} onClick={onTry}>
         {tryPending ? <LoaderCircle className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
         {t('settings:jsPlugins.try')}
       </Button>
+      {row.status === 'enabled' ? (
+        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={onDisable}>
+          {t('settings:jsPlugins.disable')}
+        </Button>
+      ) : null}
       {row.status !== 'enabled' ? (
         <Button type="button" size="sm" disabled={busy || row.status === 'broken'} onClick={onEnable}>
           {t('settings:jsPlugins.enable')}
@@ -1235,14 +1256,16 @@ function VersionActions({ row, busy, tryPending, onEnable, onTry, onDelete, t }:
 }
 
 /** Desktop: every action of a version behind one vertical-dots button. */
-function VersionActionsMenu({ row, busy, tryPending, onEnable, onTry, onDelete, t }: VersionRowProps) {
+function VersionActionsMenu({ row, busy, tryPending, onEnable, onDisable, onTry, onDelete, t }: VersionRowProps) {
   const items: VersionMenuItem[] = [
-    { key: 'try', label: t('settings:jsPlugins.try'), disabled: busy || tryPending, onSelect: onTry },
+    { key: 'try', icon: FlaskConical, label: t('settings:jsPlugins.try'), disabled: busy || tryPending, onSelect: onTry },
   ]
-  if (row.status !== 'enabled') {
+  if (row.status === 'enabled') {
+    items.push({ key: 'disable', icon: PowerOff, label: t('settings:jsPlugins.disable'), disabled: busy, onSelect: onDisable })
+  } else {
     items.push(
-      { key: 'enable', label: t('settings:jsPlugins.enable'), disabled: busy || row.status === 'broken', onSelect: onEnable },
-      { key: 'uninstall', label: t('settings:jsPlugins.uninstall'), disabled: busy, destructive: true, onSelect: onDelete },
+      { key: 'enable', icon: Power, label: t('settings:jsPlugins.enable'), disabled: busy || row.status === 'broken', onSelect: onEnable },
+      { key: 'uninstall', icon: Trash2, label: t('settings:jsPlugins.uninstall'), disabled: busy, destructive: true, onSelect: onDelete },
     )
   }
   return (
