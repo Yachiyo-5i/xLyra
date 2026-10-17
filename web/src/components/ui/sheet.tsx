@@ -27,7 +27,7 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 /**
  * Sheet：从右侧滑入的面板（左侧仅供移动端导航抽屉使用）。
- * Liquid Glass thick，与屏幕边缘留出间距浮动、圆角 24，而不是贴边铺满。
+ * 右侧：Liquid Glass thick，与屏幕边缘留出间距浮动、圆角 24；左侧导航抽屉：贴边全高、只有右侧圆角。
  * 没有关闭按钮：点遮罩或按 Esc 关闭；页脚固定为「确认在左、取消在右」，整体靠左。
  *
  * 其他两个覆盖层：居中弹窗用 Dialog，从底部展开的抽屉用 Draw。
@@ -39,8 +39,10 @@ const sheetVariants = cva(
       side: {
         right:
           'sheet-content-right bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] right-3 top-[calc(env(safe-area-inset-top,0px)+12px)] w-[min(calc(100vw-24px),560px)]',
+        // 左侧导航抽屉：像普通侧边栏那样贴边、全高，只有右侧圆角；刘海 / 状态栏与 Home 指示条的安全区用内边距让出，
+        // 玻璃仍然铺满整列（不要再叠加 top 偏移，否则 PWA 里顶部会出现一截空白）
         left:
-          'sheet-content-left bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] left-3 top-[calc(env(safe-area-inset-top,0px)+12px)] w-[min(calc(100vw-24px),560px)]',
+          'sheet-content-left inset-y-0 left-0 w-[min(82vw,300px)] rounded-l-none rounded-r-shell pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]',
       },
     },
     defaultVariants: {

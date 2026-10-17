@@ -48,7 +48,7 @@ export function PlaygroundMobileDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-[min(calc(100vw-48px),340px)] pt-[env(safe-area-inset-top,0px)]">
+      <SheetContent side="left">
         <SheetTitle className="sr-only">{t('mobile.menu')}</SheetTitle>
         <SheetDescription className="sr-only">{t('mobile.menu')}</SheetDescription>
 
