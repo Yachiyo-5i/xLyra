@@ -386,7 +386,7 @@ export function BackupSettingsPage() {
                 t('backup.import.noticePreserved'),
                 t('backup.import.noticeRestart'),
               ]} />
-              <Button variant="destructive-soft" onClick={() => setImportOpen(true)} disabled={Boolean(visibleBackgroundRestoreTask)}>
+              <Button variant="secondary" onClick={() => setImportOpen(true)} disabled={Boolean(visibleBackgroundRestoreTask)}>
                 <DatabaseBackup className="h-4 w-4" />
                 {t('backup.import.action')}
               </Button>
@@ -447,7 +447,7 @@ export function BackupSettingsPage() {
                       />
                     </FormField>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <ToggleField
                       label={t('backup.automatic.storage.forcePathStyle')}
                       checked={automaticDraft.forcePathStyle}
