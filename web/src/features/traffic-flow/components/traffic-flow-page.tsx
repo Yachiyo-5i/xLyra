@@ -3,6 +3,9 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { ProtectedRoute } from '@/components/auth/auth-guard'
+import { LyraSky } from '@/features/auth/components/lyra-sky'
+import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/common/status-badge'
 import { useMobileDevice, useMobileLayout } from '@/hooks/use-media-query'
 import { useTrafficFlowSession } from '@/features/traffic-flow/lib/use-traffic-flow-session'
 import { TrafficFlowFeed } from './traffic-flow-feed'
@@ -28,11 +31,13 @@ function TrafficFlowDesktopRequired() {
     <main className="traffic-flow-desktop-required">
       <div className="traffic-flow-desktop-required-grid" aria-hidden="true" />
       <div className="traffic-flow-desktop-required-content">
-        <span className="traffic-flow-desktop-required-icon"><MonitorUp aria-hidden="true" /></span>
+        <MonitorUp className="traffic-flow-desktop-required-icon" aria-hidden="true" />
         <i>{t('desktopRequired.eyebrow')}</i>
         <h1>{t('desktopRequired.title')}</h1>
         <p>{t('desktopRequired.description')}</p>
-        <Link to="/dashboard"><ArrowLeft aria-hidden="true" />{t('desktopRequired.back')}</Link>
+        <Button asChild variant="secondary" className="mt-6">
+          <Link to="/dashboard"><ArrowLeft aria-hidden="true" />{t('desktopRequired.back')}</Link>
+        </Button>
       </div>
     </main>
   )
@@ -49,42 +54,36 @@ function TrafficFlowPage() {
 
   return (
     <main ref={setPageEl} className={tokensOpen ? 'traffic-flow-page is-tokens-open' : 'traffic-flow-page'}>
-      <div className="traffic-flow-background" aria-hidden="true" />
-      <div className="traffic-flow-scanline" aria-hidden="true" />
+      <LyraSky constellation={false} placement="wide" className="traffic-flow-starfield" />
 
-      <header className="traffic-flow-header">
-        <button type="button" className="traffic-flow-brand" onClick={() => navigate('/dashboard')}>
+      <header className="traffic-flow-header traffic-flow-surface">
+        <Button type="button" variant="ghost" size="sm" className="traffic-flow-brand" onClick={() => navigate('/dashboard')}>
           <ArrowLeft className="size-4" />
           <span>xLyra</span>
-          <i />
-          <strong>{t('header.brand')}</strong>
-        </button>
+        </Button>
         <div className="traffic-flow-title">
           <Activity className="traffic-flow-title-mark" />
-          <div>
-            <strong>{t('header.title')}</strong>
-            <span>{t('header.subtitle')}</span>
-          </div>
+          <strong>{t('header.title')}</strong>
         </div>
         <div className="traffic-flow-actions">
-          <div className="traffic-flow-status">
-            <span className={session.connected ? 'traffic-flow-status-dot is-live' : 'traffic-flow-status-dot'} />
-            <span>{session.connected ? t('status.live') : t('status.reconnecting')}</span>
-          </div>
-          <button type="button" className="traffic-flow-icon-button" onClick={() => session.setPaused((value) => !value)} aria-label={session.paused ? t('actions.resume') : t('actions.pause')}>
+          <StatusBadge status={session.connected ? 'healthy' : 'warning'} className="traffic-flow-status">
+            {session.connected ? t('status.live') : t('status.reconnecting')}
+          </StatusBadge>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={() => session.setPaused((value) => !value)} aria-label={session.paused ? t('actions.resume') : t('actions.pause')}>
             {session.paused ? <Play className="size-4" /> : <Pause className="size-4" />}
-          </button>
-          <button type="button" className="traffic-flow-icon-button" onClick={() => window.location.reload()} aria-label={t('actions.refresh')}>
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" onClick={() => window.location.reload()} aria-label={t('actions.refresh')}>
             <RotateCcw className="size-4" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="traffic-flow-icon-button"
+            variant="ghost"
+            size="icon-sm"
             onClick={() => void session.togglePageFullscreen(pageEl)}
             aria-label={session.fullscreen ? t('actions.exitFullscreen') : t('actions.fullscreen')}
           >
             {session.fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </button>
+          </Button>
         </div>
       </header>
 

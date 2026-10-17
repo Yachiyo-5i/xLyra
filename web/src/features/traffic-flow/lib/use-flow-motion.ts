@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import type { TrafficFlowRequest } from '@/features/traffic-flow/api/traffic-flow'
 import {
   emptyFlowMotion,
-  pulsePoints,
+  pulseProgress,
+  pulseSeatKey,
   sameLitKeys,
   stepFlowMotion,
   type FlowMotionState,
@@ -10,14 +11,18 @@ import {
 } from '@/features/traffic-flow/lib/flow-packets'
 import type { LaneKind } from '@/features/traffic-flow/lib/wing-layout'
 
+/** 一个正在航道上飞行的请求：只带「在哪条航道、飞到哪了」，具体怎么画由 Canvas 决定 */
 export type FlowPulseView = {
   id: string
   requestId: string
   role: FlowPulse['role']
   color: string
-  x: number
-  y: number
-  trail: Array<{ x: number; y: number }>
+  /** 所在航道（节点键） */
+  seatKey: string
+  /** 沿航道的位置，0 在节点端、1 在中枢端 */
+  t: number
+  /** 是否正驶向中枢 */
+  toward: boolean
 }
 
 export type FlowSeat = {
@@ -30,14 +35,12 @@ type UseFlowMotionOptions = {
   requests: TrafficFlowRequest[]
   retiringRequestIDs: Set<string>
   seatsRef: MutableRefObject<Map<string, FlowSeat>>
-  sizeRef: MutableRefObject<{ width: number; height: number }>
   paused: boolean
   reducedMotion: boolean
   onDrained: (requestID: string) => void
 }
 
 const emptyView = {
-  pulses: [] as FlowPulseView[],
   litKeys: new Set<string>(),
   active: false,
 }
@@ -46,12 +49,13 @@ export function useFlowMotion({
   requests,
   retiringRequestIDs,
   seatsRef,
-  sizeRef,
   paused,
   reducedMotion,
   onDrained,
 }: UseFlowMotionOptions) {
   const [view, setView] = useState(emptyView)
+  // 每一帧的飞行位置放在 ref 里给 Canvas 读，不触发 React 重渲染；只有点亮的节点集合变化时才更新 state
+  const pulsesRef = useRef<FlowPulseView[]>([])
   const stateRef = useRef<FlowMotionState>(emptyFlowMotion())
   const clockRef = useRef({ origin: 0, pausedAt: 0, running: false })
   const requestsRef = useRef(requests)
@@ -91,25 +95,28 @@ export function useFlowMotion({
       stateRef.current = stepped.state
       const pulses: FlowPulseView[] = []
       for (const pulse of stepped.state.pulses) {
-        const points = pulsePoints(pulse, seatsRef.current, sizeRef.current, now)
-        if (!points) continue
+        const seatKey = pulseSeatKey(pulse)
+        if (!seatKey || !seatsRef.current.has(seatKey)) continue
+        const progress = pulseProgress(pulse, now)
+        const toward = pulse.hop === 0
         pulses.push({
           id: pulse.id,
           requestId: pulse.requestId,
           role: pulse.role,
           color: pulse.color,
-          x: points.head.x,
-          y: points.head.y,
-          trail: points.trail,
+          seatKey,
+          t: toward ? progress : 1 - progress,
+          toward,
         })
       }
+      pulsesRef.current = pulses
       const litKeys = sameLitKeys(litRef.current, stepped.litKeys) ? litRef.current : stepped.litKeys
       litRef.current = litKeys
       const active = pulses.length > 0 || litKeys.size > 0
-      const signature = `${pulses.map((pulse) => `${pulse.id}:${Math.round(pulse.x)}:${Math.round(pulse.y)}`).join('|')}:${[...litKeys].join(',')}:${active}`
+      const signature = `${[...litKeys].join(',')}:${active}`
       if (signatureRef.current !== signature) {
         signatureRef.current = signature
-        setView({ pulses, litKeys, active })
+        setView({ litKeys, active })
       }
       if (stepped.drained.length > 0) {
         const ids = stepped.drained
@@ -125,7 +132,7 @@ export function useFlowMotion({
       frame = window.requestAnimationFrame(loop)
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [seatsRef, sizeRef])
+  }, [seatsRef])
 
-  return view
+  return { pulsesRef, litKeys: view.litKeys, active: view.active }
 }

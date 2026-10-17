@@ -57,10 +57,12 @@ type LyraSkyProps = {
   placement?: 'auto' | 'wide' | 'top'
   /** 窄屏时把星座移到这段竖直区域（相对画布的 px）里并缩放到放得下；null 时回到上方默认位置 */
   focus?: { top: number; bottom: number } | null
+  /** 是否绘制天琴座星座、牛郎星与 M57；其他页面只想要星空背景时设为 false */
+  constellation?: boolean
   className?: string
 }
 
-export function LyraSky({ vegaLit = false, placement = 'auto', focus = null, className }: LyraSkyProps) {
+export function LyraSky({ vegaLit = false, placement = 'auto', focus = null, constellation = true, className }: LyraSkyProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const litRef = useRef({ lit: vegaLit, since: vegaLit ? -LIT_DURATION : 0 })
   const startRef = useRef(0)
@@ -195,6 +197,12 @@ export function LyraSky({ vegaLit = false, placement = 'auto', focus = null, cla
         }
         context.globalAlpha = 1
         meteors = meteors.filter((meteor) => drawMeteor(context, meteor, t))
+      }
+
+      if (!constellation) {
+        context.globalAlpha = 1
+        if (!reduceMotion) frame = requestAnimationFrame(draw)
+        return
       }
 
       const layout = constellationLayout(now)
@@ -370,7 +378,7 @@ export function LyraSky({ vegaLit = false, placement = 'auto', focus = null, cla
       window.removeEventListener('pointermove', onPointerMove)
       cancelAnimationFrame(frame)
     }
-  }, [placement])
+  }, [placement, constellation])
 
   // 减弱动态效果时，织女星或星座位置变化后需要补画一帧（循环已停止）
   useEffect(() => {

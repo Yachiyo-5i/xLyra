@@ -20,8 +20,8 @@ export function TrafficFlowSparkline({ buckets, label }: TrafficFlowSparklinePro
     <div className="traffic-flow-sparkline" aria-hidden="true">
       <span className="traffic-flow-sparkline-label">{label}</span>
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <polygon points={area} fill="rgba(255, 255, 255, .12)" />
-        <polyline points={points} fill="none" stroke="#e5e5e5" strokeWidth="1.6" />
+        <polygon points={area} fill="var(--tint)" fillOpacity=".1" />
+        <polyline points={points} fill="none" stroke="var(--tint)" strokeOpacity=".5" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
     </div>
   )

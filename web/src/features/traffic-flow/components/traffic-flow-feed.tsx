@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Activity, ShieldCheck } from 'lucide-react'
+import { Activity, Radio, ShieldCheck } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import type { TrafficFlowRequest } from '@/features/traffic-flow/api/traffic-flow'
 import { formatDuration } from '@/features/traffic-flow/lib/traffic-flow-format'
 import { modelVisual } from '@/features/traffic-flow/lib/model-visual'
@@ -34,14 +35,14 @@ export function TrafficFlowFeed({
     : 0
 
   return (
-    <section className="traffic-flow-feed" aria-label={t('activity.label')}>
+    <section className="traffic-flow-feed traffic-flow-surface" aria-label={t('activity.label')}>
       <div className="traffic-flow-feed-heading">
         <Activity className="size-4" />
         <div>
           <span>{t('activity.label')}</span>
           {selectedNode && nodeName ? <em>{t('activity.nodeFilter', { name: nodeName, related: relatedCount })}</em> : null}
         </div>
-        <strong>{requests.length.toString().padStart(2, '0')}</strong>
+        <Badge variant={requests.length > 0 ? 'accent' : 'neutral'} className="ml-auto tabular-nums">{requests.length}</Badge>
       </div>
       <div className="traffic-flow-feed-list">
         {requests.map((request) => {
@@ -60,7 +61,12 @@ export function TrafficFlowFeed({
             />
           )
         })}
-        {requests.length === 0 ? <span className="traffic-flow-activity-empty">{t('activity.empty')}</span> : null}
+        {requests.length === 0 ? (
+          <div className="traffic-flow-activity-empty">
+            <Radio className="size-6" strokeWidth={1.5} aria-hidden="true" />
+            <span>{t('activity.empty')}</span>
+          </div>
+        ) : null}
       </div>
       <div className="traffic-flow-activity-state">
         <ShieldCheck className="size-4" />

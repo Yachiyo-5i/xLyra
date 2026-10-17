@@ -33,15 +33,25 @@ export function flowVendorColor(brand: string): string {
   return VENDOR_FLOW_COLORS[brand] ?? FALLBACK_FLOW_COLOR
 }
 
+const visualCache = new Map<string, ModelVisual>()
+const VISUAL_CACHE_LIMIT = 256
+
+/** 品牌推断要做一堆字符串匹配，而拓扑页每次渲染每个节点都会问一遍，所以按（厂商, 模型）缓存 */
 export function modelVisual(provider: string, modelKey: string): ModelVisual {
+  const cacheKey = `${provider}\u0000${modelKey}`
+  const cached = visualCache.get(cacheKey)
+  if (cached) return cached
   const brand = flowVendorBrand(provider, modelKey)
   const color = flowVendorColor(brand)
   const icon = modelNameIconInfo([provider, modelKey], modelKey)
-  return {
+  const visual: ModelVisual = {
     color,
     brand,
     iconPath: icon.iconPath,
     fallback: icon.fallbackText ?? icon.fallback.slice(0, 2).toUpperCase(),
     label: icon.label,
   }
+  if (visualCache.size >= VISUAL_CACHE_LIMIT) visualCache.clear()
+  visualCache.set(cacheKey, visual)
+  return visual
 }

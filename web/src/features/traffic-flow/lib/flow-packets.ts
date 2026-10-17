@@ -30,22 +30,42 @@ type PacketSeat = {
   x: number
   y: number
   kind: LaneKind
+  id?: string
 }
 
 type Point = { x: number; y: number }
 
 const terminalPhases = new Set<TrafficFlowPhase>(['completed', 'failed', 'cancelled'])
 
-export function linkPath(placement: { x: number; y: number }, size: { width: number; height: number }) {
+type LinkSeat = { x: number; y: number; id?: string; kind?: LaneKind }
+
+export function linkPath(placement: LinkSeat, size: { width: number; height: number }) {
   const { p0, p1, p2, p3 } = linkControls(placement, size)
   return `M ${p0.x} ${p0.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${p3.x} ${p3.y}`
 }
 
-export function linkControls(placement: { x: number; y: number }, size: { width: number; height: number }) {
+/** 由节点 id 得到 -1…1 的稳定随机数：同一个节点每次的弧线形状都一样 */
+function laneSeed(id: string) {
+  let hash = 2166136261
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return ((hash >>> 0) % 2001) / 1000 - 1
+}
+
+/**
+ * 航道的曲线。每条线按节点 id 有一点自己的弧度，进入中枢前再向一侧盘旋，像被星系的引力卷进去；
+ * 没有 id（只有坐标）时退回对称的平滑弧线。
+ */
+export function linkControls(placement: LinkSeat, size: { width: number; height: number }) {
   const p0 = { x: placement.x / 100 * size.width, y: placement.y / 100 * size.height }
   const p3 = { x: size.width / 2, y: size.height / 2 }
-  const p1 = { x: p0.x + (p3.x - p0.x) * 0.42, y: p0.y }
-  const p2 = { x: p3.x - (p3.x - p0.x) * 0.18, y: p3.y }
+  const dx = p3.x - p0.x
+  const seed = placement.id ? laneSeed(placement.id) : 0
+  const swirl = placement.id && placement.kind ? (placement.kind === 'downstream' ? 1 : -1) * Math.abs(dx) * 0.11 : 0
+  const p1 = { x: p0.x + dx * 0.42, y: p0.y + seed * Math.min(34, Math.abs(dx) * 0.08) }
+  const p2 = { x: p3.x - dx * 0.18, y: p3.y + swirl + seed * 10 }
   return { p0, p1, p2, p3 }
 }
 

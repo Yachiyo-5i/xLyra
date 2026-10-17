@@ -1,6 +1,6 @@
 import { Activity, Database, Network, Waypoints, type LucideIcon } from 'lucide-react'
 import type { Ref } from 'react'
-import { formatCompactTokens, formatPaddedCount } from '@/features/traffic-flow/lib/traffic-flow-format'
+import { formatCompactTokens } from '@/features/traffic-flow/lib/traffic-flow-format'
 
 type TrafficFlowKpisProps = {
   inFlight: number
@@ -21,17 +21,19 @@ export function TrafficFlowKpis({ inFlight, routed, nodes, tokens, rpmLimit, tok
       <Metric
         icon={Activity}
         label={t('metrics.inFlight')}
-        value={formatPaddedCount(inFlight)}
+        value={inFlight.toLocaleString()}
+        zero={inFlight === 0}
         aside={rpmLimit == null ? undefined : `/ ${rpmLimit.toLocaleString()}`}
         asideTitle={rpmLimit == null ? undefined : `${t('metrics.rpm')} ${rpmLimit.toLocaleString()}`}
       />
-      <Metric icon={Waypoints} label={t('metrics.routed')} value={formatPaddedCount(routed)} />
-      <Metric icon={Network} label={t('metrics.nodes')} value={formatPaddedCount(nodes)} />
+      <Metric icon={Waypoints} label={t('metrics.routed')} value={routed.toLocaleString()} zero={routed === 0} />
+      <Metric icon={Network} label={t('metrics.nodes')} value={nodes.toLocaleString()} zero={nodes === 0} />
       <Metric
         buttonRef={tokensButtonRef}
         icon={Database}
         label={t('metrics.tokens')}
         value={formatCompactTokens(tokens)}
+        zero={tokens === 0}
         interactive
         expanded={tokensOpen}
         ariaHasPopup="dialog"
@@ -51,6 +53,7 @@ function Metric({
   interactive,
   expanded,
   ariaHasPopup,
+  zero,
   onClick,
 }: {
   buttonRef?: Ref<HTMLButtonElement>
@@ -62,17 +65,20 @@ function Metric({
   interactive?: boolean
   expanded?: boolean
   ariaHasPopup?: 'dialog'
+  /** 数值为 0：数字降为第三级文字，有数据后再变亮 */
+  zero?: boolean
   onClick?: () => void
 }) {
   const content = (
     <>
-      <span>{label}</span>
-      <b className="traffic-flow-metric-value">
-        <strong>{value}</strong>
-        {aside ? <small title={asideTitle}>{aside}</small> : null}
-      </b>
-      <Icon className="traffic-flow-metric-icon" aria-hidden="true" />
-      <i />
+      <span className="traffic-flow-metric-icon"><Icon aria-hidden="true" /></span>
+      <span className="traffic-flow-metric-copy">
+        <span>{label}</span>
+        <b className="traffic-flow-metric-value">
+          <strong>{value}</strong>
+          {aside ? <small title={asideTitle}>{aside}</small> : null}
+        </b>
+      </span>
     </>
   )
   if (interactive) {
@@ -80,7 +86,7 @@ function Metric({
       <button
         ref={buttonRef}
         type="button"
-        className="traffic-flow-metric is-interactive"
+        className={`traffic-flow-metric traffic-flow-surface is-interactive${zero ? ' is-zero' : ''}`}
         aria-haspopup={ariaHasPopup}
         aria-expanded={expanded}
         onClick={onClick}
@@ -89,5 +95,5 @@ function Metric({
       </button>
     )
   }
-  return <div className="traffic-flow-metric">{content}</div>
+  return <div className={`traffic-flow-metric traffic-flow-surface${zero ? ' is-zero' : ''}`}>{content}</div>
 }

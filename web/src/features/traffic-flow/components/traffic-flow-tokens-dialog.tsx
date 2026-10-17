@@ -83,8 +83,8 @@ export function TrafficFlowTokensDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         container={container}
-        overlayClassName="traffic-flow-tokens-overlay absolute inset-0 bg-black/28 backdrop-blur-[6px]"
-        className="traffic-flow-tokens-dialog absolute left-auto top-auto w-auto max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-[var(--flow-radius-lg)] border-white/20 bg-[#080808]/[0.92] p-0 shadow-none"
+        overlayClassName="traffic-flow-tokens-overlay absolute inset-0"
+        className="traffic-flow-tokens-dialog lg-thick absolute left-auto top-auto w-auto max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-card p-0"
         style={panelStyle}
       >
         <DialogHeader className="traffic-flow-tokens-header">
