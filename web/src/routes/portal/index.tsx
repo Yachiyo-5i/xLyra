@@ -15,8 +15,20 @@ import {
 } from 'recharts'
 import { KeyRound, LoaderCircle, LogOut, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import type { ColumnDef } from '@tanstack/react-table'
+import { DataTable } from '@/components/common/data-table'
+import { StatusBadge } from '@/components/common/status-badge'
+import {
+  chartColors,
+  chartGridStroke,
+  chartTick,
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
+  chartTooltipStyle,
+} from '@/components/charts/chart-theme'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeading, CardMetric, CardMetrics, ItemCard } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { PaginationControls } from '@/components/ui/pagination'
@@ -76,14 +88,14 @@ export function PortalPage() {
   const disabled = (settings && !settings.enabled) || settingsQuery.isError
 
   return (
-    <div className="h-full overflow-y-auto bg-background text-foreground">
-      <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div className="h-full overflow-y-auto bg-canvas text-label">
+      <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-6 px-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] pt-[calc(1.5rem+env(safe-area-inset-top,0px))] sm:px-6 sm:pt-[calc(2rem+env(safe-area-inset-top,0px))]">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <img src={APP_LOGO_SRC} alt={APP_NAME} className="h-7 w-7 rounded-md" />
+            <img src={APP_LOGO_SRC} alt={APP_NAME} className="size-8 rounded-control" />
             <div className="leading-tight">
-              <p className="text-sm font-semibold">{APP_NAME}</p>
-              <p className="text-muted-soft text-xs">{t('title')}</p>
+              <p className="text-headline text-label">{APP_NAME}</p>
+              <p className="text-caption-1 text-label-3">{t('title')}</p>
             </div>
           </div>
           <LanguageSwitcher />
@@ -91,11 +103,11 @@ export function PortalPage() {
 
         {settingsQuery.isLoading ? (
           <CenterState>
-            <LoaderCircle className="h-5 w-5 animate-spin text-muted-soft" />
+            <LoaderCircle className="h-5 w-5 animate-spin text-label-3" />
           </CenterState>
         ) : disabled ? (
           <CenterState>
-            <p className="text-muted-soft text-sm">{t('disabled')}</p>
+            <p className="text-body text-label-2">{t('disabled')}</p>
           </CenterState>
         ) : (
           <>
@@ -103,7 +115,7 @@ export function PortalPage() {
             {activeKey && settings ? (
               <PortalDashboard portalKey={activeKey} settings={settings} onInvalidKey={handleClear} />
             ) : (
-              <p className="text-muted-soft px-1 text-sm">{t('gate.hint')}</p>
+              <p className="px-1 text-footnote text-label-3">{t('gate.hint')}</p>
             )}
           </>
         )}
@@ -162,10 +174,10 @@ function KeyBar({ activeKey, onAuthenticated, onClear }: KeyBarProps) {
 
   return (
     <Card>
-      <CardContent className="space-y-3 p-4">
+      <CardContent className="space-y-3 p-4 sm:p-5">
         <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold">{activeKey ? t('gate.switchTitle') : t('gate.title')}</h2>
+          <KeyRound className="h-4 w-4 text-tint" />
+          <h2 className="text-headline text-label">{activeKey ? t('gate.switchTitle') : t('gate.title')}</h2>
           {activeKey ? (
             <Button variant="ghost" size="sm" className="ml-auto" onClick={handleClear}>
               <LogOut className="h-4 w-4" />
@@ -189,7 +201,7 @@ function KeyBar({ activeKey, onAuthenticated, onClear }: KeyBarProps) {
             autoComplete="off"
             className="font-mono"
           />
-          <label className="flex shrink-0 items-center gap-2 text-sm text-muted-soft">
+          <label className="flex shrink-0 items-center gap-2 text-footnote text-label-2">
             <Switch checked={remember} onCheckedChange={setRemember} aria-label={t('gate.remember')} />
             {t('gate.remember')}
           </label>
@@ -315,16 +327,16 @@ function PortalDashboard({ portalKey, settings, onInvalidKey }: PortalDashboardP
         </section>
       ) : overviewQuery.isLoading ? (
         <CenterState>
-          <LoaderCircle className="h-5 w-5 animate-spin text-muted-soft" />
+          <LoaderCircle className="h-5 w-5 animate-spin text-label-3" />
         </CenterState>
       ) : null}
 
       {settings.show_summary && summary ? (
         <Card>
-          <CardContent className="space-y-4 p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">{t('summary.title', { days: summary.range.days })}</h3>
-              <span className="text-muted-soft text-xs">{t('summary.totalRequests', { count: summary.totals.success })}</span>
+          <CardContent className="space-y-4 p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-headline text-label">{t('summary.title', { days: summary.range.days })}</h3>
+              <span className="text-footnote text-label-3">{t('summary.totalRequests', { count: summary.totals.success })}</span>
             </div>
             <TrendChart summary={summary} dims={dims} />
           </CardContent>
@@ -332,10 +344,10 @@ function PortalDashboard({ portalKey, settings, onInvalidKey }: PortalDashboardP
       ) : null}
 
       {settings.show_requests ? (
-        <Card>
-          <CardContent className="space-y-4 p-5">
+        <Card material="thick" className="overflow-hidden">
+          <div className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold">{t('requests.title')}</h3>
+              <h3 className="text-headline text-label">{t('requests.title')}</h3>
               <RequestStats stats={requestsQuery.data?.stats} dims={dims} />
             </div>
 
@@ -382,29 +394,30 @@ function PortalDashboard({ portalKey, settings, onInvalidKey }: PortalDashboardP
 
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
                 className="ml-auto"
+                aria-label={t('requests.refresh', { defaultValue: 'Refresh' })}
                 onClick={() => requestsQuery.refetch()}
                 disabled={requestsQuery.isFetching}
               >
-                <RefreshCw className={requestsQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+                <RefreshCw className={requestsQuery.isFetching ? 'size-4 animate-spin' : 'size-4'} />
               </Button>
             </div>
+          </div>
 
-            <RequestsTable items={requestsQuery.data?.items ?? []} dims={dims} loading={requestsQuery.isLoading} />
+          <RequestsList items={requestsQuery.data?.items ?? []} dims={dims} loading={requestsQuery.isLoading} />
 
-            {requestsQuery.data && requestsQuery.data.total > 0 ? (
-              <PaginationControls
-                page={page}
-                pageSize={requestsQuery.data.page_size}
-                totalItems={requestsQuery.data.total}
-                onPageChange={setPage}
-                showPageSize={false}
-                disabled={requestsQuery.isFetching}
-                className="justify-end pt-1"
-              />
-            ) : null}
-          </CardContent>
+          {requestsQuery.data && requestsQuery.data.total > 0 ? (
+            <PaginationControls
+              page={page}
+              pageSize={requestsQuery.data.page_size}
+              totalItems={requestsQuery.data.total}
+              onPageChange={setPage}
+              showPageSize={false}
+              disabled={requestsQuery.isFetching}
+              className="justify-center border-t border-separator p-3 sm:justify-end sm:px-4"
+            />
+          ) : null}
         </Card>
       ) : null}
     </div>
@@ -417,12 +430,12 @@ function RequestStats({ stats, dims }: { stats: PortalRequestStats | undefined; 
   return (
     <div className="flex flex-nowrap items-center gap-2">
       {dims.cost && stats.cost != null ? (
-        <Badge variant="accent" className="h-8 w-fit rounded-md px-2.5 text-xs tabular-nums">
+        <Badge variant="accent" className="tabular-nums">
           {t('stats.cost')} {formatUSD(stats.cost)}
         </Badge>
       ) : null}
       {dims.tokens && stats.total_tokens != null ? (
-        <Badge variant="neutral" className="h-8 w-fit rounded-md px-2.5 text-xs tabular-nums">
+        <Badge variant="neutral" className="tabular-nums">
           {t('stats.tokens')} {formatTokens(stats.total_tokens)}
         </Badge>
       ) : null}
@@ -455,25 +468,25 @@ function KeyInfoCard({ overview }: { overview: PortalOverview }) {
   const { key } = overview
   return (
     <Card className="h-full">
-      <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
+      <CardContent className="flex h-full flex-col justify-between gap-4 p-4 sm:p-5">
         <div className="space-y-1">
-          <p className="text-muted-soft text-xs">{t('overview.keyTitle')}</p>
-          <p className="truncate text-base font-semibold">{key.name}</p>
-          <p className="text-muted-soft truncate font-mono text-xs">{key.masked_key}</p>
+          <p className="text-caption-1 text-label-3">{t('overview.keyTitle')}</p>
+          <p className="truncate text-headline text-label">{key.name}</p>
+          <p className="truncate font-mono text-footnote text-label-3">{key.masked_key}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span className={['text-xs font-medium', key.is_active ? 'text-emerald-500' : 'text-red-500'].join(' ')}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <StatusBadge status={key.is_active ? 'healthy' : 'error'}>
             {key.is_active ? t('overview.active') : key.status}
-          </span>
+          </StatusBadge>
           {key.expires_at ? (
-            <span className="text-muted-soft text-xs">
+            <span className="text-caption-1 text-label-3">
               {t('overview.expires')} {new Date(key.expires_at).toLocaleDateString()}
             </span>
           ) : (
-            <span className="text-muted-soft text-xs">{t('overview.noExpiry')}</span>
+            <span className="text-caption-1 text-label-3">{t('overview.noExpiry')}</span>
           )}
           {key.last_used_at ? (
-            <span className="text-muted-soft text-xs">
+            <span className="text-caption-1 text-label-3">
               {t('overview.lastUsed')} {new Date(key.last_used_at).toLocaleDateString()}
             </span>
           ) : null}
@@ -488,11 +501,9 @@ function AccumulatedUsageCard({ overview }: { overview: PortalOverview }) {
   const { quota } = overview
   return (
     <Card className="h-full">
-      <CardContent className="flex h-full flex-col gap-1.5 p-5">
-        <div className="space-y-1">
-          <p className="text-muted-soft text-xs">{t('overview.accumulatedUsage')}</p>
-          <p className="text-2xl font-semibold tabular-nums">{formatUSD(quota.accumulated_used)}</p>
-        </div>
+      <CardContent className="flex h-full flex-col gap-1.5 p-4 sm:p-5">
+        <p className="text-caption-1 text-label-3">{t('overview.accumulatedUsage')}</p>
+        <p className="text-kpi tabular-nums text-label">{formatUSD(quota.accumulated_used)}</p>
       </CardContent>
     </Card>
   )
@@ -534,17 +545,17 @@ function QuotaLimitsCard({ overview }: { overview: PortalOverview }) {
   const trigger = (
     <button
       type="button"
-      className="inline-block max-w-full min-w-0 rounded-sm text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))]"
+      className="inline-block max-w-full min-w-0 rounded-inner text-left align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint"
     >
       <span className="sr-only">{t('overview.quotaDetails')}, </span>
-      <span className="block space-y-1.5 text-xs tabular-nums">
+      <span className="block space-y-1.5 text-footnote tabular-nums">
         {rows.map((row) => <PortalQuotaScopeRow key={row.id} row={row} />)}
       </span>
     </button>
   )
 
-  return <Card className="h-full"><CardContent className="flex h-full flex-col gap-2 p-5">
-    <p className="text-muted-soft text-xs">{t('overview.limitsTitle')}</p>
+  return <Card className="h-full"><CardContent className="flex h-full flex-col gap-2 p-4 sm:p-5">
+    <p className="text-caption-1 text-label-3">{t('overview.limitsTitle')}</p>
       <HoverDetails
         asChild
         title={t('overview.quotaDetails')}
@@ -571,60 +582,60 @@ type PortalQuotaDetailRow = {
 function PortalQuotaScopeRow({ row }: { row: { shortLabel: string; quota: PortalPeriodicQuota } }) {
   const available = row.quota.remaining ?? Math.max((row.quota.limit ?? 0) - row.quota.used, 0)
   return <span className="flex min-w-0 items-center gap-1.5">
-    <span className="w-6 shrink-0 text-muted-soft">{row.shortLabel}</span>
+    <span className="w-6 shrink-0 text-label-3">{row.shortLabel}</span>
     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${portalQuotaDot(row.quota)}`} />
-    <span className="truncate font-medium text-foreground">{formatUSD(available)} / {formatUSD(row.quota.limit!)}</span>
+    <span className="truncate font-medium text-label">{formatUSD(available)} / {formatUSD(row.quota.limit!)}</span>
   </span>
 }
 
 function PortalQuotaDetails({ rows, t }: { rows: PortalQuotaDetailRow[]; t: (key: string, options?: Record<string, unknown>) => string }) {
-  return <div className="divide-y divide-[hsl(var(--glass-divider))] text-xs tabular-nums">
+  return <div className="divide-y divide-separator text-footnote tabular-nums">
     {rows.map((row) => {
       const value = row.id === 'accumulated'
         ? formatUSD(row.used)
         : `${formatUSD(row.remaining ?? Math.max((row.limit ?? 0) - row.used, 0))} / ${formatUSD(row.limit!)} · ${t('overview.used')} ${formatUSD(row.used)}`
       const resetIn = formatResetIn(row.resetAt, t)
       return <div key={row.id} className="flex min-w-0 items-start justify-between gap-4 py-2.5 first:pt-1 last:pb-1">
-        <div className="flex shrink-0 items-center gap-1.5 text-muted-soft">
+        <div className="flex shrink-0 items-center gap-1.5 text-label-3">
           {row.id !== 'accumulated' ? <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${portalQuotaDot(row)}`} /> : null}
           <span>{row.label}</span>
-          {resetIn ? <span className="text-[10px]">{resetIn}</span> : null}
+          {resetIn ? <span className="text-caption-2">{resetIn}</span> : null}
         </div>
-        <span className="min-w-0 text-right font-medium text-foreground">{value}</span>
+        <span className="min-w-0 text-right font-medium text-label">{value}</span>
       </div>
     })}
   </div>
 }
 
 function portalQuotaDot(quota: Pick<PortalPeriodicQuota, 'limit' | 'used' | 'remaining' | 'unlimited'>) {
-  if (quota.unlimited || quota.limit == null || quota.limit <= 0) return 'bg-emerald-500'
+  if (quota.unlimited || quota.limit == null || quota.limit <= 0) return 'bg-success'
   const remain = Math.min(Math.max((quota.remaining ?? Math.max(quota.limit - quota.used, 0)) / quota.limit * 100, 0), 100)
-  return remain <= 10 ? 'bg-red-500' : remain <= 30 ? 'bg-amber-500' : 'bg-emerald-500'
+  return remain <= 10 ? 'bg-danger' : remain <= 30 ? 'bg-warning' : 'bg-success'
 }
 
-const trendColors = { tokens: 'hsl(var(--primary))', cost: '#f59e0b', requests: '#10b981' }
+const trendColors = { tokens: chartColors[0], cost: chartColors[3], requests: chartColors[2] }
 
 function TrendChart({ summary, dims }: { summary: PortalSummary; dims: PortalDimensions }) {
   const { t } = useTranslation('portal')
   const showTokens = dims.tokens && summary.trend.some((bucket) => bucket.total_tokens != null)
   const showCost = dims.cost && summary.trend.some((bucket) => bucket.cost != null)
   return (
-    <div style={{ height: 260 }}>
+    <div className="h-[240px] sm:h-[260px]">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={summary.trend} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <ComposedChart data={summary.trend} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="portalTrendTokens" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={trendColors.tokens} stopOpacity={0.35} />
+              <stop offset="0%" stopColor={trendColors.tokens} stopOpacity={0.3} />
               <stop offset="100%" stopColor={trendColors.tokens} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
-          <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }} />
+          <CartesianGrid stroke={chartGridStroke} vertical={false} />
+          <XAxis dataKey="date" tickLine={false} axisLine={false} tick={chartTick} minTickGap={16} />
           {showTokens ? (
-            <YAxis yAxisId="tokens" tickLine={false} axisLine={false} width={46} tickFormatter={(value) => formatTokens(Number(value))} tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }} />
+            <YAxis yAxisId="tokens" tickLine={false} axisLine={false} width={46} tickFormatter={(value) => formatTokens(Number(value))} tick={chartTick} />
           ) : null}
           {showCost ? (
-            <YAxis yAxisId="cost" orientation="right" tickLine={false} axisLine={false} width={46} tickFormatter={(value) => formatUSD(Number(value))} tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }} />
+            <YAxis yAxisId="cost" orientation="right" tickLine={false} axisLine={false} width={46} tickFormatter={(value) => formatUSD(Number(value))} tick={chartTick} />
           ) : null}
           <YAxis yAxisId="requests" hide />
           <Tooltip
@@ -638,17 +649,16 @@ function TrendChart({ summary, dims }: { summary: PortalSummary; dims: PortalDim
                     : numeric.toLocaleString()
               return [formatted, name] as [string, string]
             }}
-            contentStyle={{
-              background: 'hsl(var(--surface-panel))',
-              border: '1px solid hsl(var(--glass-border))',
-              borderRadius: 8,
-              boxShadow: '0 16px 40px rgb(0 0 0 / 0.16)',
-              fontSize: 12,
-            }}
-            labelStyle={{ color: 'hsl(var(--text-muted-soft))', marginBottom: 4 }}
-            itemStyle={{ padding: '1px 0' }}
+            contentStyle={chartTooltipStyle}
+            labelStyle={chartTooltipLabelStyle}
+            itemStyle={chartTooltipItemStyle}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend
+            iconType="square"
+            iconSize={8}
+            wrapperStyle={{ fontSize: 12, paddingTop: 4, color: 'var(--label-tertiary)' }}
+            formatter={(value) => <span style={{ color: 'var(--label-primary)' }}>{value}</span>}
+          />
           {showTokens ? (
             <Area
               yAxisId="tokens"
@@ -670,96 +680,186 @@ function TrendChart({ summary, dims }: { summary: PortalSummary; dims: PortalDim
   )
 }
 
-function RequestsTable({ items, dims, loading }: { items: PortalRequestItem[]; dims: PortalDimensions; loading: boolean }) {
+function RequestsList({ items, dims, loading }: { items: PortalRequestItem[]; dims: PortalDimensions; loading: boolean }) {
   const { t } = useTranslation('portal')
+  const isMobile = useMobileLayout()
+
+  const columns = useMemo<ColumnDef<PortalRequestItem>[]>(() => {
+    const cols: ColumnDef<PortalRequestItem>[] = [
+      {
+        id: 'time',
+        header: t('requests.time'),
+        cell: ({ row }) => <span className="whitespace-nowrap text-footnote text-label-2">{formatTime(row.original.created_at)}</span>,
+      },
+    ]
+    if (dims.model) {
+      cols.push({
+        id: 'model',
+        header: t('requests.model'),
+        cell: ({ row }) => <span className="font-medium">{modelLabel(row.original)}</span>,
+      })
+    }
+    if (dims.site) {
+      cols.push({
+        id: 'site',
+        header: t('requests.site'),
+        cell: ({ row }) => (
+          <div>
+            <div>{row.original.site?.name ?? '—'}</div>
+            {row.original.site?.site_type ? (
+              <div className="text-caption-2 text-label-3">{row.original.site.site_type}</div>
+            ) : null}
+          </div>
+        ),
+      })
+    }
+    if (dims.endpoint) {
+      cols.push({
+        id: 'endpoint',
+        header: t('requests.endpoint'),
+        cell: ({ row }) => (
+          <div className="max-w-[200px] truncate font-mono text-footnote" title={row.original.endpoint}>{row.original.endpoint ?? '—'}</div>
+        ),
+      })
+    }
+    cols.push({
+      id: 'status',
+      header: t('requests.status'),
+      cell: ({ row }) => <RequestStatusBadge item={row.original} />,
+    })
+    if (dims.tokens) {
+      cols.push(
+        {
+          id: 'input',
+          header: t('requests.input'),
+          meta: { align: 'right' },
+          cell: ({ row }) => (
+            <div className="tabular-nums">
+              <div>{row.original.usage?.prompt_tokens ?? '—'}</div>
+              {row.original.usage?.cache_tokens ? (
+                <div className="text-caption-2 text-label-3">{t('requests.cache', { count: row.original.usage.cache_tokens })}</div>
+              ) : null}
+              {row.original.usage?.cache_write_tokens ? (
+                <div className="text-caption-2 text-label-3">{t('requests.cacheWrite', { count: row.original.usage.cache_write_tokens })}</div>
+              ) : null}
+            </div>
+          ),
+        },
+        {
+          id: 'output',
+          header: t('requests.output'),
+          meta: { align: 'right' },
+          cell: ({ row }) => <span className="tabular-nums">{row.original.usage?.completion_tokens ?? '—'}</span>,
+        },
+      )
+    }
+    if (dims.cost) {
+      cols.push({
+        id: 'cost',
+        header: t('requests.cost'),
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.cost?.estimated_cost != null ? formatUSD(row.original.cost.estimated_cost) : '—'}
+          </span>
+        ),
+      })
+    }
+    if (dims.latency) {
+      cols.push({
+        id: 'latency',
+        header: t('requests.latency'),
+        meta: { align: 'right' },
+        cell: ({ row }) => (
+          <span className="tabular-nums">{row.original.latency_ms != null ? `${row.original.latency_ms} ms` : '—'}</span>
+        ),
+      })
+    }
+    if (dims.upstream) {
+      cols.push({
+        id: 'upstream',
+        header: t('requests.upstream'),
+        cell: ({ row }) => (
+          <div className="max-w-[220px] truncate font-mono text-footnote" title={upstreamText(row.original.upstream)}>
+            {upstreamText(row.original.upstream) || '—'}
+          </div>
+        ),
+      })
+    }
+    return cols
+  }, [dims, t])
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
-        <LoaderCircle className="h-5 w-5 animate-spin text-muted-soft" />
+      <div className="flex justify-center border-t border-separator py-10">
+        <LoaderCircle className="size-5 animate-spin text-label-3" />
       </div>
     )
   }
   if (!items.length) {
-    return <p className="text-muted-soft py-8 text-center text-sm">{t('requests.empty')}</p>
+    return (
+      <p className="border-t border-separator px-4 py-10 text-center text-body text-label-3">{t('requests.empty')}</p>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <div className="space-y-3 px-4 pb-4">
+        {items.map((item) => (
+          <PortalRequestCard key={item.id} item={item} dims={dims} />
+        ))}
+      </div>
+    )
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-sm">
-        <thead>
-          <tr className="text-muted-soft border-b border-[hsl(var(--divider))] text-left text-xs">
-            <th className="py-2 pr-3 font-medium">{t('requests.time')}</th>
-            {dims.model ? <th className="py-2 pr-3 font-medium">{t('requests.model')}</th> : null}
-            {dims.site ? <th className="py-2 pr-3 font-medium">{t('requests.site')}</th> : null}
-            {dims.endpoint ? <th className="py-2 pr-3 font-medium">{t('requests.endpoint')}</th> : null}
-            <th className="py-2 pr-3 font-medium">{t('requests.status')}</th>
-            {dims.tokens ? <th className="py-2 pr-3 text-right font-medium">{t('requests.input')}</th> : null}
-            {dims.tokens ? <th className="py-2 pr-3 text-right font-medium">{t('requests.output')}</th> : null}
-            {dims.cost ? <th className="py-2 pr-3 text-right font-medium">{t('requests.cost')}</th> : null}
-            {dims.latency ? <th className="py-2 pr-3 text-right font-medium">{t('requests.latency')}</th> : null}
-            {dims.upstream ? <th className="py-2 pr-3 font-medium">{t('requests.upstream')}</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-[hsl(var(--divider))]/50">
-              <td className="py-2 pr-3 whitespace-nowrap">{formatTime(item.created_at)}</td>
-              {dims.model ? (
-                <td className="py-2 pr-3">{item.model?.canonical_model ?? item.model?.upstream_model ?? '—'}</td>
-              ) : null}
-              {dims.site ? (
-                <td className="py-2 pr-3">
-                  <div>{item.site?.name ?? '—'}</div>
-                  {item.site?.site_type ? (
-                    <div className="text-muted-soft text-[11px]">{item.site.site_type}</div>
-                  ) : null}
-                </td>
-              ) : null}
-              {dims.endpoint ? (
-                <td className="py-2 pr-3">
-                  <div className="max-w-[200px] truncate font-mono text-xs" title={item.endpoint}>{item.endpoint ?? '—'}</div>
-                </td>
-              ) : null}
-              <td className="py-2 pr-3">
-                <span className={item.success ? 'text-emerald-500' : 'text-red-500'}>{item.status_code}</span>
-              </td>
-              {dims.tokens ? (
-                <td className="py-2 pr-3 text-right tabular-nums">
-                  <div>{item.usage?.prompt_tokens ?? '—'}</div>
-                  {item.usage?.cache_tokens ? (
-                    <div className="text-muted-soft text-[11px]">{t('requests.cache', { count: item.usage.cache_tokens })}</div>
-                  ) : null}
-                  {item.usage?.cache_write_tokens ? (
-                    <div className="text-muted-soft text-[11px]">{t('requests.cacheWrite', { count: item.usage.cache_write_tokens })}</div>
-                  ) : null}
-                </td>
-              ) : null}
-              {dims.tokens ? (
-                <td className="py-2 pr-3 text-right tabular-nums">{item.usage?.completion_tokens ?? '—'}</td>
-              ) : null}
-              {dims.cost ? (
-                <td className="py-2 pr-3 text-right tabular-nums">
-                  {item.cost?.estimated_cost != null ? formatUSD(item.cost.estimated_cost) : '—'}
-                </td>
-              ) : null}
-              {dims.latency ? (
-                <td className="py-2 pr-3 text-right tabular-nums">
-                  {item.latency_ms != null ? `${item.latency_ms} ms` : '—'}
-                </td>
-              ) : null}
-              {dims.upstream ? (
-                <td className="py-2 pr-3">
-                  <div className="max-w-[220px] truncate font-mono text-xs" title={upstreamText(item.upstream)}>
-                    {upstreamText(item.upstream) || '—'}
-                  </div>
-                </td>
-              ) : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="border-t border-separator">
+      <DataTable columns={columns} data={items} getRowId={(item) => item.id} className="[&_table]:min-w-[720px]" />
     </div>
+  )
+}
+
+function RequestStatusBadge({ item }: { item: PortalRequestItem }) {
+  return <StatusBadge status={item.success ? 'success' : 'error'}>{String(item.status_code)}</StatusBadge>
+}
+
+function modelLabel(item: PortalRequestItem) {
+  return item.model?.canonical_model ?? item.model?.upstream_model ?? '—'
+}
+
+function PortalRequestCard({ item, dims }: { item: PortalRequestItem; dims: PortalDimensions }) {
+  const { t } = useTranslation('portal')
+  const tokens = item.usage
+  const metrics: { key: string; label: string; value: string }[] = []
+  if (dims.site) metrics.push({ key: 'site', label: t('requests.site'), value: item.site?.name ?? '—' })
+  if (dims.tokens) {
+    metrics.push({ key: 'input', label: t('requests.input'), value: String(tokens?.prompt_tokens ?? '—') })
+    metrics.push({ key: 'output', label: t('requests.output'), value: String(tokens?.completion_tokens ?? '—') })
+  }
+  if (dims.cost) {
+    metrics.push({ key: 'cost', label: t('requests.cost'), value: item.cost?.estimated_cost != null ? formatUSD(item.cost.estimated_cost) : '—' })
+  }
+  if (dims.latency) {
+    metrics.push({ key: 'latency', label: t('requests.latency'), value: item.latency_ms != null ? `${item.latency_ms} ms` : '—' })
+  }
+  if (dims.endpoint) metrics.push({ key: 'endpoint', label: t('requests.endpoint'), value: item.endpoint ?? '—' })
+  if (dims.upstream) metrics.push({ key: 'upstream', label: t('requests.upstream'), value: upstreamText(item.upstream) || '—' })
+
+  return (
+    <ItemCard>
+      <CardHeading
+        title={dims.model ? modelLabel(item) : formatTime(item.created_at)}
+        tags={<RequestStatusBadge item={item} />}
+        meta={dims.model ? formatTime(item.created_at) : undefined}
+      />
+      {metrics.length ? (
+        <CardMetrics>
+          {metrics.map((metric) => (
+            <CardMetric key={metric.key} label={metric.label} value={metric.value} />
+          ))}
+        </CardMetrics>
+      ) : null}
+    </ItemCard>
   )
 }
 
