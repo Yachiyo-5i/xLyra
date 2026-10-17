@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -74,6 +75,9 @@ type Profile struct {
 	MaxIdleConnsPerHost   int
 	MaxConnsPerHost       int
 	IdleConnTimeout       time.Duration
+	// TLSFingerprint selects a browser/runtime TLS ClientHello to imitate.
+	// Empty keeps Go's default handshake.
+	TLSFingerprint string
 }
 
 type Manager struct {
@@ -286,6 +290,7 @@ func normalizeProfile(profile Profile) Profile {
 		profile.IdleConnTimeout = defaults.IdleConnTimeout
 	}
 	profile.ProxyID = strings.TrimSpace(profile.ProxyID)
+	profile.TLSFingerprint = strings.ToLower(strings.TrimSpace(profile.TLSFingerprint))
 	return profile
 }
 
@@ -293,7 +298,9 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 	profile = normalizeProfile(profile)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
-	transport.DialContext = NewGuardedDialer(profile.ConnectTimeout).DialContext
+	guarded := NewGuardedDialer(profile.ConnectTimeout)
+	transport.DialContext = guarded.DialContext
+	fingerprintTLS := profile.TLSFingerprint == TLSFingerprintClaudeCode
 	if proxyProfile != nil {
 		parsed, err := url.Parse(strings.TrimSpace(proxyProfile.URL))
 		if err != nil {
@@ -301,7 +308,13 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 		}
 		switch strings.ToLower(strings.TrimSpace(proxyProfile.Type)) {
 		case "http", "https":
-			transport.Proxy = http.ProxyURL(parsed)
+			if fingerprintTLS {
+				// DialTLSContext is bypassed when http.Transport.Proxy is set, so
+				// the CONNECT tunnel is established by the dialer itself.
+				transport.DialContext = httpConnectDialer(parsed, guarded)
+			} else {
+				transport.Proxy = http.ProxyURL(parsed)
+			}
 		case "socks5":
 			dialer, err := proxy.SOCKS5("tcp", parsed.Host, proxyAuth(parsed), NewGuardedDialer(profile.ConnectTimeout))
 			if err != nil {
@@ -342,6 +355,12 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 	transport.MaxConnsPerHost = profile.MaxConnsPerHost
 	transport.DisableKeepAlives = false
 	transport.ForceAttemptHTTP2 = true
+	if fingerprintTLS {
+		// The imitated hello only offers http/1.1, so keep the transport on HTTP/1.1.
+		transport.ForceAttemptHTTP2 = false
+		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		transport.DialTLSContext = fingerprintedTLSDialer(transport.DialContext)
+	}
 	transport.IdleConnTimeout = profile.IdleConnTimeout
 	transport.TLSHandshakeTimeout = 10 * time.Second
 	transport.ExpectContinueTimeout = 1 * time.Second
@@ -369,7 +388,7 @@ func cacheKey(profile Profile, proxyProfile *ProxyProfile) string {
 	if proxyProfile != nil {
 		proxyPart = strings.Join([]string{proxyProfile.ID, proxyProfile.Type, proxyProfile.URL}, "|")
 	}
-	return fmt.Sprintf("%s|%v|%s|%s|%d|%d|%d|%s|%s",
+	return fmt.Sprintf("%s|%v|%s|%s|%d|%d|%d|%s|%s|%s",
 		profile.RequestTimeout,
 		profile.NoRequestTimeout,
 		profile.ConnectTimeout,
@@ -379,6 +398,7 @@ func cacheKey(profile Profile, proxyProfile *ProxyProfile) string {
 		profile.MaxConnsPerHost,
 		profile.IdleConnTimeout,
 		proxyPart,
+		profile.TLSFingerprint,
 	)
 }
 

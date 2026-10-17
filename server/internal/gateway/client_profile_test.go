@@ -136,6 +136,31 @@ func TestUpstreamClientForStreamingWithoutStoreUsesStreamingProfile(t *testing.T
 	}
 }
 
+func TestUpstreamClientProfileForClaudeCodeRequestsUsesTLSFingerprint(t *testing.T) {
+	t.Parallel()
+
+	if got := upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{ClaudeCode: true}, "").TLSFingerprint; got != httpclient.TLSFingerprintClaudeCode {
+		t.Fatalf("Claude Code TLSFingerprint = %q, want %q", got, httpclient.TLSFingerprintClaudeCode)
+	}
+	if got := upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{Stream: true}, "").TLSFingerprint; got != "" {
+		t.Fatalf("other sites must keep the default handshake, got %q", got)
+	}
+}
+
+func TestUpstreamClientForClaudeCodeSiteSkipsDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(nil, nil, nil, nil, "test-master-key")
+	client, _, _, err := handler.upstreamClientForSite(context.Background(), uuid.New(), upstreamClientProfileRequest{ClaudeCode: true})
+
+	if err != nil {
+		t.Fatalf("upstreamClientForSite returned error: %v", err)
+	}
+	if client == nil || client == handler.httpClient {
+		t.Fatalf("Claude Code requests need the fingerprinted client, got %#v", client)
+	}
+}
+
 func gatewayTestIntPtr(value int) *int {
 	return &value
 }

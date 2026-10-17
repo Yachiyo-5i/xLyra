@@ -294,12 +294,20 @@ func TestApplyGatewayClientImpersonationPayloadAddsClaudeCodeMessagesMarkers(t *
 		t.Fatalf("sessionID = %q", sessionID)
 	}
 	system, ok := payload["system"].([]any)
-	if !ok || len(system) != 2 {
-		t.Fatalf("system = %#v, want two content blocks", payload["system"])
+	if !ok || len(system) != 3 {
+		t.Fatalf("system = %#v, want billing, identity and instruction blocks", payload["system"])
 	}
 	first, _ := system[0].(map[string]any)
-	if got := first["text"]; got != claudeCodeGatewaySystemPrompt {
-		t.Fatalf("first system text = %#v, want Claude Code prompt", got)
+	if got, _ := first["text"].(string); !strings.HasPrefix(got, claudeCodeBillingHeaderPrefix+": cc_version=") || !strings.Contains(got, claudeCodeCLIEntrypointMarker) {
+		t.Fatalf("first system text = %#v, want billing attribution block", first["text"])
+	}
+	second, _ := system[1].(map[string]any)
+	if got := second["text"]; got != claudeCodeGatewaySystemPrompt {
+		t.Fatalf("second system text = %#v, want Claude Code prompt", got)
+	}
+	messages, _ := payload["messages"].([]any)
+	if len(messages) != 2 {
+		t.Fatalf("messages = %#v, want original system moved into an instruction/ack pair", payload["messages"])
 	}
 	metadata, _ := payload["metadata"].(map[string]any)
 	userID, _ := metadata["user_id"].(string)
@@ -324,8 +332,8 @@ func TestApplyGatewayClientImpersonationPayloadDefaultsForClaudeCodeSite(t *test
 	if _, err := uuid.Parse(sessionID); err != nil {
 		t.Fatalf("sessionID is not a UUID: %v", err)
 	}
-	if !claudeCodeSystemPromptPresent(payload["system"]) {
-		t.Fatalf("system = %#v, want Claude Code prompt", payload["system"])
+	if !claudeCodeSystemHasBillingBlock(payload["system"]) {
+		t.Fatalf("system = %#v, want billing attribution block", payload["system"])
 	}
 	metadata, _ := payload["metadata"].(map[string]any)
 	userID, _ := metadata["user_id"].(string)
@@ -492,7 +500,7 @@ func TestApplyGatewayClientImpersonationPayloadReusesSessionFromMetadata(t *test
 	payload := map[string]any{
 		"model":    "claude-sonnet-4-5",
 		"system":   []any{map[string]any{"type": "text", "text": claudeCodeGatewaySystemPrompt}},
-		"metadata": map[string]any{"user_id": claudeCodeMetadataUserID(sessionID)},
+		"metadata": map[string]any{"user_id": claudeCodeAccountMetadataUserID(strings.Repeat("a", 64), "", sessionID)},
 	}
 
 	got := applyGatewayClientImpersonationPayload(payload, &sitepkg.GatewayConfig{
@@ -503,8 +511,11 @@ func TestApplyGatewayClientImpersonationPayloadReusesSessionFromMetadata(t *test
 		t.Fatalf("sessionID = %q, want %q", got, sessionID)
 	}
 	system := payload["system"].([]any)
-	if len(system) != 1 {
-		t.Fatalf("existing Claude Code system prompt should not be duplicated: %#v", system)
+	if len(system) != 3 {
+		t.Fatalf("system should be rebuilt as billing, identity and instruction blocks: %#v", system)
+	}
+	if messages, _ := payload["messages"].([]any); len(messages) != 0 {
+		t.Fatalf("a bare Claude Code prompt must not be moved into messages: %#v", payload["messages"])
 	}
 }
 
@@ -512,7 +523,7 @@ func TestClaudeCodeMetadataSessionIDSupportsJSONAndLegacyFormats(t *testing.T) {
 	t.Parallel()
 
 	sessionID := "12345678-1234-1234-1234-123456789abc"
-	jsonUserID := claudeCodeMetadataUserID(sessionID)
+	jsonUserID := claudeCodeAccountMetadataUserID(strings.Repeat("a", 64), "", sessionID)
 	if got := claudeCodeMetadataSessionID(jsonUserID); got != sessionID {
 		t.Fatalf("json metadata session = %q, want %q", got, sessionID)
 	}

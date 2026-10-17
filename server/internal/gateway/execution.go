@@ -357,6 +357,7 @@ func (h Handler) forwardGatewayRequest(
 		upstreamProfileRequest := upstreamClientProfileRequest{
 			Stream:          upstreamStream,
 			ImageGeneration: isCodexImageGenerationRequest(candidate, request, payload) || (isGrokSite(candidate.Site.SiteType) && request.DownstreamPath == gatewayEndpointImagesGenerations),
+			ClaudeCode:      isClaudeCodeSite(candidate.Site.SiteType),
 		}
 
 		upstreamClient, siteConfig, requestHeaders, err := h.upstreamClientForSite(ctx, candidate.Site.ID, upstreamProfileRequest)
@@ -368,7 +369,7 @@ func (h Handler) forwardGatewayRequest(
 			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
-		claudeCodeSessionID := applyGatewayClientImpersonationPayload(payload, siteConfig, protocol, request, candidate)
+		claudeCodeSessionID := applyGatewayClientImpersonationPayloadForAccount(payload, siteConfig, protocol, request, candidate, accountID)
 		body, contentType, err := buildUpstreamRequestBody(protocol, request, payload)
 		if err != nil {
 			result.statusCode = http.StatusBadRequest
