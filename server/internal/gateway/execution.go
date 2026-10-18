@@ -52,6 +52,7 @@ type gatewayAttemptResult struct {
 	cacheWriteCost             *float64
 	imageCount                 int
 	audioOutputTokens          int
+	webSearchRequests          int
 	estimatedCost              *float64
 	baseEstimatedCost          *float64
 	currency                   string
@@ -707,6 +708,7 @@ func (h Handler) handleBufferedResponse(
 		result.cacheCreation1hInputTokens = transformed.Usage.CacheCreation1hInputTokens
 		result.imageCount = transformed.Usage.ImageCount
 		result.audioOutputTokens = transformed.Usage.AudioOutputTokens
+		result.webSearchRequests = transformed.Usage.WebSearchRequests
 		result.pricing = applyLongContextPricing(transformed.Usage, result.pricing)
 		result.estimatedCost = estimateCost(transformed.Usage, result.pricing)
 		result = applyEstimatedCostBillingAdjustment(result)
@@ -831,7 +833,11 @@ func (h Handler) handleStreamResponse(
 	if failure, ok := semanticFailureFromJSON([]byte(capture.errorDetail)); ok {
 		result.upstreamErrorCode = failure.Code
 	}
-	result = applyStreamUsage(result, capture.usage)
+	streamUsage := capture.usage
+	if capture.webSearchRequests > streamUsage.WebSearchRequests {
+		streamUsage.WebSearchRequests = capture.webSearchRequests
+	}
+	result = applyStreamUsage(result, streamUsage)
 	result.latencyMS = time.Since(startedAt).Milliseconds()
 	if !responseStarted && capture.semanticFailure != nil {
 		return h.finishStreamSemanticFailure(ctx, requestID, apiKeyID, canonicalModelID, candidate, result, capture)
@@ -975,6 +981,7 @@ func applyStreamUsage(result gatewayAttemptResult, usage gatewayUsage) gatewayAt
 	result.cacheCreation1hInputTokens = usage.CacheCreation1hInputTokens
 	result.imageCount = usage.ImageCount
 	result.audioOutputTokens = usage.AudioOutputTokens
+	result.webSearchRequests = usage.WebSearchRequests
 	result.pricing = applyLongContextPricing(usage, result.pricing)
 	result.estimatedCost = estimateCost(usage, result.pricing)
 	result = applyEstimatedCostBillingAdjustment(result)

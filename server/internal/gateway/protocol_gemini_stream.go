@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type googleGeminiStreamEncoder struct {
@@ -17,6 +18,9 @@ type googleGeminiStreamEncoder struct {
 	createdAt  int64
 	completed  bool
 	toolArgs   map[string]*strings.Builder
+	text       strings.Builder
+	search     *canonicalOutputItem
+	citations  []canonicalCitation
 }
 
 func newGoogleGeminiStreamEncoder(options canonicalStreamOptions, w http.ResponseWriter, capture *streamCaptureState) canonicalStreamEncoder {
@@ -46,7 +50,26 @@ func (e *googleGeminiStreamEncoder) EncodeEvent(event canonicalStreamEvent) erro
 		if event.Delta == "" {
 			return nil
 		}
+		e.text.WriteString(event.Delta)
 		return e.writeCandidate(map[string]any{"text": event.Delta})
+	case canonicalStreamEventSearchCall:
+		if e.search == nil {
+			e.search = &canonicalOutputItem{Type: "web_search_call"}
+		}
+		e.search.SearchQueries = append(e.search.SearchQueries, event.SearchQueries...)
+		e.search.SearchSources = append(e.search.SearchSources, event.SearchSources...)
+		return nil
+	case canonicalStreamEventCitation:
+		if event.Citation.URL != "" {
+			citation := event.Citation
+			if !citation.HasRange {
+				citation.HasRange = true
+				citation.StartIndex = 0
+				citation.EndIndex = utf8.RuneCountInString(e.text.String())
+			}
+			e.citations = append(e.citations, citation)
+		}
+		return nil
 	case canonicalStreamEventReasoningDelta:
 		if event.Delta == "" {
 			return nil
@@ -112,13 +135,24 @@ func (e *googleGeminiStreamEncoder) writeTerminal(reason string, completed bool)
 		e.capture.endReason = "usage_missing"
 		return fmt.Errorf("gemini stream completed without usage metadata")
 	}
+	candidate := map[string]any{
+		"content":      map[string]any{"role": "model", "parts": []any{}},
+		"finishReason": geminiFinishReason(reason),
+	}
+	output := []canonicalOutputItem{}
+	if e.search != nil {
+		output = append(output, *e.search)
+	}
+	if len(e.citations) > 0 {
+		output = append(output, canonicalOutputItem{Type: "message", Text: e.text.String(), Citations: e.citations})
+	}
+	if grounding := geminiGroundingMetadata(output); grounding != nil {
+		candidate["groundingMetadata"] = grounding
+	}
 	payload := map[string]any{
-		"responseId":   e.responseID,
-		"modelVersion": e.model,
-		"candidates": []any{map[string]any{
-			"content":      map[string]any{"role": "model", "parts": []any{}},
-			"finishReason": geminiFinishReason(reason),
-		}},
+		"responseId":    e.responseID,
+		"modelVersion":  e.model,
+		"candidates":    []any{candidate},
 		"usageMetadata": geminiUsageMetadata(e.capture.usage),
 	}
 	if err := e.writePayload(payload); err != nil {

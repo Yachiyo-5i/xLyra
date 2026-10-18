@@ -135,6 +135,11 @@ type canonicalOutputItem struct {
 	OutputFormat  string
 	Quality       string
 	Size          string
+	// Native web search: web_search_call items carry queries and sources,
+	// message items carry url citations for their text.
+	SearchQueries []string
+	SearchSources []canonicalCitation
+	Citations     []canonicalCitation
 }
 
 type protocolSpec struct {
@@ -295,6 +300,9 @@ func convertResponseBetweenProtocols(from canonicalProtocol, to canonicalProtoco
 	if err != nil {
 		return nil, gatewayUsage{}, err
 	}
+	if searches := canonicalWebSearchCallCount(canonical.Output); searches > canonical.Usage.WebSearchRequests {
+		canonical.Usage.WebSearchRequests = searches
+	}
 	if options.RequireUsage && !gatewayUsageAvailable(canonical.Usage) {
 		return nil, gatewayUsage{}, fmt.Errorf("response usage is unavailable for protocol conversion")
 	}
@@ -327,6 +335,9 @@ func canonicalRequestFromOpenAIChatPayload(payload map[string]any, requestedMode
 	}
 	request.Stream, _ = payload["stream"].(bool)
 	request.Tools = canonicalToolsFromOpenAIChat(payload["tools"])
+	if options, ok := payload["web_search_options"].(map[string]any); ok && !canonicalToolsHaveWebSearch(request.Tools) {
+		request.Tools = append(request.Tools, webSearchToolFromChatOptions(options))
+	}
 	request.ToolChoice = payload["tool_choice"]
 	if responseFormat, ok := payload["response_format"].(map[string]any); ok {
 		request.TextFormat = responseFormat
@@ -523,7 +534,7 @@ func canonicalParamsFromPayload(payload map[string]any) map[string]any {
 	params := map[string]any{}
 	for key, value := range payload {
 		switch key {
-		case "model", "messages", "input", "instructions", "tools", "tool_choice", "response_format", "text", "prompt", "images", "image", "mask":
+		case "model", "messages", "input", "instructions", "tools", "tool_choice", "response_format", "text", "prompt", "images", "image", "mask", "web_search_options":
 			continue
 		default:
 			params[key] = value
@@ -721,6 +732,17 @@ func canonicalMessagesFromResponsesInput(raw any) []canonicalMessage {
 					}
 				}
 				messages = append(messages, message)
+			case "web_search_call":
+				// Hosted search calls cannot be replayed across protocols; fold
+				// them into a short assistant note so the context is kept.
+				queries, sources := webSearchFromResponsesAction(func() map[string]any { action, _ := entry["action"].(map[string]any); return action }())
+				if text := webSearchHistoryText(canonicalOutputItem{SearchQueries: queries, SearchSources: sources}); text != "" {
+					messages = append(messages, canonicalMessage{
+						Type:    "message",
+						Role:    "assistant",
+						Content: []canonicalContentPart{{Type: "output_text", Text: text}},
+					})
+				}
 			case "function_call":
 				callID := strings.TrimSpace(anyString(entry["call_id"]))
 				if callID == "" {
@@ -835,6 +857,10 @@ func canonicalToolsFromOpenAIChat(raw any) []canonicalTool {
 			})
 			continue
 		}
+		if isWebSearchToolType(toolType) {
+			tools = append(tools, canonicalWebSearchToolFromMap(tool, false))
+			continue
+		}
 		tools = append(tools, canonicalTool{Type: toolType, Raw: tool})
 	}
 	return tools
@@ -852,6 +878,10 @@ func canonicalToolsFromOpenAIResponses(raw any) []canonicalTool {
 			continue
 		}
 		toolType := strings.TrimSpace(anyString(tool["type"]))
+		if isWebSearchToolType(toolType) {
+			tools = append(tools, canonicalWebSearchToolFromMap(tool, true))
+			continue
+		}
 		tools = append(tools, canonicalTool{
 			Type:        toolType,
 			Name:        anyString(tool["name"]),
@@ -963,11 +993,18 @@ func encodeCanonicalRequestToOpenAIChat(request canonicalRequest, candidate rout
 		out["modalities"] = modalities
 	}
 	if len(request.Tools) > 0 {
-		if converted := encodeCanonicalToolsAsChat(request.Tools); converted != nil {
+		chatTools := filterWebSearchTools(request.Tools, canonicalProtocolOpenAIChat, candidate.Model.UpstreamName)
+		for _, tool := range chatTools {
+			if canonicalToolIsWebSearch(tool) {
+				out["web_search_options"] = encodeWebSearchOptionsForChat(tool)
+				break
+			}
+		}
+		if converted := encodeCanonicalToolsAsChat(chatTools); converted != nil {
 			out["tools"] = converted
 		}
 	}
-	if request.ToolChoice != nil {
+	if request.ToolChoice != nil && out["tools"] != nil {
 		if converted := encodeCanonicalToolChoiceAsChat(request.ToolChoice); converted != nil {
 			out["tool_choice"] = converted
 		}
@@ -1274,6 +1311,10 @@ func encodeCanonicalContentAsChat(parts []canonicalContentPart) any {
 func encodeCanonicalToolsAsResponses(tools []canonicalTool) any {
 	out := make([]any, 0, len(tools))
 	for _, tool := range tools {
+		if canonicalToolIsWebSearch(tool) {
+			out = append(out, encodeWebSearchToolAsResponses(tool))
+			continue
+		}
 		if tool.Type != "function" {
 			if tool.Raw != nil {
 				out = append(out, tool.Raw)
@@ -1496,12 +1537,13 @@ func canonicalResponseFromOpenAIChatBody(body []byte) (canonicalResponse, error)
 		text := strings.TrimSpace(anyString(choice.Message.Content))
 		if text != "" {
 			response.Output = append(response.Output, canonicalOutputItem{
-				ID:      fmt.Sprintf("msg_%s_%d", root.ID, choice.Index),
-				Type:    "message",
-				Status:  "completed",
-				Role:    "assistant",
-				Text:    text,
-				Content: []canonicalContentPart{{Type: "output_text", Text: text}},
+				ID:        fmt.Sprintf("msg_%s_%d", root.ID, choice.Index),
+				Type:      "message",
+				Status:    "completed",
+				Role:      "assistant",
+				Text:      text,
+				Content:   []canonicalContentPart{{Type: "output_text", Text: text}},
+				Citations: canonicalCitationsFromResponsesAnnotations(choice.Message.Annotations),
 			})
 		}
 		for _, toolCall := range choice.Message.ToolCalls {
@@ -1593,6 +1635,10 @@ func canonicalResponseFromResponsesResponse(response responsesResponse) canonica
 			if strings.TrimSpace(content.Text) != "" {
 				output.Text += content.Text
 			}
+			output.Citations = append(output.Citations, canonicalCitationsFromResponsesAnnotations(content.Annotations)...)
+		}
+		if item.Type == "web_search_call" {
+			output.SearchQueries, output.SearchSources = webSearchFromResponsesAction(item.Action)
 		}
 		out.Output = append(out.Output, output)
 	}
@@ -1639,6 +1685,8 @@ func encodeCanonicalResponseAsResponses(response canonicalResponse, options resp
 			}
 			call["name"] = name
 			output = append(output, call)
+		case "web_search_call":
+			output = append(output, responsesWebSearchCallItem(item, responsesItemIDForType("web_search_call", item.ID, fallbackID)))
 		case "image_generation_call":
 			output = append(output, map[string]any{
 				"id":             responsesItemIDForType("image_generation_call", item.ID, fallbackID),
@@ -1670,7 +1718,7 @@ func encodeCanonicalResponseAsResponses(response canonicalResponse, options resp
 				"content": []any{map[string]any{
 					"type":        "output_text",
 					"text":        text,
-					"annotations": []any{},
+					"annotations": responsesAnnotationsFromCitations(item.Citations, text),
 				}},
 			})
 		}
@@ -1768,6 +1816,14 @@ func encodeCanonicalResponseAsChatCompletion(response canonicalResponse) ([]byte
 		}
 	}
 	message := map[string]any{"role": "assistant", "content": text}
+	for _, item := range response.Output {
+		if item.Type == "message" && len(item.Citations) > 0 {
+			if annotations := chatAnnotationsFromCitations(item.Citations, text); len(annotations) > 0 {
+				message["annotations"] = annotations
+			}
+			break
+		}
+	}
 	if reasoning := chatReasoningContent(canonicalThinkingBlocksFromOutput(response.Output)); reasoning != "" {
 		message["reasoning_content"] = reasoning
 	}
@@ -1897,6 +1953,7 @@ func completionUsageFromGatewayUsage(usage gatewayUsage) completionUsage {
 		CacheWriteTokens:         usage.CacheWriteTokens,
 		CacheCreationInputTokens: usage.CacheCreationInputTokens,
 		ReasoningTokens:          usage.ReasoningTokens,
+		WebSearchRequests:        usage.WebSearchRequests,
 	}.normalized()
 }
 

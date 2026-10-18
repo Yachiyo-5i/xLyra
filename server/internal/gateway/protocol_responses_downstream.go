@@ -45,6 +45,7 @@ type chatMessage struct {
 	Thinking          string         `json:"thinking,omitempty"`
 	ThinkingSignature string         `json:"thinking_signature,omitempty"`
 	ToolCalls         []chatToolCall `json:"tool_calls"`
+	Annotations       []any          `json:"annotations,omitempty"`
 }
 
 type chatToolCall struct {
@@ -400,6 +401,10 @@ func inspectResponsesStreamLine(line []byte, capture *streamCaptureState) {
 		capture.errorDetail = truncatedStreamErrorDetail(data)
 	case "response.output_text.annotation.added":
 		appendStreamAnnotation(capture, event.Annotation)
+	case "response.output_item.done":
+		if event.Item != nil && event.Item.Type == "web_search_call" {
+			capture.webSearchRequests++
+		}
 	}
 	if event.Response != nil && event.Response.Usage != nil {
 		capture.usage = completionUsageFromResponsesUsage(event.Response.Usage)
@@ -411,7 +416,13 @@ func parseResponsesUsage(body []byte) completionUsage {
 	if err := json.Unmarshal(body, &response); err != nil {
 		return completionUsage{}
 	}
-	return completionUsageFromResponsesUsage(response.Usage)
+	usage := completionUsageFromResponsesUsage(response.Usage)
+	for _, item := range response.Output {
+		if item.Type == "web_search_call" {
+			usage.WebSearchRequests++
+		}
+	}
+	return usage
 }
 
 func responsesUsagePayload(usage completionUsage) map[string]any {

@@ -56,6 +56,7 @@ type gatewayUsage struct {
 	InputImageTokens           int                  `json:"input_image_tokens,omitempty"`
 	OutputImageTokens          int                  `json:"output_image_tokens,omitempty"`
 	AudioOutputTokens          int                  `json:"audio_output_tokens,omitempty"`
+	WebSearchRequests          int                  `json:"web_search_requests,omitempty"`
 	PromptTokensDetail         *promptTokensDetails `json:"prompt_tokens_details,omitempty"`
 }
 
@@ -491,6 +492,7 @@ func costCalculationMetadata(usage gatewayUsage, pricing selectedPricing, total 
 		"cache_write_5m_cost":        cacheWrite5mCost,
 		"cache_write_1h_cost":        cacheWrite1hCost,
 		"audio_output_tokens":        zeroIntToNil(usage.AudioOutputTokens),
+		"web_search_requests":        zeroIntToNil(usage.WebSearchRequests),
 		"audio_ratio":                float64PtrValue(pricing.AudioRatio),
 		"audio_completion_ratio":     float64PtrValue(pricing.AudioCompletionRatio),
 		"audio_output_value":         audioOutputValue,

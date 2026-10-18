@@ -24,6 +24,7 @@ type streamCaptureState struct {
 	annotations              []any
 	preOutputEventsBuffered  int
 	preOutputFailureDeferred bool
+	webSearchRequests        int
 }
 
 func proxyUpstreamStream(

@@ -353,11 +353,11 @@ func encodeCanonicalRequestToAnthropicMessages(request canonicalRequest, candida
 		out["system"] = system
 	}
 	applyParamMappings(out, request, protocolParamMappings(canonicalProtocolAnthropicMessages, candidate))
-	tools := encodeCanonicalToolsAsAnthropic(request.Tools)
+	tools := encodeCanonicalToolsAsAnthropic(filterWebSearchTools(request.Tools, canonicalProtocolAnthropicMessages, candidate.Model.UpstreamName))
 	if len(tools) > 0 {
 		out["tools"] = tools
 		if request.ToolChoice != nil {
-			if converted := encodeCanonicalToolChoiceAsAnthropic(request.ToolChoice); converted != nil {
+			if converted := encodeCanonicalToolChoiceAsAnthropic(request.ToolChoice); converted != nil && anthropicToolChoiceTargetsKnownTool(converted, tools) {
 				out["tool_choice"] = converted
 			}
 		}
@@ -406,13 +406,34 @@ func canonicalResponseFromAnthropicMessagesBody(body []byte) (canonicalResponse,
 			}
 		case "text":
 			response.Output = append(response.Output, canonicalOutputItem{
-				ID:      "msg_" + root.ID,
-				Type:    "message",
-				Status:  "completed",
-				Role:    nonEmptyString(root.Role, "assistant"),
-				Text:    block.Text,
-				Content: []canonicalContentPart{{Type: "output_text", Text: block.Text}},
+				ID:        "msg_" + root.ID,
+				Type:      "message",
+				Status:    "completed",
+				Role:      nonEmptyString(root.Role, "assistant"),
+				Text:      block.Text,
+				Content:   []canonicalContentPart{{Type: "output_text", Text: block.Text}},
+				Citations: anthropicCitationsToCanonical(block.Citations),
 			})
+		case "server_tool_use":
+			if block.Name != "web_search" {
+				continue
+			}
+			item := canonicalOutputItem{
+				ID:     block.ID,
+				Type:   "web_search_call",
+				Status: "completed",
+				CallID: block.ID,
+			}
+			if query := anthropicWebSearchQuery(block.Input); query != "" {
+				item.SearchQueries = []string{query}
+			}
+			response.Output = append(response.Output, item)
+		case "web_search_tool_result":
+			for i := range response.Output {
+				if response.Output[i].Type == "web_search_call" && response.Output[i].CallID == block.ToolUseID {
+					response.Output[i].SearchSources = anthropicWebSearchSources(block.Content)
+				}
+			}
 		case "tool_use":
 			response.Output = append(response.Output, canonicalOutputItem{
 				ID:        block.ID,
@@ -453,8 +474,38 @@ func encodeCanonicalResponseAsAnthropicMessage(response canonicalResponse) ([]by
 				}
 			}
 			if text != "" {
-				content = append(content, map[string]any{"type": "text", "text": text})
+				block := map[string]any{"type": "text", "text": text}
+				if citations := anthropicCitationsFromCanonical(item.Citations); len(citations) > 0 {
+					block["citations"] = citations
+				}
+				content = append(content, block)
 			}
+		case "web_search_call":
+			callID := nonEmptyString(item.CallID, item.ID)
+			if !strings.HasPrefix(callID, "srvtoolu_") {
+				callID = "srvtoolu_" + strings.TrimPrefix(strings.TrimPrefix(callID, "ws_"), "resp_")
+			}
+			content = append(content, map[string]any{
+				"type":  "server_tool_use",
+				"id":    callID,
+				"name":  "web_search",
+				"input": map[string]any{"query": webSearchCallQuery(item)},
+			})
+			results := make([]any, 0, len(item.SearchSources))
+			for _, source := range item.SearchSources {
+				results = append(results, map[string]any{
+					"type":              "web_search_result",
+					"url":               source.URL,
+					"title":             source.Title,
+					"encrypted_content": "",
+					"page_age":          nil,
+				})
+			}
+			content = append(content, map[string]any{
+				"type":        "web_search_tool_result",
+				"tool_use_id": callID,
+				"content":     results,
+			})
 		}
 	}
 	body := map[string]any{
@@ -479,6 +530,46 @@ type anthropicContentBlock struct {
 	ID        string          `json:"id,omitempty"`
 	Name      string          `json:"name,omitempty"`
 	Input     json.RawMessage `json:"input,omitempty"`
+	// Native web search blocks.
+	ToolUseID string           `json:"tool_use_id,omitempty"`
+	Content   json.RawMessage  `json:"content,omitempty"`
+	Citations []map[string]any `json:"citations,omitempty"`
+}
+
+func anthropicWebSearchQuery(input json.RawMessage) string {
+	var parsed map[string]any
+	if err := json.Unmarshal(input, &parsed); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(anyString(parsed["query"]))
+}
+
+func anthropicWebSearchSources(content json.RawMessage) []canonicalCitation {
+	var results []map[string]any
+	if err := json.Unmarshal(content, &results); err != nil {
+		return nil
+	}
+	out := make([]canonicalCitation, 0, len(results))
+	for _, result := range results {
+		if url := strings.TrimSpace(anyString(result["url"])); url != "" {
+			out = append(out, canonicalCitation{URL: url, Title: strings.TrimSpace(anyString(result["title"]))})
+		}
+	}
+	return out
+}
+
+func anthropicCitationsToCanonical(raw []map[string]any) []canonicalCitation {
+	out := make([]canonicalCitation, 0, len(raw))
+	for _, citation := range raw {
+		if url := strings.TrimSpace(anyString(citation["url"])); url != "" {
+			out = append(out, canonicalCitation{
+				URL:       url,
+				Title:     strings.TrimSpace(anyString(citation["title"])),
+				CitedText: strings.TrimSpace(anyString(citation["cited_text"])),
+			})
+		}
+	}
+	return out
 }
 
 type anthropicCacheCreationUsageBody struct {
@@ -492,6 +583,11 @@ type anthropicMessageUsageBody struct {
 	CacheCreationInputTokens int                              `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     int                              `json:"cache_read_input_tokens"`
 	CacheCreation            *anthropicCacheCreationUsageBody `json:"cache_creation,omitempty"`
+	ServerToolUse            *anthropicServerToolUseUsage     `json:"server_tool_use,omitempty"`
+}
+
+type anthropicServerToolUseUsage struct {
+	WebSearchRequests int `json:"web_search_requests"`
 }
 
 func canonicalParamsFromAnthropicPayload(payload map[string]any) map[string]any {
@@ -583,6 +679,24 @@ func canonicalMessagesFromAnthropicContent(role string, raw any) []canonicalMess
 					Raw:          block,
 				})
 			}
+		case "server_tool_use", "web_search_tool_result":
+			// Fold hosted search blocks into plain assistant text.
+			var item canonicalOutputItem
+			if anyString(block["type"]) == "server_tool_use" {
+				if anyString(block["name"]) != "web_search" {
+					continue
+				}
+				if input, ok := block["input"].(map[string]any); ok {
+					if query := strings.TrimSpace(anyString(input["query"])); query != "" {
+						item.SearchQueries = []string{query}
+					}
+				}
+			} else if raw, err := json.Marshal(block["content"]); err == nil {
+				item.SearchSources = anthropicWebSearchSources(raw)
+			}
+			if text := webSearchHistoryText(item); text != "" {
+				message.Content = append(message.Content, canonicalContentPart{Type: contentPartTypeForRole(role), Text: text})
+			}
 		case "tool_use":
 			input := marshalAnyToString(block["input"])
 			message.ToolCalls = append(message.ToolCalls, canonicalToolCall{
@@ -620,6 +734,10 @@ func canonicalToolsFromAnthropicMessages(raw any) []canonicalTool {
 	tools := make([]canonicalTool, 0, len(items))
 	for _, item := range items {
 		tool, _ := item.(map[string]any)
+		if isWebSearchToolType(anyString(tool["type"])) {
+			tools = append(tools, canonicalWebSearchToolFromMap(tool, false))
+			continue
+		}
 		name := strings.TrimSpace(anyString(tool["name"]))
 		if name == "" {
 			continue
@@ -917,6 +1035,10 @@ func encodeCanonicalContentAsAnthropic(parts []canonicalContentPart) []any {
 func encodeCanonicalToolsAsAnthropic(tools []canonicalTool) []any {
 	out := make([]any, 0, len(tools))
 	for _, tool := range tools {
+		if canonicalToolIsWebSearch(tool) {
+			out = append(out, encodeWebSearchToolAsAnthropic(tool))
+			continue
+		}
 		if tool.Type == "custom" {
 			out = append(out, map[string]any{
 				"name":        tool.Name,
@@ -1163,6 +1285,9 @@ func encodeCanonicalToolChoiceAsAnthropic(raw any) any {
 			return map[string]any{"type": "any"}
 		}
 	case map[string]any:
+		if isWebSearchToolType(anyString(value["type"])) {
+			return map[string]any{"type": "tool", "name": "web_search"}
+		}
 		if toolType := strings.TrimSpace(anyString(value["type"])); toolType == "function" || toolType == "custom" {
 			if name := canonicalToolChoiceFunctionName(value); name != "" {
 				return map[string]any{"type": "tool", "name": name}
@@ -1318,7 +1443,15 @@ func gatewayUsageFromAnthropicUsage(usage anthropicMessageUsageBody) gatewayUsag
 		CacheCreationInputTokens:   cacheCreationTokens,
 		CacheCreation5mInputTokens: cacheCreation5mTokens,
 		CacheCreation1hInputTokens: cacheCreation1hTokens,
+		WebSearchRequests:          anthropicWebSearchRequestCount(usage),
 	}
+}
+
+func anthropicWebSearchRequestCount(usage anthropicMessageUsageBody) int {
+	if usage.ServerToolUse == nil {
+		return 0
+	}
+	return usage.ServerToolUse.WebSearchRequests
 }
 
 func anthropicUsagePayload(usage gatewayUsage) map[string]any {
@@ -1364,7 +1497,7 @@ func inspectAnthropicMessagesStreamLine(line []byte, capture *streamCaptureState
 			}
 		}
 	case "message_delta":
-		if event.Usage.OutputTokens > 0 || event.Usage.InputTokens > 0 || event.Usage.CacheReadInputTokens > 0 || event.Usage.CacheCreationInputTokens > 0 {
+		if event.Usage.OutputTokens > 0 || event.Usage.InputTokens > 0 || event.Usage.CacheReadInputTokens > 0 || event.Usage.CacheCreationInputTokens > 0 || anthropicWebSearchRequestCount(event.Usage) > 0 {
 			current := capture.usage
 			deltaUsage := gatewayUsageFromAnthropicUsage(event.Usage)
 			if deltaUsage.PromptTokens > 0 || deltaUsage.CachedPromptTokens > 0 || deltaUsage.CacheCreationInputTokens > 0 {
@@ -1374,6 +1507,9 @@ func inspectAnthropicMessagesStreamLine(line []byte, capture *streamCaptureState
 			}
 			if deltaUsage.CompletionTokens > 0 {
 				current.CompletionTokens = deltaUsage.CompletionTokens
+			}
+			if deltaUsage.WebSearchRequests > 0 {
+				current.WebSearchRequests = deltaUsage.WebSearchRequests
 			}
 			current.TotalTokens = 0
 			capture.usage = current.normalized()
