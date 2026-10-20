@@ -98,6 +98,20 @@ func ClearRuntimeProviderSpecs() {
 	runtimeProviderSpecs.Store(nil)
 }
 
+// ValidateRuntimeProviderSpec reports whether one provider spec would be
+// accepted by SetRuntimeProviderSpecs. The key is a plugin site type id.
+func ValidateRuntimeProviderSpec(key string, raw json.RawMessage) error {
+	id := normalizeSpecKey(key)
+	if id == "" {
+		return fmt.Errorf("runtime provider spec key is empty")
+	}
+	if !strings.Contains(id, "/") {
+		return fmt.Errorf("runtime provider spec key %q must contain \"/\"", id)
+	}
+	_, err := parseRuntimeProviderSpec(id, raw)
+	return err
+}
+
 // providerSpecByKey reads the embedded spec first, then the runtime snapshot.
 // Built-in keys do not contain "/" and override keys must, so they do not overlap.
 func providerSpecByKey(provider string) (providerSpecDefinition, bool) {

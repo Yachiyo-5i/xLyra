@@ -406,6 +406,13 @@ func validateSiteIDs(ctx context.Context, tx *gorm.DB, siteIDs []uuid.UUID) erro
 	return nil
 }
 
+func (s *Service) SetPluginAdapterModules(modules []adapter.Module) error {
+	if s == nil {
+		return fmt.Errorf("site service is nil")
+	}
+	return s.adapters.SetDynamicModules(modules)
+}
+
 func (s *Service) Capabilities(siteType string) []string {
 	module, ok := s.adapters.ModuleForSiteType(siteType)
 	if !ok {

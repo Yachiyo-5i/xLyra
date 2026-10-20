@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"unsafe"
 
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
@@ -68,7 +67,6 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 
 	mem := &pluginProviderMemory{}
 	svc := site.NewService(gatewayStoreWithGorm(t, pluginProviderGorm(t, mem)), "test-master-key")
-	registry := pluginProviderRegistry(svc)
 	module, err := adapter.NewGenericProvider(adapter.GenericProviderConfig{
 		SiteType:        "acme.example/chat",
 		DisplayName:     "Acme",
@@ -78,10 +76,10 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.SetDynamicModules([]adapter.Module{module}); err != nil {
+	if err := svc.SetPluginAdapterModules([]adapter.Module{module}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(registry.ClearDynamicModules)
+	t.Cleanup(func() { _ = svc.SetPluginAdapterModules(nil) })
 
 	ctx := context.Background()
 	_, _, err = svc.Create(ctx, site.CreateSiteParams{
@@ -175,7 +173,9 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 		t.Fatalf("upstream path = %q, want %q", got, want)
 	}
 
-	registry.ClearDynamicModules()
+	if err := svc.SetPluginAdapterModules(nil); err != nil {
+		t.Fatal(err)
+	}
 	site.ClearPluginSiteTypes()
 	_, _, err = svc.Create(ctx, pluginProviderSiteParams("Acme Again", "acme-again", server.URL))
 	if err == nil || !strings.Contains(err.Error(), `unsupported site_type`) {
@@ -210,19 +210,11 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 		if createdBuiltin.SiteType != siteType || createdBuiltin.BaseURL != server.URL {
 			t.Fatalf("%s site = %#v", siteType, createdBuiltin)
 		}
-		builtin, ok := registry.ModuleForSiteType(siteType)
-		if !ok {
-			t.Fatalf("missing built-in %s", siteType)
-		}
-		lister, ok := adapter.AsGatewayModelLister(builtin)
-		if !ok {
-			t.Fatalf("%s does not list models", siteType)
-		}
-		listed, err := lister.ListModels(ctx, adapter.SiteConfig{SiteType: siteType, BaseURL: server.URL}, "sk-test")
+		listed, err := svc.SyncModels(ctx, createdBuiltin.ID)
 		if err != nil {
 			t.Fatalf("list %s models: %v", siteType, err)
 		}
-		if len(listed) != 1 || listed[0].UpstreamName != "claude-sonnet-4" {
+		if listed.ModelCount != 1 || len(listed.Models) != 1 || listed.Models[0].UpstreamName != "claude-sonnet-4" {
 			t.Fatalf("%s models = %#v", siteType, listed)
 		}
 	}
@@ -264,11 +256,6 @@ func assertStoredEndpointTypes(t *testing.T, raw store.JSON) {
 	if !reflect.DeepEqual(got, []string{"openai"}) {
 		t.Fatalf("stored endpoint types = %#v", caps["supported_endpoint_types"])
 	}
-}
-
-func pluginProviderRegistry(svc *site.Service) *adapter.Registry {
-	field := reflect.ValueOf(svc).Elem().FieldByName("adapters")
-	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Interface().(*adapter.Registry)
 }
 
 type pluginProviderMemory struct {

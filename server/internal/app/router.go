@@ -113,6 +113,13 @@ func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, c
 		}
 		wireJSPluginAutomation(oauthService, jsPluginManager, authService, defaultHTTPClient)
 		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		siteProviderCurrent = func() *jsplugin.Registry {
+			return jsPluginManager.Catalog().Registry()
+		}
+		jsPluginManager.SetCatalogListener(func(registry *jsplugin.Registry) {
+			applySiteProviders(registry, siteService, logger)
+		})
+		applySiteProviders(jsPluginManager.Catalog().Registry(), siteService, logger)
 		config.RegisterGeneralValidator(func(cfg config.GeneralConfig) error {
 			return site.ValidateJSPluginRuntime()
 		})

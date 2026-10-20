@@ -68,14 +68,16 @@ func (e *PermissionsRequiredError) Error() string {
 
 // Manager loads uploaded plugins and swaps catalog generations.
 type Manager struct {
-	db             *store.Store
-	repo           store.JSPluginRepository
-	catalog        *Catalog
-	mu             sync.Mutex
-	gen            int64
-	seenGeneration int64
-	syncStopped    chan struct{}
-	wakeup         chan struct{}
+	db              *store.Store
+	repo            store.JSPluginRepository
+	catalog         *Catalog
+	mu              sync.Mutex
+	reloadMu        sync.Mutex
+	catalogListener func(*Registry)
+	gen             int64
+	seenGeneration  int64
+	syncStopped     chan struct{}
+	wakeup          chan struct{}
 }
 
 func NewManager(db *store.Store, catalog *Catalog) *Manager {
@@ -104,36 +106,79 @@ func (m *Manager) Breaker() *Breaker {
 	return m.catalog.breaker
 }
 
-func (m *Manager) Reload(ctx context.Context) error {
+// SetCatalogListener sets the function called with the new registry after each
+// successful Reload, including a reload started by catalog sync. The listener
+// runs synchronously and without the manager lock, so it can call back into
+// the manager. A nil function clears it. A panic in the listener is logged and
+// does not fail Reload. The listener must not call Reload.
+func (m *Manager) SetCatalogListener(fn func(*Registry)) {
+	if m == nil {
+		return
+	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	enabledRows, err := m.repo.ListEnabledVersions(ctx)
+	m.catalogListener = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) Reload(ctx context.Context) error {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+
+	m.mu.Lock()
+	snap, err := m.reloadLocked(ctx)
+	fn := m.catalogListener
+	var registry *Registry
+	if err == nil && m.catalog != nil && snap != nil && snap.Registry != nil {
+		registry = snap.Registry
+	}
+	m.mu.Unlock()
 	if err != nil {
 		return err
 	}
+	callCatalogListener(fn, registry)
+	return nil
+}
+
+func (m *Manager) reloadLocked(ctx context.Context) (*Snapshot, error) {
+	enabledRows, err := m.repo.ListEnabledVersions(ctx)
+	if err != nil {
+		return nil, err
+	}
 	slugMap, err := m.repo.ProtocolSlugMap(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	enabled := make([]EnabledPlugin, 0, len(enabledRows))
 	for _, row := range enabledRows {
 		pkg, err := ReadPackage(row.Package, true)
 		if err != nil {
-			return fmt.Errorf("%s@%s: %w", row.PluginID, row.Version, err)
+			return nil, fmt.Errorf("%s@%s: %w", row.PluginID, row.Version, err)
 		}
 		plugin, err := CompilePackage(pkg)
 		if err != nil {
-			return store.EnabledPluginCompileError(row.PluginID, row.Version, err)
+			return nil, store.EnabledPluginCompileError(row.PluginID, row.Version, err)
 		}
 		enabled = append(enabled, EnabledPlugin{Plugin: plugin})
 	}
 	m.gen++
 	snap, err := BuildGeneration(ctx, m.gen, enabled, slugMap)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	m.catalog.Replace(snap)
-	return nil
+	return snap, nil
+}
+
+func callCatalogListener(fn func(*Registry), registry *Registry) {
+	if fn == nil || registry == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			slog.Error("js plugin catalog listener panicked", "error", recovered)
+		}
+	}()
+	fn(registry)
 }
 
 func (m *Manager) Upload(ctx context.Context, adminID string, raw []byte) (store.JSPluginVersion, error) {
