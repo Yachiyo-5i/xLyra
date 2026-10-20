@@ -128,6 +128,11 @@ func TestUsesModelNameEndpointInferencePreservesSpecializedChannels(t *testing.T
 			t.Errorf("UsesModelNameEndpointInference(%q) = false, want true", siteType)
 		}
 	}
+	for _, siteType := range []string{"acme.example/chat", " ACME.EXAMPLE/Chat ", "plugin.example/claude"} {
+		if UsesModelNameEndpointInference(siteType) {
+			t.Errorf("UsesModelNameEndpointInference(%q) = true, want false", siteType)
+		}
+	}
 }
 
 func TestCuratedLookupDoesNotOverrideCodexDeclaredEndpointTypes(t *testing.T) {

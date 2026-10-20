@@ -140,7 +140,7 @@ func normalizeImageModelID(value string) string {
 
 func UsesModelNameEndpointInference(siteType string) bool {
 	siteType = normalizeModelID(siteType)
-	if siteType == "" {
+	if siteType == "" || strings.Contains(siteType, "/") {
 		return false
 	}
 	switch siteType {
