@@ -3,11 +3,13 @@ package adapter
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGenericProviderListsModelsWithBearerAndHeaderAuth(t *testing.T) {
@@ -37,19 +39,21 @@ func TestGenericProviderListsModelsWithBearerAndHeaderAuth(t *testing.T) {
 				_, _ = io.WriteString(w, `{"data":[{"id":"","object":"model"},{"id":"claude-sonnet-4","object":"model","owned_by":"acme"}]}`)
 			}))
 			t.Cleanup(server.Close)
+			client := genericDialClient(map[string]string{"a.test": server.Listener.Addr().String()})
 
 			module, err := NewGenericProvider(GenericProviderConfig{
 				SiteType:        " ACME.EXAMPLE/Chat ",
 				DisplayName:     " Acme ",
-				OfficialBaseURL: server.URL + "/",
+				OfficialBaseURL: "http://a.test/",
 				Auth:            tc.auth,
 				EndpointTypes:   []string{" openai ", "anthropic-messages"},
+				AllowedHosts:    []string{"a.test"},
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
 			provider := module.(GenericProvider)
-			if provider.displayName != "Acme" || provider.DefaultBaseURL() != server.URL {
+			if provider.displayName != "Acme" || provider.DefaultBaseURL() != "http://a.test" {
 				t.Fatalf("provider = %#v", provider)
 			}
 			if got := provider.SiteTypes(); len(got) != 1 || got[0] != "acme.example/chat" {
@@ -63,7 +67,7 @@ func TestGenericProviderListsModelsWithBearerAndHeaderAuth(t *testing.T) {
 				t.Fatalf("capabilities = %#v", got)
 			}
 
-			models, err := provider.ListModels(context.Background(), SiteConfig{BaseURL: server.URL + "/"}, "sk-test")
+			models, err := provider.ListModels(context.Background(), SiteConfig{BaseURL: "http://a.test/", Client: client}, "sk-test")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +88,7 @@ func TestGenericProviderListsModelsWithBearerAndHeaderAuth(t *testing.T) {
 				t.Fatalf("endpoint types = %#v", gotTypes)
 			}
 			gotTypes[0] = "google-gemini"
-			again, err := provider.ProbeHealth(context.Background(), SiteConfig{BaseURL: server.URL}, "sk-test")
+			again, err := provider.ProbeHealth(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "sk-test")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -92,7 +96,7 @@ func TestGenericProviderListsModelsWithBearerAndHeaderAuth(t *testing.T) {
 			if len(againTypes) != 2 || againTypes[0] != "openai" {
 				t.Fatalf("endpoint types changed to %#v", againTypes)
 			}
-			if err := provider.ValidateCredentials(context.Background(), SiteConfig{BaseURL: server.URL}, "sk-test"); err != nil {
+			if err := provider.ValidateCredentials(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "sk-test"); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -109,17 +113,19 @@ func TestGenericProviderUsesConfiguredModelsPath(t *testing.T) {
 		_, _ = io.WriteString(w, `{"data":[{"id":"m"}]}`)
 	}))
 	t.Cleanup(server.Close)
+	client := genericDialClient(map[string]string{"a.test": server.Listener.Addr().String()})
 
 	module, err := NewGenericProvider(GenericProviderConfig{
 		SiteType:        "acme.example/chat",
-		OfficialBaseURL: server.URL,
+		OfficialBaseURL: "http://a.test",
 		ModelsPath:      "/api/v1/models?limit=1",
 		EndpointTypes:   []string{"google-gemini"},
+		AllowedHosts:    []string{"a.test"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	models, err := module.(GenericProvider).ListModels(context.Background(), SiteConfig{BaseURL: server.URL}, "")
+	models, err := module.(GenericProvider).ListModels(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +141,7 @@ func TestGenericProviderUsesConfiguredModelsPath(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"data":[]}`)
 	})
-	models, err = module.(GenericProvider).ListModels(context.Background(), SiteConfig{BaseURL: server.URL}, "   ")
+	models, err = module.(GenericProvider).ListModels(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "   ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +151,7 @@ func TestGenericProviderUsesConfiguredModelsPath(t *testing.T) {
 	if len(models) != 0 {
 		t.Fatalf("empty data = %#v", models)
 	}
-	if err := module.(GenericProvider).ValidateCredentials(context.Background(), SiteConfig{BaseURL: server.URL}, ""); err != nil {
+	if err := module.(GenericProvider).ValidateCredentials(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -174,18 +180,19 @@ func TestGenericProviderUpstreamErrors(t *testing.T) {
 				_, _ = io.WriteString(w, body)
 			}))
 			t.Cleanup(server.Close)
-			provider := mustGenericProvider(t, server.URL)
-			_, err := provider.ListModels(context.Background(), SiteConfig{BaseURL: server.URL}, "sk-test")
+			client := genericDialClient(map[string]string{"a.test": server.Listener.Addr().String()})
+			provider := mustGenericProvider(t, "https://a.test")
+			_, err := provider.ListModels(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "sk-test")
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
 			if tc.name == "unauthorized" && strings.Contains(err.Error(), strings.Repeat("x", 513)) {
 				t.Fatalf("error body was not limited: %s", err)
 			}
-			if err := provider.ValidateCredentials(context.Background(), SiteConfig{BaseURL: server.URL}, "sk-test"); err == nil {
+			if err := provider.ValidateCredentials(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "sk-test"); err == nil {
 				t.Fatal("validate succeeded")
 			}
-			if _, err := provider.ProbeHealth(context.Background(), SiteConfig{BaseURL: server.URL}, "sk-test"); err == nil {
+			if _, err := provider.ProbeHealth(context.Background(), SiteConfig{BaseURL: "http://a.test", Client: client}, "sk-test"); err == nil {
 				t.Fatal("probe succeeded")
 			}
 		})
@@ -199,6 +206,7 @@ func TestNewGenericProviderRejectsInvalidConfig(t *testing.T) {
 		SiteType:        "acme.example/chat",
 		OfficialBaseURL: "https://api.example.com",
 		EndpointTypes:   []string{"openai"},
+		AllowedHosts:    []string{"api.example.com"},
 	}
 	cases := []struct {
 		name string
@@ -219,6 +227,21 @@ func TestNewGenericProviderRejectsInvalidConfig(t *testing.T) {
 		{name: "auth header empty", edit: func(cfg *GenericProviderConfig) { cfg.Auth = "header:" }, want: "not valid"},
 		{name: "auth header space", edit: func(cfg *GenericProviderConfig) { cfg.Auth = "header:Bad Name" }, want: "not valid"},
 		{name: "auth header colon", edit: func(cfg *GenericProviderConfig) { cfg.Auth = "header:Bad:Name" }, want: "not valid"},
+		{name: "hosts empty", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = nil }, want: "allowed hosts"},
+		{name: "hosts blank slice", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{} }, want: "allowed hosts"},
+		{name: "hosts too many", edit: func(cfg *GenericProviderConfig) {
+			hosts := make([]string, 17)
+			for i := range hosts {
+				hosts[i] = strings.Repeat("a", i+1) + ".example"
+			}
+			cfg.AllowedHosts = hosts
+		}, want: "allowed hosts"},
+		{name: "hosts duplicate", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{"api.example.com", "api.example.com"} }, want: "duplicate host"},
+		{name: "hosts ip", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{"127.0.0.1"} }, want: "must not be an IP"},
+		{name: "hosts uppercase", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{"API.Example.com"} }, want: "lowercase"},
+		{name: "hosts port", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{"api.example.com:443"} }, want: "without a scheme, port, or path"},
+		{name: "hosts scheme", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{"https://api.example.com"} }, want: "without a scheme, port, or path"},
+		{name: "hosts no dot", edit: func(cfg *GenericProviderConfig) { cfg.AllowedHosts = []string{"localhost"} }, want: "must be a DNS hostname"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -283,6 +306,7 @@ func TestGenericModelsPathMatchesPluginAndRuntimeRules(t *testing.T) {
 				OfficialBaseURL: "https://api.example.com",
 				ModelsPath:      tc.path,
 				EndpointTypes:   []string{"openai"},
+				AllowedHosts:    []string{"api.example.com"},
 			})
 			if tc.path == "" {
 				if err != nil {
@@ -329,11 +353,29 @@ func mustGenericProvider(t *testing.T, baseURL string) GenericProvider {
 		SiteType:        "acme.example/chat",
 		OfficialBaseURL: baseURL,
 		EndpointTypes:   []string{"openai"},
+		AllowedHosts:    []string{"a.test"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return module.(GenericProvider)
+}
+
+func genericDialClient(routes map[string]string) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	dialer := &net.Dialer{}
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			host = addr
+		}
+		if mapped, ok := routes[host]; ok {
+			addr = mapped
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+	return &http.Client{Transport: transport, Timeout: 5 * time.Second}
 }
 
 func sameCapabilities(got, want []Capability) bool {

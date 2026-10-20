@@ -145,6 +145,7 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 		ModelsPath:      section.Models.Path,
 		Auth:            section.Models.Auth,
 		EndpointTypes:   section.Protocol.DefaultEndpointTypes,
+		AllowedHosts:    append([]string(nil), section.Hosts...),
 	})
 	if err != nil {
 		return preparedSiteProvider{}, err

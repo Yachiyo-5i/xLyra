@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/site"
 	"xlyra/server/internal/store"
@@ -115,4 +116,15 @@ func (h Handler) upstreamClientForSite(ctx context.Context, siteID uuid.UUID, re
 		return h.httpClient, nil, nil, err
 	}
 	return client, cfg, requestHeaders, nil
+}
+
+func pluginUpstreamClient(siteType, rawURL string, client *http.Client) (*http.Client, error) {
+	if err := site.CheckPluginHost(siteType, rawURL); err != nil {
+		return nil, err
+	}
+	hosts, ok := site.PluginSiteTypeHosts(siteType)
+	if !ok {
+		return client, nil
+	}
+	return adapter.HTTPClientWithAllowedHosts(client, hosts), nil
 }

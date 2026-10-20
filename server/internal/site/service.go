@@ -475,6 +475,26 @@ func (s *Service) Get(ctx context.Context, siteID uuid.UUID) (store.Site, error)
 	return store.NewSiteRepository(s.db.DB()).GetByID(ctx, siteID)
 }
 
+func validatePluginSiteBaseURL(siteType, baseURL string) error {
+	err := CheckPluginHost(siteType, baseURL)
+	if err == nil {
+		return nil
+	}
+	var hostErr *HostNotAllowedError
+	if !errors.As(err, &hostErr) {
+		return err
+	}
+	if hostErr.Reason != "" {
+		return fmt.Errorf("base_url host %q is not allowed: plugin site type %q is unavailable", hostErr.Host, hostErr.SiteType)
+	}
+	item, _ := LookupPluginSiteType(siteType)
+	pluginID := item.PluginID
+	if pluginID == "" {
+		pluginID = hostErr.SiteType
+	}
+	return fmt.Errorf("base_url host %q is not allowed by plugin %s; allowed hosts: %s", hostErr.Host, pluginID, strings.Join(item.Hosts, ", "))
+}
+
 // validateBaseURL restricts a site base_url to http/https with a host. It is a
 // first line of defense against SSRF (rejecting file://, gopher://, etc.); the
 // dial-layer guard in the httpclient blocks non-public IP targets.
@@ -520,6 +540,9 @@ func (s *Service) Create(ctx context.Context, params CreateSiteParams) (store.Si
 
 	if _, ok := s.adapters.ModuleForSiteType(params.SiteType); !ok {
 		return store.Site{}, nil, fmt.Errorf("unsupported site_type %q", params.SiteType)
+	}
+	if err := validatePluginSiteBaseURL(params.SiteType, params.BaseURL); err != nil {
+		return store.Site{}, nil, err
 	}
 	if err := s.validateProxyID(params.ProxyID); err != nil {
 		return store.Site{}, nil, err
@@ -625,6 +648,9 @@ func (s *Service) Update(ctx context.Context, params UpdateSiteParams) (store.Si
 	}
 	if _, ok := s.adapters.ModuleForSiteType(params.SiteType); !ok {
 		return store.Site{}, nil, fmt.Errorf("unsupported site_type %q", params.SiteType)
+	}
+	if err := validatePluginSiteBaseURL(params.SiteType, params.BaseURL); err != nil {
+		return store.Site{}, nil, err
 	}
 	if err := s.validateProxyID(params.ProxyID); err != nil {
 		return store.Site{}, nil, err

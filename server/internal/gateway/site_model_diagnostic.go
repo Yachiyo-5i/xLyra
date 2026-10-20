@@ -414,6 +414,20 @@ func (h Handler) forwardSiteModelTestRequest(
 		return result
 	}
 
+	upstreamURL := ""
+	if req.URL != nil {
+		upstreamURL = req.URL.String()
+	}
+	upstreamClient, err = pluginUpstreamClient(candidate.Site.SiteType, upstreamURL, upstreamClient)
+	if err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "upstream_host_not_allowed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
+
 	upstreamStartedAt := time.Now()
 	resp, err := upstreamClient.Do(req)
 	result.upstreamLatencyMS = time.Since(upstreamStartedAt).Milliseconds()

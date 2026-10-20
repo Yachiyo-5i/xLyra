@@ -81,7 +81,7 @@ xLyra 在某件事发生后把事件放进队列，后台依次交给插件，�
 
 ### 站点类型：`site_provider`
 
-声明一个新的 API Key 站点类型及其协议。启用需要受信签名，并且每次启用都要确认主机列表。`probe`、`listModels`、`check`、`classify`、`rewritePayload` 即将支持；当前版本只校验声明，不调用这些钩子。
+声明一个新的 API Key 站点类型及其协议。启用需要受信签名，并且每次启用都要确认主机列表。确认后的列表会在创建或更新站点、通用适配器出站和网关转发时按主机名精确生效，详见[限制与安全](./limits-and-security.md)。`probe`、`listModels`、`check`、`classify`、`rewritePayload` 即将支持；当前版本只校验声明，不调用这些钩子。
 
 所有类型共用同一个原则：**插件只"描述"想做什么，真正的执行永远在 xLyra 里**。`request` 是描述，`actions` 是描述，`classify` 的结果也是描述。
 

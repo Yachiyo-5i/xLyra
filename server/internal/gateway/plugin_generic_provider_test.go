@@ -21,6 +21,8 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/config"
+	"xlyra/server/internal/httpclient"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/site"
 	"xlyra/server/internal/store"
@@ -48,10 +50,11 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 		Descriptor: site.SiteTypeDescriptor{
 			SiteType:        "acme.example/chat",
 			DisplayName:     "Acme",
-			OfficialBaseURL: server.URL,
+			OfficialBaseURL: "http://a.test",
 		},
 		PluginID: "acme.example",
 		Enabled:  true,
+		Hosts:    []string{"a.test"},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +69,22 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 	}
 
 	mem := &pluginProviderMemory{}
-	svc := site.NewService(gatewayStoreWithGorm(t, pluginProviderGorm(t, mem)), "test-master-key")
+	confFile, err := config.LoadConfigFile(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := confFile.Set("network", httpclient.NetworkConfig{Proxies: []httpclient.ProxyProfile{{
+		ID: "plugin-upstream", Name: "plugin-upstream", Type: "http", URL: server.URL,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	svc := site.NewService(gatewayStoreWithGorm(t, pluginProviderGorm(t, mem)), "test-master-key", confFile)
 	module, err := adapter.NewGenericProvider(adapter.GenericProviderConfig{
 		SiteType:        "acme.example/chat",
 		DisplayName:     "Acme",
-		OfficialBaseURL: server.URL,
+		OfficialBaseURL: "http://a.test",
 		EndpointTypes:   []string{"openai"},
+		AllowedHosts:    []string{"a.test"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -93,11 +106,11 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 		t.Fatalf("invalid base_url error = %v", err)
 	}
 
-	explicit, _, err := svc.Create(ctx, pluginProviderSiteParams("Acme Explicit", "acme-explicit", server.URL+"/tenant"))
+	explicit, _, err := svc.Create(ctx, pluginProviderSiteParams("Acme Explicit", "acme-explicit", "http://a.test/tenant"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if explicit.BaseURL != server.URL+"/tenant" || explicit.SiteType != "acme.example/chat" {
+	if explicit.BaseURL != "http://a.test/tenant" || explicit.SiteType != "acme.example/chat" {
 		t.Fatalf("explicit site = %#v", explicit)
 	}
 
@@ -105,7 +118,7 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.BaseURL != server.URL || created.SiteType != "acme.example/chat" {
+	if created.BaseURL != "http://a.test" || created.SiteType != "acme.example/chat" {
 		t.Fatalf("default base site = %#v", created)
 	}
 
@@ -120,7 +133,7 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 	if !ok {
 		t.Fatal("generic provider does not list models")
 	}
-	models, err := lister.ListModels(ctx, adapter.SiteConfig{SiteType: created.SiteType, BaseURL: created.BaseURL}, "sk-test")
+	models, err := lister.ListModels(ctx, adapter.SiteConfig{SiteType: created.SiteType, BaseURL: created.BaseURL, Client: pluginHostDialClient(map[string]string{"a.test": server.Listener.Addr().String()})}, "sk-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +199,7 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 		Name:     "Acme",
 		Slug:     "acme",
 		SiteType: "acme.example/chat",
-		BaseURL:  server.URL,
+		BaseURL:  "http://a.test",
 		Enabled:  true,
 	})
 	if err == nil || !strings.Contains(err.Error(), `unsupported site_type`) {
@@ -221,12 +234,14 @@ func TestPluginSiteTypeGenericProvider(t *testing.T) {
 }
 
 func pluginProviderSiteParams(name, slug, baseURL string) site.CreateSiteParams {
+	proxyID := "plugin-upstream"
 	return site.CreateSiteParams{
 		Name:     name,
 		Slug:     slug,
 		SiteType: "acme.example/chat",
 		BaseURL:  baseURL,
 		Enabled:  true,
+		ProxyID:  &proxyID,
 		Credential: &site.CredentialInput{
 			Secret: "sk-test",
 		},

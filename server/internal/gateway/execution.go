@@ -402,6 +402,20 @@ func (h Handler) forwardGatewayRequest(
 			return result
 		}
 
+		upstreamURL := ""
+		if req.URL != nil {
+			upstreamURL = req.URL.String()
+		}
+		upstreamClient, err = pluginUpstreamClient(candidate.Site.SiteType, upstreamURL, upstreamClient)
+		if err != nil {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "upstream_host_not_allowed"
+			result.errorMessage = err.Error()
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result = recordCredentialAttempt(result, nil, false)
+			return result
+		}
+
 		releaseConcurrency, err := h.acquireUpstreamConcurrency(ctx, candidate, selectedCredential.Credential.ID, siteConfig)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {

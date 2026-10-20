@@ -13,6 +13,7 @@ func TestSetPluginAdapterModules(t *testing.T) {
 		DisplayName:     "Acme",
 		OfficialBaseURL: "https://api.example.com",
 		EndpointTypes:   []string{"openai"},
+		AllowedHosts:    []string{"api.example.com"},
 	})
 	if err != nil {
 		t.Fatal(err)
