@@ -1745,6 +1745,9 @@ func sitePayload(item store.Site) map[string]any {
 			payload["quota_probe"] = v
 		}
 	}
+	if status := sitepkg.ProviderStatus(item.SiteType); status != "" {
+		payload["provider_status"] = status
+	}
 
 	return payload
 }

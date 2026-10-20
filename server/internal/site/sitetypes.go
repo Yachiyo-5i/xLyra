@@ -357,3 +357,29 @@ func LookupPluginSiteType(siteType string) (PluginSiteType, bool) {
 	}
 	return PluginSiteType{}, false
 }
+
+// SiteTypeAvailable reports whether a site type may take part in routing and
+// the downstream model catalog. A type without "/" is built-in and always
+// available. A type with "/" is available only when that type is present and
+// enabled in the plugin snapshot, the same rule as CheckPluginHost.
+func SiteTypeAvailable(siteType string) bool {
+	key := strings.ToLower(strings.TrimSpace(siteType))
+	if !strings.Contains(key, "/") {
+		return true
+	}
+	item, ok := LookupPluginSiteType(key)
+	return ok && item.Enabled
+}
+
+// ProviderStatus is the computed admin field for a site's provider. Built-in
+// types return an empty string. Plugin types return "enabled" or "unavailable".
+func ProviderStatus(siteType string) string {
+	key := strings.ToLower(strings.TrimSpace(siteType))
+	if !strings.Contains(key, "/") {
+		return ""
+	}
+	if SiteTypeAvailable(key) {
+		return "enabled"
+	}
+	return "unavailable"
+}

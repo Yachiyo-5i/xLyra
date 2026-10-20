@@ -245,6 +245,27 @@ func (r SiteRepository) GetByIDIncludingDeleted(ctx context.Context, id uuid.UUI
 	return site, nil
 }
 
+// CountBySiteType counts sites whose site_type matches, ignoring case and
+// surrounding space. Sites with status "deleted" are excluded. An empty type
+// matches nothing.
+func (r SiteRepository) CountBySiteType(ctx context.Context, siteType string) (int, error) {
+	key := strings.ToLower(strings.TrimSpace(siteType))
+	if key == "" {
+		return 0, nil
+	}
+	sites, err := r.List(ctx)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, site := range sites {
+		if strings.EqualFold(strings.TrimSpace(site.SiteType), key) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (r SiteRepository) FindBySlug(ctx context.Context, slug string) (Site, error) {
 	var site Site
 	if err := r.db.WithContext(ctx).Where(&Site{Slug: slug}).First(&site).Error; err != nil {

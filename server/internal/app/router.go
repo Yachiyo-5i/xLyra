@@ -127,6 +127,7 @@ func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, c
 		dashboardService = dashboard.NewService(db, appTimeZone)
 		analyticsService = analytics.NewService(db, appTimeZone)
 		routerService = routeengine.NewService(db)
+		routerService.SetSiteTypeFilter(site.SiteTypeAvailable)
 		usageService = usage.NewService(db, appTimeZone)
 	}
 	systemStatsService := systemstats.NewService(appTimeZone)

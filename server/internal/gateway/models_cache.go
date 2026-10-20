@@ -327,6 +327,9 @@ func (h Handler) buildModelsPayloadForAccess(ctx context.Context, access auth.AP
 		if !site.Enabled || site.Status != "active" {
 			continue
 		}
+		if h.router != nil && !h.router.SiteTypeAllowed(site.SiteType) {
+			continue
+		}
 		if access.APIKey.SitePolicy == "allow_list" {
 			if _, ok := allowedSites[site.ID]; !ok {
 				continue

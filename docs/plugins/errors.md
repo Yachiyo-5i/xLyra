@@ -57,3 +57,10 @@ js_timeout: interrupted: timeout
 | `js_plugin_pricing_review_required` | 绑定价格解析插件时没有确认预览结果 |
 | `js_plugin_permissions_required` | 启用的 `automation` 版本声明了权限，但管理员没有授予。需要在启用请求里带上 `grant_permissions` |
 | `js_plugin_automation_invalid` | 新增或修改自动化绑定时，所选对象或参数不符合插件声明的输入，错误信息里会说明原因 |
+| `js_plugin_site_type_locked` | 启用的 `site_provider` 新版本改了站点类型 ID，而旧类型仍有站点在用。HTTP 409，响应带 `from`、`to`、`count` |
+
+## 卸载时的错误
+
+| 错误码 | 含义 |
+| --- | --- |
+| `js_plugin_in_use` | 卸载插件，或删除它的最后一个版本时，仍有站点使用它声明的站点类型。HTTP 409，响应带 `site_type`、`count`。先删除这些站点再卸载。停用不受这个限制 |

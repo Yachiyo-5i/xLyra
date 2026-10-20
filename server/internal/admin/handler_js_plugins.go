@@ -181,6 +181,14 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 			h.writeErrorFields(w, r, status, code, err.Error(), map[string]any{"hosts": hostsErr.Hosts})
 			return
 		}
+		var locked *jsplugin.SiteTypeChangeError
+		if errors.As(err, &locked) {
+			code = "js_plugin_site_type_locked"
+			status = http.StatusConflict
+			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version, "from": locked.From, "to": locked.To, "count": locked.Count})
+			h.writeErrorFields(w, r, status, code, err.Error(), map[string]any{"from": locked.From, "to": locked.To, "count": locked.Count})
+			return
+		}
 		var notConnected *jsplugin.KindNotConnectedError
 		if errors.As(err, &notConnected) {
 			code = "js_plugin_kind_not_connected"
@@ -219,6 +227,14 @@ func (h Handler) DeleteJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 	version := strings.TrimSpace(chi.URLParam(r, "version"))
 	meta := map[string]any{"version": version}
 	if err := h.jsPlugins.DeleteVersion(r.Context(), pluginID, version); err != nil {
+		var inUse *jsplugin.PluginInUseError
+		if errors.As(err, &inUse) {
+			meta["site_type"] = inUse.SiteType
+			meta["count"] = inUse.Count
+			h.recordJSPluginAudit(r, "js_plugin.delete", pluginID, false, "js_plugin_in_use", meta)
+			h.writeErrorFields(w, r, http.StatusConflict, "js_plugin_in_use", err.Error(), map[string]any{"site_type": inUse.SiteType, "count": inUse.Count})
+			return
+		}
 		code := "js_plugin_delete_failed"
 		status := http.StatusBadRequest
 		switch {
@@ -244,6 +260,12 @@ func (h Handler) DeleteJSPlugin(w http.ResponseWriter, r *http.Request) {
 	}
 	pluginID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if err := h.jsPlugins.DeletePlugin(r.Context(), pluginID); err != nil {
+		var inUse *jsplugin.PluginInUseError
+		if errors.As(err, &inUse) {
+			h.recordJSPluginAudit(r, "js_plugin.delete_plugin", pluginID, false, "js_plugin_in_use", map[string]any{"site_type": inUse.SiteType, "count": inUse.Count})
+			h.writeErrorFields(w, r, http.StatusConflict, "js_plugin_in_use", err.Error(), map[string]any{"site_type": inUse.SiteType, "count": inUse.Count})
+			return
+		}
 		code := "js_plugin_delete_failed"
 		status := http.StatusBadRequest
 		switch {

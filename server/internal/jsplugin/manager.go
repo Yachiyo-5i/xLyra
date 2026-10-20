@@ -56,6 +56,37 @@ func (e *HostsConfirmationRequiredError) Error() string {
 	return "this plugin needs its host list confirmed: " + strings.Join(e.Hosts, ", ")
 }
 
+// PluginInUseError means a site_provider still has sites of its site type, so
+// the plugin or its last version cannot be deleted. Disable is allowed.
+type PluginInUseError struct {
+	PluginID string
+	SiteType string
+	Count    int
+}
+
+func (e *PluginInUseError) Error() string {
+	if e == nil {
+		return "plugin site type is still used by sites"
+	}
+	return fmt.Sprintf("plugin %q site type %q is still used by %d site(s)", e.PluginID, e.SiteType, e.Count)
+}
+
+// SiteTypeChangeError means a new site_provider version changes the site type
+// id while sites still use the previous id.
+type SiteTypeChangeError struct {
+	PluginID string
+	From     string
+	To       string
+	Count    int
+}
+
+func (e *SiteTypeChangeError) Error() string {
+	if e == nil {
+		return "plugin site type cannot change while sites use it"
+	}
+	return fmt.Sprintf("plugin %q cannot change site type from %q to %q while %d site(s) use it", e.PluginID, e.From, e.To, e.Count)
+}
+
 // PermissionsRequiredError means a version declares automation permissions the
 // admin has not granted yet.
 type PermissionsRequiredError struct {
@@ -268,6 +299,9 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 		for _, host := range pkg.Manifest.SiteProvider.Hosts {
 			granted = append(granted, "host:"+host)
 		}
+		if err := m.ensureSiteTypeStable(ctx, pluginID, version, pkg.Manifest.SiteProvider.SiteType); err != nil {
+			return err
+		}
 	}
 	if pkg.Manifest.Kind == KindAutomation {
 		var missing []string
@@ -325,6 +359,15 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 	if row.Status == store.JSPluginStatusEnabled {
 		return ErrVersionEnabled
 	}
+	versions, err := m.repo.ListVersions(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if len(versions) <= 1 {
+		if err := m.ensureSiteProviderUnused(ctx, pluginID); err != nil {
+			return err
+		}
+	}
 	if err := m.repo.DeleteVersion(ctx, pluginID, version); err != nil {
 		return err
 	}
@@ -334,6 +377,9 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 // DeletePlugin uninstalls every version of a plugin, with its bindings and logs.
 // An enabled plugin must be disabled first.
 func (m *Manager) DeletePlugin(ctx context.Context, pluginID string) error {
+	if err := m.ensureSiteProviderUnused(ctx, pluginID); err != nil {
+		return err
+	}
 	err := m.repo.DeletePlugin(ctx, pluginID)
 	if errors.Is(err, store.ErrJSPluginEnabled) {
 		return ErrVersionEnabled
@@ -368,6 +414,109 @@ func (m *Manager) CheckSiteBinding(ctx context.Context, pluginID, version string
 		return "", fmt.Errorf("kind %q is not bound to a site", kind)
 	}
 	return kind, nil
+}
+
+func (m *Manager) ensureSiteProviderUnused(ctx context.Context, pluginID string) error {
+	types, err := m.siteProviderSiteTypes(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	for _, siteType := range types {
+		count, err := m.countSitesByType(ctx, siteType)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return &PluginInUseError{PluginID: pluginID, SiteType: siteType, Count: count}
+		}
+	}
+	return nil
+}
+
+func (m *Manager) ensureSiteTypeStable(ctx context.Context, pluginID, version, nextType string) error {
+	next := pluginSiteTypeKey(nextType)
+	versions, err := m.repo.ListVersions(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	seen := map[string]struct{}{}
+	for _, row := range versions {
+		if row.Version == version {
+			continue
+		}
+		old, ok, err := manifestSiteProviderType(row.Manifest)
+		if err != nil {
+			return err
+		}
+		if !ok || old == next {
+			continue
+		}
+		if _, dup := seen[old]; dup {
+			continue
+		}
+		seen[old] = struct{}{}
+		count, err := m.countSitesByType(ctx, old)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return &SiteTypeChangeError{PluginID: pluginID, From: old, To: next, Count: count}
+		}
+	}
+	return nil
+}
+
+func (m *Manager) siteProviderSiteTypes(ctx context.Context, pluginID string) ([]string, error) {
+	versions, err := m.repo.ListVersions(ctx, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	types := make([]string, 0)
+	for _, row := range versions {
+		siteType, ok, err := manifestSiteProviderType(row.Manifest)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if _, dup := seen[siteType]; dup {
+			continue
+		}
+		seen[siteType] = struct{}{}
+		types = append(types, siteType)
+	}
+	return types, nil
+}
+
+func (m *Manager) countSitesByType(ctx context.Context, siteType string) (int, error) {
+	if m == nil || m.db == nil {
+		return 0, fmt.Errorf("site repository is not available")
+	}
+	return store.NewSiteRepository(m.db.DB()).CountBySiteType(ctx, siteType)
+}
+
+func manifestSiteProviderType(raw store.JSON) (string, bool, error) {
+	if len(raw) == 0 {
+		return "", false, nil
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return "", false, fmt.Errorf("read plugin manifest: %w", err)
+	}
+	if manifest.Kind != KindSiteProvider {
+		return "", false, nil
+	}
+	siteType := pluginSiteTypeKey(manifest.SiteProvider.SiteType)
+	if siteType == "" {
+		return "", false, nil
+	}
+	return siteType, true, nil
+}
+
+func pluginSiteTypeKey(siteType string) string {
+	return strings.ToLower(strings.TrimSpace(siteType))
 }
 
 func sameStringSet(a, b []string) bool {
