@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,10 +61,10 @@ func NewRouter(cfg config.Config, logger *slog.Logger, db *store.Store, confFile
 }
 
 func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string) (http.Handler, *gateway.Handler) {
-	return NewRouterWithGatewayWithOAuth(cfg, logger, db, confFile, masterKey, nil)
+	return NewRouterWithGatewayWithOAuth(context.Background(), nil, cfg, logger, db, confFile, masterKey, nil)
 }
 
-func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service) (http.Handler, *gateway.Handler) {
+func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service) (http.Handler, *gateway.Handler) {
 	appTimeZone := config.ResolveTimeZone()
 	var authService *auth.Service
 	if db != nil {
@@ -91,11 +92,21 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	var jsPluginManager *jsplugin.Manager
 	if db != nil {
 		jsPluginManager = jsplugin.NewManager(db, jsplugin.DefaultCatalog())
-		reloadCtx, reloadCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		reloadCtx, reloadCancel := context.WithTimeout(ctx, 30*time.Second)
 		if err := jsPluginManager.Reload(reloadCtx); err != nil {
 			logger.Warn("js plugin catalog reload failed", "error", err)
 		}
 		reloadCancel()
+		jsPluginManager.StartSync(ctx, 5*time.Second)
+		if tasks != nil {
+			if done := jsPluginManager.CatalogSyncDone(); done != nil {
+				tasks.Add(1)
+				go func() {
+					defer tasks.Done()
+					<-done
+				}()
+			}
+		}
 		oauthService = sharedOAuth
 		if oauthService == nil {
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)

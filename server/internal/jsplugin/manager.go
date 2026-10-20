@@ -36,12 +36,14 @@ func (e *PermissionsRequiredError) Error() string {
 
 // Manager loads uploaded plugins and swaps catalog generations.
 type Manager struct {
-	db      *store.Store
-	repo    store.JSPluginRepository
-	catalog *Catalog
-	mu      sync.Mutex
-	gen     int64
-	wakeup  chan struct{}
+	db             *store.Store
+	repo           store.JSPluginRepository
+	catalog        *Catalog
+	mu             sync.Mutex
+	gen            int64
+	seenGeneration int64
+	syncStopped    chan struct{}
+	wakeup         chan struct{}
 }
 
 func NewManager(db *store.Store, catalog *Catalog) *Manager {
@@ -207,7 +209,7 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 			return err
 		}
 	}
-	return m.Reload(ctx)
+	return m.publishCatalog(ctx)
 }
 
 func (m *Manager) Disable(ctx context.Context, pluginID string) error {
@@ -222,7 +224,7 @@ func (m *Manager) Disable(ctx context.Context, pluginID string) error {
 			}
 		}
 	}
-	return m.Reload(ctx)
+	return m.publishCatalog(ctx)
 }
 
 func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) error {
@@ -236,7 +238,7 @@ func (m *Manager) DeleteVersion(ctx context.Context, pluginID, version string) e
 	if err := m.repo.DeleteVersion(ctx, pluginID, version); err != nil {
 		return err
 	}
-	return nil
+	return m.publishCatalog(ctx)
 }
 
 // DeletePlugin uninstalls every version of a plugin, with its bindings and logs.
@@ -246,7 +248,10 @@ func (m *Manager) DeletePlugin(ctx context.Context, pluginID string) error {
 	if errors.Is(err, store.ErrJSPluginEnabled) {
 		return ErrVersionEnabled
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return m.publishCatalog(ctx)
 }
 
 // CheckSiteBinding checks that an enabled plugin version may be bound to a
@@ -320,14 +325,20 @@ func (m *Manager) BindProtocolSlug(ctx context.Context, pluginID, version, slug 
 	}); err != nil {
 		return err
 	}
-	return m.Reload(ctx)
+	return m.publishCatalog(ctx)
 }
 
 func (m *Manager) onBreakerTrip(pluginID, version, reason string) {
 	slog.Warn("js plugin breaker tripped", "plugin_id", pluginID, "version", version, "reason", reason)
 	ctx := context.Background()
-	_ = m.repo.SetVersionStatus(ctx, pluginID, version, store.JSPluginStatusDisabled, map[string]any{"breaker": reason})
-	_ = m.Reload(ctx)
+	if err := m.repo.SetVersionStatus(ctx, pluginID, version, store.JSPluginStatusDisabled, map[string]any{"breaker": reason}); err != nil {
+		slog.Warn("js plugin breaker disable failed", "plugin_id", pluginID, "version", version, "error", err)
+		_ = m.Reload(ctx)
+		return
+	}
+	if err := m.publishCatalog(ctx); err != nil {
+		slog.Warn("js plugin catalog publish failed", "plugin_id", pluginID, "version", version, "error", err)
+	}
 }
 
 func mustJSON(value any) []byte {
