@@ -73,6 +73,9 @@ type fixtureExpectation struct {
 
 // SelfTest runs the package fixtures inside the sandbox.
 func (p *Plugin) SelfTest(ctx context.Context) error {
+	if p.Manifest.Kind == KindSiteProvider {
+		return nil
+	}
 	if len(p.fixtures) == 0 {
 		return fmt.Errorf("%s: no fixtures", p.Manifest.ID)
 	}

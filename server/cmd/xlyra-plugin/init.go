@@ -69,7 +69,10 @@ func scaffold(dir, kind, pluginID, name string) error {
 		".gitignore":       "",
 	}
 	fixtureFiles, err := fs.Glob(templates, "templates/"+kind+"/fixtures/*.tmpl")
-	if err != nil || len(fixtureFiles) == 0 {
+	if err != nil {
+		return err
+	}
+	if len(fixtureFiles) == 0 && kind != jsplugin.KindSiteProvider {
 		return fmt.Errorf("no fixture template for kind %q", kind)
 	}
 	for _, file := range fixtureFiles {

@@ -34,6 +34,22 @@ func (p *program) addOptionalHooks(names []string) error {
 	return nil
 }
 
+// requireCallableHooks rejects an optional export that exists and is not a
+// function. A missing export is allowed.
+func (s *session) requireCallableHooks(names []string) error {
+	for _, name := range names {
+		value, ok := s.rt.Export(name)
+		if !ok {
+			continue
+		}
+		if !value.IsObject() || !value.AsObject().IsCallable() {
+			return fmt.Errorf("%s hook: %w", name, moejs.ErrNotCallable)
+		}
+	}
+	s.rt.ReleaseCallData()
+	return nil
+}
+
 func compileProgram(name, source string, hookNames ...string) (*program, error) {
 	mod, err := moejs.Compile(name, source)
 	if err != nil {

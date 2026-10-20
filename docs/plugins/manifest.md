@@ -22,7 +22,7 @@
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `id` | 是 | 3–64 位，只能含小写字母、数字、`.`、`-`，首尾必须是字母或数字。**不能以 `xlyra.` 开头**（保留给内置插件），不能是 `builtins` |
-| `kind` | 是 | 九种之一：`quota_probe`、`protocol`、`model_list`、`credential_check`、`site_detect`、`error_classifier`、`model_metadata`、`pricing_parse`、`automation`，详见[选择类型](./kinds.md)。不支持自定义类型 |
+| `kind` | 是 | 十种之一：`quota_probe`、`protocol`、`model_list`、`credential_check`、`site_detect`、`error_classifier`、`model_metadata`、`pricing_parse`、`automation`、`site_provider`，详见[选择类型](./kinds.md)。不支持自定义类型 |
 | `version` | 是 | 语义化版本，如 `0.1.0`。同一个 id 的同一个版本号不能用不同内容重复上传 |
 | `apiVersion` | 是 | 钩子契约版本，目前只能是 `1` |
 | `hostApi` | 是 | 你用到的宿主 API 最低版本，目前是 `1`。高于当前 xLyra 支持的版本会被拒绝 |
@@ -88,6 +88,51 @@
 | `auth` | 否 | `bearer`（默认）、`none`，或 `header:<Header-Name>` |
 | `defaultBaseURL` | 否 | 上游没配置地址时使用 |
 
+## siteProvider 部分
+
+`site_provider` 用 `siteProvider` 声明一个 API Key 站点类型。一个包只声明一个站点类型，`siteType` 的斜线左侧必须等于本包的 `id`。这种包不能再写 `quotaProbe`、`site`、`protocol`、`automation`。
+
+```json
+"siteProvider": {
+  "siteType": "acme.example/chat",
+  "display": {
+    "name": { "zh": "Acme", "en": "Acme" },
+    "subtitle": { "zh": "API Key 站点", "en": "API key site" },
+    "icon": "assets/icon.png",
+    "brandColor": "#0052D9"
+  },
+  "hosts": ["api.example.com"],
+  "credential": { "model": "api_key" },
+  "protocol": {
+    "kind": "openai_chat",
+    "path": "/v1/chat/completions",
+    "officialBaseURL": "https://api.example.com",
+    "defaultEndpointTypes": ["openai"],
+    "requestParams": { "unsupported": ["logit_bias"] }
+  },
+  "models": { "path": "/v1/models", "auth": "bearer" }
+}
+```
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `siteType` | 是 | `<id>/<name>`。左侧等于清单 `id`（3–64 位，小写字母、数字、`.`、`-`，首尾是字母或数字）；右侧以小写字母开头，后面最多 31 位小写字母、数字或 `_` |
+| `display.name` | 是 | 展示名。字符串，或按语言分的对象（最多 8 种语言，每种不超过 400 字节） |
+| `display.subtitle` | 否 | 副标题，规则与 `name` 相同 |
+| `display.icon` | 否 | 包内相对路径，扩展名只能是 `.png` 或 `.webp`。文件必须存在，文件头要符合格式，不超过 64 KiB |
+| `display.brandColor` | 否 | `#RRGGBB` |
+| `hosts` | 是 | 1–16 个小写 DNS 主机名，不能重复。不能带协议、端口、路径，至少含一个 `.`，不能是 IP，不能以 `.` 或 `-` 开头或结尾 |
+| `credential.model` | 是 | 只能是 `api_key` |
+| `protocol.kind` | 是 | `openai_chat`、`openai_responses`、`anthropic_messages`、`google_gemini` 之一 |
+| `protocol.path` | 是 | 以单个 `/` 开头的路径，不能含 `..` 或编码后的 `..` |
+| `protocol.officialBaseURL` | 是 | `https` URL，必须有主机，不能有用户信息、查询或片段。主机（忽略大小写，端口不算）必须在 `hosts` 里 |
+| `protocol.defaultEndpointTypes` | 是 | 至少一项，每项是 `openai`、`openai-response`、`anthropic-messages`、`google-gemini` 之一。只检查取值，不和 `protocol.kind` 做对应推断 |
+| `protocol.requestParams` | 否 | 原样保留，本阶段不解释。其中 `supported` 不会用来过滤参数 |
+| `models.path` | 否 | 拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则 |
+| `models.auth` | 否 | 不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名 |
+
+启用这个类型时，包必须由受信密钥签名，并且每次启用都要再次确认完整的 `hosts`。确认结果记成 `host:<主机名>`。
+
 ## 包里的文件
 
 `.xlp` 就是一个 zip，里面有：
@@ -95,8 +140,8 @@
 ```text
 manifest.json
 plugin.js              打包后的单文件 ES 模块
-fixtures/*.json        至少一个
+fixtures/*.json        除 site_provider 外至少一个
 signature.json         可选，签名后才有
 ```
 
-整个包不能超过 2 MiB，文件数不能超过 64 个，且至少要有一个 `fixtures/*.json`。
+整个包不能超过 2 MiB，文件数不能超过 64 个。除 `site_provider` 外，至少要有一个 `fixtures/*.json`。`site_provider` 当前只声明站点类型和协议，不要求夹具。

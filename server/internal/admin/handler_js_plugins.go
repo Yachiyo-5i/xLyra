@@ -144,10 +144,12 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 		// GrantPermissions are the automation actions the admin approved after
 		// seeing the list the version declares.
 		GrantPermissions []string `json:"grant_permissions"`
+		// ConfirmHosts is the host list an admin accepts for a site_provider.
+		ConfirmHosts []string `json:"confirm_hosts"`
 	}
 	_ = httpx.DecodeJSONBody(r, &body)
 	confirm := body.ConfirmUntrusted || body.ConfirmUnsigned
-	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUntrusted: confirm, GrantPermissions: body.GrantPermissions}); err != nil {
+	if err := h.jsPlugins.Enable(r.Context(), pluginID, version, jsplugin.EnableOptions{ConfirmUntrusted: confirm, GrantPermissions: body.GrantPermissions, ConfirmedHosts: body.ConfirmHosts}); err != nil {
 		code := "js_plugin_enable_failed"
 		status := http.StatusBadRequest
 		var permissionsErr *jsplugin.PermissionsRequiredError
@@ -162,6 +164,21 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 			code = "js_plugin_confirm_required"
 			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version, "trust": confirmErr.Trust})
 			h.writeError(w, r, status, code, err.Error())
+			return
+		}
+		var untrusted *jsplugin.SiteProviderUntrustedError
+		if errors.As(err, &untrusted) {
+			code = "js_plugin_untrusted_not_allowed"
+			status = http.StatusForbidden
+			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version, "trust": untrusted.Trust})
+			h.writeError(w, r, status, code, "site_provider 插件必须由受信密钥签名,confirm_untrusted 不能绕过")
+			return
+		}
+		var hostsErr *jsplugin.HostsConfirmationRequiredError
+		if errors.As(err, &hostsErr) {
+			code = "js_plugin_hosts_required"
+			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version, "hosts": hostsErr.Hosts})
+			h.writeErrorFields(w, r, status, code, err.Error(), map[string]any{"hosts": hostsErr.Hosts})
 			return
 		}
 		var notConnected *jsplugin.KindNotConnectedError

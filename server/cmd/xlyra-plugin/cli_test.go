@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,6 +134,28 @@ func TestWriteTreeKeepsPackages(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "fixtures")); err == nil {
 		t.Fatal("stale fixtures were kept")
+	}
+}
+
+func TestKindsListsSiteProvider(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	runKinds()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "site_provider") || !strings.Contains(out, "provider") {
+		t.Fatalf("kinds output missing site_provider:\n%s", out)
 	}
 }
 

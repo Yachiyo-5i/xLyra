@@ -22,6 +22,38 @@ type EnableOptions struct {
 	// GrantPermissions are the automation actions the admin approves. Enabling
 	// an automation version needs every permission its manifest declares.
 	GrantPermissions []string
+	// ConfirmedHosts is the host list an admin confirms for a site_provider.
+	// It must equal the manifest hosts as a set. Every enable asks again.
+	ConfirmedHosts []string
+}
+
+// ErrSiteProviderUntrusted is returned when a site_provider package is unsigned
+// or signed by a key that is not in the trusted key store. ConfirmUntrusted
+// does not bypass it.
+var ErrSiteProviderUntrusted = errors.New("site_provider plugins must be signed by a trusted key")
+
+// SiteProviderUntrustedError is ErrSiteProviderUntrusted plus the trust state
+// the enable saw.
+type SiteProviderUntrustedError struct {
+	Trust TrustStatus
+}
+
+func (e *SiteProviderUntrustedError) Error() string {
+	return ErrSiteProviderUntrusted.Error()
+}
+
+func (e *SiteProviderUntrustedError) Unwrap() error {
+	return ErrSiteProviderUntrusted
+}
+
+// HostsConfirmationRequiredError means a site_provider enable did not confirm
+// the manifest host list. Hosts is that full list, in manifest order.
+type HostsConfirmationRequiredError struct {
+	Hosts []string
+}
+
+func (e *HostsConfirmationRequiredError) Error() string {
+	return "this plugin needs its host list confirmed: " + strings.Join(e.Hosts, ", ")
 }
 
 // PermissionsRequiredError means a version declares automation permissions the
@@ -168,17 +200,30 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 	if err != nil {
 		return err
 	}
-	if trust != TrustTrusted && !opts.ConfirmUntrusted {
-		return &ConfirmRequiredError{Trust: trust}
-	}
 	pkg, err := ReadPackage(row.Package, true)
 	if err != nil {
 		return err
+	}
+	if pkg.Manifest.Kind == KindSiteProvider {
+		if trust != TrustTrusted {
+			return &SiteProviderUntrustedError{Trust: trust}
+		}
+	} else if trust != TrustTrusted && !opts.ConfirmUntrusted {
+		return &ConfirmRequiredError{Trust: trust}
 	}
 	if spec, ok := lookupKind(pkg.Manifest.Kind); ok && !spec.Connected {
 		return &KindNotConnectedError{Kind: pkg.Manifest.Kind}
 	}
 	var granted []string
+	if pkg.Manifest.Kind == KindSiteProvider {
+		if !sameStringSet(opts.ConfirmedHosts, pkg.Manifest.SiteProvider.Hosts) {
+			return &HostsConfirmationRequiredError{Hosts: append([]string(nil), pkg.Manifest.SiteProvider.Hosts...)}
+		}
+		granted = make([]string, 0, len(pkg.Manifest.SiteProvider.Hosts))
+		for _, host := range pkg.Manifest.SiteProvider.Hosts {
+			granted = append(granted, "host:"+host)
+		}
+	}
 	if pkg.Manifest.Kind == KindAutomation {
 		var missing []string
 		for _, permission := range pkg.Manifest.Automation.Permissions {
@@ -271,10 +316,33 @@ func (m *Manager) CheckSiteBinding(ctx context.Context, pluginID, version string
 		return "", err
 	}
 	kind := pkg.Manifest.Kind
+	if kind == KindSiteProvider {
+		return "", fmt.Errorf("kind %q does not support per-site binding; it takes effect automatically for its site type", kind)
+	}
 	if !SiteBound(kind) {
 		return "", fmt.Errorf("kind %q is not bound to a site", kind)
 	}
 	return kind, nil
+}
+
+func sameStringSet(a, b []string) bool {
+	left := make(map[string]struct{}, len(a))
+	for _, item := range a {
+		left[item] = struct{}{}
+	}
+	right := make(map[string]struct{}, len(b))
+	for _, item := range b {
+		right[item] = struct{}{}
+	}
+	if len(left) != len(right) {
+		return false
+	}
+	for item := range left {
+		if _, ok := right[item]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Manager) TryVersion(ctx context.Context, pluginID, version string) (map[string]any, error) {

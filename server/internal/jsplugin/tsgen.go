@@ -106,6 +106,13 @@ func TypeDeclarations() (string, error) {
 		out.WriteString(body)
 		out.WriteString("\n")
 	}
+	kinds := SupportedKinds()
+	quoted := make([]string, len(kinds))
+	for i, info := range kinds {
+		quoted[i] = fmt.Sprintf("%q", info.Name)
+	}
+	fmt.Fprintf(&out, "export type PluginKind = %s;\n\n", strings.Join(quoted, " | "))
+	out.WriteString("export interface PluginMeta {\n  apiVersion: number;\n  id: string;\n  kind: PluginKind;\n}\n\n")
 	out.WriteString(strings.TrimLeft(tsStatic, "\n"))
 	return out.String(), nil
 }

@@ -2,10 +2,11 @@ package site
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"sync/atomic"
+
+	"xlyra/server/internal/jsplugin"
 )
 
 // SiteTypeDescriptor is the built-in site type registry entry.
@@ -242,20 +243,10 @@ var siteTypeRegistry = []SiteTypeDescriptor{
 	},
 }
 
-// pluginIDPattern is the plugin id rule from jsplugin.pluginIDPattern
-// (server/internal/jsplugin/package.go). Length is 3-64, same as validateManifest.
-var pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
-
-var pluginSiteTypeIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,62}[a-z0-9]/[a-z][a-z0-9_]{0,31}$`)
-
 var pluginSiteTypes atomic.Pointer[[]PluginSiteType]
 
-func pluginIDOK(id string) bool {
-	return len(id) >= 3 && len(id) <= 64 && pluginIDPattern.MatchString(id)
-}
-
 func ValidatePluginSiteTypeID(id string) error {
-	if !pluginSiteTypeIDPattern.MatchString(id) || !pluginIDOK(pluginSiteTypePluginID(id)) {
+	if err := jsplugin.ValidateSiteTypeID(id); err != nil {
 		return fmt.Errorf("invalid plugin site type id %q", id)
 	}
 	return nil
@@ -263,11 +254,6 @@ func ValidatePluginSiteTypeID(id string) error {
 
 func IsPluginSiteTypeID(id string) bool {
 	return ValidatePluginSiteTypeID(id) == nil
-}
-
-func pluginSiteTypePluginID(id string) string {
-	pluginID, _, _ := strings.Cut(id, "/")
-	return pluginID
 }
 
 func builtinSiteType(id string) bool {

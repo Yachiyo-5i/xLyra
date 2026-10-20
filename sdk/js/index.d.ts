@@ -324,6 +324,14 @@ export interface AutomationResult {
   state?: JsonObject;
 }
 
+export type PluginKind = "quota_probe" | "protocol" | "model_list" | "credential_check" | "site_detect" | "error_classifier" | "model_metadata" | "pricing_parse" | "automation" | "site_provider";
+
+export interface PluginMeta {
+  apiVersion: number;
+  id: string;
+  kind: PluginKind;
+}
+
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type JsonObject = Record<string, Json>;
 

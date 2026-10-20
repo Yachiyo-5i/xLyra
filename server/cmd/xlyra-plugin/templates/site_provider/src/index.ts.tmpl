@@ -1,0 +1,6 @@
+import type { PluginMeta } from "../types/xlyra";
+
+export const meta: PluginMeta = { apiVersion: 1, id: "{{.ID}}", kind: "site_provider" };
+
+// probe、listModels、check、classify、rewritePayload 将由后续版本支持。
+// 当前这个包只声明站点类型和协议。

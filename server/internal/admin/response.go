@@ -3,11 +3,24 @@ package admin
 import (
 	"net/http"
 
+	"github.com/go-chi/chi/v5/middleware"
+
 	"xlyra/server/internal/httpx"
 )
 
 func (h Handler) writeError(w http.ResponseWriter, r *http.Request, status int, code string, message string) {
 	httpx.Error(w, r, status, code, message)
+}
+
+func (h Handler) writeErrorFields(w http.ResponseWriter, r *http.Request, status int, code string, message string, fields map[string]any) {
+	body := map[string]any{"code": code, "message": message}
+	if requestID := middleware.GetReqID(r.Context()); requestID != "" {
+		body["request_id"] = requestID
+	}
+	for key, value := range fields {
+		body[key] = value
+	}
+	httpx.JSON(w, status, map[string]any{"error": body})
 }
 
 func (h Handler) decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {

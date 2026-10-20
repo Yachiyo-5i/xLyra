@@ -67,9 +67,6 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 		}
 		fixtures = append(fixtures, fixture)
 	}
-	if requireFixtures && len(fixtures) == 0 {
-		return Package{}, fmt.Errorf("at least one fixtures/*.json is required")
-	}
 	manifest, err := ParseManifest(manifestRaw)
 	if err != nil {
 		return Package{}, err
@@ -77,8 +74,11 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 	if err := validateUploadedManifest(manifest); err != nil {
 		return Package{}, err
 	}
-	if err := validateManifest(manifest, string(source)); err != nil {
+	if err := validateManifestFiles(manifest, string(source), files); err != nil {
 		return Package{}, err
+	}
+	if requireFixtures && len(fixtures) == 0 && manifest.Kind != KindSiteProvider {
+		return Package{}, fmt.Errorf("at least one fixtures/*.json is required")
 	}
 	signer := ""
 	if sigRaw := files[signatureFileName]; len(sigRaw) > 0 {

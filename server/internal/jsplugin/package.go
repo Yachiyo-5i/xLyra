@@ -18,20 +18,21 @@ var pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
 
 // Manifest is the plugin package manifest.
 type Manifest struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	APIVersion  int               `json:"apiVersion"`
-	HostAPI     int               `json:"hostApi"`
-	XLyra       string            `json:"xlyra"`
-	Kind        string            `json:"kind"`
-	Description string            `json:"description"`
-	License     string            `json:"license"`
-	QuotaProbe  QuotaProbeSection `json:"quotaProbe"`
-	Site        SiteSection       `json:"site"`
-	Protocol    ProtocolSection   `json:"protocol"`
-	Automation  AutomationSection `json:"automation"`
-	SHA256      map[string]string `json:"sha256"`
+	ID           string              `json:"id"`
+	Name         string              `json:"name"`
+	Version      string              `json:"version"`
+	APIVersion   int                 `json:"apiVersion"`
+	HostAPI      int                 `json:"hostApi"`
+	XLyra        string              `json:"xlyra"`
+	Kind         string              `json:"kind"`
+	Description  string              `json:"description"`
+	License      string              `json:"license"`
+	QuotaProbe   QuotaProbeSection   `json:"quotaProbe"`
+	Site         SiteSection         `json:"site"`
+	Protocol     ProtocolSection     `json:"protocol"`
+	Automation   AutomationSection   `json:"automation"`
+	SiteProvider SiteProviderSection `json:"siteProvider,omitzero"`
+	SHA256       map[string]string   `json:"sha256"`
 }
 
 // QuotaProbeSection is the quota_probe manifest block.
@@ -147,6 +148,11 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
+	if spec, ok := lookupKind(manifest.Kind); ok {
+		if err := loaded.requireCallableHooks(spec.OptionalHooks); err != nil {
+			return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+		}
+	}
 	meta, err := loaded.exportMeta()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
@@ -218,6 +224,10 @@ func validateBaseURLMode(mode string) error {
 }
 
 func validateManifest(manifest Manifest, source string) error {
+	return validateManifestFiles(manifest, source, nil)
+}
+
+func validateManifestFiles(manifest Manifest, source string, files map[string][]byte) error {
 	if !pluginIDPattern.MatchString(manifest.ID) || len(manifest.ID) < 3 || len(manifest.ID) > 64 {
 		return fmt.Errorf("invalid plugin id %q", manifest.ID)
 	}
@@ -283,6 +293,10 @@ func validateManifest(manifest Manifest, source string) error {
 		}
 	case KindErrorClassifier, KindModelMetadata:
 		// No manifest section: these kinds are pure functions of their input.
+	case KindSiteProvider:
+		if err := validateSiteProvider(manifest, files); err != nil {
+			return err
+		}
 	default:
 		return unsupportedKindError(manifest.Kind)
 	}

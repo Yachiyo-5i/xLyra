@@ -1,9 +1,6 @@
 package site
 
 import (
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/jsplugin"
 )
 
 func TestValidatePluginSiteTypeID(t *testing.T) {
@@ -80,33 +78,40 @@ func TestValidatePluginSiteTypeID(t *testing.T) {
 func TestPluginIDRuleMatchesJSPlugin(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile(filepath.Join("..", "jsplugin", "package.go"))
-	if err != nil {
-		t.Fatalf("read jsplugin package.go: %v", err)
+	for _, tc := range []struct {
+		id string
+		ok bool
+	}{
+		{id: "acme.example/chat", ok: true},
+		{id: "a.b/c", ok: true},
+		{id: "a1.b-c/chat_v2", ok: true},
+		{id: "ab1/a", ok: true},
+		{id: "a" + strings.Repeat("b", 63) + "/a", ok: true},
+		{id: "acme.example/" + "a" + strings.Repeat("b", 31), ok: true},
+		{id: "ACME.EXAMPLE/chat", ok: false},
+		{id: "acme.example/Chat", ok: false},
+		{id: "acme.example/chat/extra", ok: false},
+		{id: "acme.example/chat.v2", ok: false},
+		{id: "ab/chat", ok: false},
+		{id: "a" + strings.Repeat("b", 64) + "/a", ok: false},
+		{id: "acme.example", ok: false},
+		{id: "", ok: false},
+	} {
+		siteErr := ValidatePluginSiteTypeID(tc.id)
+		jsErr := jsplugin.ValidateSiteTypeID(tc.id)
+		if (siteErr == nil) != (jsErr == nil) || (siteErr == nil) != tc.ok {
+			t.Fatalf("id %q: site=%v jsplugin=%v ok=%v", tc.id, siteErr, jsErr, tc.ok)
+		}
+		if siteErr != nil && !strings.Contains(siteErr.Error(), "invalid plugin site type id") {
+			t.Fatalf("ValidatePluginSiteTypeID(%q) = %v", tc.id, siteErr)
+		}
 	}
-	source := string(raw)
-	const marker = "var pluginIDPattern = regexp.MustCompile(`"
-	start := strings.Index(source, marker)
-	if start < 0 {
-		t.Fatal("jsplugin pluginIDPattern not found")
-	}
-	rest := source[start+len(marker):]
-	end := strings.Index(rest, "`")
-	if end < 0 {
-		t.Fatal("jsplugin pluginIDPattern unterminated")
-	}
-	jsExpr := rest[:end]
-	if jsExpr != pluginIDPattern.String() {
-		t.Fatalf("plugin id pattern = %s, jsplugin = %s", pluginIDPattern.String(), jsExpr)
-	}
-	if !strings.Contains(source, "len(manifest.ID) < 3 || len(manifest.ID) > 64") {
-		t.Fatal("jsplugin plugin id length check changed; update pluginIDOK")
-	}
-	jsPattern := regexp.MustCompile(jsExpr)
 	for _, sample := range pluginIDRuleSamples {
-		jsOK := len(sample.id) >= 3 && len(sample.id) <= 64 && jsPattern.MatchString(sample.id)
-		if pluginIDOK(sample.id) != jsOK || jsOK != sample.ok {
-			t.Fatalf("plugin id %q: site=%v jsplugin=%v sample=%v", sample.id, pluginIDOK(sample.id), jsOK, sample.ok)
+		id := sample.id + "/a"
+		siteOK := IsPluginSiteTypeID(id)
+		jsOK := jsplugin.ValidateSiteTypeID(id) == nil
+		if siteOK != jsOK || siteOK != sample.ok {
+			t.Fatalf("id %q: site=%v jsplugin=%v sample=%v", id, siteOK, jsOK, sample.ok)
 		}
 	}
 }
