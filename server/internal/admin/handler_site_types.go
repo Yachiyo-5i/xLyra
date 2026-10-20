@@ -19,6 +19,8 @@ type siteTypeInfo struct {
 	ShowInCreateDialog bool                         `json:"show_in_create_dialog"`
 	IconURL            string                       `json:"icon_url"`
 	Accounts           *siteTypeAccountCapabilities `json:"accounts,omitempty"`
+	PluginID           string                       `json:"plugin_id,omitempty"`
+	ProviderStatus     string                       `json:"provider_status,omitempty"`
 }
 
 type siteTypeAccountCapabilities struct {
@@ -31,6 +33,10 @@ func (h Handler) ListSiteTypes(w http.ResponseWriter, r *http.Request) {
 	descriptors := sitepkg.SiteTypeDescriptors()
 	types := make([]siteTypeInfo, 0, len(descriptors))
 	for _, desc := range descriptors {
+		plugin, isPlugin := sitepkg.LookupPluginSiteType(desc.SiteType)
+		if isPlugin && !plugin.Enabled {
+			continue
+		}
 		officialBaseURL := desc.OfficialBaseURL
 		if desc.OfficialBaseURLProvider != "" {
 			officialBaseURL = gateway.OfficialBaseURLForProvider(desc.OfficialBaseURLProvider)
@@ -43,7 +49,7 @@ func (h Handler) ListSiteTypes(w http.ResponseWriter, r *http.Request) {
 				SupportsRegions: desc.Accounts.SupportsRegions,
 			}
 		}
-		types = append(types, siteTypeInfo{
+		info := siteTypeInfo{
 			SiteType:           desc.SiteType,
 			DisplayName:        desc.DisplayName,
 			Subtitle:           desc.Subtitle,
@@ -54,7 +60,12 @@ func (h Handler) ListSiteTypes(w http.ResponseWriter, r *http.Request) {
 			ShowInCreateDialog: desc.ShowInCreateDialog,
 			IconURL:            desc.IconURL,
 			Accounts:           accounts,
-		})
+		}
+		if isPlugin {
+			info.PluginID = plugin.PluginID
+			info.ProviderStatus = "enabled"
+		}
+		types = append(types, info)
 	}
 
 	httpx.JSON(w, http.StatusOK, map[string]any{

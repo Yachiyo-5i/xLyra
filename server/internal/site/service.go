@@ -2376,11 +2376,11 @@ func proxyIDFromMeta(raw []byte) string {
 }
 
 func normalizeSiteType(siteType string) string {
-	if strings.TrimSpace(siteType) == "" {
+	siteType = strings.ToLower(strings.TrimSpace(siteType))
+	if siteType == "" {
 		return "openai"
 	}
-
-	return strings.TrimSpace(siteType)
+	return siteType
 }
 
 // CredentialTypeForSiteType returns the credential behavior category for a site type:

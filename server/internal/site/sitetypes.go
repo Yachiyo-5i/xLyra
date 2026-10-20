@@ -1,6 +1,12 @@
 package site
 
-import "strings"
+import (
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+	"sync/atomic"
+)
 
 // SiteTypeDescriptor is the built-in site type registry entry.
 // APICredentialType is the public credential_type field. CredentialCategory is
@@ -27,6 +33,13 @@ type AccountCapabilities struct {
 	LoginKind       string
 	SupportsImport  bool
 	SupportsRegions bool
+}
+
+type PluginSiteType struct {
+	Descriptor SiteTypeDescriptor
+	PluginID   string
+	Enabled    bool
+	Hosts      []string
 }
 
 var siteTypeRegistry = []SiteTypeDescriptor{
@@ -229,9 +242,100 @@ var siteTypeRegistry = []SiteTypeDescriptor{
 	},
 }
 
+// pluginIDPattern is the plugin id rule from jsplugin.pluginIDPattern
+// (server/internal/jsplugin/package.go). Length is 3-64, same as validateManifest.
+var pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
+
+var pluginSiteTypeIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,62}[a-z0-9]/[a-z][a-z0-9_]{0,31}$`)
+
+var pluginSiteTypes atomic.Pointer[[]PluginSiteType]
+
+func pluginIDOK(id string) bool {
+	return len(id) >= 3 && len(id) <= 64 && pluginIDPattern.MatchString(id)
+}
+
+func ValidatePluginSiteTypeID(id string) error {
+	if !pluginSiteTypeIDPattern.MatchString(id) || !pluginIDOK(pluginSiteTypePluginID(id)) {
+		return fmt.Errorf("invalid plugin site type id %q", id)
+	}
+	return nil
+}
+
+func IsPluginSiteTypeID(id string) bool {
+	return ValidatePluginSiteTypeID(id) == nil
+}
+
+func pluginSiteTypePluginID(id string) string {
+	pluginID, _, _ := strings.Cut(id, "/")
+	return pluginID
+}
+
+func builtinSiteType(id string) bool {
+	for _, desc := range siteTypeRegistry {
+		if desc.SiteType == id {
+			return true
+		}
+	}
+	return false
+}
+
+func SetPluginSiteTypes(items []PluginSiteType) error {
+	next := make([]PluginSiteType, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		id := strings.ToLower(strings.TrimSpace(item.Descriptor.SiteType))
+		if builtinSiteType(id) {
+			return fmt.Errorf("plugin site type %q conflicts with a built-in site type", id)
+		}
+		if err := ValidatePluginSiteTypeID(id); err != nil {
+			return err
+		}
+		if _, ok := seen[id]; ok {
+			return fmt.Errorf("duplicate plugin site type %q", id)
+		}
+		seen[id] = struct{}{}
+		next = append(next, normalizePluginSiteType(item, id))
+	}
+	sort.Slice(next, func(i, j int) bool {
+		return next[i].Descriptor.SiteType < next[j].Descriptor.SiteType
+	})
+	pluginSiteTypes.Store(&next)
+	return nil
+}
+
+func ClearPluginSiteTypes() {
+	pluginSiteTypes.Store(nil)
+}
+
+func normalizePluginSiteType(item PluginSiteType, id string) PluginSiteType {
+	desc := item.Descriptor
+	desc.SiteType = id
+	desc.APICredentialType = "api_key"
+	desc.CredentialCategory = "api_key"
+	desc.SupportsAPIKeyCostMultiplier = false
+	desc.OfficialBaseURLProvider = ""
+	desc.Accounts = nil
+	item.Descriptor = desc
+	item.PluginID = strings.TrimSpace(item.PluginID)
+	item.Hosts = append([]string(nil), item.Hosts...)
+	return item
+}
+
+func loadPluginSiteTypes() []PluginSiteType {
+	snapshot := pluginSiteTypes.Load()
+	if snapshot == nil {
+		return nil
+	}
+	return *snapshot
+}
+
 func SiteTypeDescriptors() []SiteTypeDescriptor {
-	descriptors := make([]SiteTypeDescriptor, len(siteTypeRegistry))
-	copy(descriptors, siteTypeRegistry)
+	plugins := loadPluginSiteTypes()
+	descriptors := make([]SiteTypeDescriptor, 0, len(siteTypeRegistry)+len(plugins))
+	descriptors = append(descriptors, siteTypeRegistry...)
+	for _, item := range plugins {
+		descriptors = append(descriptors, item.Descriptor)
+	}
 	return descriptors
 }
 
@@ -245,5 +349,25 @@ func LookupSiteType(siteType string) (SiteTypeDescriptor, bool) {
 			return desc, true
 		}
 	}
+	for _, item := range loadPluginSiteTypes() {
+		if item.Descriptor.SiteType == key {
+			return item.Descriptor, true
+		}
+	}
 	return SiteTypeDescriptor{}, false
+}
+
+func LookupPluginSiteType(siteType string) (PluginSiteType, bool) {
+	key := strings.ToLower(strings.TrimSpace(siteType))
+	if key == "" {
+		return PluginSiteType{}, false
+	}
+	for _, item := range loadPluginSiteTypes() {
+		if item.Descriptor.SiteType != key {
+			continue
+		}
+		item.Hosts = append([]string(nil), item.Hosts...)
+		return item, true
+	}
+	return PluginSiteType{}, false
 }

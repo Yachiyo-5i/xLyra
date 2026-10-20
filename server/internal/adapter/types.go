@@ -419,7 +419,7 @@ func ModuleCapabilities(module Module) []Capability {
 }
 
 func normalizeSiteType(siteType string) string {
-	return strings.TrimSpace(siteType)
+	return strings.ToLower(strings.TrimSpace(siteType))
 }
 
 func uniqueCapabilities(values []Capability) []Capability {
