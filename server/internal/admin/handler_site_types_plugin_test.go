@@ -9,6 +9,49 @@ import (
 	sitepkg "xlyra/server/internal/site"
 )
 
+func TestListSiteTypesIncludesPluginIconURL(t *testing.T) {
+	sitepkg.ClearPluginSiteTypes()
+	t.Cleanup(sitepkg.ClearPluginSiteTypes)
+
+	const icon = "/api/v1/plugin-icons/acme.example?v=0123456789abcdef"
+	if err := sitepkg.SetPluginSiteTypes([]sitepkg.PluginSiteType{{
+		Descriptor: sitepkg.SiteTypeDescriptor{
+			SiteType:           "acme.example/chat",
+			DisplayName:        "Acme Chat",
+			CredentialKey:      "acme.example/chat",
+			ShowInCreateDialog: true,
+			IconURL:            icon,
+		},
+		PluginID: "acme.example",
+		Enabled:  true,
+		Hosts:    []string{"api.example.com"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := adminPerform((Handler{}).ListSiteTypes, adminTestRequest(http.MethodGet, "/api/v1/site-types", ""))
+	adminAssertStatus(t, rec, http.StatusOK)
+	var payload struct {
+		Items []siteTypeInfo `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != len(headSiteTypeInfos)+1 {
+		t.Fatalf("item count = %d", len(payload.Items))
+	}
+	if payload.Items[0].SiteType != "openai" || payload.Items[0].IconURL != "/brand-icons/openai.png" {
+		t.Fatalf("builtin openai = %#v", payload.Items[0])
+	}
+	got := payload.Items[len(payload.Items)-1]
+	if got.SiteType != "acme.example/chat" || got.IconURL != icon {
+		t.Fatalf("plugin item = %#v", got)
+	}
+	if siteTypeIconURL("acme.example/chat") != icon {
+		t.Fatalf("siteTypeIconURL = %q", siteTypeIconURL("acme.example/chat"))
+	}
+}
+
 func TestListSiteTypesAppendsEnabledPluginSiteTypes(t *testing.T) {
 	sitepkg.ClearPluginSiteTypes()
 	t.Cleanup(sitepkg.ClearPluginSiteTypes)

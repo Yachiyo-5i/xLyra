@@ -90,12 +90,22 @@ func (s ProtocolSection) AuthHeader() string {
 
 // Plugin is a loaded, compiled plugin of one kind.
 type Plugin struct {
-	Manifest Manifest
-	program  *program
-	pool     *pool
-	fixtures []Fixture
-	gen      int64
-	source   string
+	Manifest      Manifest
+	program       *program
+	pool          *pool
+	fixtures      []Fixture
+	gen           int64
+	source        string
+	packageSHA256 string
+}
+
+// PackageSHA256 is the canonical digest of the package this plugin was compiled
+// from. Builtins and plugins built with NewPlugin leave it empty.
+func (p *Plugin) PackageSHA256() string {
+	if p == nil {
+		return ""
+	}
+	return p.packageSHA256
 }
 
 // ProbeType is the Go probe type this plugin replaces, such as "kimi".

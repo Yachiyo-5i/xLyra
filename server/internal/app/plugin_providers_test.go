@@ -214,6 +214,107 @@ func TestApplySiteProvidersConcurrent(t *testing.T) {
 	}
 }
 
+func TestConvertSiteProviderIconURL(t *testing.T) {
+	svc := site.NewService(nil, "test-master-key")
+	logger, _ := discardLogger()
+	t.Cleanup(func() {
+		siteProviderCurrent = nil
+		applySiteProviders(nil, svc, logger)
+		site.ClearPluginSiteTypes()
+		gateway.ClearRuntimeProviderSpecs()
+	})
+
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 1}
+	with := compileIconProvider(t, "good.example", "assets/icon.png", png, "")
+	without := compileIconProvider(t, "plain.example", "", nil, "")
+
+	prepared, err := convertSiteProvider(with)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := with.PackageSHA256()
+	if len(sum) != 64 {
+		t.Fatalf("package sha = %q", sum)
+	}
+	want := "/api/v1/plugin-icons/good.example?v=" + sum[:16]
+	if prepared.item.Descriptor.IconURL != want {
+		t.Fatalf("IconURL = %q, want %q", prepared.item.Descriptor.IconURL, want)
+	}
+	plain, err := convertSiteProvider(without)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.item.Descriptor.IconURL != "" {
+		t.Fatalf("IconURL without icon = %q", plain.item.Descriptor.IconURL)
+	}
+
+	applySiteProviders(jsplugin.NewRegistry(with), svc, logger)
+	desc, ok := site.LookupSiteType("good.example/chat")
+	if !ok || desc.IconURL != want {
+		t.Fatalf("LookupSiteType IconURL = %q, %v", desc.IconURL, ok)
+	}
+	if builtin, ok := site.LookupSiteType("openai"); !ok || builtin.IconURL != "/brand-icons/openai.png" {
+		t.Fatalf("builtin icon = %#v, %v", builtin, ok)
+	}
+
+	next := compileIconProvider(t, "good.example", "assets/icon.png", png, "// next\n")
+	if next.PackageSHA256() == sum {
+		t.Fatal("package sha did not change")
+	}
+	nextWant := "/api/v1/plugin-icons/good.example?v=" + next.PackageSHA256()[:16]
+	applySiteProviders(jsplugin.NewRegistry(next), svc, logger)
+	desc, ok = site.LookupSiteType("good.example/chat")
+	if !ok || desc.IconURL != nextWant {
+		t.Fatalf("IconURL after repackage = %q, want %q", desc.IconURL, nextWant)
+	}
+}
+
+func compileIconProvider(t *testing.T, id, iconName string, icon []byte, extra string) *jsplugin.Plugin {
+	t.Helper()
+	source := "export const meta = { apiVersion: 1, id: \"" + id + "\", kind: \"site_provider\" };\n" + extra
+	manifest := jsplugin.Manifest{
+		ID: id, Name: id, Version: "1.0.0", APIVersion: 1, HostAPI: 1, Kind: jsplugin.KindSiteProvider,
+		SiteProvider: jsplugin.SiteProviderSection{
+			SiteType: id + "/chat",
+			Display: jsplugin.SiteProviderDisplay{
+				Name: jsplugin.LocalizedText{"zh": "示例"},
+				Icon: iconName,
+			},
+			Hosts:      []string{"api.example.com"},
+			Credential: jsplugin.SiteProviderCredential{Model: "api_key"},
+			Protocol: jsplugin.SiteProviderProtocol{
+				Kind: "openai_chat", Path: "/v1/chat/completions", OfficialBaseURL: "https://api.example.com/v1",
+				DefaultEndpointTypes: []string{"openai"},
+			},
+		},
+		SHA256: map[string]string{"plugin.js": jsplugin.HashSource(source)},
+	}
+	encoded, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{
+		"manifest.json": encoded,
+		"plugin.js":     []byte(source),
+	}
+	if len(icon) > 0 {
+		files[iconName] = icon
+	}
+	raw, err := jsplugin.BuildPackage(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := jsplugin.ReadPackage(raw, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plugin, err := jsplugin.CompilePackage(pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plugin
+}
+
 func testProviderPlugin(id, siteType string, hosts []string, official string, params json.RawMessage, name, subtitle jsplugin.LocalizedText) *jsplugin.Plugin {
 	return &jsplugin.Plugin{Manifest: jsplugin.Manifest{
 		ID:   id,

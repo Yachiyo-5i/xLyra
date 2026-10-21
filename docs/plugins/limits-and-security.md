@@ -45,6 +45,7 @@
 | 日志 | 每次调用 20 条，每条 1024 字节 |
 | 请求头 | 32 个，共 8 KiB |
 | 插件包 | 2 MiB，64 个文件 |
+| `site_provider` 的 `display.icon` | 64 KiB，只能是 PNG 或 WebP |
 
 超时或内存超限时，运行时会被**立即中断**并丢弃，不会影响其他请求。
 
@@ -82,6 +83,10 @@
 插件被停用或卸载之后没有可用的白名单。类型名里带 `/` 的出站会被拒绝。
 
 `site_provider` 的 `probe`、`listModels`、`check` 在发请求前，除了与站点 `base_url` 同源，还会再做一次上面的主机名检查。站点类型名里带 `/` 时，手工绑定的分步插件也做这一次检查。内置站点类型（类型名不含 `/`）的额度探测仍只受同源限制。详见 [API Key 站点类型](./site-provider.md#出站限制)。
+
+## 插件图标
+
+`display.icon` 的字节由 `GET /api/v1/plugin-icons/{pluginID}` 返回。路径在需要管理端会话的路由组里，不匿名公开。响应按文件头设置 `Content-Type`（`image/png` 或 `image/webp`），并带 `X-Content-Type-Options: nosniff`、`Content-Security-Policy: default-src 'none'`、`Cache-Control: private, max-age=86400`。`ETag` 是包的 SHA256。插件停用后图片仍在；插件删除后是 404。查询参数 `v` 只给浏览器换缓存用，服务端不读它。
 
 ## 自动保护（熔断）
 

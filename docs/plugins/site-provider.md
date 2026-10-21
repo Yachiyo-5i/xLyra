@@ -336,7 +336,7 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 
 ## 已知限制
 
-- 插件图标：`display.icon` 会校验（包内相对路径、`.png` 或 `.webp`、文件头符合格式、不超过 64 KiB），但接入站点类型时图标地址固定为空，后端不提供这张图片。创建页先查内置图标映射，插件类型没有映射，于是用显示名的首字符做占位。
+- 插件图标：`display.icon` 声明的 PNG 或 WebP 由 `GET /api/v1/plugin-icons/{pluginID}` 提供。这个接口在管理端会话路由组里，浏览器要带 Cookie `xlyra_admin_session`；停用后仍可访问，插件删除后返回 404。站点类型的 `icon_url` 是 `/api/v1/plugin-icons/<pluginID>?v=<包 SHA256 的前 16 位>`，换包后 `v` 会变。没有声明图标时 `icon_url` 仍为空，创建页用显示名的首字符做占位。创建页先查内置图标映射，插件类型没有映射，于是用 `icon_url`。
 - `display.brandColor` 只校验 `#RRGGBB`，不会送到创建页。
 - 创建页的额度探测下拉只对 `openai` 和 `anthropic` 出现，倍率只对 `openai`、`anthropic`、`google_gemini` 出现。插件站点类型的倍率能力固定为关。创建时写入的额度探测值是 `none`，服务端把它当成没配置；导出了 `probe` 就会自动探测。
 - 显示名和副标题按 `zh`、然后 `en`、再按语言标签字母序取第一个非空值。写成单个字符串时，用的就是这句。

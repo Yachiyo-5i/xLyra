@@ -190,7 +190,7 @@ func TestSetPluginSiteTypes(t *testing.T) {
 		if !ok || desc.DisplayName != "Kept" || desc.SiteType != "acme.example/chat" {
 			t.Fatalf("LookupSiteType(%q) = %#v, %v", id, desc, ok)
 		}
-		if desc.APICredentialType != "api_key" || desc.CredentialCategory != "api_key" || desc.SupportsAPIKeyCostMultiplier || desc.Accounts != nil {
+		if desc.APICredentialType != "api_key" || desc.CredentialCategory != "api_key" || desc.SupportsAPIKeyCostMultiplier || desc.Accounts != nil || desc.IconURL != "/brand-icons/acme.png" {
 			t.Fatalf("LookupSiteType(%q) descriptor = %#v", id, desc)
 		}
 		item, ok := LookupPluginSiteType(id)

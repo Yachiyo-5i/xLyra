@@ -164,7 +164,7 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 				RequiresBaseURL:    false,
 				OfficialBaseURL:    section.Protocol.OfficialBaseURL,
 				ShowInCreateDialog: true,
-				IconURL:            "",
+				IconURL:            siteProviderIconURL(plugin),
 			},
 			PluginID: plugin.Manifest.ID,
 			Enabled:  true,
@@ -214,6 +214,20 @@ func conflictsWithBuiltinSiteType(id string) bool {
 	}
 	key := strings.ToLower(strings.TrimSpace(id))
 	return desc.SiteType == key && !strings.Contains(desc.SiteType, "/")
+}
+
+func siteProviderIconURL(plugin *jsplugin.Plugin) string {
+	if plugin == nil {
+		return ""
+	}
+	if strings.TrimSpace(plugin.Manifest.SiteProvider.Display.Icon) == "" {
+		return ""
+	}
+	sum := plugin.PackageSHA256()
+	if len(sum) < 16 {
+		return ""
+	}
+	return "/api/v1/plugin-icons/" + plugin.Manifest.ID + "?v=" + sum[:16]
 }
 
 func siteProviderPluginID(plugin *jsplugin.Plugin) string {
