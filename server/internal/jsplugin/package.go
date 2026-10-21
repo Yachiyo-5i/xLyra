@@ -262,6 +262,9 @@ func validateManifestFiles(manifest Manifest, source string, files map[string][]
 	if !ok || !strings.EqualFold(sum, hashSource(source)) {
 		return fmt.Errorf("plugin.js sha256 does not match the manifest")
 	}
+	if manifest.Kind != KindSiteProvider && siteProviderRequestPresent(manifest.SiteProvider.Request) {
+		return fmt.Errorf("request is not allowed for %s", manifest.Kind)
+	}
 	switch manifest.Kind {
 	case KindQuotaProbe:
 		if err := validateBaseURLMode(manifest.QuotaProbe.BaseURLMode); err != nil {

@@ -26,6 +26,11 @@ type resolvedUpstreamCredential struct {
 	AccountID string
 	// BaseURL overrides the site address. Empty keeps the site address.
 	BaseURL string
+	// HeaderVars supplies {{cred.*}} values for plugin request header templates.
+	// It is not passed to gatewayProtocolHeaderAdapter. Nil means the site has
+	// no credential resolver: an API-key plugin site fills cred.api_key from
+	// the decrypted upstream key.
+	HeaderVars map[string]string
 }
 
 type credentialResolveFailure struct {

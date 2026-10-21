@@ -59,6 +59,15 @@ type SiteProviderSection struct {
 	Credential SiteProviderCredential `json:"credential"`
 	Protocol   SiteProviderProtocol   `json:"protocol"`
 	Models     SiteProviderModels     `json:"models,omitempty"`
+	Request    SiteProviderRequest    `json:"request,omitempty"`
+}
+
+// SiteProviderRequest is the optional upstream header template.
+// Headers maps a header name to a template. StripDownstreamHeaders keeps only
+// those names plus Content-Type and Accept.
+type SiteProviderRequest struct {
+	Headers                map[string]string `json:"headers,omitempty"`
+	StripDownstreamHeaders bool              `json:"stripDownstreamHeaders,omitempty"`
 }
 
 // SiteProviderDisplay is the copy and mark shown for the site type.
@@ -133,6 +142,9 @@ func validateSiteProvider(manifest Manifest, files map[string][]byte) error {
 		return err
 	}
 	if err := validateSiteProviderModels(section.Models); err != nil {
+		return err
+	}
+	if err := ValidateSiteProviderRequest(section.Request, headerTemplateFields(section.Credential.Model)); err != nil {
 		return err
 	}
 	return nil

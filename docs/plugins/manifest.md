@@ -110,7 +110,14 @@
     "defaultEndpointTypes": ["openai"],
     "requestParams": { "unsupported": ["logit_bias"] }
   },
-  "models": { "path": "/v1/models", "auth": "bearer" }
+  "models": { "path": "/v1/models", "auth": "bearer" },
+  "request": {
+    "headers": {
+      "Authorization": "Bearer {{cred.api_key}}",
+      "X-Client": "xlyra"
+    },
+    "stripDownstreamHeaders": true
+  }
 }
 ```
 
@@ -129,7 +136,9 @@
 | `protocol.defaultEndpointTypes` | 是 | 至少一项，每项是 `openai`、`openai-response`、`anthropic-messages`、`google-gemini` 之一。只检查取值，不和 `protocol.kind` 做对应推断。通用适配器列模型时把它写进每个模型的 `supported_endpoint_types`；导出了 `listModels` 时以钩子返回的 `capabilities` 为准 |
 | `protocol.requestParams` | 否 | 可选。允许的键是 `unsupported`、`allowed_values`、`defaults`、`fixed`、`forced`、`validation`、`supported`。`supported` 只被合并，不过滤参数。不认识的键会让这份规格校验失败，插件被跳过。各键是否改正文见 [API Key 站点类型](./site-provider.md#requestparams) |
 | `models.path` | 否 | 拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则。没有 `listModels` 钩子时，通用适配器用它 |
-| `models.auth` | 否 | 不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名 |
+| `models.auth` | 否 | 不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名。只用于通用适配器的列模型、验 Key 和健康检查，不决定网关转发的头 |
+| `request.headers` | 否 | 最多 16 项，头名到模板字符串。头名是 HTTP token，忽略大小写后不能重复。不能是 `Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`、`Content-Type`、`Accept`，也不能是 `X-Forwarded-*`。`Authorization` 可以写。模板只允许 `{{cred.<field>}}` 和 `{{site.baseURL}}`，花括号内不能有空格。`api_key` 的 `<field>` 只有 `api_key`。字面量不能含 CR、LF 或其它控制字符。这里声明 `Authorization` 不会和 `models.auth` 冲突。规则见 [请求头模板](./site-provider.md#请求头模板) |
+| `request.stripDownstreamHeaders` | 否 | 默认 `false`。为 `true` 时，转发前只保留模板声明的头，外加 `Content-Type` 和 `Accept` |
 
 `probe`、`listModels`、`check`、`classify`、`rewritePayload` 都是可选导出，调用时机和返回值见 [API Key 站点类型](./site-provider.md)。
 

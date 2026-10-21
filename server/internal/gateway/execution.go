@@ -268,6 +268,7 @@ func (h Handler) forwardGatewayRequest(
 		// upstreamBaseURL starts as the site address. A resolver may override it
 		// when the selected account talks to a different host.
 		upstreamBaseURL := candidate.Site.BaseURL
+		var headerVars map[string]string
 		if resolver := credentialResolverForSite(candidate.Site.SiteType); resolver != nil {
 			resolved, failure := resolver.Resolve(ctx, h, candidate, selectedCredential, upstreamKey, accountID)
 			if failure != nil {
@@ -296,6 +297,7 @@ func (h Handler) forwardGatewayRequest(
 			if resolved.BaseURL != "" {
 				upstreamBaseURL = resolved.BaseURL
 			}
+			headerVars = resolved.HeaderVars
 		}
 
 		payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
@@ -401,6 +403,14 @@ func (h Handler) forwardGatewayRequest(
 		}
 		if isOpenCodeZenSite(candidate) {
 			applyOpenCodeGoGatewayHeaders(req, request, upstreamKey)
+		}
+		if err := applyPluginRequestHeaders(req, candidate.Site.SiteType, headerVars, upstreamKey, upstreamBaseURL); err != nil {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "plugin_header_template_failed"
+			result.errorMessage = err.Error()
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result = recordCredentialAttempt(result, nil, false)
+			return result
 		}
 		if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
 			result.statusCode = http.StatusBadGateway

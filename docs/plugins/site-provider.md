@@ -128,6 +128,58 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 替代协议、按模型覆盖、reasoning 都不在这张白名单里，写了会被拒绝。
 
+## 请求头模板
+
+`siteProvider.request` 可以不写。不写时，网关转发的请求头与改这项功能之前相同：内置站点类型不读这份配置，没有 `request` 的插件站点也不会多头或少头。
+
+```json
+"request": {
+  "headers": {
+    "Authorization": "Bearer {{cred.api_key}}",
+    "X-Client": "xlyra"
+  },
+  "stripDownstreamHeaders": true
+}
+```
+
+### 语法
+
+模板里只有两种占位符，花括号内不能有空格，不能嵌套，`{{` 必须用 `}}` 关上：
+
+| 占位符 | 值 |
+| --- | --- |
+| `{{cred.<field>}}` | 凭据字段。`<field>` 必须属于当前 `credential.model` 允许的集合。`api_key` 只有 `api_key`，值是整串站点 Key |
+| `{{site.baseURL}}` | 这次实际使用的上游基址，去掉尾部 `/` |
+
+`{{ cred.api_key }}`、`{{cred.api_key`、`{{secret.x}}`、`{{site.baseurl}}` 都会在校验清单时拒绝。`api_key` 模型写 `{{cred.domain}}` 也会拒绝，因为 `domain` 不在允许的字段里。校验按调用方传入的字段集合判断，不把字段名写死；当前模型只有 `api_key`，集合里就是 `api_key`。同一个模板可以多次使用同一个占位符。占位符以外的字面量不能含 CR、LF 或其它控制字符。
+
+`headers` 最多 16 项。头名必须是合法的 HTTP token。忽略大小写后相同的头名算重复。下面这些不能由模板写：`Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`，以及任何 `X-Forwarded-*`。`Content-Type` 和 `Accept` 由协议适配器决定，模板也不能写。`Authorization` 可以写，而且只有模板里声明了，才会按模板的值发送。
+
+### 何时写入
+
+网关只在一个位置应用模板：协议适配器写完头、下游头按现有规则透传、内置站点自己的头都处理完之后，给上游请求签名之前。站点模型测试走同一处函数。
+
+`stripDownstreamHeaders` 不写等于 `false`。
+
+- `false`：已经写上的头都保留，包括这条路径会透传的下游头。然后写入模板，同名头以模板为准。
+- `true`：先按白名单删头，只留模板里声明的头名，再加上 `Content-Type` 和 `Accept`，然后写入模板。下游带来的 `X-Stainless-*`、`Anthropic-Beta` 不会留下。模板没声明的头也会被删掉，包括协议适配器刚写上的。Messages 适配器会删掉 `Authorization` 并写上 `x-api-key`；若模板没有声明 `x-api-key`，剥离之后它不在请求里。模板声明了 `Authorization` 时，按模板的值写回去。
+
+下游透传只发生在 `/v1/messages` 和 `/v1/responses`，并且本来就不转发 `Cookie`、`Host`、`Authorization` 等。剥离是在透传之后再收窄一次。
+
+渲染失败时，这次请求 HTTP 502，错误类型 `plugin_header_template_failed`。失败原因是变量不在这次的变量表里，或渲染结果含 CR、LF、其它控制字符。错误信息里有头名和原因，不含密钥的值。请求不会发往上游，也不会换下一把密钥。
+
+### 和 models.auth 的分工
+
+`models.auth` 只决定通用适配器在列模型、验 Key、健康检查时把密钥放进哪个头。网关转发不看它。转发头在没有 `request.headers` 时仍由协议适配器决定；写了 `request.headers` 之后，由模板在适配器之后覆盖。模板里声明 `Authorization` 不会和 `models.auth` 冲突。
+
+### 变量从哪来
+
+`api_key` 插件站点没有单独的凭据解析器。网关把解密后的站点 Key 放进 `cred.api_key`，把这次使用的上游基址放进 `site.baseURL`。
+
+### 安全
+
+模板在主机检查之前渲染。渲染失败，或主机不在启用时确认的列表里，请求都不会发出。密钥只会随实际发出的请求到达已确认的主机。变量值里的 CR、LF 或其它控制字符会使这次请求失败，避免把换行写进头里。插件代码看不到这些值。
+
 ## 启用与信任
 
 启用 `site_provider` 有三条，缺一不可：
@@ -355,6 +407,7 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 | `js_plugin_in_use` | 409 | 仍有站点时卸载插件或删除最后一个版本。响应带 `site_type`、`count` |
 | `plugin_rewrite_failed` | 502 | `rewritePayload` 失败，请求未发出 |
 | `upstream_host_not_allowed` | 502 | 上游主机不在确认过的列表里，请求未发出 |
+| `plugin_header_template_failed` | 502 | 请求头模板渲染失败，请求未发出，不换密钥。错误信息有头名，不含密钥的值 |
 | `request_param_validation_failed` | 400 | `requestParams.validation` 没通过。这是改写成功之后的参数校验 |
 
 钩子运行失败仍使用 `js_timeout`、`js_shape_error`、`js_exception`、`js_url_rejected`、`js_plugin_response_too_large` 等类型，格式见[错误码](./errors.md)。

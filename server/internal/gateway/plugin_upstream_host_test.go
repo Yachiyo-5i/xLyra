@@ -216,6 +216,11 @@ func pluginUpstreamModelTestFixture(t *testing.T, siteType, baseURL string, host
 
 func pluginUpstreamModelTestFixtureWithHosts(t *testing.T, siteType, baseURL string, hosts []string, enabled bool, client *http.Client, credentialCount int) (Handler, routeengine.Candidate, *store.GatewayCredential) {
 	t.Helper()
+	return pluginUpstreamFixtureWithSecret(t, siteType, baseURL, hosts, enabled, client, credentialCount, "sk-test")
+}
+
+func pluginUpstreamFixtureWithSecret(t *testing.T, siteType, baseURL string, hosts []string, enabled bool, client *http.Client, credentialCount int, secret string) (Handler, routeengine.Candidate, *store.GatewayCredential) {
+	t.Helper()
 	if credentialCount < 1 {
 		credentialCount = 1
 	}
@@ -231,7 +236,7 @@ func pluginUpstreamModelTestFixtureWithHosts(t *testing.T, siteType, baseURL str
 	siteID := uuid.New()
 	siteModelID := uuid.New()
 	secrets := credential.NewService("test-master")
-	encrypted, masked, err := secrets.Encrypt("sk-test")
+	encrypted, masked, err := secrets.Encrypt(secret)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -36,11 +36,20 @@ type AccountCapabilities struct {
 	SupportsRegions bool
 }
 
+// PluginSiteRequest is the upstream header template for a plugin site type.
+// Headers maps a header name to a template string. A zero value means the
+// package did not declare request headers.
+type PluginSiteRequest struct {
+	Headers                map[string]string
+	StripDownstreamHeaders bool
+}
+
 type PluginSiteType struct {
 	Descriptor SiteTypeDescriptor
 	PluginID   string
 	Enabled    bool
 	Hosts      []string
+	Request    PluginSiteRequest
 }
 
 var siteTypeRegistry = []SiteTypeDescriptor{
@@ -304,7 +313,20 @@ func normalizePluginSiteType(item PluginSiteType, id string) PluginSiteType {
 	item.Descriptor = desc
 	item.PluginID = strings.TrimSpace(item.PluginID)
 	item.Hosts = append([]string(nil), item.Hosts...)
+	item.Request = clonePluginSiteRequest(item.Request)
 	return item
+}
+
+func clonePluginSiteRequest(in PluginSiteRequest) PluginSiteRequest {
+	out := PluginSiteRequest{StripDownstreamHeaders: in.StripDownstreamHeaders}
+	if len(in.Headers) == 0 {
+		return out
+	}
+	out.Headers = make(map[string]string, len(in.Headers))
+	for key, value := range in.Headers {
+		out.Headers[key] = value
+	}
+	return out
 }
 
 func loadPluginSiteTypes() []PluginSiteType {
@@ -353,6 +375,7 @@ func LookupPluginSiteType(siteType string) (PluginSiteType, bool) {
 			continue
 		}
 		item.Hosts = append([]string(nil), item.Hosts...)
+		item.Request = clonePluginSiteRequest(item.Request)
 		return item, true
 	}
 	return PluginSiteType{}, false

@@ -315,6 +315,31 @@ func compileIconProvider(t *testing.T, id, iconName string, icon []byte, extra s
 	return plugin
 }
 
+func TestConvertSiteProviderCopiesRequestHeaders(t *testing.T) {
+	plugin := testProviderPlugin("good.example", "good.example/chat", []string{"api.example.com"}, "https://api.example.com", nil, jsplugin.LocalizedText{"en": "Example"}, nil)
+	plugin.Manifest.SiteProvider.Request = jsplugin.SiteProviderRequest{
+		Headers:                map[string]string{"Authorization": "Bearer {{cred.api_key}}", "X-Client": "xlyra"},
+		StripDownstreamHeaders: true,
+	}
+	prepared, err := convertSiteProvider(plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plugin.Manifest.SiteProvider.Request.Headers["X-Client"] = "changed"
+	if prepared.item.Request.Headers["X-Client"] != "xlyra" || prepared.item.Request.Headers["Authorization"] != "Bearer {{cred.api_key}}" || !prepared.item.Request.StripDownstreamHeaders {
+		t.Fatalf("request = %#v", prepared.item.Request)
+	}
+	if err := site.SetPluginSiteTypes([]site.PluginSiteType{prepared.item}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(site.ClearPluginSiteTypes)
+	prepared.item.Request.Headers["Authorization"] = "mutated"
+	item, ok := site.LookupPluginSiteType("good.example/chat")
+	if !ok || item.Request.Headers["Authorization"] != "Bearer {{cred.api_key}}" || item.Request.Headers["X-Client"] != "xlyra" {
+		t.Fatalf("lookup request = %#v, %v", item.Request, ok)
+	}
+}
+
 func testProviderPlugin(id, siteType string, hosts []string, official string, params json.RawMessage, name, subtitle jsplugin.LocalizedText) *jsplugin.Plugin {
 	return &jsplugin.Plugin{Manifest: jsplugin.Manifest{
 		ID:   id,

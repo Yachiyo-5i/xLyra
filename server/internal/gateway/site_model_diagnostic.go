@@ -414,6 +414,14 @@ func (h Handler) forwardSiteModelTestRequest(
 	if isOpenCodeZenSite(candidate) {
 		applyOpenCodeGoGatewayHeaders(req, request, upstreamKey)
 	}
+	if err := applyPluginRequestHeaders(req, candidate.Site.SiteType, nil, upstreamKey, candidate.Site.BaseURL); err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "plugin_header_template_failed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
 	if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
 		result.statusCode = http.StatusBadGateway
 		result.errorType = "upstream_sign_failed"

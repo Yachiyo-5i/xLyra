@@ -265,7 +265,7 @@ func TestCredentialResolverFailure(t *testing.T) {
 			if failure == nil {
 				t.Fatal("expected a resolve failure")
 			}
-			if resolved != (resolvedUpstreamCredential{}) {
+			if resolved.Key != "" || resolved.AccountID != "" || resolved.BaseURL != "" || resolved.HeaderVars != nil {
 				t.Fatalf("resolved = %+v, want zero value", resolved)
 			}
 			if failure.ErrorType != tt.wantType || failure.TryNextCredential != tt.tryNext || failure.MarkReauth != tt.reauth {

@@ -67,9 +67,10 @@ js_timeout: interrupted: timeout
 
 ## 网关转发时的错误
 
-这两种出现在网关结果里，HTTP 都是 502，请求不会发到上游，也不会换下一把密钥重试：
+这些错误出现在网关结果里。HTTP 都是 502，请求不会发到上游，也不会换下一把密钥重试：
 
 | 错误码 | 含义 |
 | --- | --- |
 | `plugin_rewrite_failed` | 站点类型的 `rewritePayload` 失败（抛错、超时、形状不对、改了 `model` 或 `stream`、正文超过 1 MiB）。错误信息里带插件 id |
 | `upstream_host_not_allowed` | 插件站点类型的上游主机不在启用时确认的列表里，或该类型已停用 |
+| `plugin_header_template_failed` | 插件站点的请求头模板渲染失败（变量不存在，或结果含 CR、LF、其它控制字符）。错误信息里有头名，不含密钥的值 |

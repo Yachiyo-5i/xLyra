@@ -161,6 +161,10 @@ func TestSetPluginSiteTypes(t *testing.T) {
 	t.Cleanup(ClearPluginSiteTypes)
 
 	hosts := []string{"api.example.com", "files.example.com"}
+	headers := map[string]string{
+		"Authorization": "Bearer {{cred.api_key}}",
+		"X-Client":      "xlyra",
+	}
 	kept := PluginSiteType{
 		Descriptor: SiteTypeDescriptor{
 			SiteType:                     " ACME.EXAMPLE/Chat ",
@@ -179,11 +183,13 @@ func TestSetPluginSiteTypes(t *testing.T) {
 		PluginID: " acme.example ",
 		Enabled:  true,
 		Hosts:    hosts,
+		Request:  PluginSiteRequest{Headers: headers, StripDownstreamHeaders: true},
 	}
 	if err := SetPluginSiteTypes([]PluginSiteType{kept}); err != nil {
 		t.Fatalf("set kept: %v", err)
 	}
 	hosts[0] = "evil.example"
+	headers["Authorization"] = "mutated"
 
 	for _, id := range []string{"acme.example/chat", " ACME.EXAMPLE/Chat ", "Acme.Example/CHAT"} {
 		desc, ok := LookupSiteType(id)
@@ -200,11 +206,15 @@ func TestSetPluginSiteTypes(t *testing.T) {
 		if len(item.Hosts) != 2 || item.Hosts[0] != "api.example.com" || item.Hosts[1] != "files.example.com" {
 			t.Fatalf("hosts = %#v", item.Hosts)
 		}
+		if !item.Request.StripDownstreamHeaders || item.Request.Headers["Authorization"] != "Bearer {{cred.api_key}}" || item.Request.Headers["X-Client"] != "xlyra" {
+			t.Fatalf("request = %#v", item.Request)
+		}
 		item.Hosts[0] = "mutated.example"
+		item.Request.Headers["X-Client"] = "changed"
 	}
 	again, ok := LookupPluginSiteType("acme.example/chat")
-	if !ok || again.Hosts[0] != "api.example.com" {
-		t.Fatalf("snapshot hosts changed: %#v", again.Hosts)
+	if !ok || again.Hosts[0] != "api.example.com" || again.Request.Headers["X-Client"] != "xlyra" || again.Request.Headers["Authorization"] != "Bearer {{cred.api_key}}" {
+		t.Fatalf("snapshot changed: hosts %#v request %#v", again.Hosts, again.Request)
 	}
 	builtin, ok := LookupSiteType(" OpenAI ")
 	if !ok || builtin.DisplayName != "OpenAI" || builtin.CredentialCategory != "api_key" {

@@ -169,8 +169,21 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 			PluginID: plugin.Manifest.ID,
 			Enabled:  true,
 			Hosts:    append([]string(nil), section.Hosts...),
+			Request:  pluginSiteRequestFromManifest(section.Request),
 		},
 	}, nil
+}
+
+func pluginSiteRequestFromManifest(section jsplugin.SiteProviderRequest) site.PluginSiteRequest {
+	out := site.PluginSiteRequest{StripDownstreamHeaders: section.StripDownstreamHeaders}
+	if len(section.Headers) == 0 {
+		return out
+	}
+	out.Headers = make(map[string]string, len(section.Headers))
+	for key, value := range section.Headers {
+		out.Headers[key] = value
+	}
+	return out
 }
 
 func siteProviderSpecJSON(section jsplugin.SiteProviderSection) (json.RawMessage, error) {
