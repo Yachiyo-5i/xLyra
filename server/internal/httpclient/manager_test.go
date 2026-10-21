@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -9,6 +10,28 @@ import (
 
 	"xlyra/server/internal/config"
 )
+
+func TestDisableCompressionDoesNotAddAcceptEncodingHeader(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Accept-Encoding"); got != "" {
+			t.Errorf("Accept-Encoding = %q, want absent", got)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := newHTTPClient(Profile{DisableCompression: true}, nil)
+	if err != nil {
+		t.Fatalf("newHTTPClient returned error: %v", err)
+	}
+	resp, err := client.Get(server.URL)
+	if err != nil {
+		t.Fatalf("GET returned error: %v", err)
+	}
+	_ = resp.Body.Close()
+}
 
 func TestNormalizeNetworkConfigTrimsAndLowercasesProxyFields(t *testing.T) {
 	t.Parallel()

@@ -328,7 +328,7 @@ func (h Handler) forwardGatewayRequest(
 			upstreamKey = accessToken
 		}
 
-		payload, err := protocol.BuildUpstreamPayload(request, candidate)
+		payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
 		if err != nil {
 			result.statusCode = http.StatusBadRequest
 			result.contentType = "application/json"
@@ -356,9 +356,10 @@ func (h Handler) forwardGatewayRequest(
 			upstreamStream = true
 		}
 		upstreamProfileRequest := upstreamClientProfileRequest{
-			Stream:          upstreamStream,
-			ImageGeneration: isCodexImageGenerationRequest(candidate, request, payload) || (isGrokSite(candidate.Site.SiteType) && request.DownstreamPath == gatewayEndpointImagesGenerations),
-			ClaudeCode:      isClaudeCodeSite(candidate.Site.SiteType),
+			Stream:             upstreamStream,
+			ImageGeneration:    isCodexImageGenerationRequest(candidate, request, payload) || (isGrokSite(candidate.Site.SiteType) && request.DownstreamPath == gatewayEndpointImagesGenerations),
+			ClaudeCode:         isClaudeCodeSite(candidate.Site.SiteType),
+			DisableCompression: isOpenCodeZenSite(candidate),
 		}
 
 		upstreamClient, siteConfig, requestHeaders, err := h.upstreamClientForSite(ctx, candidate.Site.ID, upstreamProfileRequest)
@@ -418,6 +419,9 @@ func (h Handler) forwardGatewayRequest(
 		}
 		if isClaudeCodeSite(candidate.Site.SiteType) {
 			applyClaudeCodeOAuthGatewayHeaders(req, upstreamKey)
+		}
+		if isOpenCodeZenSite(candidate) {
+			applyOpenCodeGoGatewayHeaders(req, request, upstreamKey)
 		}
 		if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
 			result.statusCode = http.StatusBadGateway

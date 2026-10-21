@@ -34,6 +34,7 @@ func TestCuratedEndpointTypesUseGenerationRule(t *testing.T) {
 		{"gpt-image-3", []string{"openai-image"}},
 		{"text-embedding-3-large", []string{"openai-embedding"}},
 		{"claude-sonnet-4-6", []string{"anthropic-messages"}},
+		{"jev-1.13-free", []string{"typesafe-systemone"}},
 		{"gpt-4o", []string{"openai"}},
 		{"gpt-3.5-turbo", []string{"openai"}},
 		{"o3-mini", []string{"openai"}},

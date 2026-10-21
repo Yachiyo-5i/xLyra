@@ -946,6 +946,38 @@ func TestOpenCodeGoSiteModelCapabilitiesPreserveSpecMapping(t *testing.T) {
 	}
 }
 
+func TestOpenCodeGoModelCapabilitiesMapZenFreeModelsAndJEV(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		model string
+		want  string
+	}{
+		{model: "longcat-2.5-preview-free", want: "openai"},
+		{model: "mimo-v2.6-flash-free", want: "openai"},
+		{model: "minimax-m3.1-flash-free", want: "openai"},
+		{model: "nemotron-3.5-lightning-free", want: "openai"},
+		{model: "nemotron-3.5-super-vl-free", want: "openai"},
+		{model: "jev-1.13-free", want: "typesafe-systemone"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.model, func(t *testing.T) {
+			encoded, err := openCodeGoSiteModelCapabilities(nil, tc.model)
+			if err != nil {
+				t.Fatalf("openCodeGoSiteModelCapabilities: %v", err)
+			}
+			capabilities := map[string]any{}
+			if err := json.Unmarshal(encoded, &capabilities); err != nil {
+				t.Fatalf("decode capabilities: %v", err)
+			}
+			endpoints := stringSliceFromPricingRaw(capabilities["supported_endpoint_types"])
+			if len(endpoints) != 1 || endpoints[0] != tc.want || capabilities["protocol_mapping_status"] != "mapped" {
+				t.Fatalf("capabilities = %#v, want mapped endpoint %q", capabilities, tc.want)
+			}
+		})
+	}
+}
+
 func TestOpenCodeGoSiteModelCapabilitiesFallbackToChatCompletions(t *testing.T) {
 	t.Parallel()
 

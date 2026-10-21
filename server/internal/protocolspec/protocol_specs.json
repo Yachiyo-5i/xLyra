@@ -661,6 +661,18 @@
       "model_endpoint_types": [
         {
           "models": [
+            "longcat-2.5-preview-free",
+            "mimo-v2.6-flash-free",
+            "minimax-m3.1-flash-free",
+            "nemotron-3.5-lightning-free",
+            "nemotron-3.5-super-vl-free"
+          ],
+          "supported_endpoint_types": [
+            "openai"
+          ]
+        },
+        {
+          "models": [
             "gpt-5.6-luna"
           ],
           "supported_endpoint_types": [
@@ -674,6 +686,14 @@
           ],
           "supported_endpoint_types": [
             "anthropic-messages"
+          ]
+        },
+        {
+          "prefixes": [
+            "jev-"
+          ],
+          "supported_endpoint_types": [
+            "typesafe-systemone"
           ]
         },
         {

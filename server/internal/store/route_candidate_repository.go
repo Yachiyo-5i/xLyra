@@ -175,7 +175,11 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 		fillRouteKeyCounts(&row, apiKeyModels, credentialsByID, keyStatesByCredentialID, cooldowns)
 		fillRouteSiteCredentialCount(&row, credentials, keyStatesByCredentialID, cooldowns)
 		fillRoutePricing(&row, pricings)
-		row.SupportedEndpointTypes = effectiveSupportedEndpointTypes(canonical, model, overrideByModel[model.ID])
+		endpointPolicy, err := ResolveSiteModelEndpointPolicyForSite(canonical, model, overrideByModel[model.ID], site.SiteType, site.BaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("resolve route candidate endpoint policy: %w", err)
+		}
+		row.SupportedEndpointTypes = endpointPolicy.SupportedEndpointTypes
 		items = append(items, row)
 	}
 	sort.SliceStable(items, func(i, j int) bool {

@@ -3,8 +3,11 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
+	"xlyra/server/internal/protocolspec"
 )
 
 type SiteModelEndpointPolicy struct {
@@ -38,6 +41,39 @@ func siteModelEndpointPolicy(canonical CanonicalModel, model SiteModel, override
 
 func ResolveSiteModelEndpointPolicy(canonical CanonicalModel, model SiteModel, override SiteModelEndpointOverride) SiteModelEndpointPolicy {
 	return siteModelEndpointPolicy(canonical, model, override)
+}
+
+func ResolveSiteModelEndpointPolicyForSite(canonical CanonicalModel, model SiteModel, override SiteModelEndpointOverride, siteType string, baseURL string) (SiteModelEndpointPolicy, error) {
+	if !strings.EqualFold(strings.TrimSpace(siteType), "opencode_go") && !protocolspec.IsOpenCodeZenBaseURL(baseURL) {
+		return siteModelEndpointPolicy(canonical, model, override), nil
+	}
+	endpointTypes, matched, err := protocolspec.ResolveModelEndpointTypes("opencode_go", model.UpstreamName)
+	if err != nil {
+		return SiteModelEndpointPolicy{}, fmt.Errorf("resolve OpenCode model endpoint types: %w", err)
+	}
+	if !matched {
+		return siteModelEndpointPolicy(canonical, model, override), nil
+	}
+	encoded, err := json.Marshal(endpointTypes)
+	if err != nil {
+		return SiteModelEndpointPolicy{}, fmt.Errorf("encode OpenCode model endpoint types: %w", err)
+	}
+	canonical.SupportedEndpointTypes = JSON(encoded)
+	model.Capabilities = replaceSupportedEndpointTypes(model.Capabilities, endpointTypes)
+	return siteModelEndpointPolicy(canonical, model, override), nil
+}
+
+func replaceSupportedEndpointTypes(raw JSON, endpointTypes []string) JSON {
+	capabilities := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &capabilities)
+	}
+	if capabilities == nil {
+		capabilities = map[string]any{}
+	}
+	capabilities["supported_endpoint_types"] = endpointTypes
+	encoded, _ := json.Marshal(capabilities)
+	return JSON(encoded)
 }
 
 func (r SiteModelRepository) EndpointPoliciesBySite(ctx context.Context, siteID uuid.UUID) (map[uuid.UUID]SiteModelEndpointPolicy, error) {

@@ -147,6 +147,18 @@ func TestUpstreamClientProfileForClaudeCodeRequestsUsesTLSFingerprint(t *testing
 	}
 }
 
+func TestUpstreamClientProfileForOpenCodeGoDisablesAutomaticCompression(t *testing.T) {
+	t.Parallel()
+
+	profile := upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{DisableCompression: true}, "")
+	if !profile.DisableCompression {
+		t.Fatal("OpenCode Go profile should disable automatic compression")
+	}
+	if upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{}, "").DisableCompression {
+		t.Fatal("automatic compression should remain enabled for other sites")
+	}
+}
+
 func TestUpstreamClientForClaudeCodeSiteSkipsDefaultClient(t *testing.T) {
 	t.Parallel()
 

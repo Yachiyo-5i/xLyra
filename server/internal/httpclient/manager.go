@@ -69,6 +69,7 @@ type Profile struct {
 	ProxyID               string
 	RequestTimeout        time.Duration
 	NoRequestTimeout      bool
+	DisableCompression    bool
 	ConnectTimeout        time.Duration
 	ResponseHeaderTimeout time.Duration
 	MaxIdleConns          int
@@ -298,6 +299,7 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 	profile = normalizeProfile(profile)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
+	transport.DisableCompression = profile.DisableCompression
 	guarded := NewGuardedDialer(profile.ConnectTimeout)
 	transport.DialContext = guarded.DialContext
 	fingerprintTLS := profile.TLSFingerprint == TLSFingerprintClaudeCode
@@ -388,9 +390,10 @@ func cacheKey(profile Profile, proxyProfile *ProxyProfile) string {
 	if proxyProfile != nil {
 		proxyPart = strings.Join([]string{proxyProfile.ID, proxyProfile.Type, proxyProfile.URL}, "|")
 	}
-	return fmt.Sprintf("%s|%v|%s|%s|%d|%d|%d|%s|%s|%s",
+	return fmt.Sprintf("%s|%v|%v|%s|%s|%d|%d|%d|%s|%s|%s",
 		profile.RequestTimeout,
 		profile.NoRequestTimeout,
+		profile.DisableCompression,
 		profile.ConnectTimeout,
 		profile.ResponseHeaderTimeout,
 		profile.MaxIdleConns,

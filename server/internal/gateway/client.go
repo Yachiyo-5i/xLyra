@@ -20,8 +20,9 @@ const (
 )
 
 type upstreamClientProfileRequest struct {
-	Stream          bool
-	ImageGeneration bool
+	Stream             bool
+	ImageGeneration    bool
+	DisableCompression bool
 	// ClaudeCode marks requests to a Claude Code OAuth site, which must present
 	// the TLS fingerprint of the real Claude Code runtime.
 	ClaudeCode bool
@@ -59,6 +60,7 @@ func upstreamClientProfileFromSiteConfig(cfg *site.GatewayConfig, proxyID string
 
 func upstreamClientProfileForRequest(cfg *site.GatewayConfig, request upstreamClientProfileRequest, proxyID string) httpclient.Profile {
 	config := upstreamClientProfileFromSiteConfig(cfg, proxyID)
+	config.DisableCompression = request.DisableCompression
 	if !request.Stream && (cfg == nil || cfg.ResponseHeaderTimeoutMS == nil) {
 		config.ResponseHeaderTimeout = defaultNonStreamingResponseHeaderTimeout
 	}
@@ -105,7 +107,7 @@ func (h Handler) upstreamClientForSite(ctx context.Context, siteID uuid.UUID, re
 	if err != nil {
 		return h.httpClient, nil, nil, err
 	}
-	if cfg == nil && proxyID == "" && !request.Stream && !request.ClaudeCode {
+	if cfg == nil && proxyID == "" && !request.Stream && !request.ClaudeCode && !request.DisableCompression {
 		return h.httpClient, nil, requestHeaders, nil
 	}
 	client, err := h.clients.Client(upstreamClientProfileForRequest(cfg, request, proxyID))

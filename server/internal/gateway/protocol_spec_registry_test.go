@@ -111,6 +111,10 @@ func TestOpenCodeGoProtocolSpecsResolveIndependentPathsAndDefaults(t *testing.T)
 			t.Fatalf("protocol %q path = %q, want %q", tt.protocol, got, tt.path)
 		}
 	}
+	chat := newOpenAIChatProtocolAdapter(gatewayRequest{}, candidate)
+	if got := chat.UpstreamPath("https://opencode.ai/zen"); got != "https://opencode.ai/zen/v1/chat/completions" {
+		t.Fatalf("OpenCode Go custom base URL path = %q, want https://opencode.ai/zen/v1/chat/completions", got)
+	}
 
 	chatPayload := applyRequestPolicyForCandidate(map[string]any{"model": "kimi-k3"}, canonicalProtocolOpenAIChat, candidate)
 	if _, ok := chatPayload["max_tokens"]; ok {

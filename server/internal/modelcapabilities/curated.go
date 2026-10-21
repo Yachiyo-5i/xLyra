@@ -104,6 +104,8 @@ func ModelNameEndpointTypes(modelID string) []string {
 func inferEndpointTypesForModel(modelID string) []string {
 	modelID = normalizeModelID(modelID)
 	switch {
+	case hasAnyPrefix(modelID, "jev-"):
+		return []string{"typesafe-systemone"}
 	case isMiMoV25TTSModel(modelID):
 		return []string{"openai", "openai-audio-speech"}
 	case strings.Contains(modelID, "tts"):
@@ -170,6 +172,8 @@ func curatedOpenAIModel(modelID string) map[string]any {
 func curatedEndpointTypesForModel(modelID string) []string {
 	modelID = normalizeModelID(modelID)
 	switch {
+	case hasAnyPrefix(modelID, "jev-"):
+		return []string{"typesafe-systemone"}
 	case isMiMoV25TTSModel(modelID):
 		return []string{"openai", "openai-audio-speech"}
 	case hasAnyPrefix(modelID, "gpt-image"):

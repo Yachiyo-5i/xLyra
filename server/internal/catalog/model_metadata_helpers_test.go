@@ -38,6 +38,20 @@ func TestModelKeysNormalizeDecoratedInputsAndCanonicalizeUpstreamNames(t *testin
 		{input: "official-tts-1-business", want: "tts-1"},
 		{input: "vendor-gpt-search-business", want: "gpt"},
 		{input: "search-business", want: "search-business"},
+		{input: "deepseek-v4.1-flash-1017", want: "deepseek-v4.1-flash"},
+		{input: "deepseek-v4.1-flash-free", want: "deepseek-v4.1-flash"},
+		{input: "deepseek/DeepSeek-V4.1-Flash-1017-free", want: "deepseek-v4.1-flash"},
+		{input: "deepseek-v4.1-flash", want: "deepseek-v4.1-flash"},
+		{input: "deepseek-v3-0324", want: "deepseek-v3-0324"},
+		{input: "deepseek-r1-0528", want: "deepseek-r1-0528"},
+		{input: "deepseek-v3-free", want: "deepseek-v3"},
+		{input: "kimi-k2-free", want: "kimi-k2"},
+		{input: "glm-4.6-free", want: "glm-4.6"},
+		{input: "big-pickle-free", want: "big-pickle"},
+		{input: "deepseek/deepseek-r1:free", want: "deepseek-r1"},
+		{input: "grok-code-free", want: "grok-code"},
+		{input: "free", want: "free"},
+		{input: "jev-1.13-free", want: "jev-1.13"},
 	}
 	for _, tt := range canonicalCases {
 		tt := tt
@@ -65,6 +79,7 @@ func TestInferProviderRecognizesCanonicalizedVendorModelKeys(t *testing.T) {
 		{input: "vendor-moonshot-v1-128k", want: "moonshotai-cn"},
 		{input: "models/xai/grok-4", want: "xai"},
 		{input: "vendor-custom-chat", want: "unknown"},
+		{input: "jev-1.13-free", want: "typesafe"},
 	}
 	for _, tt := range cases {
 		tt := tt

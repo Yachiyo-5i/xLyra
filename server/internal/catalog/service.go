@@ -57,6 +57,7 @@ var canonicalFamilyTokens = map[string]struct{}{
 	"gpt":           {},
 	"grok":          {},
 	"hermes":        {},
+	"jev":           {},
 	"jina":          {},
 	"kimi":          {},
 	"lyria":         {},
@@ -103,6 +104,7 @@ var providerModelFamilyRules = []providerModelFamilyRule{
 	{provider: "moonshotai-cn", families: []string{"kimi", "moonshot", "moonshotai", "k3"}},
 	{provider: "xiaomi", families: []string{"mimo"}},
 	{provider: "minimax", families: []string{"minimax"}},
+	{provider: "typesafe", families: []string{"jev"}},
 	{provider: "nvidia", families: []string{"nvidia", "nemotron"}},
 	{provider: "bytedance", families: []string{"bytedance", "doubao", "seedance", "seedream"}},
 	{provider: "vidu", families: []string{"vidu", "viduq"}},
@@ -126,6 +128,7 @@ var existingBrandProviders = map[string]struct{}{
 	"zhipuai":       {},
 	"moonshotai-cn": {},
 	"minimax":       {},
+	"typesafe":      {},
 	"xiaomi":        {},
 	"nvidia":        {},
 	"bytedance":     {},
@@ -199,12 +202,63 @@ func CanonicalModelKeyFromUpstream(value string) string {
 	}
 
 	if !found {
-		return normalized
+		// Unknown family (e.g. OpenCode's "big-pickle-free"): only fold the
+		// free channel suffix.
+		return strings.Join(trimFreeSuffix(tokens), "-")
 	}
 
 	tokens = tokens[start:]
 	tokens = trimCanonicalSuffixNoise(tokens)
+	tokens = trimFreeSuffix(tokens)
+	tokens = trimDeepSeekVariantSuffix(tokens)
 	return strings.Join(tokens, "-")
+}
+
+// trimFreeSuffix folds free-tier channel variants (OpenCode "xxx-free",
+// OpenRouter "xxx:free") into the standard model. At least one token is kept.
+func trimFreeSuffix(tokens []string) []string {
+	for len(tokens) > 1 && tokens[len(tokens)-1] == "free" {
+		tokens = tokens[:len(tokens)-1]
+	}
+	return tokens
+}
+
+var deepSeekBareVersionPattern = regexp.MustCompile(`^[vr]?\d+(\.\d+)*$`)
+
+// trimDeepSeekVariantSuffix folds channel/snapshot variants such as
+// "deepseek-v4.1-flash-1017" into the standard "deepseek-v4.1-flash" model. A
+// trailing MMDD snapshot is dropped only when the remaining name ends with a tier word
+// (flash/pro/chat...), so distinct releases like "deepseek-v3-0324" or
+// "deepseek-r1-0528" keep their own canonical model.
+func trimDeepSeekVariantSuffix(tokens []string) []string {
+	if len(tokens) < 3 || tokens[0] != "deepseek" {
+		return tokens
+	}
+	for len(tokens) >= 3 {
+		last := tokens[len(tokens)-1]
+		prev := tokens[len(tokens)-2]
+		switch {
+		case isMMDDToken(last) && !deepSeekBareVersionPattern.MatchString(prev):
+		default:
+			return tokens
+		}
+		tokens = tokens[:len(tokens)-1]
+	}
+	return tokens
+}
+
+func isMMDDToken(token string) bool {
+	if len(token) != 4 {
+		return false
+	}
+	for _, r := range token {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	month := int(token[0]-'0')*10 + int(token[1]-'0')
+	day := int(token[2]-'0')*10 + int(token[3]-'0')
+	return month >= 1 && month <= 12 && day >= 1 && day <= 31
 }
 
 func InferProvider(modelKey string) string {
