@@ -53,7 +53,7 @@ type QuotaProbeResult struct {
 func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Site {
 	probeType := QuotaProbeTypeFromConfig(GatewayConfigFromSiteMeta(item.Meta))
 	if probeType == "" {
-		probeType = defaultQuotaProbeTypeForSite(item)
+		probeType = s.defaultQuotaProbeTypeForSite(item)
 	}
 	if probeType == "" {
 		return item
@@ -350,8 +350,9 @@ func codingPlanQuotaCooldownDeadline(result QuotaProbeResult, now time.Time) (ti
 // 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）、GLM Code 官方站
 // （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口，DeepSeek 官方站
 // （api.deepseek.com）有余额接口；指向中转/镜像的站点不默认探测，避免对未实现
-// 额度接口的第三方端点持续报错。
-func defaultQuotaProbeTypeForSite(item store.Site) string {
+// 额度接口的第三方端点持续报错。已启用且导出 probe 的插件站点类型返回该类型
+// 字符串（小写，含 /）。调用方仍让站点显式配置优先于本函数。
+func (s *Service) defaultQuotaProbeTypeForSite(item store.Site) string {
 	switch item.SiteType {
 	case "kimi_code":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "api.kimi.com") {
@@ -368,6 +369,13 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 	case "deepseek":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "api.deepseek.com") {
 			return QuotaProbeTypeDeepSeek
+		}
+	}
+	if strings.Contains(item.SiteType, "/") {
+		if _, ok := s.siteTypeHookPlugin(item.SiteType, "probe"); ok {
+			if registered, found := LookupPluginSiteType(item.SiteType); found {
+				return registered.Descriptor.SiteType
+			}
 		}
 	}
 	return ""

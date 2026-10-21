@@ -789,13 +789,13 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 	t.Parallel()
 
 	// 空 base_url 视为官方默认地址，默认开启探测。
-	if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: "kimi_code"}); got != QuotaProbeTypeKimi {
+	if got := new(Service).defaultQuotaProbeTypeForSite(store.Site{SiteType: "kimi_code"}); got != QuotaProbeTypeKimi {
 		t.Fatalf("kimi_code default probe = %q, want %q", got, QuotaProbeTypeKimi)
 	}
-	if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: "glm_code"}); got != QuotaProbeTypeGLM {
+	if got := new(Service).defaultQuotaProbeTypeForSite(store.Site{SiteType: "glm_code"}); got != QuotaProbeTypeGLM {
 		t.Fatalf("glm_code default probe = %q, want %q", got, QuotaProbeTypeGLM)
 	}
-	if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: "moonshot"}); got != QuotaProbeTypeMoonshot {
+	if got := new(Service).defaultQuotaProbeTypeForSite(store.Site{SiteType: "moonshot"}); got != QuotaProbeTypeMoonshot {
 		t.Fatalf("moonshot default probe = %q, want %q", got, QuotaProbeTypeMoonshot)
 	}
 
@@ -812,7 +812,7 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 		{"moonshot", "https://api.moonshot.cn/v1", QuotaProbeTypeMoonshot},
 	}
 	for _, tc := range official {
-		if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: tc.siteType, BaseURL: tc.baseURL}); got != tc.want {
+		if got := new(Service).defaultQuotaProbeTypeForSite(store.Site{SiteType: tc.siteType, BaseURL: tc.baseURL}); got != tc.want {
 			t.Fatalf("site_type %q base_url %q default probe = %q, want %q", tc.siteType, tc.baseURL, got, tc.want)
 		}
 	}
@@ -830,13 +830,13 @@ func TestDefaultQuotaProbeTypeForSite(t *testing.T) {
 		{"moonshot", "https://moonshot.cn.evil.example.com"},
 	}
 	for _, tc := range thirdParty {
-		if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: tc.siteType, BaseURL: tc.baseURL}); got != "" {
+		if got := new(Service).defaultQuotaProbeTypeForSite(store.Site{SiteType: tc.siteType, BaseURL: tc.baseURL}); got != "" {
 			t.Fatalf("site_type %q base_url %q default probe = %q, want empty", tc.siteType, tc.baseURL, got)
 		}
 	}
 
 	for _, siteType := range []string{"zhipu", "newapi", "openai"} {
-		if got := defaultQuotaProbeTypeForSite(store.Site{SiteType: siteType}); got != "" {
+		if got := new(Service).defaultQuotaProbeTypeForSite(store.Site{SiteType: siteType}); got != "" {
 			t.Fatalf("site_type %q default probe = %q, want empty", siteType, got)
 		}
 	}
@@ -1399,7 +1399,7 @@ func TestDefaultQuotaProbeTypeDeepSeek(t *testing.T) {
 	}
 	for _, tc := range cases {
 		item := store.Site{SiteType: "deepseek", BaseURL: tc.baseURL}
-		if got := defaultQuotaProbeTypeForSite(item); got != tc.want {
+		if got := new(Service).defaultQuotaProbeTypeForSite(item); got != tc.want {
 			t.Errorf("defaultQuotaProbeTypeForSite(%q) = %q, want %q", tc.baseURL, got, tc.want)
 		}
 	}
@@ -1519,4 +1519,3 @@ func TestProbeMoonshotBalanceRejectsErrorCode(t *testing.T) {
 		t.Fatalf("expected error code 1001, got %+v", result)
 	}
 }
-
