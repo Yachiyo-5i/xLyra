@@ -1205,27 +1205,39 @@ func encodeCanonicalMessagesAsResponsesInput(messages []canonicalMessage) []any 
 
 func encodeCanonicalMessagesAsChatMessages(messages []canonicalMessage) []any {
 	out := make([]any, 0, len(messages))
+	// callBatch is the assistant message created by the immediately preceding
+	// function_call item. Parallel tool calls arrive as consecutive Responses
+	// items, but chat completions require one assistant message carrying every
+	// tool_call that is answered by the tool messages that follow it; separate
+	// assistant messages are rejected by upstreams that require parallel tool
+	// calls to stay in one assistant message.
+	var callBatch map[string]any
 	for _, message := range messages {
+		if message.Type != "function_call" {
+			callBatch = nil
+		}
 		switch message.Type {
 		case "function_call":
 			callID := nonEmptyString(message.ToolCallID, message.ID)
-			item := map[string]any{
-				"role": "assistant",
-				"tool_calls": []any{map[string]any{
-					"id":   callID,
-					"type": "function",
-					"function": map[string]any{
-						"name":      message.Name,
-						"arguments": message.Arguments,
-					},
-				}},
+			toolCall := map[string]any{
+				"id":   callID,
+				"type": "function",
+				"function": map[string]any{
+					"name":      message.Name,
+					"arguments": message.Arguments,
+				},
 			}
-			if toolCalls, ok := item["tool_calls"].([]any); ok && len(toolCalls) > 0 {
-				if toolCall, ok := toolCalls[0].(map[string]any); ok {
-					addToolCallMetadataToGenericMap(toolCall, message.Metadata)
-				}
+			addToolCallMetadataToGenericMap(toolCall, message.Metadata)
+			if callBatch != nil {
+				calls, _ := callBatch["tool_calls"].([]any)
+				callBatch["tool_calls"] = append(calls, toolCall)
+				break
 			}
-			out = append(out, item)
+			callBatch = map[string]any{
+				"role":       "assistant",
+				"tool_calls": []any{toolCall},
+			}
+			out = append(out, callBatch)
 		case "function_call_output":
 			out = append(out, map[string]any{
 				"role":         "tool",
