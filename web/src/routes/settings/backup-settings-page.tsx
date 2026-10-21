@@ -13,7 +13,7 @@ import {
   FileArchive,
   LoaderCircle,
   Play,
-  RefreshCw,
+  RotateCcw,
   Save,
   Trash2,
   Upload,
@@ -544,7 +544,7 @@ export function BackupSettingsPage() {
                         </Button>
                       ) : null}
                       <Button variant="secondary" size="sm" onClick={() => filesQuery.refetch()} disabled={!savedAutomaticBackupReady || filesQuery.isFetching}>
-                        {filesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        {filesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                         {t('backup.automatic.files.refresh')}
                       </Button>
                     </div>

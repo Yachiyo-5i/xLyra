@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { FlaskConical, KeyRound, LoaderCircle, Power, PowerOff, RefreshCw, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import { FlaskConical, KeyRound, LoaderCircle, Power, PowerOff, RotateCcw, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { DataTable } from '@/components/common/data-table'
 import { Card, CardAction } from '@/components/ui/card'
 import { useMobileLayout } from '@/hooks/use-media-query'
@@ -571,7 +571,7 @@ export function JSPluginsSettingsWorkspace() {
         description={t('settings:jsPlugins.description')}
         actions={
           <Button type="button" variant="secondary" size="sm" onClick={refresh} disabled={busy}>
-            <RefreshCw
+            <RotateCcw
               className={cn(
                 'mr-2 h-4 w-4',
                 (uploadedQuery.isFetching || trustedKeysQuery.isFetching) && 'animate-spin',

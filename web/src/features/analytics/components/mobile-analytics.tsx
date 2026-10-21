@@ -1,7 +1,7 @@
 import { chartCursorFill, chartGridStroke, chartSliceStroke, chartTick } from '@/components/charts/chart-theme'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  RefreshCw,
+  RotateCcw,
   X,
 } from 'lucide-react'
 import {
@@ -132,7 +132,7 @@ export function MobileAnalytics({
               {t('page.update')} {formatDashboardRefreshTime(usage.meta.generated_at, language)}
             </span>
             <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching}>
-              <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
+              <RotateCcw className={cn('size-4', isFetching && 'animate-spin')} />
               {t('page.refresh')}
             </Button>
           </>

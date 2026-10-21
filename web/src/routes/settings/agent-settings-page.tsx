@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpCircle, Bot, LoaderCircle, RefreshCw, Save, Search, ServerCog, Settings2 } from 'lucide-react'
+import { ArrowUpCircle, Bot, LoaderCircle, RotateCcw, Save, Search, ServerCog, Settings2 } from 'lucide-react'
 import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph, siteTypeIconPath } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
@@ -277,7 +277,7 @@ export function AgentSettingsPage() {
           <>
             <HeaderStatusLights health={health.data ?? null} />
             <Button variant="secondary" size="sm" onClick={() => void refreshStatus()} disabled={refreshingStatus}>
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshingStatus ? 'animate-spin' : ''}`} />
+              <RotateCcw className={`h-3.5 w-3.5 ${refreshingStatus ? 'animate-spin' : ''}`} />
               {t('settings:agent.status.refresh')}
             </Button>
           </>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
 import { PageHeader } from '@/components/common/page-header'
@@ -279,7 +279,7 @@ export function AnalyticsPage() {
               {t('page.update')} {formatDashboardRefreshTime(usage.meta.generated_at, i18n.language)}
             </span>
             <Button variant="secondary" onClick={handleRefresh} disabled={isFetching}>
-              <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
+              <RotateCcw className={cn('size-4', isFetching && 'animate-spin')} />
               {t('page.refresh')}
             </Button>
           </>

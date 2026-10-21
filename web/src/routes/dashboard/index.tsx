@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, CalendarDays, Gauge, Hash, RefreshCw, Sigma, Timer, WalletCards } from 'lucide-react'
+import { Activity, CalendarDays, Gauge, Hash, RotateCcw, Sigma, Timer, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/common/empty-state'
@@ -274,7 +274,7 @@ export function DashboardPage() {
               onClick={refetchDashboard}
               disabled={dashboardFetching}
             >
-              <RefreshCw className={dashboardFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+              <RotateCcw className={dashboardFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
               {t('page.refresh')}
             </Button>
           </div>
@@ -341,7 +341,7 @@ export function DashboardPage() {
                   disabled={cooldownsQuery.isFetching}
                   onClick={() => cooldownsQuery.refetch()}
                 >
-                  <RefreshCw className={cooldownsQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+                  <RotateCcw className={cooldownsQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
                   {t('page.refreshCooldowns')}
                 </Button>
                 {cooldownItems.length ? (

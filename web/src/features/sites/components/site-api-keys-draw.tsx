@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LoaderCircle,
   PencilLine,
-  RefreshCw,
+  RotateCcw,
   Settings2,
   Trash2,
 } from 'lucide-react'
@@ -848,7 +848,7 @@ export function SiteAPIKeysDraw({
                             refreshMutation.variables?.apiKeyId === item.id ? (
                               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                              <RefreshCw className="h-3.5 w-3.5" />
+                              <RotateCcw className="h-3.5 w-3.5" />
                             )}
                           </Button>
                           <Button

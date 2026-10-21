@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -195,7 +195,7 @@ export function AnalyticsFilterBar({
             </span>
           ) : null}
           <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching}>
-            <RefreshCw className={isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+            <RotateCcw className={isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
             {t('page.refresh')}
           </Button>
         </div>

@@ -1,4 +1,4 @@
-import { Activity, Gauge, RefreshCw, WalletCards } from 'lucide-react'
+import { Activity, Gauge, RotateCcw, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/common/page-header'
@@ -91,7 +91,7 @@ export function MobileDashboard({
                 {t('page.update')} {formatRefreshTime(generatedAt, locale)}
               </span>
               <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching}>
-                <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
+                <RotateCcw className={cn('size-4', isFetching && 'animate-spin')} />
                 {t('page.refresh')}
               </Button>
             </>
@@ -150,7 +150,7 @@ export function MobileDashboard({
               disabled={cooldownsFetching}
               onClick={onRefreshCooldowns}
             >
-              <RefreshCw className={cn('size-4', cooldownsFetching && 'animate-spin')} />
+              <RotateCcw className={cn('size-4', cooldownsFetching && 'animate-spin')} />
               {t('page.refreshCooldowns')}
             </Button>
             {cooldownItems.length ? (

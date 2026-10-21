@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, LoaderCircle, RefreshCw, SlidersHorizontal, X } from 'lucide-react'
+import { CalendarDays, LoaderCircle, RotateCcw, SlidersHorizontal, X } from 'lucide-react'
 import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { TokenUsageHoverCard, type TokenUsageBreakdown } from '@/components/common/token-usage-hover-card'
 import { Button } from '@/components/ui/button'
@@ -169,7 +169,7 @@ export function RequestsMobileFilterBar({
               disabled={isFetching}
               onClick={onRefresh}
             >
-              {isFetching ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+              {isFetching ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
             </Button>
           </>
         }

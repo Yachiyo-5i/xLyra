@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { KeyRound, LoaderCircle, LogOut, RefreshCw } from 'lucide-react'
+import { KeyRound, LoaderCircle, LogOut, RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { ColumnDef } from '@tanstack/react-table'
 import { DataTable } from '@/components/common/data-table'
@@ -400,7 +400,7 @@ function PortalDashboard({ portalKey, settings, onInvalidKey }: PortalDashboardP
                 onClick={() => requestsQuery.refetch()}
                 disabled={requestsQuery.isFetching}
               >
-                <RefreshCw className={requestsQuery.isFetching ? 'size-4 animate-spin' : 'size-4'} />
+                <RotateCcw className={requestsQuery.isFetching ? 'size-4 animate-spin' : 'size-4'} />
               </Button>
             </div>
           </div>
