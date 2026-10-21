@@ -89,8 +89,8 @@ func (r SiteCredentialRepository) ListBySite(ctx context.Context, siteID uuid.UU
 		return nil, fmt.Errorf("list site credentials: %w", err)
 	}
 	sort.SliceStable(credentials, func(i, j int) bool {
-		leftAPIKey := isAPIKeyCredentialType(credentials[i].CredentialType)
-		rightAPIKey := isAPIKeyCredentialType(credentials[j].CredentialType)
+		leftAPIKey := IsAPIKeyCredentialType(credentials[i].CredentialType)
+		rightAPIKey := IsAPIKeyCredentialType(credentials[j].CredentialType)
 		if leftAPIKey && rightAPIKey {
 			if !credentials[i].CreatedAt.Equal(credentials[j].CreatedAt) {
 				return credentials[i].CreatedAt.Before(credentials[j].CreatedAt)
@@ -123,7 +123,7 @@ func (r SiteCredentialRepository) DeleteAPIKeysBySite(ctx context.Context, siteI
 	}
 	ids := make([]uuid.UUID, 0)
 	for _, credential := range credentials {
-		if credential.CredentialType == "api_key" || strings.HasPrefix(credential.CredentialType, "api_key:") {
+		if IsAPIKeyCredentialType(credential.CredentialType) {
 			ids = append(ids, credential.ID)
 		}
 	}

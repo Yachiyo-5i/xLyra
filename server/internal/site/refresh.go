@@ -1524,7 +1524,7 @@ func markMissingManagedAPIKeysStale(
 		seen[key.credential.ID] = struct{}{}
 	}
 	for _, credential := range credentials {
-		if !isSiteAPIKeyCredentialType(credential.CredentialType) {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		if _, ok := seen[credential.ID]; ok {

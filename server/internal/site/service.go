@@ -712,7 +712,7 @@ func shouldDeleteAPIKeyCredentials(existingSiteType string, nextSiteType string,
 func containsAPIKeyCredentialInput(credentials []CredentialInput) bool {
 	for _, input := range credentials {
 		credentialType := normalizeCredentialType(input.Type)
-		if credentialType == defaultCredentialType || strings.HasPrefix(credentialType, defaultCredentialType+":") {
+		if store.IsAPIKeyCredentialType(credentialType) {
 			return true
 		}
 	}
@@ -1038,7 +1038,7 @@ func (s *Service) DeleteAPIKey(ctx context.Context, siteID uuid.UUID, credential
 		if credential.SiteID != siteID {
 			return fmt.Errorf("site credential was not found")
 		}
-		if credential.CredentialType != defaultCredentialType && !strings.HasPrefix(credential.CredentialType, defaultCredentialType+":") {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			return fmt.Errorf("site credential is not an api key")
 		}
 
@@ -1578,7 +1578,7 @@ func syncSiteModelAPIKeySwitches(ctx context.Context, tx store.Tx, siteID uuid.U
 
 	modelName := strings.TrimSpace(model.UpstreamName)
 	for _, credential := range credentials {
-		if !isSiteAPIKeyCredentialType(credential.CredentialType) {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		meta := map[string]any{}
@@ -1690,7 +1690,7 @@ func (s *Service) APIKeys(ctx context.Context, siteID uuid.UUID) ([]APIKeyCreden
 
 	result := make([]APIKeyCredential, 0, len(credentials))
 	for _, credential := range credentials {
-		if credential.CredentialType != defaultCredentialType && !strings.HasPrefix(credential.CredentialType, defaultCredentialType+":") {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		if credential.CredentialType == defaultCredentialType && hasTokenScopedCredentials(credentials) {
@@ -2107,7 +2107,7 @@ func (s *Service) apiKeyCredentialMeta(ctx context.Context, siteID uuid.UUID, cr
 	if credential.SiteID != siteID {
 		return store.SiteCredential{}, nil, fmt.Errorf("site credential was not found")
 	}
-	if credential.CredentialType != defaultCredentialType && !strings.HasPrefix(credential.CredentialType, defaultCredentialType+":") {
+	if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 		return store.SiteCredential{}, nil, fmt.Errorf("site credential is not an api key")
 	}
 
@@ -2386,18 +2386,10 @@ func normalizeSiteType(siteType string) string {
 // CredentialTypeForSiteType returns the credential behavior category for a site type:
 // "api_key" for OpenAI-compatible providers, "system_token" for newapi, "xlyra" for xLyra, "oauth" for OAuth providers.
 func CredentialTypeForSiteType(siteType string) string {
-	switch strings.TrimSpace(strings.ToLower(siteType)) {
-	case "newapi":
-		return "system_token"
-	case "xlyra":
-		return "xlyra"
-	case "codex", "antigravity", "claude_code":
-		return "oauth"
-	case "grok":
-		return "grok_sso"
-	default:
-		return "api_key"
+	if desc, ok := LookupSiteType(siteType); ok {
+		return desc.CredentialCategory
 	}
+	return defaultCredentialType
 }
 
 func SupportsMultipleAPIKeys(siteType string) bool {
@@ -2405,8 +2397,8 @@ func SupportsMultipleAPIKeys(siteType string) bool {
 }
 
 func SupportsAPIKeyCostMultiplier(siteType string) bool {
-	normalized := normalizeSiteType(siteType)
-	return strings.EqualFold(normalized, "openai") || strings.EqualFold(normalized, "anthropic") || strings.EqualFold(normalized, "google_gemini")
+	desc, ok := LookupSiteType(normalizeSiteType(siteType))
+	return ok && desc.SupportsAPIKeyCostMultiplier
 }
 
 func normalizeCredentialType(credentialType string) string {
@@ -2500,7 +2492,7 @@ func prepareCreateCredentialInputs(siteType string, inputs []CredentialInput) ([
 	apiKeyCount := 0
 	for _, input := range result {
 		credentialType := normalizeCredentialType(input.Type)
-		if credentialType == defaultCredentialType || strings.HasPrefix(credentialType, defaultCredentialType+":") {
+		if store.IsAPIKeyCredentialType(credentialType) {
 			apiKeyCount++
 		}
 	}
@@ -2509,7 +2501,7 @@ func prepareCreateCredentialInputs(siteType string, inputs []CredentialInput) ([
 	}
 	for index := range result {
 		credentialType := normalizeCredentialType(result[index].Type)
-		isAPIKey := credentialType == defaultCredentialType || strings.HasPrefix(credentialType, defaultCredentialType+":")
+		isAPIKey := store.IsAPIKeyCredentialType(credentialType)
 		if apiKeyCount > 1 && credentialType == defaultCredentialType {
 			result[index].Type = scopedAPIKeyCredentialType()
 		}
@@ -2546,7 +2538,7 @@ func prepareCreateCredentialInputs(siteType string, inputs []CredentialInput) ([
 
 func hasTokenScopedCredentials(credentials []store.SiteCredential) bool {
 	for _, credential := range credentials {
-		if strings.HasPrefix(credential.CredentialType, defaultCredentialType+":") {
+		if strings.HasPrefix(credential.CredentialType, store.CredentialTypeAPIKey+":") {
 			return true
 		}
 	}

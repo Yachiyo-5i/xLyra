@@ -334,10 +334,10 @@ func TestGatewayCredentialCountsFilterStateMetaAndCooldowns(t *testing.T) {
 func TestGatewayCredentialHelperPredicates(t *testing.T) {
 	t.Parallel()
 
-	if !gatewayAPIKeyCredentialType("api_key") || !gatewayAPIKeyCredentialType("api_key:1") {
+	if !store.IsAPIKeyCredentialType("api_key") || !store.IsAPIKeyCredentialType("api_key:1") {
 		t.Fatal("api_key credential types should be accepted")
 	}
-	if gatewayAPIKeyCredentialType("oauth_bearer") {
+	if store.IsAPIKeyCredentialType("oauth_bearer") {
 		t.Fatal("oauth_bearer should not be treated as API key credential")
 	}
 	if !gatewayCredentialUsable(store.SiteCredential{Meta: store.JSON(`{"enabled":"true"}`)}) {

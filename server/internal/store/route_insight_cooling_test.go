@@ -108,10 +108,10 @@ func TestRouteInsightFallbackCredentialCountFiltersUnusableCredentials(t *testin
 func TestRouteInsightGatewayCredentialTypeHelpersRequireExactMatches(t *testing.T) {
 	t.Parallel()
 
-	if !isAPIKeyCredentialType("api_key") || !isAPIKeyCredentialType("api_key:7") {
+	if !IsAPIKeyCredentialType("api_key") || !IsAPIKeyCredentialType("api_key:7") {
 		t.Fatal("api key credential types should be recognized")
 	}
-	if isAPIKeyCredentialType("oauth") || isAPIKeyCredentialType(" api_key") || isAPIKeyCredentialType("API_KEY") {
+	if IsAPIKeyCredentialType("oauth") || IsAPIKeyCredentialType(" api_key") || IsAPIKeyCredentialType("API_KEY") {
 		t.Fatal("non-exact api key credential types should not be recognized")
 	}
 	if !isNewAPISite("newapi") {

@@ -633,8 +633,8 @@ func assertSiteCredentialsSorted(t *testing.T, rows []SiteCredential) {
 func assertSiteCredentialsBySiteSorted(t *testing.T, rows []SiteCredential) {
 	t.Helper()
 	for i := 1; i < len(rows); i++ {
-		leftAPIKey := isAPIKeyCredentialType(rows[i-1].CredentialType)
-		rightAPIKey := isAPIKeyCredentialType(rows[i].CredentialType)
+		leftAPIKey := IsAPIKeyCredentialType(rows[i-1].CredentialType)
+		rightAPIKey := IsAPIKeyCredentialType(rows[i].CredentialType)
 		if leftAPIKey && rightAPIKey {
 			if rows[i].CreatedAt.Before(rows[i-1].CreatedAt) {
 				t.Fatalf("site api key credentials are not oldest first at index %d", i)

@@ -25,7 +25,7 @@ func grokCredentialCandidates(credentials []store.GatewayCredential, states []st
 	}
 	result := make([]grokCredentialCandidate, 0, len(credentials))
 	for _, credential := range credentials {
-		if !strings.HasPrefix(credential.Credential.CredentialType, "grok_sso:") {
+		if !strings.HasPrefix(credential.Credential.CredentialType, store.CredentialPrefixGrok) {
 			continue
 		}
 		state, hasState := statesByCredentialID[credential.Credential.ID]

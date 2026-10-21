@@ -219,7 +219,7 @@ func syncManualNewAPISiteAPIKeyModels(ctx context.Context, tx store.Tx, siteID u
 		if credential.SiteID != siteID {
 			return fmt.Errorf("site credential %s does not belong to site %s", credentialID, siteID)
 		}
-		if !isSiteAPIKeyCredentialType(credential.CredentialType) {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			return fmt.Errorf("site credential %s is not an api key", credentialID)
 		}
 		if !manualCredentialEnabled(credential, statesByCredentialID[credential.ID]) {
@@ -246,10 +246,6 @@ func syncManualNewAPISiteAPIKeyModels(ctx context.Context, tx store.Tx, siteID u
 	}
 
 	return nil
-}
-
-func isSiteAPIKeyCredentialType(value string) bool {
-	return value == defaultCredentialType || strings.HasPrefix(value, defaultCredentialType+":")
 }
 
 func manualCredentialEnabled(credential store.SiteCredential, state store.SiteAPIKeyState) bool {

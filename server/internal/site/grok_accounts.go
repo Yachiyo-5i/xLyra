@@ -14,7 +14,7 @@ import (
 	"xlyra/server/internal/store"
 )
 
-const grokCredentialPrefix = "grok_sso:"
+const grokCredentialPrefix = store.CredentialPrefixGrok
 
 type GrokAccountUpdate struct {
 	Enabled *bool
@@ -431,10 +431,10 @@ func deleteGrokAccountRelations(ctx context.Context, tx store.Tx, siteID uuid.UU
 }
 
 func isGrokCredentialType(value string) bool {
-	if !strings.HasPrefix(value, grokCredentialPrefix) {
+	if !strings.HasPrefix(value, store.CredentialPrefixGrok) {
 		return false
 	}
-	_, err := uuid.Parse(strings.TrimPrefix(value, grokCredentialPrefix))
+	_, err := uuid.Parse(strings.TrimPrefix(value, store.CredentialPrefixGrok))
 	return err == nil
 }
 

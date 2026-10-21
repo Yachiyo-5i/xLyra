@@ -2425,36 +2425,9 @@ func intFromAny(value any) int {
 }
 
 func siteTypeIconURL(siteType string) string {
-	switch strings.TrimSpace(strings.ToLower(siteType)) {
-	case "openai":
-		return "/brand-icons/openai.png"
-	case "opencode_go":
-		return "/brand-icons/opencode.png"
-	case "anthropic":
-		return "/brand-icons/anthropic.png"
-	case "google_gemini":
-		return "/brand-icons/google.png"
-	case "deepseek":
-		return "/brand-icons/deepseek.png"
-	case "minimax":
-		return "/brand-icons/minimax.png"
-	case "xiaomi_mimo":
-		return "/brand-icons/xiaomi.png"
-	case "moonshot":
-		return "/brand-icons/moonshot.png"
-	case "kimi_code":
-		return "/brand-icons/moonshot.png"
-	case "newapi":
-		return "/brand-icons/newapi.png"
-	case "xlyra":
-		return "/brand-icons/xlyra.png"
-	case "codex":
-		return "/oauth-icons/codex.svg"
-	case "antigravity":
-		return "/oauth-icons/antigravity.png"
-	case "claude_code":
-		return "/brand-icons/anthropic.png"
-	default:
+	desc, ok := sitepkg.LookupSiteType(siteType)
+	if !ok {
 		return ""
 	}
+	return desc.IconURL
 }

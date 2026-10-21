@@ -77,7 +77,7 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	var expiresAt *string
 
 	for _, credential := range credentials {
-		if !quotaProbeCredentialEligible(credential.CredentialType) {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		probed++
@@ -341,10 +341,6 @@ func codingPlanQuotaCooldownDeadline(result QuotaProbeResult, now time.Time) (ti
 		}
 	}
 	return deadline, windows
-}
-
-func quotaProbeCredentialEligible(credentialType string) bool {
-	return credentialType == "api_key" || strings.HasPrefix(credentialType, "api_key:")
 }
 
 // defaultQuotaProbeTypeForSite 给未显式配置 quota_probe 的站点类型提供默认探测。

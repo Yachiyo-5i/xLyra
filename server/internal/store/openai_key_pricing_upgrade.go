@@ -68,7 +68,7 @@ func migrateOpenAIKeyPricing(ctx context.Context, db *gorm.DB) error {
 	}
 	credentialsBySite := make(map[uuid.UUID][]SiteCredential)
 	for _, credential := range credentials {
-		if _, ok := openAISites[credential.SiteID]; ok && isAPIKeyCredentialType(credential.CredentialType) {
+		if _, ok := openAISites[credential.SiteID]; ok && IsAPIKeyCredentialType(credential.CredentialType) {
 			credentialsBySite[credential.SiteID] = append(credentialsBySite[credential.SiteID], credential)
 		}
 	}

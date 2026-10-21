@@ -595,7 +595,7 @@ func gatewayCooldownSets(items []store.RouteCooldown) (map[uuid.UUID]struct{}, m
 func gatewaySiteCredentialCounts(credentials []store.SiteCredential, states map[uuid.UUID]store.SiteAPIKeyState, cooldowns []store.RouteCooldown) map[uuid.UUID]int {
 	counts := map[uuid.UUID]int{}
 	for _, credential := range credentials {
-		if !gatewayAPIKeyCredentialType(credential.CredentialType) || !gatewayCredentialUsable(credential) || gatewayCredentialCooling(cooldowns, credential.SiteID, uuid.Nil, credential.ID) {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) || !gatewayCredentialUsable(credential) || gatewayCredentialCooling(cooldowns, credential.SiteID, uuid.Nil, credential.ID) {
 			continue
 		}
 		state := states[credential.ID]
@@ -619,7 +619,7 @@ func gatewayModelCredentialCounts(apiKeyModels []store.SiteAPIKeyModel, credenti
 		}
 		credential := credentialsByID[apiKeyModel.SiteCredentialID]
 		state, hasState := states[credential.ID]
-		if credential.ID == uuid.Nil || !gatewayModelCredentialType(credential.CredentialType) || !gatewayCredentialUsable(credential) || !gatewayModelCredentialStateUsable(credential, state, hasState) {
+		if credential.ID == uuid.Nil || !store.IsModelBoundCredentialType(credential.CredentialType) || !gatewayCredentialUsable(credential) || !gatewayModelCredentialStateUsable(credential, state, hasState) {
 			continue
 		}
 		if gatewayCredentialCooling(cooldowns, apiKeyModel.SiteID, apiKeyModel.SiteModelID.UUID, credential.ID) {
@@ -657,16 +657,8 @@ func gatewayModelCredentialBindingCounts(apiKeyModels []store.SiteAPIKeyModel) m
 	return counts
 }
 
-func gatewayAPIKeyCredentialType(value string) bool {
-	return value == "api_key" || strings.HasPrefix(value, "api_key:")
-}
-
-func gatewayModelCredentialType(value string) bool {
-	return gatewayAPIKeyCredentialType(value) || strings.HasPrefix(value, "grok_sso:")
-}
-
 func gatewayModelCredentialStateUsable(credential store.SiteCredential, state store.SiteAPIKeyState, hasState bool) bool {
-	if strings.HasPrefix(credential.CredentialType, "grok_sso:") {
+	if strings.HasPrefix(credential.CredentialType, store.CredentialPrefixGrok) {
 		return grokCredentialUsable(credential, state, hasState)
 	}
 	return store.CredentialStateUsableForCredential(credential, state)

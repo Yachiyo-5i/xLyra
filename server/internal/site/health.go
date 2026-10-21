@@ -442,7 +442,7 @@ func (s *Service) runAPIKeySiteHealthCheck(ctx context.Context, item store.Site,
 	}
 	items := make([]store.GatewayCredential, 0, len(credentials))
 	for _, credential := range credentials {
-		if credential.CredentialType != defaultCredentialType && !strings.HasPrefix(credential.CredentialType, defaultCredentialType+":") {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		if credential.CredentialType == defaultCredentialType && hasTokenScopedCredentials(credentials) {
