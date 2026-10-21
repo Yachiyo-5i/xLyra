@@ -309,6 +309,15 @@ func (h Handler) forwardGatewayRequest(
 			result = recordCredentialAttempt(result, nil, false)
 			return result
 		}
+		payload, err = applyProviderRewrite(ctx, candidate, protocol, payload)
+		if err != nil {
+			result.statusCode = http.StatusBadGateway
+			result.errorType = "plugin_rewrite_failed"
+			result.errorMessage = err.Error()
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result = recordCredentialAttempt(result, nil, false)
+			return result
+		}
 		result = applyRequestBillingMetadata(result, payload, request.Payload, candidate)
 		if validationErr := validatePayloadParams(payload, protocol.ProtocolName(), candidate); validationErr != nil {
 			result.statusCode = http.StatusBadRequest

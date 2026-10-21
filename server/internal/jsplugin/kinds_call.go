@@ -141,6 +141,42 @@ func (p *Plugin) CallErrorClassifyHook(ctx context.Context, hook string, c Error
 	return out, nil
 }
 
+// CallRewritePayload runs one exported rewritePayload hook. hook is the export
+// name. The hook receives ctx and payload and must return a new object. A
+// missing export, or an input whose JSON exceeds MaxResultBytes, returns an
+// error and does not enter the runtime. The call budget is protocolHookTimeout.
+// Plugin authors must not log user messages; the host does not record the payload.
+func (p *Plugin) CallRewritePayload(ctx context.Context, hook string, c RewritePayloadContext, payload map[string]any) (map[string]any, error) {
+	if p == nil || !p.HasHook(hook) {
+		return nil, fmt.Errorf("%s hook is missing", hook)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, annotate(p, err, hook, 0, 0)
+	}
+	if int64(len(encoded)) > MaxResultBytes {
+		return nil, annotate(p, &CallError{Kind: KindResponseTooLarge, Detail: fmt.Sprintf("payload exceeds %d bytes", MaxResultBytes)}, hook, 0, 0)
+	}
+	started := time.Now()
+	value, logs, dropped, err := p.callHook(ctx, hook, protocolHookTimeout, 0, encodeValue(c), payload)
+	EmitLogs(ctx, p, hook, 0, logs, dropped)
+	if err != nil {
+		return nil, err
+	}
+	object, ok := value.(map[string]any)
+	if !ok || object == nil {
+		return nil, annotate(p, shapeError("hook return value: expected object"), hook, 0, time.Since(started).Milliseconds())
+	}
+	outEncoded, err := json.Marshal(object)
+	if err != nil {
+		return nil, annotate(p, err, hook, 0, time.Since(started).Milliseconds())
+	}
+	if int64(len(outEncoded)) > MaxResultBytes {
+		return nil, annotate(p, &CallError{Kind: KindResponseTooLarge, Detail: fmt.Sprintf("result exceeds %d bytes", MaxResultBytes)}, hook, 0, time.Since(started).Milliseconds())
+	}
+	return object, nil
+}
+
 // CallModelMetadata runs a model_metadata plugin. Every id in the result must
 // be one of the input names.
 func (p *Plugin) CallModelMetadata(ctx context.Context, c ModelMetadataContext, in ModelMetadataInput) (ModelMetadataResult, error) {

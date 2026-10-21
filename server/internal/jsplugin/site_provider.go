@@ -92,8 +92,8 @@ type SiteProviderModels struct {
 }
 
 // siteProviderOptionalHooks are exports a site_provider module may include.
-// None of them is required. listModels, check, probe, and classify are called
-// for the site type; rewritePayload is not called by this build.
+// None of them is required. listModels, check, probe, classify, and
+// rewritePayload are called for the site type.
 var siteProviderOptionalHooks = []string{"probe", "listModels", "check", "classify", "rewritePayload"}
 
 func validateSiteProvider(manifest Manifest, files map[string][]byte) error {

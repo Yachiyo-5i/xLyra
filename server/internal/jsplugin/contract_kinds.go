@@ -58,6 +58,15 @@ type ErrorClassifyContext struct {
 	SiteType string `ts:"siteType"`
 }
 
+// RewritePayloadContext is the credential-free object passed to rewritePayload.
+// It carries no API key, request headers, or account fields.
+type RewritePayloadContext struct {
+	SiteType string `ts:"siteType"`
+	Model    string `ts:"model,doc=Upstream model name."`
+	Stream   bool   `ts:"stream"`
+	Protocol string `ts:"protocol,doc=Canonical protocol name, such as openai_chat."`
+}
+
 // ErrorClassifyInput is the upstream failure shown to an error_classifier hook.
 // Only the status and the error fields the upstream already returned are given.
 type ErrorClassifyInput struct {

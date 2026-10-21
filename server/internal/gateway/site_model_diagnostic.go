@@ -333,6 +333,15 @@ func (h Handler) forwardSiteModelTestRequest(
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
 		return result
 	}
+	payload, err = applyProviderRewrite(ctx, candidate, protocol, payload)
+	if err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "plugin_rewrite_failed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
 	result = applyRequestBillingMetadata(result, payload, request.Payload, candidate)
 	upstreamStream := request.Stream
 	if value, ok := payload["stream"].(bool); ok && value {
