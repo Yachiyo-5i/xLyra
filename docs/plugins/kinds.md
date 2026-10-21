@@ -21,7 +21,7 @@ xlyra-plugin kinds
 | [`model_metadata`](./model-metadata.md) | 上游模型名对应的名称与能力 xLyra 不认识 | `describeModels` | 无 | 全局：启用即对所有站点生效 |
 | [`pricing_parse`](./pricing-parse.md) | 站点公布的价格表格式特殊 | `parsePricing` | 站点 API Key（由 xLyra 取价格表） | 站点：启用后预览核对，再绑定到站点 |
 | [`automation`](./automation.md) | xLyra 里发生某件事时自动做点什么，比如额度重置后清零密钥用量 | `handle` | 无 | 对象：启用时授予权限，再按插件声明的表单绑定到 OAuth 账号、API 密钥或站点 |
-| `site_provider` | 声明一个新的 API Key 站点类型 | 可选 `probe`、`listModels`、`check`、`classify`、`rewritePayload`（即将支持；当前仅声明站点类型与协议） | 站点 API Key | 站点类型：启用需要受信签名并确认主机；按站点类型自动生效 |
+| [`site_provider`](./site-provider.md) | 声明一个新的 API Key 站点类型 | 可选 `probe`、`listModels`、`check`、`classify`、`rewritePayload` | 站点 API Key | 站点类型：启用需要受信签名并确认主机；按站点类型自动生效 |
 
 ### 作用域是什么意思
 
@@ -81,7 +81,7 @@ xLyra 在某件事发生后把事件放进队列，后台依次交给插件，�
 
 ### 站点类型：`site_provider`
 
-声明一个新的 API Key 站点类型及其协议。启用需要受信签名，并且每次启用都要确认主机列表。确认后的列表会在创建或更新站点、通用适配器出站和网关转发时按主机名精确生效，详见[限制与安全](./limits-and-security.md)。`probe`、`listModels`、`check`、`classify`、`rewritePayload` 即将支持；当前版本只校验声明，不调用这些钩子。停用后该类型站点保留数据但不参与路由；卸载前需先删除这些站点；有站点在用时站点类型 ID 不能被新版本更改。
+声明一个新的 API Key 站点类型。可选导出 `probe`、`listModels`、`check`、`classify`、`rewritePayload`，都不是必填。启用需要受信签名，并且每次启用都要确认主机列表。钩子按站点类型自动生效，不能逐站点绑定。停用后该类型站点保留数据但不参与路由。详见 [API Key 站点类型](./site-provider.md)。
 
 所有类型共用同一个原则：**插件只"描述"想做什么，真正的执行永远在 xLyra 里**。`request` 是描述，`actions` 是描述，`classify` 的结果也是描述。
 

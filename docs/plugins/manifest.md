@@ -126,12 +126,14 @@
 | `protocol.kind` | 是 | `openai_chat`、`openai_responses`、`anthropic_messages`、`google_gemini` 之一 |
 | `protocol.path` | 是 | 以单个 `/` 开头的路径，不能含 `..` 或编码后的 `..` |
 | `protocol.officialBaseURL` | 是 | `https` URL，必须有主机，不能有用户信息、查询或片段。主机（忽略大小写，端口不算）必须在 `hosts` 里 |
-| `protocol.defaultEndpointTypes` | 是 | 至少一项，每项是 `openai`、`openai-response`、`anthropic-messages`、`google-gemini` 之一。只检查取值，不和 `protocol.kind` 做对应推断 |
-| `protocol.requestParams` | 否 | 原样保留，本阶段不解释。其中 `supported` 不会用来过滤参数 |
-| `models.path` | 否 | 拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则 |
+| `protocol.defaultEndpointTypes` | 是 | 至少一项，每项是 `openai`、`openai-response`、`anthropic-messages`、`google-gemini` 之一。只检查取值，不和 `protocol.kind` 做对应推断。通用适配器列模型时把它写进每个模型的 `supported_endpoint_types`；导出了 `listModels` 时以钩子返回的 `capabilities` 为准 |
+| `protocol.requestParams` | 否 | 可选。允许的键是 `unsupported`、`allowed_values`、`defaults`、`fixed`、`forced`、`validation`、`supported`。`supported` 只被合并，不过滤参数。不认识的键会让这份规格校验失败，插件被跳过。各键是否改正文见 [API Key 站点类型](./site-provider.md#requestparams) |
+| `models.path` | 否 | 拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则。没有 `listModels` 钩子时，通用适配器用它 |
 | `models.auth` | 否 | 不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名 |
 
-启用这个类型时，包必须由受信密钥签名，并且每次启用都要再次确认完整的 `hosts`。确认结果记成 `host:<主机名>`。确认之后，站点 `base_url`、通用适配器发出的请求和网关转发的上游地址，主机都必须在这份列表里：按主机名精确匹配（不含端口，不做子域通配），重定向也不得离开列表。
+`probe`、`listModels`、`check`、`classify`、`rewritePayload` 都是可选导出，调用时机和返回值见 [API Key 站点类型](./site-provider.md)。
+
+启用这个类型时，包必须由受信密钥签名，并且每次启用都要再次确认完整的 `hosts`。确认结果记成 `host:<主机名>`。确认之后，站点 `base_url`、通用适配器发出的请求和网关转发的上游地址，主机都必须在这份列表里：按主机名精确匹配（不含端口，不做子域通配），重定向也不得离开列表。分步钩子在同源限制之外再做一次同样的主机检查。
 
 ## 包里的文件
 
@@ -144,4 +146,4 @@ fixtures/*.json        除 site_provider 外至少一个
 signature.json         可选，签名后才有
 ```
 
-整个包不能超过 2 MiB，文件数不能超过 64 个。除 `site_provider` 外，至少要有一个 `fixtures/*.json`。`site_provider` 当前只声明站点类型和协议，不要求夹具。
+整个包不能超过 2 MiB，文件数不能超过 64 个。除 `site_provider` 外，至少要有一个 `fixtures/*.json`。`site_provider` 可以没有样本；有样本时每个文件都要带 `hook`，见 [fixtures](./fixtures.md#site_provider-样本)。

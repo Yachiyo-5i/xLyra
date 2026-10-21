@@ -79,6 +79,25 @@ func TestSiteProviderExamplePackage(t *testing.T) {
 	}
 }
 
+// TestSiteProviderExampleTypesMatchTemplate keeps the checked-in example's
+// xlyra.d.ts identical to the scaffold template.
+func TestSiteProviderExampleTypesMatchTemplate(t *testing.T) {
+	root := repoRoot(t)
+	examplePath := filepath.Join(root, "docs", "plugins", "examples", "site-provider-minimal", "types", "xlyra.d.ts")
+	templatePath := filepath.Join(root, "server", "cmd", "xlyra-plugin", "templates", "types", "xlyra.d.ts")
+	example, err := os.ReadFile(examplePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(example) != string(template) {
+		t.Fatal("运行 go -C server generate ./cmd/xlyra-plugin 后把模板里的 xlyra.d.ts 复制到示例包")
+	}
+}
+
 // repoRoot is the repository root. go test uses the package directory as the
 // working directory, the same relative climb as TestSDKTypesInSync.
 func repoRoot(t *testing.T) string {

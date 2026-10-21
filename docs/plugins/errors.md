@@ -52,7 +52,7 @@ js_timeout: interrupted: timeout
 | --- | --- |
 | `js_plugin_confirm_required` | 包未签名或签名者不在受信列表里，需要管理员二次确认。不适用于 `site_provider` |
 | `js_plugin_untrusted_not_allowed` | `site_provider` 未由受信密钥签名。`confirm_untrusted` 不能绕过，需先导入对应公钥。HTTP 403 |
-| `js_plugin_hosts_required` | 启用 `site_provider` 需要确认主机列表。响应 `error.hosts` 为完整列表 |
+| `js_plugin_hosts_required` | 启用 `site_provider` 需要确认主机列表。响应 `error.hosts` 为完整列表。HTTP 400 |
 | `js_plugin_kind_not_connected` | 类型已定义但 xLyra 尚未接入，不能启用。目前十种类型都已接入，只有以后新增的类型在接入前才会出现 |
 | `js_plugin_pricing_review_required` | 绑定价格解析插件时没有确认预览结果 |
 | `js_plugin_permissions_required` | 启用的 `automation` 版本声明了权限，但管理员没有授予。需要在启用请求里带上 `grant_permissions` |
@@ -64,3 +64,12 @@ js_timeout: interrupted: timeout
 | 错误码 | 含义 |
 | --- | --- |
 | `js_plugin_in_use` | 卸载插件，或删除它的最后一个版本时，仍有站点使用它声明的站点类型。HTTP 409，响应带 `site_type`、`count`。先删除这些站点再卸载。停用不受这个限制 |
+
+## 网关转发时的错误
+
+这两种出现在网关结果里，HTTP 都是 502，请求不会发到上游，也不会换下一把密钥重试：
+
+| 错误码 | 含义 |
+| --- | --- |
+| `plugin_rewrite_failed` | 站点类型的 `rewritePayload` 失败（抛错、超时、形状不对、改了 `model` 或 `stream`、正文超过 1 MiB）。错误信息里带插件 id |
+| `upstream_host_not_allowed` | 插件站点类型的上游主机不在启用时确认的列表里，或该类型已停用 |
