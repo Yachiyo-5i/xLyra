@@ -75,7 +75,9 @@ xLyra 反复调用 `probe(ctx, steps)`，每次只能返回下面三者之一，
 | 字段 | 说明 |
 | --- | --- |
 | `label` | 必填，非空字符串，如 `balance`、`five_hour`、`weekly` |
-| `unit` | 可选，如 `usd`、`percent` |
+| `kind` | 可选，`balance`、`window` 或 `package`。不填或空字符串表示未指定，其他值会报 `js_shape_error`。与上面 result 的 `kind` 不是同一个字段 |
+| `name` | 可选，展示用名称，如套餐名 |
+| `unit` | 可选，如 `usd`、`percent`、`credits` |
 | `remaining`、`limit`、`used` | 可选，数字 |
 | `unlimited` | 可选，布尔值 |
 | `resetAt` | 可选，重置时间字符串 |

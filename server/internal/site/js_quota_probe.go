@@ -194,6 +194,8 @@ func quotaResultFromJS(result QuotaProbeResult, parsed *jsplugin.ProbeResult) Qu
 	for _, entry := range parsed.Entries {
 		converted := QuotaProbeEntry{
 			Label:           entry.Label,
+			Kind:            entry.Kind,
+			Name:            entry.Name,
 			Unit:            entry.Unit,
 			Remaining:       entry.Remaining,
 			Limit:           entry.Limit,

@@ -42,9 +42,14 @@ type ProbeResponse struct {
 	Error   string            `ts:"error,optional"`
 }
 
+// ProbeEntryKinds are the values of an entry's kind. Empty means unspecified.
+var ProbeEntryKinds = []string{"balance", "window", "package"}
+
 // ProbeEntry is one quota window. Field names match the hook contract.
 type ProbeEntry struct {
 	Label           string   `ts:"label"`
+	Kind            string   `ts:"kind,optional,type=ProbeEntryKind"`
+	Name            string   `ts:"name,optional"`
 	Unit            string   `ts:"unit,optional"`
 	Remaining       *float64 `ts:"remaining"`
 	Limit           *float64 `ts:"limit"`
@@ -272,7 +277,7 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	path := fmt.Sprintf("result.entries[%d]", index)
 	for key := range object {
 		switch key {
-		case "label", "unit", "remaining", "limit", "used", "unlimited", "resetAt",
+		case "label", "kind", "name", "unit", "remaining", "limit", "used", "unlimited", "resetAt",
 			"cashBalance", "voucherBalance", "grantedBalance", "toppedUpBalance":
 		default:
 			return ProbeEntry{}, shapeError("%s: unknown field %q", path, key)
@@ -281,6 +286,17 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	label, ok := object["label"].(string)
 	if !ok || strings.TrimSpace(label) == "" {
 		return ProbeEntry{}, shapeError("%s.label: expected string", path)
+	}
+	kind, err := optionalString(object["kind"], path+".kind")
+	if err != nil {
+		return ProbeEntry{}, err
+	}
+	if kind != "" && !contains(ProbeEntryKinds, kind) {
+		return ProbeEntry{}, shapeError("%s.kind: %q is not one of %s", path, kind, strings.Join(ProbeEntryKinds, ","))
+	}
+	name, err := optionalString(object["name"], path+".name")
+	if err != nil {
+		return ProbeEntry{}, err
 	}
 	unit, err := optionalString(object["unit"], path+".unit")
 	if err != nil {
@@ -327,7 +343,7 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 		return ProbeEntry{}, err
 	}
 	return ProbeEntry{
-		Label: label, Unit: unit, Remaining: remaining, Limit: limit, Used: used, Unlimited: unlimited,
+		Label: label, Kind: kind, Name: name, Unit: unit, Remaining: remaining, Limit: limit, Used: used, Unlimited: unlimited,
 		ResetAt: resetAt, CashBalance: cash, VoucherBalance: voucher, GrantedBalance: granted, ToppedUpBalance: topped,
 	}, nil
 }

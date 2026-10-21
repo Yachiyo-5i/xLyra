@@ -90,6 +90,8 @@ export type SiteQuotaProbeEntry = {
   granted_balance?: number
   topped_up_balance?: number
   label: string
+  kind?: 'balance' | 'window' | 'package'
+  name?: string
   unit?: string
   remaining?: number
   limit?: number

@@ -35,7 +35,7 @@ var tsTypes = []tsType{
 	{value: ProbeRequest{}, name: "ProbeRequest"},
 	{value: ProbeResponse{}, name: "ProbeResponse"},
 	{value: ProbeStep{}, name: "ProbeStep"},
-	{value: ProbeEntry{}, name: "ProbeEntry"},
+	{value: ProbeEntry{}, name: "ProbeEntry", enum: &tsEnum{"ProbeEntryKind", ProbeEntryKinds}},
 	{value: ProbeResult{}, name: "ProbeResult"},
 	{value: ModelListEntry{}, name: "ModelListEntry", section: "model_list"},
 	{value: ModelListResult{}, name: "ModelListResult"},

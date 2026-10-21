@@ -386,6 +386,41 @@ export function probe() { for (;;) {} }`
 	}
 }
 
+func TestQuotaResultFromJSCopiesEntryKindAndName(t *testing.T) {
+	remaining := 12.0
+	got := quotaResultFromJS(QuotaProbeResult{}, &jsplugin.ProbeResult{
+		Kind: "token_plan",
+		Entries: []jsplugin.ProbeEntry{
+			{Label: "pack", Kind: "package", Name: "月度包", Unit: "credits", Remaining: &remaining},
+			{Label: "balance", Unit: "usd"},
+		},
+	})
+	if got.Status != "ok" || got.Kind != "token_plan" || len(got.Entries) != 2 {
+		t.Fatalf("result = %+v", got)
+	}
+	if got.Entries[0].Kind != "package" || got.Entries[0].Name != "月度包" {
+		t.Fatalf("entry = %+v", got.Entries[0])
+	}
+	encoded, err := json.Marshal(got.Entries[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var object map[string]any
+	if err := json.Unmarshal(encoded, &object); err != nil {
+		t.Fatal(err)
+	}
+	if object["kind"] != "package" || object["name"] != "月度包" {
+		t.Fatalf("json = %s", encoded)
+	}
+	plain, err := json.Marshal(got.Entries[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), `"kind"`) || strings.Contains(string(plain), `"name"`) {
+		t.Fatalf("omitempty: %s", plain)
+	}
+}
+
 func mustBuiltin(t *testing.T, registry *jsplugin.Registry, probeType string) *jsplugin.Plugin {
 	t.Helper()
 	plugin, ok := registry.ByProbeType(probeType)

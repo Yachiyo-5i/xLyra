@@ -37,8 +37,12 @@ export interface ProbeStep {
   response: ProbeResponse;
 }
 
+export type ProbeEntryKind = "balance" | "window" | "package";
+
 export interface ProbeEntry {
   label: string;
+  kind?: ProbeEntryKind;
+  name?: string;
   unit?: string;
   remaining?: number;
   limit?: number;

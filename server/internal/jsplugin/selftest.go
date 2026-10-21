@@ -218,6 +218,12 @@ func resultMap(result *ProbeResult) map[string]any {
 	entries := make([]any, len(result.Entries))
 	for i, entry := range result.Entries {
 		item := map[string]any{"label": entry.Label}
+		if entry.Kind != "" {
+			item["kind"] = entry.Kind
+		}
+		if entry.Name != "" {
+			item["name"] = entry.Name
+		}
 		if entry.Unit != "" {
 			item["unit"] = entry.Unit
 		}

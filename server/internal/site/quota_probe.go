@@ -28,6 +28,8 @@ type QuotaProbeEntry struct {
 	GrantedBalance  *float64 `json:"granted_balance,omitempty"`
 	ToppedUpBalance *float64 `json:"topped_up_balance,omitempty"`
 	Label           string   `json:"label"`
+	Kind            string   `json:"kind,omitempty"`
+	Name            string   `json:"name,omitempty"`
 	Unit            string   `json:"unit,omitempty"`
 	Remaining       *float64 `json:"remaining,omitempty"`
 	Limit           *float64 `json:"limit,omitempty"`
