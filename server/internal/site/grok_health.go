@@ -53,11 +53,12 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 		results = append(results, healthProbeCredentialResult(credential, "ok", ""))
 	}
 
-	if isGrok {
+	if IsAccountLoginSite(item.SiteType) {
 		check.metadata["accounts"] = results
 		check.metadata["accounts_total"] = total
 		check.metadata["accounts_passed"] = passed
 		check.success, check.errorType, check.message = grokHealthOutcome(len(credentials), total, passed)
+		check.message = accountPoolHealthMessage(item.SiteType, check.message)
 	} else {
 		check.metadata["credentials"] = results
 		check.metadata["credentials_total"] = total
@@ -90,6 +91,13 @@ func healthProbeOutcome(credentialCount, enabledTested, passed int) (bool, strin
 	default:
 		return true, "", fmt.Sprintf("ok (%d/%d credentials healthy)", passed, enabledTested)
 	}
+}
+
+func accountPoolHealthMessage(siteType, message string) string {
+	if isGrokSiteType(siteType) {
+		return message
+	}
+	return strings.ReplaceAll(message, "grok ", "")
 }
 
 // grokHealthOutcome derives the site-level verdict from per-account results: the

@@ -19,7 +19,21 @@ type AccountCounts struct {
 // IsAccountLoginSite reports whether the site type keeps one credential per
 // logged-in account.
 func IsAccountLoginSite(siteType string) bool {
-	return isGrokSiteType(siteType)
+	desc, ok := LookupSiteType(siteType)
+	return ok && siteTypeHasAccounts(desc)
+}
+
+func siteTypeHasAccounts(desc SiteTypeDescriptor) bool {
+	return desc.Accounts != nil
+}
+
+func accountCredentialForSite(siteType, credentialType string) bool {
+	switch {
+	case isGrokSiteType(siteType):
+		return isGrokCredentialType(credentialType)
+	default:
+		return store.IsAccountCredentialTypeOf(credentialType, siteType)
+	}
 }
 
 func isGrokSiteType(siteType string) bool {
@@ -48,7 +62,7 @@ func (s *Service) AccountCounts(ctx context.Context, siteID uuid.UUID, siteType 
 		statesByCredential[state.SiteCredentialID] = state
 	}
 	for _, credential := range credentials {
-		if !isGrokCredentialType(credential.CredentialType) {
+		if !accountCredentialForSite(siteType, credential.CredentialType) {
 			continue
 		}
 		counts.Total++
@@ -74,4 +88,18 @@ func accountUsable(credential store.SiteCredential, state store.SiteAPIKeyState,
 		}
 	}
 	return enabled
+}
+
+func (s *Service) accountPoolCredentialCount(ctx context.Context, siteID uuid.UUID, siteType string) (int, error) {
+	credentials, err := store.NewSiteCredentialRepository(s.db.DB()).ListBySite(ctx, siteID)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, credential := range credentials {
+		if accountCredentialForSite(siteType, credential.CredentialType) {
+			count++
+		}
+	}
+	return count, nil
 }

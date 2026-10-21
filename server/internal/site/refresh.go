@@ -720,6 +720,11 @@ func (s *Service) refreshModelOnlyState(ctx context.Context, item store.Site) (R
 		if err != nil {
 			return RefreshResult{}, err
 		}
+	} else if IsAccountLoginSite(item.SiteType) {
+		apiKeyCount, err = s.accountPoolCredentialCount(ctx, item.ID, item.SiteType)
+		if err != nil {
+			return RefreshResult{}, err
+		}
 	}
 	pricingSnapshot := adapter.PricingSnapshot{}
 	pricingGroups := []store.SitePricingGroup{}

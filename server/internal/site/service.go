@@ -1207,7 +1207,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 		return SyncResult{}, err
 	}
 	if len(apiKeys) == 0 {
-		if CredentialTypeForSiteType(site.SiteType) == "grok_sso" {
+		if isAccountPoolCategory(CredentialTypeForSiteType(site.SiteType)) {
 			return SyncResult{SiteID: site.ID}, nil
 		}
 		return SyncResult{}, fmt.Errorf("site api key is required")
@@ -1765,7 +1765,8 @@ func (s *Service) APIKeys(ctx context.Context, siteID uuid.UUID) ([]APIKeyCreden
 }
 
 func (s *Service) modelSyncCredentials(ctx context.Context, site store.Site) ([]APIKeyCredential, error) {
-	if CredentialTypeForSiteType(site.SiteType) != "grok_sso" {
+	credentialType := CredentialTypeForSiteType(site.SiteType)
+	if !isAccountPoolCategory(credentialType) {
 		return s.APIKeys(ctx, site.ID)
 	}
 
@@ -2414,6 +2415,15 @@ func normalizeSiteType(siteType string) string {
 		return "openai"
 	}
 	return siteType
+}
+
+func isAccountPoolCategory(cat string) bool {
+	switch cat {
+	case "grok_sso", "account":
+		return true
+	default:
+		return false
+	}
 }
 
 // CredentialTypeForSiteType returns the credential behavior category for a site type:
