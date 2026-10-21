@@ -1,6 +1,8 @@
 package jsplugin
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -11,6 +13,69 @@ import (
 
 const maxSiteProviderRequestHeaders = 16
 
+// HeaderSpec is one upstream header template.
+// A JSON string is unconditional. An object is included only when its cred
+// field is non-empty (when) or empty (unless). when and unless cannot both be set.
+// A failed condition omits the header. There is no general expression.
+type HeaderSpec struct {
+	Value  string
+	When   string
+	Unless string
+}
+
+// MarshalJSON writes a string when the header is unconditional.
+func (h HeaderSpec) MarshalJSON() ([]byte, error) {
+	if h.When == "" && h.Unless == "" {
+		return json.Marshal(h.Value)
+	}
+	type wire struct {
+		Value  string `json:"value"`
+		When   string `json:"when,omitempty"`
+		Unless string `json:"unless,omitempty"`
+	}
+	return json.Marshal(wire{Value: h.Value, When: h.When, Unless: h.Unless})
+}
+
+// UnmarshalJSON accepts a string or {"value","when","unless"}.
+func (h *HeaderSpec) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		return errors.New("header template is empty")
+	}
+	if data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		*h = HeaderSpec{Value: text}
+		return nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	var wire struct {
+		Value  string `json:"value"`
+		When   string `json:"when"`
+		Unless string `json:"unless"`
+	}
+	if err := dec.Decode(&wire); err != nil {
+		return errors.New("header template must be a string or an object with value, when, and unless")
+	}
+	*h = HeaderSpec{Value: wire.Value, When: wire.When, Unless: wire.Unless}
+	return nil
+}
+
+// HeaderMap builds unconditional header templates from plain strings.
+func HeaderMap(values map[string]string) map[string]HeaderSpec {
+	if values == nil {
+		return nil
+	}
+	out := make(map[string]HeaderSpec, len(values))
+	for key, value := range values {
+		out[key] = HeaderSpec{Value: value}
+	}
+	return out
+}
+
 // HeaderTemplatePiece is one literal or one placeholder from a header template.
 // Key is empty for a literal piece. Literal is empty for a placeholder piece.
 type HeaderTemplatePiece struct {
@@ -19,24 +84,25 @@ type HeaderTemplatePiece struct {
 }
 
 // SplitHeaderTemplate splits template into literals and placeholders.
-// It checks syntax only: {{cred.<field>}} and {{site.baseURL}}, with no spaces,
-// nesting, or unclosed braces. The cred field allow-list is applied by
+// It checks syntax only: {{cred.<field>}}, {{region.<key>}}, and {{site.baseURL}},
+// with no spaces, nesting, or unclosed braces. Allow-lists are applied by
 // ValidateHeaderTemplate.
 func SplitHeaderTemplate(template string) ([]HeaderTemplatePiece, error) {
-	return splitHeaderTemplate(template, nil, false)
+	return splitHeaderTemplate(template, nil, nil, false)
 }
 
-// ValidateHeaderTemplate checks template syntax and that every {{cred.<field>}}
-// uses a field in allowed. allowed is the credential model's field set.
-// A nil or empty set allows no cred fields. {{site.baseURL}} does not use allowed.
-func ValidateHeaderTemplate(template string, allowed map[string]struct{}) error {
-	_, err := splitHeaderTemplate(template, allowed, true)
+// ValidateHeaderTemplate checks template syntax, {{cred.<field>}} against
+// allowed, and {{region.<key>}} against regionKeys. regionKeys is the set of
+// attributes declared on every region. A nil or empty set allows no cred
+// fields and no region keys. {{site.baseURL}} does not use either set.
+func ValidateHeaderTemplate(template string, allowed, regionKeys map[string]struct{}) error {
+	_, err := splitHeaderTemplate(template, allowed, regionKeys, true)
 	return err
 }
 
 // ValidateSiteProviderRequest checks request header names and templates.
-// allowed is the cred field set passed to ValidateHeaderTemplate.
-func ValidateSiteProviderRequest(section SiteProviderRequest, allowed map[string]struct{}) error {
+// allowed is the cred field set. regionKeys are attributes present on every region.
+func ValidateSiteProviderRequest(section SiteProviderRequest, allowed, regionKeys map[string]struct{}) error {
 	if len(section.Headers) > maxSiteProviderRequestHeaders {
 		return fmt.Errorf("siteProvider.request.headers must list at most %d headers", maxSiteProviderRequestHeaders)
 	}
@@ -58,11 +124,34 @@ func ValidateSiteProviderRequest(section SiteProviderRequest, allowed map[string
 		if forbiddenRequestHeader(lower) {
 			return fmt.Errorf("siteProvider.request.headers: %q is not allowed", name)
 		}
-		if err := ValidateHeaderTemplate(section.Headers[name], allowed); err != nil {
+		if err := validateHeaderSpec(section.Headers[name], allowed, regionKeys); err != nil {
 			return fmt.Errorf("siteProvider.request.headers[%q]: %w", name, err)
 		}
 	}
 	return nil
+}
+
+func validateHeaderSpec(spec HeaderSpec, allowed, regionKeys map[string]struct{}) error {
+	if spec.When != "" && spec.Unless != "" {
+		return errors.New("when and unless are mutually exclusive")
+	}
+	condition := spec.When
+	if condition == "" {
+		condition = spec.Unless
+	}
+	if condition != "" {
+		if spec.Value == "" {
+			return errors.New("conditional header value is empty")
+		}
+		field, ok := strings.CutPrefix(condition, "cred.")
+		if !ok || !validHeaderTemplateField(field) {
+			return fmt.Errorf("condition %q is invalid", condition)
+		}
+		if _, exists := allowed[field]; !exists {
+			return fmt.Errorf("unknown field %q", field)
+		}
+	}
+	return ValidateHeaderTemplate(spec.Value, allowed, regionKeys)
 }
 
 func headerTemplateFields(model string) map[string]struct{} {
@@ -114,7 +203,7 @@ func forbiddenRequestHeader(lowerName string) bool {
 	return strings.HasPrefix(lowerName, "x-forwarded-")
 }
 
-func splitHeaderTemplate(template string, allowed map[string]struct{}, enforceFields bool) ([]HeaderTemplatePiece, error) {
+func splitHeaderTemplate(template string, allowed, regionKeys map[string]struct{}, enforceFields bool) ([]HeaderTemplatePiece, error) {
 	var pieces []HeaderTemplatePiece
 	var literal strings.Builder
 	flush := func() {
@@ -141,7 +230,7 @@ func splitHeaderTemplate(template string, allowed map[string]struct{}, enforceFi
 			if strings.IndexFunc(body, unicode.IsSpace) >= 0 {
 				return nil, errors.New("placeholder must not contain spaces")
 			}
-			key, err := headerTemplateKey(body, allowed, enforceFields)
+			key, err := headerTemplateKey(body, allowed, regionKeys, enforceFields)
 			if err != nil {
 				return nil, err
 			}
@@ -161,9 +250,20 @@ func splitHeaderTemplate(template string, allowed map[string]struct{}, enforceFi
 	return pieces, nil
 }
 
-func headerTemplateKey(body string, allowed map[string]struct{}, enforceFields bool) (string, error) {
+func headerTemplateKey(body string, allowed, regionKeys map[string]struct{}, enforceFields bool) (string, error) {
 	if body == "site.baseURL" {
 		return "site.baseURL", nil
+	}
+	if key, ok := strings.CutPrefix(body, "region."); ok {
+		if _, allowedKey := regionAttrKeys[key]; !allowedKey || !validHeaderTemplateField(key) {
+			return "", fmt.Errorf("unknown placeholder %q", "{{"+body+"}}")
+		}
+		if enforceFields {
+			if _, ok := regionKeys[key]; !ok {
+				return "", fmt.Errorf("unknown region attribute %q", key)
+			}
+		}
+		return "region." + key, nil
 	}
 	field, ok := strings.CutPrefix(body, "cred.")
 	if !ok || !validHeaderTemplateField(field) {

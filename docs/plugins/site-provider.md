@@ -149,14 +149,22 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 ### 语法
 
-模板里只有两种占位符，花括号内不能有空格，不能嵌套，`{{` 必须用 `}}` 关上：
+模板里只有三种占位符，花括号内不能有空格，不能嵌套，`{{` 必须用 `}}` 关上。没有通用表达式。
 
 | 占位符 | 值 |
 | --- | --- |
 | `{{cred.<field>}}` | 凭据字段。`<field>` 必须属于当前 `credential.model` 允许的集合。`api_key` 只有 `api_key`，值是整串站点 Key。`account_pool` 的集合是 `credential.fields` 里声明的每一个字段名 |
+| `{{region.<key>}}` | 这次账号解析出的区域的 `attrs.<key>`。`<key>` 只能是 `origin` 或 `referer`，并且每一个区域都声明了这个键。`api_key` 没有区域，不能使用 |
 | `{{site.baseURL}}` | 这次实际使用的上游基址，去掉尾部 `/` |
 
 `{{ cred.api_key }}`、`{{cred.api_key`、`{{secret.x}}`、`{{site.baseurl}}` 都会在校验清单时拒绝。`{{secret.<field>}}` 不是头模板占位符，只用在账号池钩子描述的请求里，见[密钥不进 JS](#密钥不进-js)。`api_key` 写 `{{cred.domain}}` 会拒绝，因为 `domain` 不在允许的字段里。校验按调用方传入的字段集合判断，不把字段名写死。同一个模板可以多次使用同一个占位符。占位符以外的字面量不能含 CR、LF 或其它控制字符。
+
+头的值可以是字符串，也可以是对象。对象只有 `value`、`when`、`unless` 三个键。`when` 和 `unless` 互斥，各自最多出现一次，值只能是 `cred.<已声明字段>`。字段值为空，或这次变量表里没有这个字段，都算空。`when` 在字段非空时发送；`unless` 在字段为空时发送。条件不成立时删掉这个头，不写成空字符串，也不渲染 `value`（所以里面的占位符缺失不会因此失败）。两个条件都不写时，对象和字符串一样，总是发送。
+
+```json
+"X-Domain": { "value": "{{cred.domain}}", "when": "cred.domain" },
+"X-No-Department-Info": { "value": "1", "unless": "cred.domain" }
+```
 
 `headers` 最多 16 项。头名必须是合法的 HTTP token。忽略大小写后相同的头名算重复。下面这些不能由模板写：`Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`，以及任何 `X-Forwarded-*`。`Content-Type` 和 `Accept` 由协议适配器决定，模板也不能写。`Authorization` 可以写，而且只有模板里声明了，才会按模板的值发送。
 
@@ -181,7 +189,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `api_key` 插件站点没有单独的凭据解析器。网关把解密后的站点 Key 放进 `cred.api_key`，把这次使用的上游基址放进 `site.baseURL`。
 
-`account_pool` 的变量表只放两类值：非密钥字段，以及 access token 字段（默认 `access_token`，清单用 `accessTokenField` 改名时用那个名字）。`refresh_token` 和其它 `secret: true` 的字段不会放进变量表。模板里写了 `{{cred.refresh_token}}` 能通过清单校验（字段已声明），转发时变量不存在，这次请求失败，错误类型 `plugin_header_template_failed`，不换下一把凭据。`site.baseURL` 在 `request.baseURLFrom` 为 `region` 时是该账号解析出的区域基址。
+`account_pool` 的变量表放三类值：非密钥字段，access token 字段（默认 `access_token`，清单用 `accessTokenField` 改名时用那个名字），以及解析出的区域的 `region.<key>`。`refresh_token` 和其它 `secret: true` 的字段不会放进变量表。模板里写了 `{{cred.refresh_token}}` 能通过清单校验（字段已声明），转发时变量不存在，这次请求失败，错误类型 `plugin_header_template_failed`，不换下一把凭据。条件头在字段缺失时按空处理，不走这个失败。`site.baseURL` 在 `request.baseURLFrom` 为 `region` 时是该账号解析出的区域基址。
 
 ### 安全
 
@@ -193,7 +201,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 这种清单可以不写 `models`。不写表示不按账号拉模型列表。要拉，只写 `models.perAccount: true`，并且必须导出 `listModels`。空对象 `{}`、`models.path`、`models.auth` 都会被拒绝。`models.path` / `models.auth` 仍只属于 `api_key`；`api_key` 写 `perAccount` 也会被拒绝。五个可选钩子的调用方式见 [钩子](#钩子)。`perAccount` 的 `listModels` 见下面的 [按账号列模型](#按账号列模型)。
 
-`api_key` 清单不能写下面这些账号池字段：`credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`identity`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`quota` 和 `request` 两种模型都可以写。
+`api_key` 清单不能写下面这些账号池字段：`credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`expiresFrom`、`identity`、`display`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`quota` 和 `request` 两种模型都可以写。
 
 字段以本节为准。
 
@@ -214,20 +222,25 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 | `accessTokenField` | `access_token` | 必须是已声明的 secret 字段。网关把它的值当作上游密钥 |
 | `refreshTokenField` | 不设 | 设了就必须是已声明的 secret 字段。`refresh.kind` 为 `oauth2_refresh` 时必填 |
 | `expiresAtField` | 不设 | 设了就必须是已声明字段，且 `type` 为 `unix`。网关用它和 `leadSeconds` 决定要不要刷新。不设则网关不按到期时间自动刷新 |
+| `expiresFrom` | 不设 | 只允许 `claims.exp`，并且必须同时写了 `expiresAtField`。到期字段已经有值时不覆盖。令牌响应、刷新合并、导入都是这样：字段空着才从 access token 的 JWT `exp` 取 Unix 秒 |
 | `identity` | 必填 | 见下 |
+| `display` | 不设 | 见下。行上显示的名字。不写时仍用 identity |
 
-### identity
+### identity 与 display
 
-两种写法，只能一条：
+`identity` 和 `display` 都是有序来源。JSON 可以是一个字符串，或一个字符串数组。一个字符串在写回时仍是字符串。数组最多 8 项，不能重复，不能有空项。取第一个非空值。单条来源全部失败时，`field.*` 报这个字段为空，其它情况报 identity claim 为空。数组全部失败也报 identity claim 为空。
 
 | 写法 | 含义 |
 | --- | --- |
-| `claims.<路径>` | 从 access token 的 JWT payload 读字符串。`claims.sub` 读 payload 的 `sub`。路径可以再点一层，例如 `claims.profile.email`。`oauth2_device_code` 在 access token 读不到时再试 id token |
+| `claims.<路径>` | 从 access token 的 JWT payload 读字符串。`claims.sub` 读 payload 的 `sub`。路径可以再点一层，例如 `claims.profile.email`。签名不校验。`oauth2_device_code` 在 access token 读不到时再试 id token。claim 缺失或不是非空字符串就试下一条 |
 | `field.<name>` | 读凭据包里这个非密钥字段。字段必须已声明，且不能是 secret |
+| `summary.label` | 只允许出现在 `display`。用 `summarizeAccount` 返回的 `label`。宿主把它存进 meta 的 `display`。超过 256 字节、含控制字符、或擦掉密钥后文本变了，就丢掉，不当显示名 |
 
-没有 email、uid、user_id 的回退。JWT 里没写进这条路径的 claim 不会自动进 meta。`oauth2` 的 `expires_in` 为 0 时，宿主不改去读 JWT 的 `exp`。
+`identity` 不能写 `summary.label`。选中的值如果包含秘密袋里的密钥，这次登录失败。
 
 同一站点上，身份相同的再次登录沿用原来的 `credential_type`，不另建一把凭据。显式重新授权（带目标凭据 id）更新那一把。
+
+管理端行上的名字按这个顺序：`display` 解析出的值，然后 `identity`，然后入库时的掩码。`display` 把 `summary.label` 放在前面时，摘要返回的昵称会盖过 JWT 里的 email。
 
 ### regions 与 defaultRegion
 
@@ -240,6 +253,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 | `baseURL` | `https` URL，主机必须在 `hosts` 里。站点类型的官方基址取 `defaultRegion` 这一项，去掉尾部 `/` |
 | `realms` | 可选，最多 8 项。每一项是小写的 `[a-z0-9_.-]`，不能空 |
 | `domains` | 可选，最多 8 项。每一项是和 `hosts` 同样规则的小写主机名 |
+| `attrs` | 可选，最多 2 项。键只能是 `origin` 或 `referer`。值 1–256 字节，不能含控制字符。头模板 `{{region.<key>}}` 只能使用每个区域都声明了的键 |
 
 账号用哪一个区域，按这个顺序，命中即停：
 
@@ -305,13 +319,15 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 | 字段 | 说明 |
 | --- | --- |
 | `containers` | 可选，最多 8 项。每一项匹配 `^[A-Za-z0-9_.-]+$`，可以是点分路径（`data.accounts`）。用来从包装对象里取出账号数组或单个账号对象 |
-| `fieldMap` | 键必须是已声明的字段名。每个键 1–8 个别名，别名同样匹配上面的正则，不能重复。别名是**每个账号对象的顶层键**，按数组顺序用第一个非空的字符串或数字。其它 JSON 类型跳过 |
+| `fieldMap` | 键必须是已声明的字段名。每个键 1–8 个别名，别名同样匹配上面的正则，不能重复。别名是**每个账号对象的顶层键**，按数组顺序用第一个非空的字符串或数字。其它 JSON 类型跳过。nickname 收成 email 就写成 `"email": ["nickname", "nick_name", "name"]`，并声明非密钥字段 `email` |
+| `valueMap` | 可选。键必须是已声明字段，不能是到期字段。最多 8 个字段，每个 1–8 条。来源和目标都是 1–64 字节，匹配 `^[A-Za-z0-9_.-]+$`，不能含控制字符。别名取到值并去掉首尾空白之后做精确匹配，命中就改成目标值。不匹配的值原样留下 |
+| `msThreshold` | 可选。不写等于 `1000000000000`（1e12）。写出时必须是 1 到 `1000000000000000`（1e15）的整数。大于等于这个数的到期数字按 Unix 毫秒，更小的正数按 Unix 秒 |
 
-`enabled` 为真时，`fieldMap` 必须覆盖每一个 secret 字段；`identity` 若是 `field.<name>`，这个字段也必须在 `fieldMap` 里。
+`enabled` 为真时，`fieldMap` 必须覆盖每一个 secret 字段。`identity` 和 `display` 里每一条 `field.<name>` 也必须在 `fieldMap` 里。
 
 文件形状：一个 JSON 值。UTF-8 BOM 会去掉。可以是对象数组、单个对象，或对象里第一条能落到对象 / 数组上的 `containers` 路径。路径缺失或落到标量上就试下一条；都没有则把根对象本身当作一个账号。空数组、不是对象也不是数组、超过上限，整份文件拒绝。
 
-到期时间（`expiresAtField`）：大于等于 `1000000000000`（1e12）的数字当作 Unix 毫秒，更小的正数当作 Unix 秒。数字字符串和 RFC3339 字符串也可以。解析成功后存成 Unix 秒的十进制字符串。字段缺失时，非密钥的到期字段可以省略；secret 的到期字段缺失则拒绝。解析失败整份文件拒绝。错误里有从 1 开始的账号序号和字段名，没有字段值。字段完全相同的重复账号只留第一条。
+到期时间（`expiresAtField`）：大于等于 `msThreshold`（不写则是 1e12）的数字当作 Unix 毫秒，更小的正数当作 Unix 秒。数字字符串和 RFC3339 字符串也可以。解析成功后存成 Unix 秒的十进制字符串。字段缺失时，非密钥的到期字段可以省略；secret 的到期字段缺失则拒绝。省略之后如果 `expiresFrom` 是 `claims.exp`，再用 access token 的 `exp` 填上。解析失败整份文件拒绝。错误里有从 1 开始的账号序号和字段名，没有字段值。字段完全相同的重复账号只留第一条。
 
 单文件最大 4 MiB，最多 500 个账号对象。管理端一次导入最多 50 个文件、合计 200 个账号。
 
@@ -379,7 +395,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 | --- | --- | --- | --- |
 | `startLogin`、`pollLogin` | `siteType`、`baseURL`、`params`（登录表单，不是凭据）、`now`（毫秒） | `account_login` | `pending`、`complete` |
 | `refreshTokens` | `siteType`、`baseURL`、`fields`（只有非密钥字段）、`now` | `account_refresh` | `ok`、`reauth` |
-| `summarizeAccount` | 与 `refreshTokens` 相同 | `account_summary` | `ok`、`unavailable` |
+| `summarizeAccount` | 与 `refreshTokens` 相同 | `account_summary` | `ok`、`unavailable`、`reauth` |
 
 `account_login` 的结果还可以有 `verificationURL`、`userCode`、`interval`、`credential`。`pending` 时，`verificationURL` 的主机必须在 `hosts` 里，否则这次登录失败，地址不下发。`interval` 缺省或小于 1 按 5 秒，大于 60 按 60 秒。`complete` 必须带 `credential`。
 
@@ -387,7 +403,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `credential` 里，secret 字段的值必须正好是 `{{secret.<同一字段名>}}`，由宿主从秘密袋取出。写成原始令牌会拒绝。非密钥字段是普通字符串，不能含 `{{secret.`，也不能含秘密袋里的值；`unix` 字段必须是非负十进制整数字符串。access token 字段必须出现并且非空。没写到的字段，刷新时保留上一份凭据里的值。
 
-`account_summary` 的 `entries` 与[额度探测](./quota-probe.md)的 entry 相同。`remark` 可选。宿主仍会按秘密袋擦 `remark` 和 entry 的文案字段。`status` 没有「需要重新授权」。网关看到上游 401 时，仍可以按账号凭据把这把标成需要重新授权。
+`account_summary` 的 `entries` 与[额度探测](./quota-probe.md)的 entry 相同。`remark` 和 `label` 可选。宿主仍会按秘密袋擦 `remark`、`label` 和 entry 的文案字段。`label` 只在 `credential.display` 含 `summary.label` 时写入 meta 的 `display`，并且不能超过 256 字节、不能含控制字符。`reauth` 是成功结果，不是钩子错误：宿主把凭据标成 `reauth_required`、`enabled` 设为 false，同步状态写成 `reauth_required`。`ok` 不会清掉已经标上的重新授权。网关看到上游 401 时，仍可以按账号凭据把这把标成需要重新授权。这不另起错误码。
 
 `summarizeAccount` 对每个账号池包都必填。`startLogin` 与 `pollLogin` 只在 `login.kind` 为 `custom_poll` 时必填。`refreshTokens` 只在 `refresh.kind` 为 `custom_steps` 时必填。
 
@@ -401,7 +417,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `login.secretPaths` 和 `refresh.secretPaths` 是对象：键是响应 JSON 的路径，值是 secret 字段名。路径是点分键加数字下标，例如 `data.accessToken`、`items[0].token`。键由 `[A-Za-z0-9_-]` 组成，下标是非负整数。不支持通配符。空段、`*`、`?`、空白会在校验清单时拒绝。值必须是已声明的 secret 字段。
 
-响应交给 JS 之前，宿主按路径把字符串摘进秘密袋，`Body` 和解析后的 `JSON` 里该位置都换成固定占位 `{{redacted}}`。同一字段有多条路径时，按路径字典序，第一条非空字符串留在袋里，其余命中仍从文档里删掉。路径不存在不算错误，也不写袋。路径在但值不是非空字符串，这一步失败。声明了 `secretPaths` 时，响应必须是 JSON 对象；非 JSON（包括 HTML 错误页）、根是数组或标量，这一步失败，原文不交给 JS。响应头仍会去掉 `Set-Cookie`。
+响应交给 JS 之前，宿主按路径把字符串摘进秘密袋，`Body` 和解析后的 `JSON` 里该位置都换成固定占位 `{{redacted}}`。同一字段有多条路径时，按路径字典序，第一条非空字符串留在袋里，其余命中仍从文档里删掉。路径不存在不算错误，也不写袋。路径在但值不是非空字符串，这一步失败。声明了 `secretPaths` 时，响应必须是 JSON 对象；非 JSON（包括 HTML 错误页）、根是数组或标量，这一步失败，原文不交给 JS。唯一的例外是 `pollLogin` 发出的请求写了 `onNonJSON: "pending"`：响应不是单个 JSON 对象时，这一步当成 `pending`，正文不进 JS、不进错误、也不留在 `steps` 里。其它钩子即使写了这个字段也忽略它，仍然失败关闭。空正文、数组、标量、`null` 都算不是对象。响应头仍会去掉 `Set-Cookie`。
 
 钩子在 `request` 里用 `{{secret.<field>}}` 引用袋中的值。`<field>` 是小写开头的 `[a-z][a-z0-9_]*`，必须是这次允许的 secret 字段，并且袋里已经有值。可以出现在：
 
@@ -443,12 +459,11 @@ account:<siteType>:<uuid>
 
 这些是框架现在做不到的事，对插件作者有影响的几条：
 
-- 聊天转发的请求头模板不能按区域或按条件变化。登录、刷新、摘要、列模型的钩子可以在自己的 `request.headers` 里写 `Origin` / `Referer`；网关转发这条路径不行。模板也不能按 `domain` 是否为空在 `X-Domain` 和别的头之间切换。
-- `identity` 只有一条 `claims.…` 或 `field.…`。不能把 JWT 里的 email 另行写进 meta。
-- 导入的别名是账号对象的顶层键。realm 别名留在字段里，不收成区域 id。毫秒阈值是 1e12。
-- `summarizeAccount` 不能把账号标成需要重新授权。`listModels` 看到的是上游 HTTP 401，由宿主把这个账号标成需要重新授权，响应体不交给钩子。
-- 声明了 `secretPaths` 时，非 JSON 响应整步失败，不会当成 `pending`。
+- 网关头模板不能写 `Content-Type` 和 `Accept`。这两项仍由协议适配器决定。
+- `custom_poll` 的登录会话是 10 分钟。这是宿主的会话时钟，不会告诉上游。
 - 短于 4 个 Unicode 码位的密钥值，出现在声明路径之外时不会被擦掉。
+- 登录 Cookie 罐在进程内。另一个实例或重启之后，进行中的登录会话没有了。
+- 管理端登录完成、导入之后、以及账号 Refresh 会立刻换令牌。`leadSeconds` 只在网关选路时生效。
 
 ## 启用与信任
 

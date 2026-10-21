@@ -627,7 +627,7 @@ func mustPlugin(t *testing.T, source string, section SiteProviderSection) *Plugi
 
 func customSection() SiteProviderSection {
 	section := poolSection()
-	section.Credential.Identity = "field.domain"
+	section.Credential.Identity = Sources("field.domain")
 	section.Import.FieldMap["domain"] = []string{"domain"}
 	return section
 }
@@ -746,6 +746,60 @@ export function summarizeAccount() { return { result: { kind: "account_summary",
 	done, err := rt.PollLogin(context.Background(), started)
 	if err != nil || done.Status != "complete" || polls != 2 || done.Credential["access_token"] != "tok-a" {
 		t.Fatalf("complete = %s polls=%d err=%v", done.Status, polls, err)
+	}
+}
+
+func TestCustomPollNonJSONStaysPending(t *testing.T) {
+	const leak = "ACCESS_LEAK_pending_body"
+	logs := captureLogs(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/start":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"ok":true}`)
+		case "/poll":
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, leak)
+		case "/html":
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html>"+leak+"</html>")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	source := meta("acme.example", KindSiteProvider) + `
+export function startLogin(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "GET", path: "/html", onNonJSON: "pending" } };
+  return { result: { kind: "account_login", status: "pending", interval: 1 } };
+}
+export function pollLogin(ctx, steps) {
+  let token = null;
+  for (const step of steps) {
+    if (step.request && step.request.path === "/poll") token = step;
+  }
+  if (!token) return { request: { method: "GET", path: "/poll", onNonJSON: "pending" } };
+  return { error: "poll saw a body" };
+}
+export function refreshTokens() { return { error: "no" }; }
+export function summarizeAccount() { return { result: { kind: "account_summary", status: "ok", entries: [] } }; }
+`
+	rt := customRuntime(t, srv, source)
+	if _, err := rt.StartLogin(context.Background(), map[string]string{"region": "cn"}); err == nil || !errors.Is(err, ErrSecretRedactNotJSON) || strings.Contains(err.Error(), leak) {
+		t.Fatalf("start ignored onNonJSON: %v", err)
+	}
+	source = strings.Replace(source, `path: "/html", onNonJSON: "pending"`, `path: "/start"`, 1)
+	rt = customRuntime(t, srv, source)
+	started, err := rt.StartLogin(context.Background(), map[string]string{"region": "cn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, err := rt.PollLogin(context.Background(), started)
+	if err != nil || pending.Status != "pending" {
+		t.Fatalf("poll = %+v err=%v", pending, err)
+	}
+	if strings.Contains(logs.String(), leak) || strings.Contains(pending.String(), leak) {
+		t.Fatal("non-JSON poll body reached the host result or logs")
 	}
 }
 

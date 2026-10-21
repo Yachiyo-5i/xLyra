@@ -27,12 +27,17 @@ type ProbeStep struct {
 }
 
 // ProbeRequest is a plugin-authored HTTP request before the host joins the URL.
+// OnNonJSON is read only while pollLogin is running. "pending" treats a body
+// that is not one JSON object as still waiting. The body is discarded and is
+// not shown to the plugin. Every other hook ignores the field and still
+// refuses a non-JSON body when secret paths are set.
 type ProbeRequest struct {
-	Method  string            `ts:"method,type=ProbeMethod"`
-	Path    string            `ts:"path,doc=Path under the site base URL. Absolute URLs are rejected."`
-	Headers map[string]string `ts:"headers,optional"`
-	Query   map[string]string `ts:"query,optional"`
-	Body    any               `ts:"body,optional,type=Json"`
+	Method    string            `ts:"method,type=ProbeMethod"`
+	Path      string            `ts:"path,doc=Path under the site base URL. Absolute URLs are rejected."`
+	Headers   map[string]string `ts:"headers,optional"`
+	Query     map[string]string `ts:"query,optional"`
+	Body      any               `ts:"body,optional,type=Json"`
+	OnNonJSON string            `ts:"onNonJSON,optional,doc=pollLogin only. pending treats a non-JSON body as still waiting and discards it."`
 }
 
 // ProbeResponse is the HTTP result shown to the plugin. JSON is nil when the body is not JSON.
@@ -125,6 +130,9 @@ func stepsAsValue(steps []ProbeStep) []any {
 		if step.Request.Body != nil {
 			request["body"] = step.Request.Body
 		}
+		if step.Request.OnNonJSON != "" {
+			request["onNonJSON"] = step.Request.OnNonJSON
+		}
 		out[i] = map[string]any{"request": request, "response": response}
 	}
 	return out
@@ -186,7 +194,7 @@ func decodeRequest(value any) (ProbeRequest, error) {
 	}
 	for key := range object {
 		switch key {
-		case "method", "path", "headers", "query", "body":
+		case "method", "path", "headers", "query", "body", "onNonJSON":
 		default:
 			return ProbeRequest{}, shapeError("request: unknown field %q", key)
 		}
@@ -222,7 +230,14 @@ func decodeRequest(value any) (ProbeRequest, error) {
 			return ProbeRequest{}, shapeError("request.body: expected object, array, or string")
 		}
 	}
-	return ProbeRequest{Method: method, Path: path, Headers: headers, Query: query, Body: body}, nil
+	onNonJSON, err := optionalString(object["onNonJSON"], "request.onNonJSON")
+	if err != nil {
+		return ProbeRequest{}, err
+	}
+	if onNonJSON != "" && onNonJSON != "pending" {
+		return ProbeRequest{}, shapeError("request.onNonJSON: unsupported value %q", onNonJSON)
+	}
+	return ProbeRequest{Method: method, Path: path, Headers: headers, Query: query, Body: body, OnNonJSON: onNonJSON}, nil
 }
 
 func decodeResult(value any) (ProbeResult, error) {
@@ -376,7 +391,9 @@ var AccountLoginStatuses = []string{"pending", "complete"}
 var AccountRefreshStatuses = []string{"ok", "reauth"}
 
 // AccountSummaryStatuses are the account_summary status values.
-var AccountSummaryStatuses = []string{"ok", "unavailable"}
+// reauth is a successful result that tells the host to mark the credential
+// reauth_required. It is not a hook error.
+var AccountSummaryStatuses = []string{"ok", "unavailable", "reauth"}
 
 // AccountLoginContext is the credential-free object passed to startLogin and
 // pollLogin. It carries login UI parameters only, never tokens.
@@ -417,12 +434,14 @@ type AccountRefreshResult struct {
 }
 
 // AccountSummaryResult is the account_summary hook result.
-// entries use the quota probe entry shape. remark must not contain secrets;
-// the host scrubs it anyway.
+// entries use the quota probe entry shape. remark and label must not contain
+// secrets; the host scrubs them anyway. label is stored only when
+// credential.display lists summary.label.
 type AccountSummaryResult struct {
 	Kind    string       `ts:"kind,doc=Must be account_summary." enum:"account_summary"`
-	Status  string       `ts:"status,type=AccountSummaryStatus" enum:"ok,unavailable"`
+	Status  string       `ts:"status,type=AccountSummaryStatus" enum:"ok,unavailable,reauth"`
 	Remark  string       `ts:"remark,optional"`
+	Label   string       `ts:"label,optional,doc=Display text. Stored only when credential.display lists summary.label."`
 	Entries []ProbeEntry `ts:"entries"`
 }
 

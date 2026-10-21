@@ -143,7 +143,7 @@ func accountPoolSection(siteType string) jsplugin.SiteProviderSection {
 			},
 			AccessTokenField:  "access_token",
 			RefreshTokenField: "refresh_token",
-			Identity:          "field.subject",
+			Identity:          jsplugin.Sources("field.subject"),
 		},
 		Protocol: jsplugin.SiteProviderProtocol{
 			Kind: "openai_chat", Path: "/v1/chat/completions", OfficialBaseURL: "https://api.example.cn",

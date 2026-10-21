@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/jsplugin"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/site"
 )
@@ -25,11 +26,11 @@ func TestPluginHeaderTemplateApplied(t *testing.T) {
 	t.Cleanup(site.ClearPluginSiteTypes)
 
 	headers, base := capturePluginHeaders(t, "acme.example/chat", gatewayEndpointMessages, downstreamPluginHeaders(), site.PluginSiteRequest{
-		Headers: map[string]string{
+		Headers: jsplugin.HeaderMap(map[string]string{
 			"Authorization": "Bearer {{cred.api_key}}",
 			"X-Client":      "xlyra",
 			"X-Base":        "{{site.baseURL}}",
-		},
+		}),
 	}, &headerSnapshotProtocol{})
 	if headers.Get("Authorization") != "Bearer sk-test" || headers.Get("X-Client") != "xlyra" || headers.Get("X-Base") != base {
 		t.Fatalf("headers:\n%s", formatHeaders(headers))
@@ -47,10 +48,10 @@ func TestPluginHeaderTemplateStrip(t *testing.T) {
 	t.Cleanup(site.ClearPluginSiteTypes)
 
 	headers, _ := capturePluginHeaders(t, "acme.example/chat", gatewayEndpointMessages, downstreamPluginHeaders(), site.PluginSiteRequest{
-		Headers: map[string]string{
+		Headers: jsplugin.HeaderMap(map[string]string{
 			"Authorization": "Bearer {{cred.api_key}}",
 			"X-Client":      "xlyra",
-		},
+		}),
 		StripDownstreamHeaders: true,
 	}, &headerSnapshotProtocol{})
 	if headers.Get("Authorization") != "Bearer sk-test" || headers.Get("X-Client") != "xlyra" {
@@ -66,7 +67,7 @@ func TestPluginHeaderTemplateStrip(t *testing.T) {
 	}
 
 	strippedAuth, _ := capturePluginHeaders(t, "acme.example/chat", gatewayEndpointMessages, downstreamPluginHeaders(), site.PluginSiteRequest{
-		Headers:                map[string]string{"X-Client": "xlyra"},
+		Headers:                jsplugin.HeaderMap(map[string]string{"X-Client": "xlyra"}),
 		StripDownstreamHeaders: true,
 	}, &headerSnapshotProtocol{})
 	if strippedAuth.Get("Authorization") != "" || strippedAuth.Get("X-Client") != "xlyra" || strippedAuth.Get("X-From-Adapter") != "" {
@@ -83,10 +84,10 @@ func TestPluginHeaderTemplateOrder(t *testing.T) {
 
 	protocol := &headerSnapshotProtocol{}
 	headers, _ := capturePluginHeaders(t, "acme.example/chat", gatewayEndpointMessages, downstreamPluginHeaders(), site.PluginSiteRequest{
-		Headers: map[string]string{
+		Headers: jsplugin.HeaderMap(map[string]string{
 			"X-Client":      "from-template",
 			"Authorization": "Bearer {{cred.api_key}}",
-		},
+		}),
 	}, protocol)
 	if headers.Get("X-Client") != "from-template" {
 		t.Fatalf("upstream X-Client = %q", headers.Get("X-Client"))
@@ -155,7 +156,7 @@ func TestPluginHeaderTemplateUnconfiguredMatchesBuiltin(t *testing.T) {
 		}
 	}
 	templated := site.PluginSiteRequest{
-		Headers:                map[string]string{"X-Client": "from-template", "Authorization": "Bearer {{cred.api_key}}"},
+		Headers:                jsplugin.HeaderMap(map[string]string{"X-Client": "from-template", "Authorization": "Bearer {{cred.api_key}}"}),
 		StripDownstreamHeaders: true,
 	}
 	builtin := forward("openai", gatewayEndpointMessages, site.PluginSiteRequest{})
@@ -172,12 +173,12 @@ func TestPluginHeaderTemplateRenderFailure(t *testing.T) {
 	secret := "sk-super-secret-value"
 	hits := &atomic.Int32{}
 	assertHeaderTemplateFailure(t, secret, site.PluginSiteRequest{
-		Headers: map[string]string{"X-Domain": "{{cred.domain}}"},
+		Headers: jsplugin.HeaderMap(map[string]string{"X-Domain": "{{cred.domain}}"}),
 	}, hits, "X-Domain", "missing variable cred.domain")
 
 	hits = &atomic.Int32{}
 	assertHeaderTemplateFailure(t, "super-secret-key\r\nX-Evil: 1", site.PluginSiteRequest{
-		Headers: map[string]string{"Authorization": "Bearer {{cred.api_key}}"},
+		Headers: jsplugin.HeaderMap(map[string]string{"Authorization": "Bearer {{cred.api_key}}"}),
 	}, hits, "Authorization", "control character")
 }
 
@@ -203,11 +204,11 @@ func TestPluginHeaderTemplateDiagnostic(t *testing.T) {
 		Enabled:    true,
 		Hosts:      []string{"127.0.0.1"},
 		Request: site.PluginSiteRequest{
-			Headers: map[string]string{
+			Headers: jsplugin.HeaderMap(map[string]string{
 				"Authorization": "Bearer {{cred.api_key}}",
 				"X-Client":      "xlyra",
 				"X-Base":        "{{site.baseURL}}",
-			},
+			}),
 			StripDownstreamHeaders: true,
 		},
 	}}); err != nil {
@@ -241,7 +242,7 @@ func TestPluginHeaderTemplateDiagnostic(t *testing.T) {
 		PluginID:   "acme.example",
 		Enabled:    true,
 		Hosts:      []string{"127.0.0.1"},
-		Request:    site.PluginSiteRequest{Headers: map[string]string{"X-Domain": "{{cred.domain}}"}},
+		Request:    site.PluginSiteRequest{Headers: jsplugin.HeaderMap(map[string]string{"X-Domain": "{{cred.domain}}"})},
 	}}); err != nil {
 		t.Fatal(err)
 	}

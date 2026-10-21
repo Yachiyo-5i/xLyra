@@ -57,6 +57,7 @@ xLyra 反复调用 `probe(ctx, steps)`，每次只能返回下面三者之一，
 | `headers` | 可选，字符串到字符串。`Authorization`、`Cookie` 等会被丢弃，xLyra 会自己写入鉴权头 |
 | `query` | 可选，字符串到字符串。`path` 里也可以带 `?a=b` |
 | `body` | 可选，对象、数组或字符串。GET/HEAD 请求不发送。对象和数组按 JSON 发送，默认加 `Content-Type: application/json` |
+| `onNonJSON` | 可选，只能是 `pending`。只有账号池的 `pollLogin` 会遵守：响应不是单个 JSON 对象时当成 pending，正文不交给插件。额度探测和其它钩子忽略它，声明了 `secretPaths` 时非 JSON 仍然失败 |
 
 出现不认识的字段会报 `js_shape_error`。
 

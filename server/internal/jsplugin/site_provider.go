@@ -73,13 +73,13 @@ type SiteProviderSection struct {
 }
 
 // SiteProviderRequest is the optional upstream header template.
-// Headers maps a header name to a template. StripDownstreamHeaders keeps only
-// those names plus Content-Type and Accept.
+// Headers maps a header name to a template string or a conditional object.
+// StripDownstreamHeaders keeps only those names plus Content-Type and Accept.
 type SiteProviderRequest struct {
-	Headers                map[string]string `json:"headers,omitempty"`
-	StripDownstreamHeaders bool              `json:"stripDownstreamHeaders,omitempty"`
-	UpstreamStreamOnly     bool              `json:"upstreamStreamOnly,omitempty"`
-	BaseURLFrom            string            `json:"baseURLFrom,omitempty"`
+	Headers                map[string]HeaderSpec `json:"headers,omitempty"`
+	StripDownstreamHeaders bool                  `json:"stripDownstreamHeaders,omitempty"`
+	UpstreamStreamOnly     bool                  `json:"upstreamStreamOnly,omitempty"`
+	BaseURLFrom            string                `json:"baseURLFrom,omitempty"`
 }
 
 // SiteProviderDisplay is the copy and mark shown for the site type.
@@ -91,14 +91,16 @@ type SiteProviderDisplay struct {
 }
 
 // SiteProviderCredential is how a site of this type authenticates.
-// Fields, token names, and identity apply only when Model is account_pool.
+// Fields, token names, identity, and display apply only when Model is account_pool.
 type SiteProviderCredential struct {
 	Model             string              `json:"model"`
 	Fields            []SiteProviderField `json:"fields,omitempty"`
 	AccessTokenField  string              `json:"accessTokenField,omitempty"`
 	RefreshTokenField string              `json:"refreshTokenField,omitempty"`
 	ExpiresAtField    string              `json:"expiresAtField,omitempty"`
-	Identity          string              `json:"identity,omitempty"`
+	ExpiresFrom       string              `json:"expiresFrom,omitempty"`
+	Identity          CredentialSources   `json:"identity,omitempty"`
+	Display           CredentialSources   `json:"display,omitempty"`
 }
 
 // SiteProviderProtocol is the upstream protocol this site type speaks.
@@ -174,7 +176,7 @@ func validateSiteProvider(manifest Manifest, files map[string][]byte) error {
 			return err
 		}
 	}
-	if err := ValidateSiteProviderRequest(section.Request, siteProviderHeaderFields(section)); err != nil {
+	if err := ValidateSiteProviderRequest(section.Request, siteProviderHeaderFields(section), regionTemplateKeys(section.Regions)); err != nil {
 		return err
 	}
 	if err := validateRequestBaseURLFrom(section); err != nil {

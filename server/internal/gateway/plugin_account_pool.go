@@ -190,6 +190,19 @@ func pluginAccountHeaderVars(spec jsplugin.AccountPoolSpec, fields map[string]st
 	if _, ok := vars["cred."+accessName]; !ok && access != "" {
 		vars["cred."+accessName] = access
 	}
+	id := jsplugin.AccountRegionID(spec.Regions, fields)
+	if id == "" {
+		id = spec.DefaultRegion
+	}
+	for _, region := range spec.Regions {
+		if region.ID != id {
+			continue
+		}
+		for key, value := range region.Attrs {
+			vars["region."+key] = value
+		}
+		break
+	}
 	return vars
 }
 

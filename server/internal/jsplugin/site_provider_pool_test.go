@@ -43,7 +43,7 @@ func TestAccountPoolManifestAccepts(t *testing.T) {
 	if err := validateManifest(decoded, accountSource); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.SiteProvider.Login == nil || decoded.SiteProvider.Login.Kind != "custom_poll" || decoded.SiteProvider.Credential.Identity != "claims.sub" {
+	if decoded.SiteProvider.Login == nil || decoded.SiteProvider.Login.Kind != "custom_poll" || !decoded.SiteProvider.Credential.Identity.Equal("claims.sub") {
 		t.Fatalf("round trip = %#v", decoded.SiteProvider)
 	}
 
@@ -131,10 +131,10 @@ func TestAccountPoolManifestRejects(t *testing.T) {
 			m.SiteProvider.Credential.Fields[2].Type = "string"
 		}, want: `type "unix"`},
 		{name: "identity syntax", base: "pool", mutate: func(m *Manifest) {
-			m.SiteProvider.Credential.Identity = "sub"
+			m.SiteProvider.Credential.Identity = Sources("sub")
 		}, want: "identity"},
 		{name: "identity secret field", base: "pool", mutate: func(m *Manifest) {
-			m.SiteProvider.Credential.Identity = "field.access_token"
+			m.SiteProvider.Credential.Identity = Sources("field.access_token")
 		}, want: "must not be secret"},
 		{name: "regions empty", base: "pool", mutate: func(m *Manifest) {
 			m.SiteProvider.Regions = nil
@@ -222,7 +222,7 @@ func TestAccountPoolManifestRejects(t *testing.T) {
 			m.SiteProvider.Request.BaseURLFrom = "account"
 		}, want: "baseURLFrom"},
 		{name: "header field", base: "pool", mutate: func(m *Manifest) {
-			m.SiteProvider.Request.Headers["X-Extra"] = "{{cred.nope}}"
+			m.SiteProvider.Request.Headers["X-Extra"] = HeaderSpec{Value: "{{cred.nope}}"}
 		}, want: `unknown field "nope"`},
 		{name: "row pill secret", base: "pool", mutate: func(m *Manifest) {
 			m.SiteProvider.UI.RowPills[0].Field = "access_token"
@@ -401,7 +401,7 @@ func poolSection() SiteProviderSection {
 			},
 			RefreshTokenField: "refresh_token",
 			ExpiresAtField:    "expires_at",
-			Identity:          "claims.sub",
+			Identity:          Sources("claims.sub"),
 		},
 		Protocol: SiteProviderProtocol{
 			Kind: "openai_chat", Path: "/v2/chat/completions", OfficialBaseURL: "https://api.example.cn",
@@ -438,10 +438,10 @@ func poolSection() SiteProviderSection {
 			},
 		},
 		Request: SiteProviderRequest{
-			Headers: map[string]string{
+			Headers: HeaderMap(map[string]string{
 				"Authorization": "Bearer {{cred.access_token}}",
 				"X-Domain":      "{{cred.domain}}",
-			},
+			}),
 			StripDownstreamHeaders: true,
 			UpstreamStreamOnly:     true,
 			BaseURLFrom:            "region",
@@ -473,7 +473,7 @@ func grokSection() SiteProviderSection {
 			},
 			AccessTokenField:  "access_token",
 			RefreshTokenField: "refresh_token",
-			Identity:          "claims.sub",
+			Identity:          Sources("claims.sub"),
 		},
 		Protocol: SiteProviderProtocol{
 			Kind: "openai_chat", Path: "/v1/chat/completions", OfficialBaseURL: "https://api.example.com",
@@ -494,7 +494,7 @@ func grokSection() SiteProviderSection {
 		Selection: "quota_weighted",
 		Quota:     &SiteProviderQuota{Aggregate: "min"},
 		Request: SiteProviderRequest{
-			Headers:            map[string]string{"Authorization": "Bearer {{cred.access_token}}"},
+			Headers:            HeaderMap(map[string]string{"Authorization": "Bearer {{cred.access_token}}"}),
 			UpstreamStreamOnly: true,
 			BaseURLFrom:        "region",
 		},

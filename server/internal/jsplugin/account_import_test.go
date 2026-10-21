@@ -1,6 +1,8 @@
 package jsplugin
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -36,6 +38,10 @@ func importConfig(containers ...string) *SiteProviderImport {
 	}
 }
 
+func importCredential(fields []SiteProviderField, expiresAtField string) SiteProviderCredential {
+	return SiteProviderCredential{Fields: fields, ExpiresAtField: expiresAtField, AccessTokenField: "access_token"}
+}
+
 func parseImport(t *testing.T, raw string, cfg *SiteProviderImport) []ImportedAccount {
 	t.Helper()
 	return parseImportRaw(t, []byte(raw), cfg, importCredFields(), "expires_at")
@@ -43,7 +49,7 @@ func parseImport(t *testing.T, raw string, cfg *SiteProviderImport) []ImportedAc
 
 func parseImportRaw(t *testing.T, raw []byte, cfg *SiteProviderImport, fields []SiteProviderField, expiresAtField string) []ImportedAccount {
 	t.Helper()
-	got, err := ParseAccountImport(raw, cfg, fields, expiresAtField)
+	got, err := ParseAccountImport(raw, cfg, importCredential(fields, expiresAtField))
 	if err != nil {
 		t.Fatalf("ParseAccountImport: %v", err)
 	}
@@ -135,7 +141,7 @@ func TestParseAccountImportContainerOrder(t *testing.T) {
 
 	// A container that resolves to an empty array wins over a later path.
 	emptyFirst := `{"accounts":[],"items":[{"access_token":"later-secret","refresh_token":"r"}]}`
-	_, err := ParseAccountImport([]byte(emptyFirst), importConfig("accounts", "items"), importCredFields(), "expires_at")
+	_, err := ParseAccountImport([]byte(emptyFirst), importConfig("accounts", "items"), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, "contains no accounts", "later-secret")
 
 	// A scalar at the container path is not a wrapper. The root object is the account.
@@ -264,7 +270,7 @@ func TestParseAccountImportExpiry(t *testing.T) {
 
 	t.Run("non positive does not fall through", func(t *testing.T) {
 		raw := `{"access_token":"a","refresh_token":"r","expires_at":0,"expiresAt":1794469656}`
-		_, err := ParseAccountImport([]byte(raw), importConfig(), importCredFields(), "expires_at")
+		_, err := ParseAccountImport([]byte(raw), importConfig(), importCredential(importCredFields(), "expires_at"))
 		requireImportError(t, err, `account 1 has an invalid "expires_at"`)
 	})
 }
@@ -273,15 +279,15 @@ func TestParseAccountImportRejectsMissingRequired(t *testing.T) {
 	t.Parallel()
 
 	raw := `{"data":{"accounts":[{"access_token":"kept-secret-token","refresh_token":"r"},{"access_token":"missing-refresh-secret","domain":"cn"}]}}`
-	_, err := ParseAccountImport([]byte(raw), importConfig("data.accounts"), importCredFields(), "expires_at")
+	_, err := ParseAccountImport([]byte(raw), importConfig("data.accounts"), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, `account 2 is missing required field "refresh_token"`, "kept-secret-token", "missing-refresh-secret")
 
 	nested := `{"access_token":{"token":"nested-secret-value"},"refresh_token":"r"}`
-	_, err = ParseAccountImport([]byte(nested), importConfig(), importCredFields(), "expires_at")
+	_, err = ParseAccountImport([]byte(nested), importConfig(), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, `account 1 is missing required field "access_token"`, "nested-secret-value")
 
 	both := `{"domain":"cn"}`
-	_, err = ParseAccountImport([]byte(both), importConfig(), importCredFields(), "expires_at")
+	_, err = ParseAccountImport([]byte(both), importConfig(), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, `account 1 is missing required field "access_token"`)
 }
 
@@ -291,18 +297,18 @@ func TestParseAccountImportRejectsUnknownField(t *testing.T) {
 	cfg := importConfig()
 	cfg.FieldMap["session_token"] = []string{"session_token"}
 	raw := `{"access_token":"unknown-field-secret","refresh_token":"r","session_token":"session-value-secret"}`
-	_, err := ParseAccountImport([]byte(raw), cfg, importCredFields(), "expires_at")
+	_, err := ParseAccountImport([]byte(raw), cfg, importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, `import fieldMap "session_token" is not a declared credential field`, "unknown-field-secret", "session-value-secret")
 
-	_, err = ParseAccountImport([]byte(`{}`), nil, importCredFields(), "expires_at")
+	_, err = ParseAccountImport([]byte(`{}`), nil, importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, "account import config is required")
 
 	fields := importCredFields()
-	_, err = ParseAccountImport([]byte(`{"access_token":"a","refresh_token":"r"}`), importConfig(), fields, "missing_exp")
+	_, err = ParseAccountImport([]byte(`{"access_token":"a","refresh_token":"r"}`), importConfig(), importCredential(fields, "missing_exp"))
 	requireImportError(t, err, `import expires field "missing_exp" is not a declared credential field`)
 
 	fields[2].Type = "string"
-	_, err = ParseAccountImport([]byte(`{"access_token":"a","refresh_token":"r"}`), importConfig(), fields, "expires_at")
+	_, err = ParseAccountImport([]byte(`{"access_token":"a","refresh_token":"r"}`), importConfig(), importCredential(fields, "expires_at"))
 	requireImportError(t, err, `import expires field "expires_at" must have type "unix"`)
 }
 
@@ -319,7 +325,7 @@ func TestParseAccountImportLimits(t *testing.T) {
 		many.WriteString(object)
 	}
 	many.WriteByte(']')
-	_, err := ParseAccountImport([]byte(many.String()), importConfig(), importCredFields(), "expires_at")
+	_, err := ParseAccountImport([]byte(many.String()), importConfig(), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, "more than 500 accounts", "limit-secret-token")
 
 	many.Reset()
@@ -338,7 +344,7 @@ func TestParseAccountImportLimits(t *testing.T) {
 
 	over := make([]byte, maxAccountImportBytes+1)
 	copy(over, []byte(`{"access_token":"oversize-secret-token","refresh_token":"r"}`))
-	_, err = ParseAccountImport(over, importConfig(), importCredFields(), "expires_at")
+	_, err = ParseAccountImport(over, importConfig(), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, "exceeds 4 MiB", "oversize-secret-token")
 
 	body := []byte(`{"access_token":"a","refresh_token":"r"}`)
@@ -449,7 +455,7 @@ func TestParseAccountImportErrorsOmitValues(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := ParseAccountImport([]byte(tt.raw), importConfig(), importCredFields(), "expires_at")
+			got, err := ParseAccountImport([]byte(tt.raw), importConfig(), importCredential(importCredFields(), "expires_at"))
 			if got != nil {
 				t.Fatalf("got %#v, want no accounts", got)
 			}
@@ -471,7 +477,7 @@ func TestParseAccountImportUnicode(t *testing.T) {
 	}, time.Time{})
 
 	leaking := `{"access_token":"密钥-SECRET-八千代","domain":"東京"}`
-	_, err := ParseAccountImport([]byte(leaking), importConfig(), importCredFields(), "expires_at")
+	_, err := ParseAccountImport([]byte(leaking), importConfig(), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, `account 1 is missing required field "refresh_token"`, "密钥-SECRET-八千代", "東京")
 }
 
@@ -497,11 +503,49 @@ func TestParseAccountImportRejectsMalformedAndEmpty(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := ParseAccountImport([]byte(tt.raw), importConfig(), importCredFields(), "expires_at")
+			_, err := ParseAccountImport([]byte(tt.raw), importConfig(), importCredential(importCredFields(), "expires_at"))
 			requireImportError(t, err, tt.want)
 		})
 	}
 
-	_, err := ParseAccountImport(nil, importConfig(), importCredFields(), "expires_at")
+	_, err := ParseAccountImport(nil, importConfig(), importCredential(importCredFields(), "expires_at"))
 	requireImportError(t, err, "account import file is empty")
+}
+
+func TestParseAccountImportValueMapAndThreshold(t *testing.T) {
+	t.Parallel()
+	token := unsignedImportJWT(t, map[string]any{"sub": "user-1", "exp": 4102444800})
+	cfg := importConfig()
+	cfg.FieldMap["realm"] = []string{"realm"}
+	cfg.FieldMap["email"] = []string{"nickname"}
+	cfg.ValueMap = map[string]map[string]string{"realm": {"international": "intl"}}
+	cut := int64(100000000000)
+	cfg.MsThreshold = &cut
+	cred := importCredential(append(importCredFields(), SiteProviderField{Name: "email"}, SiteProviderField{Name: "realm"}), "expires_at")
+	cred.ExpiresFrom = "claims.exp"
+	raw := `{"access_token":"` + token + `","refresh_token":"r","nickname":"nick","realm":"international","expires_at":200000000000}`
+	parsed, err := ParseAccountImport([]byte(raw), cfg, cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed) != 1 || parsed[0].Fields["realm"] != "intl" || parsed[0].Fields["email"] != "nick" || parsed[0].ExpiresAt.UnixMilli() != 200000000000 {
+		t.Fatalf("mapped = %#v", parsed)
+	}
+	omitted := `{"access_token":"` + token + `","refresh_token":"r","realm":"cn"}`
+	filled, err := ParseAccountImport([]byte(omitted), cfg, cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filled[0].Fields["expires_at"] != "4102444800" || !filled[0].ExpiresAt.Equal(time.Unix(4102444800, 0).UTC()) {
+		t.Fatalf("expires from jwt = %#v", filled[0])
+	}
+}
+
+func unsignedImportJWT(t *testing.T, claims map[string]any) string {
+	t.Helper()
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "e30." + base64.RawURLEncoding.EncodeToString(payload) + ".sig"
 }

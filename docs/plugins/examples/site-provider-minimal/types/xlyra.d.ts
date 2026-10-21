@@ -23,6 +23,8 @@ export interface ProbeRequest {
   headers?: Record<string, string>;
   query?: Record<string, string>;
   body?: Json;
+  /** pollLogin only. pending treats a non-JSON body as still waiting and discards it. */
+  onNonJSON?: string;
 }
 
 export interface ProbeResponse {
@@ -378,13 +380,15 @@ export interface AccountRefreshResult {
   credential?: Record<string, string>;
 }
 
-export type AccountSummaryStatus = "ok" | "unavailable";
+export type AccountSummaryStatus = "ok" | "unavailable" | "reauth";
 
 export interface AccountSummaryResult {
   /** Must be account_summary. */
   kind: string;
   status: AccountSummaryStatus;
   remark?: string;
+  /** Display text. Stored only when credential.display lists summary.label. */
+  label?: string;
   entries: ProbeEntry[];
 }
 

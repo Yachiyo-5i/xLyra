@@ -531,12 +531,12 @@ func registerPluginAccountSite(t *testing.T, opts pluginAccountSiteOptions) {
 	if opts.refreshKind == "none" {
 		spec.Refresh.LeadSeconds = nil
 	}
-	var headers map[string]string
+	var headers map[string]jsplugin.HeaderSpec
 	if opts.headers {
-		headers = map[string]string{
+		headers = jsplugin.HeaderMap(map[string]string{
 			"Authorization": "Bearer {{cred.access_token}}",
 			"X-Domain":      "{{cred.domain}}",
-		}
+		})
 	}
 	if err := site.SetPluginSiteTypes([]site.PluginSiteType{{
 		Descriptor: site.SiteTypeDescriptor{SiteType: pluginAccountSiteType, DisplayName: "Acme"},

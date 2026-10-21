@@ -129,7 +129,7 @@
 | `display.icon` | 否 | 包内相对路径，扩展名只能是 `.png` 或 `.webp`。文件必须存在，文件头要符合格式，不超过 64 KiB。声明之后，管理端用 `GET /api/v1/plugin-icons/{插件 id}` 取这张图，需要管理端会话。站点类型的 `icon_url` 带 `?v=`，值是包 SHA256 的前 16 位，换包后变化，用来让浏览器重新取图 |
 | `display.brandColor` | 否 | `#RRGGBB` |
 | `hosts` | 是 | 1–16 个小写 DNS 主机名，不能重复。不能带协议、端口、路径，至少含一个 `.`，不能是 IP，不能以 `.` 或 `-` 开头或结尾 |
-| `credential.model` | 是 | `api_key` 或 `account_pool`。`api_key` 不能再写 `credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`identity`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`account_pool` 的 `models` 只能是 `perAccount: true`，或者整段省略 |
+| `credential.model` | 是 | `api_key` 或 `account_pool`。`api_key` 不能再写 `credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`expiresFrom`、`identity`、`display`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`account_pool` 的 `models` 只能是 `perAccount: true`，或者整段省略 |
 | `protocol.kind` | 是 | `openai_chat`、`openai_responses`、`anthropic_messages`、`google_gemini` 之一 |
 | `protocol.path` | 是 | 以单个 `/` 开头的路径，不能含 `..` 或编码后的 `..` |
 | `protocol.officialBaseURL` | 是 | `https` URL，必须有主机，不能有用户信息、查询或片段。主机（忽略大小写，端口不算）必须在 `hosts` 里 |
@@ -138,7 +138,7 @@
 | `models.path` | 否 | 只用于 `api_key`。拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则。没有 `listModels` 钩子时，通用适配器用它。`account_pool` 写 `path` 会被拒绝 |
 | `models.auth` | 否 | 只用于 `api_key`。不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名。只用于通用适配器的列模型、验 Key 和健康检查，不决定网关转发的头。`account_pool` 写 `auth` 会被拒绝 |
 | `models.perAccount` | 否 | 只用于 `account_pool`。为 true 时必须导出 `listModels`，宿主按账号调用它并写入模型。不能和 `path`、`auth` 一起写。`api_key` 写了会被拒绝。省略 `models` 表示不做按账号同步。空对象 `{}` 会被拒绝 |
-| `request.headers` | 否 | 最多 16 项，头名到模板字符串。头名是 HTTP token，忽略大小写后不能重复。不能是 `Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`、`Content-Type`、`Accept`，也不能是 `X-Forwarded-*`。`Authorization` 可以写。模板只允许 `{{cred.<field>}}` 和 `{{site.baseURL}}`，花括号内不能有空格。`api_key` 的 `<field>` 只有 `api_key`。`account_pool` 的 `<field>` 是已声明的凭据字段名；网关运行时只填入非密钥字段和 access token 字段。字面量不能含 CR、LF 或其它控制字符。这里声明 `Authorization` 不会和 `models.auth` 冲突。规则见 [请求头模板](./site-provider.md#请求头模板) |
+| `request.headers` | 否 | 最多 16 项。值是模板字符串，或 `{ "value", "when" \| "unless" }`。`when` / `unless` 互斥，只能是 `cred.<已声明字段>`；条件不成立就省略该头。头名是 HTTP token，忽略大小写后不能重复。不能是 `Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`、`Content-Type`、`Accept`，也不能是 `X-Forwarded-*`。`Authorization` 可以写。模板只允许 `{{cred.<field>}}`、`{{region.origin}}`、`{{region.referer}}` 和 `{{site.baseURL}}`，花括号内不能有空格。`region` 键必须在每个区域的 `attrs` 里。`api_key` 的 `<field>` 只有 `api_key`，且不能用 `region`。`account_pool` 的 `<field>` 是已声明的凭据字段名；网关运行时只填入非密钥字段、access token 字段和区域属性。字面量不能含 CR、LF 或其它控制字符。这里声明 `Authorization` 不会和 `models.auth` 冲突。规则见 [请求头模板](./site-provider.md#请求头模板) |
 | `request.stripDownstreamHeaders` | 否 | 默认 `false`。为 `true` 时，转发前只保留模板声明的头，外加 `Content-Type` 和 `Accept` |
 | `request.upstreamStreamOnly` | 否 | 默认 false。为 true 时强制上游 `stream: true`；下游没要流且上游是 chat SSE 时聚合响应 |
 | `request.baseURLFrom` | 否 | 空，或 `region`。`region` 要求已声明 `regions`，用账号区域的 `baseURL` |
@@ -147,12 +147,14 @@
 | `credential.accessTokenField` | 否 | 默认 `access_token`，必须是 secret 字段 |
 | `credential.refreshTokenField` | `oauth2_refresh` 时必填 | 必须是 secret 字段 |
 | `credential.expiresAtField` | 否 | 必须是 `type: unix` 的字段。不写则网关不按到期时间自动刷新 |
-| `credential.identity` | 账号池必填 | `claims.<路径>`，或 `field.<非密钥字段名>` |
-| `regions` | 账号池必填 | 1–8 项。`id` 匹配 `^[a-z][a-z0-9_-]{0,15}$`。`baseURL` 是 `hosts` 里的 `https`。`realms`、`domains` 各最多 8 项 |
+| `credential.expiresFrom` | 否 | 只允许 `claims.exp`，且必须有 `expiresAtField`。到期字段为空时才从 JWT `exp` 填 Unix 秒 |
+| `credential.identity` | 账号池必填 | 一个字符串，或最多 8 个不重复的字符串。每项是 `claims.<路径>` 或 `field.<非密钥字段名>`。取第一个非空 |
+| `credential.display` | 否 | 与 `identity` 相同的列表，另外可以有一条 `summary.label`。行上的显示名 |
+| `regions` | 账号池必填 | 1–8 项。`id` 匹配 `^[a-z][a-z0-9_-]{0,15}$`。`baseURL` 是 `hosts` 里的 `https`。`realms`、`domains` 各最多 8 项。`attrs` 最多 2 项，键只能是 `origin`、`referer`，值 1–256 字节 |
 | `defaultRegion` | 账号池必填 | 必须是某个 `regions[].id` |
 | `login.kind` | 账号池必填 | `oauth2_device_code` 或 `custom_poll`。设备码要 `deviceCodeURL`、`tokenURL`、`clientID`；`grantType` 空着等于 `urn:ietf:params:oauth:grant-type:device_code`。`custom_poll` 不能写这些 OAuth 字段，并且 `secretPaths` 必须映射到 access token 字段 |
 | `refresh.kind` | 账号池必填 | `oauth2_refresh`、`custom_steps` 或 `none`。`leadSeconds` 在 30–3600，不写时前两种用 300；`none` 不能写 `leadSeconds`、`secretPaths`、`tokenURL` |
-| `import` | 否 | `enabled`、`containers`（最多 8）、`fieldMap`（每个字段 1–8 个别名）。单文件 4 MiB、500 条 |
+| `import` | 否 | `enabled`、`containers`（最多 8）、`fieldMap`（每个字段 1–8 个别名）、`valueMap`（最多 8 个字段，每个 1–8 条精确替换）、`msThreshold`（不写等于 1e12，写出时为 1 到 1e15）。单文件 4 MiB、500 条 |
 | `selection` | 否 | `ordered`（默认）或 `quota_weighted` |
 | `ui` | 否 | `rowPills` 最多 4，字段必须非密钥。`operations` 为 `add`、`reauth`、`refresh`、`delete`、`toggle`、`models`、`import`。`texts` 的键见[账号池站点](./site-provider.md#ui) |
 

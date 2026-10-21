@@ -11,7 +11,7 @@ import (
 	"xlyra/server/internal/site"
 )
 
-// RenderHeaderTemplate replaces {{cred.<field>}} and {{site.baseURL}} using vars.
+// RenderHeaderTemplate replaces {{cred.<field>}}, {{region.<key>}}, and {{site.baseURL}} using vars.
 // A missing variable is an error. The rendered text must not contain CR, LF,
 // or any other control character.
 func RenderHeaderTemplate(template string, vars map[string]string) (string, error) {
@@ -87,8 +87,14 @@ func applyPluginRequestHeaders(req *http.Request, siteType string, headerVars ma
 	sort.Strings(names)
 	vars := pluginHeaderTemplateVars(headerVars, upstreamKey, baseURL)
 	rendered := make([]renderedPluginHeader, 0, len(names))
+	var omitted []string
 	for _, name := range names {
-		value, err := RenderHeaderTemplate(item.Request.Headers[name], vars)
+		spec := item.Request.Headers[name]
+		if !headerSpecIncluded(spec, vars) {
+			omitted = append(omitted, name)
+			continue
+		}
+		value, err := RenderHeaderTemplate(spec.Value, vars)
 		if err != nil {
 			return fmt.Errorf("header %s: %s", name, err.Error())
 		}
@@ -97,10 +103,26 @@ func applyPluginRequestHeaders(req *http.Request, siteType string, headerVars ma
 	if item.Request.StripDownstreamHeaders {
 		stripPluginDownstreamHeaders(req, item.Request.Headers)
 	}
+	for _, name := range omitted {
+		req.Header.Del(name)
+	}
 	for _, header := range rendered {
 		req.Header.Set(header.name, header.value)
 	}
 	return nil
+}
+
+// headerSpecIncluded reports whether a header should be sent.
+// A missing variable counts as empty. A failed condition omits the header
+// instead of rendering an empty value.
+func headerSpecIncluded(spec jsplugin.HeaderSpec, vars map[string]string) bool {
+	if spec.When == "" && spec.Unless == "" {
+		return true
+	}
+	if spec.When != "" {
+		return strings.TrimSpace(vars[spec.When]) != ""
+	}
+	return strings.TrimSpace(vars[spec.Unless]) == ""
 }
 
 type renderedPluginHeader struct {
@@ -108,7 +130,7 @@ type renderedPluginHeader struct {
 	value string
 }
 
-func stripPluginDownstreamHeaders(req *http.Request, templates map[string]string) {
+func stripPluginDownstreamHeaders(req *http.Request, templates map[string]jsplugin.HeaderSpec) {
 	keep := map[string]struct{}{
 		"Content-Type": {},
 		"Accept":       {},

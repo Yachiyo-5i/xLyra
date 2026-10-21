@@ -54,10 +54,10 @@ type AccountRowPill struct {
 }
 
 // PluginSiteRequest is the upstream header template for a plugin site type.
-// Headers maps a header name to a template string. A zero value means the
-// package did not declare request headers.
+// Headers maps a header name to a template. A zero value means the package
+// did not declare request headers.
 type PluginSiteRequest struct {
-	Headers                map[string]string
+	Headers                map[string]jsplugin.HeaderSpec
 	StripDownstreamHeaders bool
 	UpstreamStreamOnly     bool
 	BaseURLFrom            string
@@ -428,7 +428,7 @@ func clonePluginSiteRequest(in PluginSiteRequest) PluginSiteRequest {
 	if len(in.Headers) == 0 {
 		return out
 	}
-	out.Headers = make(map[string]string, len(in.Headers))
+	out.Headers = make(map[string]jsplugin.HeaderSpec, len(in.Headers))
 	for key, value := range in.Headers {
 		out.Headers[key] = value
 	}

@@ -33,7 +33,7 @@ func TestEnableAccountPoolPlugin(t *testing.T) {
 					{Name: "access_token", Secret: true},
 					{Name: "realm"},
 				},
-				Identity: "field.realm",
+				Identity: jsplugin.Sources("field.realm"),
 			},
 			Protocol: jsplugin.SiteProviderProtocol{
 				Kind: "openai_chat", Path: "/v1/chat/completions", OfficialBaseURL: "https://api.example.cn",

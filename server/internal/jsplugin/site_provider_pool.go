@@ -15,6 +15,12 @@ const (
 	maxRegionListItems        = 8
 	maxImportAliases          = 8
 	maxImportContainers       = 8
+	maxImportValueMapFields   = 8
+	maxImportValueMapEntries  = 8
+	maxImportValueBytes       = 64
+	maxRegionAttrs            = 2
+	maxRegionAttrBytes        = 256
+	maxMillisThreshold        = 1_000_000_000_000_000
 	maxRowPills               = 4
 	maxPillLabels             = 8
 	maxPillLabelKey           = 64
@@ -34,6 +40,10 @@ var (
 	accountPoolUIOps       = map[string]struct{}{
 		"add": {}, "reauth": {}, "refresh": {}, "delete": {}, "toggle": {}, "models": {}, "import": {},
 	}
+	regionAttrKeys = map[string]struct{}{
+		"origin":  {},
+		"referer": {},
+	}
 	accountPoolUITextKeys = map[string]struct{}{
 		"title": {}, "login_reauth_title": {}, "login_title": {}, "login_starting": {},
 		"login_instructions": {}, "login_authorize": {}, "login_waiting": {}, "cancel": {},
@@ -52,12 +62,15 @@ type SiteProviderField struct {
 }
 
 // SiteProviderRegion is one upstream region. BaseURL's host must be in hosts.
+// Attrs holds header-template values such as origin and referer. Keys are a
+// fixed allow-list. {{region.<key>}} reads the account's region.
 type SiteProviderRegion struct {
-	ID      string        `json:"id"`
-	Label   LocalizedText `json:"label,omitempty"`
-	BaseURL string        `json:"baseURL"`
-	Realms  []string      `json:"realms,omitempty"`
-	Domains []string      `json:"domains,omitempty"`
+	ID      string            `json:"id"`
+	Label   LocalizedText     `json:"label,omitempty"`
+	BaseURL string            `json:"baseURL"`
+	Realms  []string          `json:"realms,omitempty"`
+	Domains []string          `json:"domains,omitempty"`
+	Attrs   map[string]string `json:"attrs,omitempty"`
 }
 
 // SiteProviderLoginParam is one value the login UI collects.
@@ -91,10 +104,14 @@ type SiteProviderRefresh struct {
 }
 
 // SiteProviderImport describes declarative account import.
+// ValueMap rewrites a mapped field value. MsThreshold nil means 1e12:
+// numbers at or above the threshold are Unix milliseconds.
 type SiteProviderImport struct {
-	Enabled    bool                `json:"enabled,omitempty"`
-	Containers []string            `json:"containers,omitempty"`
-	FieldMap   map[string][]string `json:"fieldMap,omitempty"`
+	Enabled     bool                         `json:"enabled,omitempty"`
+	Containers  []string                     `json:"containers,omitempty"`
+	FieldMap    map[string][]string          `json:"fieldMap,omitempty"`
+	ValueMap    map[string]map[string]string `json:"valueMap,omitempty"`
+	MsThreshold *int64                       `json:"msThreshold,omitempty"`
 }
 
 // SiteProviderQuota is the site-level quota rollup. Both credential models may set it.
@@ -297,7 +314,9 @@ func rejectAccountPoolSections(section SiteProviderSection) error {
 		{section.Credential.AccessTokenField != "", "siteProvider.credential.accessTokenField"},
 		{section.Credential.RefreshTokenField != "", "siteProvider.credential.refreshTokenField"},
 		{section.Credential.ExpiresAtField != "", "siteProvider.credential.expiresAtField"},
-		{section.Credential.Identity != "", "siteProvider.credential.identity"},
+		{section.Credential.ExpiresFrom != "", "siteProvider.credential.expiresFrom"},
+		{!section.Credential.Identity.Empty(), "siteProvider.credential.identity"},
+		{!section.Credential.Display.Empty(), "siteProvider.credential.display"},
 	}
 	for _, check := range checks {
 		if check.present {
@@ -374,7 +393,7 @@ func validateAccountPool(section SiteProviderSection) error {
 	for name := range fields {
 		declared[name] = struct{}{}
 	}
-	if err := validateAccountImport(section.Import, section.Credential.Fields, section.Credential.Identity, declared); err != nil {
+	if err := validateAccountImport(section.Import, section.Credential, declared); err != nil {
 		return err
 	}
 	if err := validateAccountSelection(section.Selection); err != nil {
@@ -444,26 +463,93 @@ func validateCredentialFields(cred SiteProviderCredential) (map[string]credentia
 	if err := validateAccountIdentity(cred.Identity, fields); err != nil {
 		return nil, "", err
 	}
+	if err := validateAccountDisplay(cred.Display, fields); err != nil {
+		return nil, "", err
+	}
+	if err := validateExpiresFrom(cred.ExpiresFrom, cred.ExpiresAtField); err != nil {
+		return nil, "", err
+	}
 	return fields, access, nil
 }
 
-func validateAccountIdentity(identity string, fields map[string]credentialFieldMeta) error {
-	if identity == "" {
+func validateAccountIdentity(identity CredentialSources, fields map[string]credentialFieldMeta) error {
+	if identity.Empty() {
 		return fmt.Errorf("siteProvider.credential.identity is required")
 	}
+	if len(identity.Items) > maxCredentialSources {
+		return fmt.Errorf("siteProvider.credential.identity must list at most %d sources", maxCredentialSources)
+	}
+	seen := make(map[string]struct{}, len(identity.Items))
+	for i, item := range identity.Items {
+		if _, ok := seen[item]; ok {
+			return fmt.Errorf("siteProvider.credential.identity duplicate source %q", item)
+		}
+		seen[item] = struct{}{}
+		if err := validateIdentitySource(item, fields, sourcePath("siteProvider.credential.identity", i, len(identity.Items))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateAccountDisplay(display CredentialSources, fields map[string]credentialFieldMeta) error {
+	if display.Empty() {
+		return nil
+	}
+	if len(display.Items) > maxCredentialSources {
+		return fmt.Errorf("siteProvider.credential.display must list at most %d sources", maxCredentialSources)
+	}
+	seen := make(map[string]struct{}, len(display.Items))
+	for i, item := range display.Items {
+		if _, ok := seen[item]; ok {
+			return fmt.Errorf("siteProvider.credential.display duplicate source %q", item)
+		}
+		seen[item] = struct{}{}
+		path := sourcePath("siteProvider.credential.display", i, len(display.Items))
+		if item == summaryLabelSource {
+			continue
+		}
+		if err := validateIdentitySource(item, fields, path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateExpiresFrom(value, expiresAtField string) error {
+	if value == "" {
+		return nil
+	}
+	if value != expiresFromClaimExp {
+		return fmt.Errorf("siteProvider.credential.expiresFrom %q is not supported", value)
+	}
+	if expiresAtField == "" {
+		return fmt.Errorf("siteProvider.credential.expiresFrom requires expiresAtField")
+	}
+	return nil
+}
+
+func sourcePath(prefix string, index, count int) string {
+	if count == 1 {
+		return prefix
+	}
+	return fmt.Sprintf("%s[%d]", prefix, index)
+}
+
+func validateIdentitySource(identity string, fields map[string]credentialFieldMeta, path string) error {
 	if identityClaimsPattern.MatchString(identity) {
 		return nil
 	}
 	name, ok := strings.CutPrefix(identity, "field.")
 	if !ok || !credentialFieldPattern.MatchString(name) {
-		return fmt.Errorf("siteProvider.credential.identity %q is invalid", identity)
+		return fmt.Errorf("%s %q is invalid", path, identity)
 	}
 	meta, exists := fields[name]
 	if !exists {
-		return fmt.Errorf("siteProvider.credential.identity field %q is not declared", name)
+		return fmt.Errorf("%s field %q is not declared", path, name)
 	}
 	if meta.secret {
-		return fmt.Errorf("siteProvider.credential.identity field %q must not be secret", name)
+		return fmt.Errorf("%s field %q must not be secret", path, name)
 	}
 	return nil
 }
@@ -493,8 +579,49 @@ func validateAccountRegions(regions []SiteProviderRegion, hosts []string) (map[s
 		if err := validateRegionDomains(region.Domains, i); err != nil {
 			return nil, err
 		}
+		if err := validateRegionAttrs(region.Attrs, i); err != nil {
+			return nil, err
+		}
 	}
 	return ids, nil
+}
+
+func validateRegionAttrs(attrs map[string]string, index int) error {
+	if len(attrs) > maxRegionAttrs {
+		return fmt.Errorf("siteProvider.regions[%d].attrs must list at most %d items", index, maxRegionAttrs)
+	}
+	for _, key := range mapKeys(attrs) {
+		if _, ok := regionAttrKeys[key]; !ok {
+			return fmt.Errorf("siteProvider.regions[%d].attrs[%q] is not allowed", index, key)
+		}
+		value := attrs[key]
+		if value == "" || len(value) > maxRegionAttrBytes || strings.IndexFunc(value, unicode.IsControl) >= 0 {
+			return fmt.Errorf("siteProvider.regions[%d].attrs[%q] must be 1 to %d bytes without control characters", index, key, maxRegionAttrBytes)
+		}
+	}
+	return nil
+}
+
+// regionTemplateKeys is the set of attr keys declared on every region.
+// A header template may use {{region.<key>}} only for a key in this set.
+func regionTemplateKeys(regions []SiteProviderRegion) map[string]struct{} {
+	if len(regions) == 0 {
+		return map[string]struct{}{}
+	}
+	keys := map[string]struct{}{}
+	for key := range regions[0].Attrs {
+		if _, ok := regionAttrKeys[key]; ok && regions[0].Attrs[key] != "" {
+			keys[key] = struct{}{}
+		}
+	}
+	for _, region := range regions[1:] {
+		for key := range keys {
+			if strings.TrimSpace(region.Attrs[key]) == "" {
+				delete(keys, key)
+			}
+		}
+	}
+	return keys
 }
 
 func validateRealms(realms []string, index int) error {
@@ -681,7 +808,7 @@ func validateLeadSeconds(value *int) error {
 	return nil
 }
 
-func validateAccountImport(section *SiteProviderImport, declaredFields []SiteProviderField, identity string, declared map[string]struct{}) error {
+func validateAccountImport(section *SiteProviderImport, cred SiteProviderCredential, declared map[string]struct{}) error {
 	if section == nil {
 		return nil
 	}
@@ -696,27 +823,83 @@ func validateAccountImport(section *SiteProviderImport, declaredFields []SitePro
 	if err := validateImportFieldMap(section.FieldMap, declared); err != nil {
 		return err
 	}
+	if err := validateImportValueMap(section.ValueMap, declared, cred.ExpiresAtField); err != nil {
+		return err
+	}
+	if err := validateImportThreshold(section.MsThreshold); err != nil {
+		return err
+	}
 	if !section.Enabled {
 		return nil
 	}
-	needed := make([]string, 0, len(declaredFields))
+	needed := make([]string, 0, len(cred.Fields))
 	seen := map[string]struct{}{}
-	for _, field := range declaredFields {
+	for _, field := range cred.Fields {
 		if !field.Secret {
 			continue
 		}
 		needed = append(needed, field.Name)
 		seen[field.Name] = struct{}{}
 	}
-	if name, ok := strings.CutPrefix(identity, "field."); ok && credentialFieldPattern.MatchString(name) {
-		if _, dup := seen[name]; !dup {
-			needed = append(needed, name)
+	for _, source := range append(append([]string{}, cred.Identity.Items...), cred.Display.Items...) {
+		name, ok := strings.CutPrefix(source, "field.")
+		if !ok || !credentialFieldPattern.MatchString(name) {
+			continue
 		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		needed = append(needed, name)
+		seen[name] = struct{}{}
 	}
 	for _, name := range needed {
 		if len(section.FieldMap[name]) == 0 {
 			return fmt.Errorf("siteProvider.import.fieldMap must include %q", name)
 		}
+	}
+	return nil
+}
+
+func validateImportValueMap(valueMap map[string]map[string]string, declared map[string]struct{}, expiresAtField string) error {
+	if len(valueMap) > maxImportValueMapFields {
+		return fmt.Errorf("siteProvider.import.valueMap must list at most %d fields", maxImportValueMapFields)
+	}
+	for _, field := range mapKeys(valueMap) {
+		if _, ok := declared[field]; !ok {
+			return fmt.Errorf("siteProvider.import.valueMap[%q] is not a declared field", field)
+		}
+		if field == expiresAtField {
+			return fmt.Errorf("siteProvider.import.valueMap[%q] cannot rewrite the expires field", field)
+		}
+		entries := valueMap[field]
+		if len(entries) < 1 || len(entries) > maxImportValueMapEntries {
+			return fmt.Errorf("siteProvider.import.valueMap[%q] must list 1 to %d entries", field, maxImportValueMapEntries)
+		}
+		for _, from := range mapKeys(entries) {
+			if err := validImportValue(from); err != nil {
+				return fmt.Errorf("siteProvider.import.valueMap[%q] key: %w", field, err)
+			}
+			if err := validImportValue(entries[from]); err != nil {
+				return fmt.Errorf("siteProvider.import.valueMap[%q] value: %w", field, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validImportValue(value string) error {
+	if value == "" || len(value) > maxImportValueBytes || strings.IndexFunc(value, unicode.IsControl) >= 0 || !importNamePattern.MatchString(value) {
+		return fmt.Errorf("%q is invalid", value)
+	}
+	return nil
+}
+
+func validateImportThreshold(value *int64) error {
+	if value == nil {
+		return nil
+	}
+	if *value < 1 || *value > maxMillisThreshold {
+		return fmt.Errorf("siteProvider.import.msThreshold must be between 1 and %d", maxMillisThreshold)
 	}
 	return nil
 }
@@ -969,6 +1152,8 @@ func intPointer(value int) *int {
 func cloneCredential(in SiteProviderCredential) SiteProviderCredential {
 	out := in
 	out.Fields = append([]SiteProviderField(nil), in.Fields...)
+	out.Identity = cloneSources(in.Identity)
+	out.Display = cloneSources(in.Display)
 	return out
 }
 
@@ -982,6 +1167,7 @@ func cloneRegions(in []SiteProviderRegion) []SiteProviderRegion {
 		out[i].Label = cloneLocalized(region.Label)
 		out[i].Realms = append([]string(nil), region.Realms...)
 		out[i].Domains = append([]string(nil), region.Domains...)
+		out[i].Attrs = cloneStringMap(region.Attrs)
 	}
 	return out
 }
@@ -1016,6 +1202,16 @@ func cloneImport(in SiteProviderImport) SiteProviderImport {
 	for key, aliases := range in.FieldMap {
 		out.FieldMap[key] = append([]string(nil), aliases...)
 	}
+	if in.ValueMap != nil {
+		out.ValueMap = make(map[string]map[string]string, len(in.ValueMap))
+		for field, entries := range in.ValueMap {
+			out.ValueMap[field] = cloneStringMap(entries)
+		}
+	}
+	if in.MsThreshold != nil {
+		value := *in.MsThreshold
+		out.MsThreshold = &value
+	}
 	return out
 }
 
@@ -1049,7 +1245,14 @@ func cloneLocalizedMap(in map[string]LocalizedText) map[string]LocalizedText {
 
 func cloneSiteProviderRequest(in SiteProviderRequest) SiteProviderRequest {
 	out := in
-	out.Headers = cloneStringMap(in.Headers)
+	if in.Headers == nil {
+		out.Headers = nil
+		return out
+	}
+	out.Headers = make(map[string]HeaderSpec, len(in.Headers))
+	for key, value := range in.Headers {
+		out.Headers[key] = value
+	}
 	return out
 }
 

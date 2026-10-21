@@ -318,24 +318,24 @@ func compileIconProvider(t *testing.T, id, iconName string, icon []byte, extra s
 func TestConvertSiteProviderCopiesRequestHeaders(t *testing.T) {
 	plugin := testProviderPlugin("good.example", "good.example/chat", []string{"api.example.com"}, "https://api.example.com", nil, jsplugin.LocalizedText{"en": "Example"}, nil)
 	plugin.Manifest.SiteProvider.Request = jsplugin.SiteProviderRequest{
-		Headers:                map[string]string{"Authorization": "Bearer {{cred.api_key}}", "X-Client": "xlyra"},
+		Headers:                jsplugin.HeaderMap(map[string]string{"Authorization": "Bearer {{cred.api_key}}", "X-Client": "xlyra"}),
 		StripDownstreamHeaders: true,
 	}
 	prepared, err := convertSiteProvider(plugin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plugin.Manifest.SiteProvider.Request.Headers["X-Client"] = "changed"
-	if prepared.item.Request.Headers["X-Client"] != "xlyra" || prepared.item.Request.Headers["Authorization"] != "Bearer {{cred.api_key}}" || !prepared.item.Request.StripDownstreamHeaders {
+	plugin.Manifest.SiteProvider.Request.Headers["X-Client"] = jsplugin.HeaderSpec{Value: "changed"}
+	if prepared.item.Request.Headers["X-Client"].Value != "xlyra" || prepared.item.Request.Headers["Authorization"].Value != "Bearer {{cred.api_key}}" || !prepared.item.Request.StripDownstreamHeaders {
 		t.Fatalf("request = %#v", prepared.item.Request)
 	}
 	if err := site.SetPluginSiteTypes([]site.PluginSiteType{prepared.item}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(site.ClearPluginSiteTypes)
-	prepared.item.Request.Headers["Authorization"] = "mutated"
+	prepared.item.Request.Headers["Authorization"] = jsplugin.HeaderSpec{Value: "mutated"}
 	item, ok := site.LookupPluginSiteType("good.example/chat")
-	if !ok || item.Request.Headers["Authorization"] != "Bearer {{cred.api_key}}" || item.Request.Headers["X-Client"] != "xlyra" {
+	if !ok || item.Request.Headers["Authorization"].Value != "Bearer {{cred.api_key}}" || item.Request.Headers["X-Client"].Value != "xlyra" {
 		t.Fatalf("lookup request = %#v, %v", item.Request, ok)
 	}
 }

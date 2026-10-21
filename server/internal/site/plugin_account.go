@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -74,6 +75,7 @@ type PluginLoginPoll struct {
 type PluginAccountSummary struct {
 	Status  string
 	Remark  string
+	Label   string
 	Entries []QuotaProbeEntry
 }
 
@@ -893,6 +895,22 @@ func (p pluginAccountAPI) syncSiteModelUnion(ctx context.Context, siteID uuid.UU
 func (p pluginAccountAPI) persistSummary(ctx context.Context, credential store.SiteCredential, summary PluginAccountSummary) error {
 	meta := accountMetaMap(credential.Meta)
 	enabled := boolFromMeta(meta, "enabled", true)
+	metaDirty := false
+	if p.pool != nil && p.pool.StoresSummaryLabel() && summary.Label != "" {
+		meta["display"] = summary.Label
+		metaDirty = true
+	}
+	if summary.Status == "reauth" {
+		enabled = false
+		meta["enabled"] = false
+		meta["reauth_required"] = true
+		metaDirty = true
+	}
+	if metaDirty {
+		if _, err := store.NewSiteCredentialRepository(p.s.db.DB()).UpdateMeta(ctx, credential.ID, store.JSON(jsonBytes(meta))); err != nil {
+			return err
+		}
+	}
 	payload := map[string]any{
 		"status":  summary.Status,
 		"remark":  summary.Remark,
@@ -910,8 +928,11 @@ func (p pluginAccountAPI) persistSummary(ctx context.Context, credential store.S
 		return fmt.Errorf("marshal account summary: %w", err)
 	}
 	syncStatus := "synced"
-	if summary.Status == "unavailable" {
+	switch summary.Status {
+	case "unavailable":
 		syncStatus = "stale"
+	case "reauth":
+		syncStatus = "reauth_required"
 	}
 	var message any
 	if summary.Remark != "" {
@@ -1037,28 +1058,14 @@ func (p pluginAccountAPI) identityOf(fields map[string]string) (string, error) {
 	if p.pool == nil {
 		return "", errors.New("account identity is not configured")
 	}
-	identity := p.pool.Credential.Identity
-	if name, ok := strings.CutPrefix(identity, "field."); ok {
-		value := strings.TrimSpace(fields[name])
-		if value == "" {
-			return "", fmt.Errorf("identity field %q is empty", name)
-		}
-		return value, nil
-	}
-	if strings.HasPrefix(identity, "claims.") {
-		value, err := accountauth.ClaimString(fields[p.accessField()], identity)
-		if err != nil || strings.TrimSpace(value) == "" {
-			return "", errors.New("identity claim is empty")
-		}
-		return strings.TrimSpace(value), nil
-	}
-	return "", errors.New("account identity is not configured")
+	return p.pool.ResolveIdentity(fields)
 }
 
 func (p pluginAccountAPI) scrubSummary(summary PluginAccountSummary, fields map[string]string) PluginAccountSummary {
 	secrets := p.secretNames()
 	summary.Status = redactText(summary.Status, fields, secrets)
 	summary.Remark = redactText(summary.Remark, fields, secrets)
+	summary.Label = cleanPluginDisplayLabel(redactText(summary.Label, fields, secrets), fields, secrets)
 	for i := range summary.Entries {
 		entry := summary.Entries[i]
 		entry.Label = redactText(entry.Label, fields, secrets)
@@ -1299,10 +1306,6 @@ func (p pluginAccountAPI) accountFromStore(credential store.SiteCredential, stat
 	if state.SiteCredentialID != uuid.Nil && state.SiteCredentialID == credential.ID {
 		enabled = state.Enabled
 	}
-	label := strings.TrimSpace(anyString(meta["identity"]))
-	if label == "" {
-		label = credential.MaskedSecret
-	}
 	accountModels := make([]GrokAccountModel, 0, len(models))
 	modelCount := 0
 	for _, model := range models {
@@ -1329,6 +1332,16 @@ func (p pluginAccountAPI) accountFromStore(credential store.SiteCredential, stat
 			}
 			fields[field.Name] = value
 		}
+	}
+	label := ""
+	if p.pool != nil {
+		label = p.pool.ResolveDisplay(fields, anyString(meta["display"]))
+	}
+	if label == "" {
+		label = strings.TrimSpace(anyString(meta["identity"]))
+	}
+	if label == "" {
+		label = credential.MaskedSecret
 	}
 	account := PluginAccount{
 		CredentialID:   credential.ID,
@@ -1481,6 +1494,20 @@ func redactCredentialError(err error, fields map[string]string, secrets map[stri
 		return err
 	}
 	return errors.New(redacted)
+}
+
+func cleanPluginDisplayLabel(value string, fields map[string]string, secrets map[string]struct{}) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 256 || strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return ""
+	}
+	for name := range secrets {
+		secret := strings.TrimSpace(fields[name])
+		if secret != "" && strings.Contains(value, secret) {
+			return ""
+		}
+	}
+	return value
 }
 
 func redactText(text string, fields map[string]string, secrets map[string]struct{}) string {

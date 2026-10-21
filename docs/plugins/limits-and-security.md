@@ -47,13 +47,17 @@
 | 插件包 | 2 MiB，64 个文件 |
 | `site_provider` 的 `display.icon` | 64 KiB，只能是 PNG 或 WebP |
 | 账号池 `credential.fields` | 1–16 项 |
-| 账号池 `regions` | 1–8 项；每项 `realms`、`domains` 各最多 8 |
+| 账号池 `regions` | 1–8 项；每项 `realms`、`domains` 各最多 8；`attrs` 最多 2 项，键只能是 `origin`、`referer`，值最多 256 字节 |
+| 账号池 `identity` / `display` | 各最多 8 个来源 |
 | 账号池 `refresh.leadSeconds` | 30–3600，不写时为 300（`refresh.kind` 为 `none` 时不能写） |
 | 账号池自定义登录会话 | 进程内，10 分钟。设备码会话按提供方 `expires_in`，缺省 600 秒，最长 1800 秒 |
 | 账号池登录轮询间隔 | 缺省或小于 1 按 5 秒，大于 60 按 60 秒 |
 | 账号池导入，单个文件 | 4 MiB，最多 500 个账号对象 |
 | 账号池导入，一次请求 | 最多 50 个文件，合计 200 个账号 |
 | 账号池 `import.containers` | 最多 8 项；每个 `fieldMap` 键 1–8 个别名 |
+| 账号池 `import.valueMap` | 最多 8 个字段，每个 1–8 条；键和值最多 64 字节 |
+| 账号池 `import.msThreshold` | 不写等于 1e12；写出时为 1 到 1e15 |
+| 账号池摘要 `label` | 最多 256 字节，不能含控制字符 |
 | 账号池 `ui.rowPills` | 最多 4 项；每项 `labels` 最多 8，键最长 64 字节 |
 | 账号池额度耗尽冷却 | 到 `resetAt`，最长 7 天，原因 `quota_exhausted` |
 | 秘密擦除 | 短于 4 个 Unicode 码位的值不从日志和错误字符串里擦掉 |
@@ -99,11 +103,11 @@
 
 账号池的 access token、refresh token 和其它 `secret: true` 字段留在宿主的秘密袋里。JS 看到的响应里，`secretPaths` 指到的位置是 `{{redacted}}`，`Body` 和解析后的 JSON 一起改写。钩子要用这个值时，在请求体字符串、query 值或头值里写 `{{secret.<field>}}`。path、方法、头名、query 键、JSON 对象键里出现这个占位符，请求不会发出。替换前 URL 已经过 `hosts`；替换后主机不得变化。
 
-声明了 `secretPaths` 时，非 JSON 响应整步失败，原文不交给 JS。路径不存在不算错误。路径在但值不是非空字符串，这一步失败。
+声明了 `secretPaths` 时，非 JSON 响应整步失败，原文不交给 JS。`pollLogin` 的请求可以写 `onNonJSON: "pending"`，这时不是单个 JSON 对象的响应当成 pending，正文仍然不交给 JS。其它钩子忽略这个字段。路径不存在不算错误。路径在但值不是非空字符串，这一步失败。
 
 日志和错误字符串会把袋里的值换成 `[redacted]`。短于 4 个 Unicode 码位的值不参与这层替换。登录 Cookie 罐在进程内存里，按会话存放，不进 JS，也不跨实例。目录重载换掉 runtime 后，进行中的会话同样丢掉。
 
-头模板 `{{cred.<field>}}` 和上面的 `{{secret.<field>}}` 不是一回事。网关转发只把非密钥字段和 access token 放进 `cred.*`。
+头模板 `{{cred.<field>}}`、`{{region.origin}}`、`{{region.referer}}` 和上面的 `{{secret.<field>}}` 不是一回事。网关转发只把非密钥字段、access token 和区域属性放进变量表。条件头只看 `cred.<字段>` 是否为空，没有通用表达式。
 
 ## 插件图标
 

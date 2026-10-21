@@ -519,7 +519,7 @@ func chainPackage(t *testing.T, pluginID, siteType, host string) []byte {
 					{Name: "expires_at", Type: "unix"},
 				},
 				AccessTokenField: "access_token", RefreshTokenField: "refresh_token", ExpiresAtField: "expires_at",
-				Identity: "claims.sub",
+				Identity: jsplugin.Sources("claims.sub"),
 			},
 			Protocol: jsplugin.SiteProviderProtocol{
 				Kind: "openai_chat", Path: "/v1/chat/completions", OfficialBaseURL: "https://" + host,
@@ -533,10 +533,10 @@ func chainPackage(t *testing.T, pluginID, siteType, host string) []byte {
 			},
 			Refresh: &jsplugin.SiteProviderRefresh{Kind: "oauth2_refresh", LeadSeconds: &lead, TokenURL: "https://" + host + "/oauth/token"},
 			Request: jsplugin.SiteProviderRequest{
-				Headers: map[string]string{
+				Headers: jsplugin.HeaderMap(map[string]string{
 					"Authorization": "Bearer {{cred.access_token}}",
 					"X-Pool":        "acme-pool",
-				},
+				}),
 				StripDownstreamHeaders: true,
 				BaseURLFrom:            "region",
 			},

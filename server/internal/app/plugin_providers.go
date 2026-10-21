@@ -240,7 +240,7 @@ func pluginSiteRequestFromManifest(section jsplugin.SiteProviderRequest) site.Pl
 	if len(section.Headers) == 0 {
 		return out
 	}
-	out.Headers = make(map[string]string, len(section.Headers))
+	out.Headers = make(map[string]jsplugin.HeaderSpec, len(section.Headers))
 	for key, value := range section.Headers {
 		out.Headers[key] = value
 	}

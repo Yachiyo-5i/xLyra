@@ -125,7 +125,21 @@ type AccountSnapshot struct {
 type AccountSummary struct {
 	Status  string
 	Remark  string
+	Label   string
 	Entries []ProbeEntry
+}
+
+const maxSummaryLabelBytes = 256
+
+func cleanSummaryLabel(bag *SecretBag, value string) string {
+	raw := strings.TrimSpace(value)
+	if raw == "" || len(raw) > maxSummaryLabelBytes || strings.IndexFunc(raw, unicode.IsControl) >= 0 {
+		return ""
+	}
+	if bag != nil && bag.Scrub(raw) != raw {
+		return ""
+	}
+	return raw
 }
 
 // loginSession is process-local login state. deviceCode and call.bag are
@@ -489,6 +503,9 @@ func (r *AccountProviderRuntime) pollCustom(ctx context.Context, state *loginSes
 		state.call.steps = cloneSteps(state.baseline)
 	}
 	result, err := r.drive(ctx, &state.call, hookPollLogin, KindAccountLogin, r.loginContext(state.call.base, state.params), r.spec.Login.SecretPaths)
+	if errors.Is(err, errPollNonJSON) {
+		return LoginPoll{Status: "pending", Interval: state.interval}, nil
+	}
 	if err != nil {
 		return LoginPoll{}, state.call.bag.ScrubError(err)
 	}
@@ -511,6 +528,7 @@ func (r *AccountProviderRuntime) finishCustom(state *loginSession, parsed *Accou
 		return LoginPoll{}, state.call.bag.ScrubError(err)
 	}
 	cred = mergeCredential(r.spec, previous, cred)
+	FillExpiresFrom(r.spec, cred)
 	identity, err := r.identity(cred, cred[r.accessField()], "", state.call.bag)
 	if err != nil {
 		return LoginPoll{}, err
@@ -547,7 +565,9 @@ func (r *AccountProviderRuntime) refreshCustom(ctx context.Context, credentialFi
 		if err != nil {
 			return nil, bag.ScrubError(err)
 		}
-		return mergeCredential(r.spec, credentialFields, cred), nil
+		merged := mergeCredential(r.spec, credentialFields, cred)
+		FillExpiresFrom(r.spec, merged)
+		return merged, nil
 	default:
 		return nil, fmt.Errorf("refresh status %q is not supported", parsed.Status)
 	}
@@ -605,7 +625,7 @@ func (r *AccountProviderRuntime) drive(ctx context.Context, call *accountCall, h
 			return nil, fmt.Errorf("plugin %s exceeded %d steps", r.plugin.Manifest.ID, MaxProbeSteps)
 		}
 		template := *decision.Request
-		response, err := r.doAccountHTTP(ctx, client, call, allowed, rules, template)
+		response, err := r.doAccountHTTP(ctx, client, call, allowed, rules, template, hook == hookPollLogin)
 		if err != nil {
 			return nil, err
 		}
@@ -653,7 +673,7 @@ func (r *AccountProviderRuntime) driveModelList(ctx context.Context, call *accou
 			return nil, fmt.Errorf("plugin %s exceeded %d steps", r.plugin.Manifest.ID, MaxProbeSteps)
 		}
 		template := *decision.Request
-		response, err := r.doAccountHTTP(ctx, client, call, allowed, nil, template)
+		response, err := r.doAccountHTTP(ctx, client, call, allowed, nil, template, false)
 		if err != nil {
 			return nil, err
 		}
@@ -673,7 +693,12 @@ func (r *AccountProviderRuntime) driveModelList(ctx context.Context, call *accou
 // The template path and query are checked before substitution. After
 // substitution the host must be unchanged, and the host and path must not
 // contain a secret. Query values and header values may.
-func (r *AccountProviderRuntime) doAccountHTTP(ctx context.Context, client *http.Client, call *accountCall, allowed map[string]bool, rules map[string]string, template ProbeRequest) (ProbeResponse, error) {
+// errPollNonJSON is a static sentinel. It carries no response body, so a poll
+// step that opts into onNonJSON pending can ignore a non-JSON body without
+// showing that body to JS or writing it into an error.
+var errPollNonJSON = errors.New("poll response is not JSON")
+
+func (r *AccountProviderRuntime) doAccountHTTP(ctx context.Context, client *http.Client, call *accountCall, allowed map[string]bool, rules map[string]string, template ProbeRequest, honorNonJSON bool) (ProbeResponse, error) {
 	before, err := ResolveProbeURL(call.base, template.Path, template.Query)
 	if err != nil {
 		return ProbeResponse{}, &CallError{Kind: KindURLRejected, Detail: err.Error()}
@@ -751,7 +776,11 @@ func (r *AccountProviderRuntime) doAccountHTTP(ctx context.Context, client *http
 	if len(buf) > maxProbeResponseBody {
 		return ProbeResponse{}, &CallError{Kind: KindResponseTooLarge, Detail: "response is too large"}
 	}
-	redactedBody, payload, err := redactProbeBody(call.bag, resp.Header.Get("Content-Type"), buf, rules)
+	contentType := resp.Header.Get("Content-Type")
+	if honorNonJSON && template.OnNonJSON == "pending" && !accountJSONObject(buf) {
+		return ProbeResponse{}, errPollNonJSON
+	}
+	redactedBody, payload, err := redactProbeBody(call.bag, contentType, buf, rules)
 	if err != nil {
 		return ProbeResponse{}, call.bag.ScrubError(err)
 	}
@@ -1016,32 +1045,23 @@ func (r *AccountProviderRuntime) materialize(bag *SecretBag, claim map[string]st
 }
 
 func (r *AccountProviderRuntime) identity(cred map[string]string, access, idToken string, bag *SecretBag) (string, error) {
-	identity := r.spec.Credential.Identity
-	if strings.HasPrefix(identity, "claims.") {
-		value, err := accountauth.ClaimString(access, identity)
-		if err != nil && idToken != "" {
-			value, err = accountauth.ClaimString(idToken, identity)
-		}
-		if err != nil {
-			return "", bag.ScrubError(err)
-		}
-		if strings.TrimSpace(value) == "" {
-			return "", errors.New("identity claim is empty")
-		}
-		return value, nil
-	}
-	name, _ := strings.CutPrefix(identity, "field.")
-	value := ""
-	if cred != nil {
-		value = cred[name]
-	}
-	if strings.TrimSpace(value) == "" {
-		return "", fmt.Errorf("identity field %q is empty", name)
+	value, err := resolveIdentity(r.spec.Credential.Identity.Items, cred, access, idToken)
+	if err != nil {
+		return "", bag.ScrubError(err)
 	}
 	if bag != nil && bag.containsNeedle(value) {
-		return "", fmt.Errorf("identity field %q contains a secret", name)
+		return "", errors.New("identity contains a secret")
 	}
 	return value, nil
+}
+
+func accountJSONObject(raw []byte) bool {
+	root, err := decodeJSONUseNumber(raw)
+	if err != nil || root == nil {
+		return false
+	}
+	_, ok := root.(map[string]any)
+	return ok
 }
 
 func (r *AccountProviderRuntime) hookedClient(jar http.CookieJar, base string) *http.Client {
@@ -1196,6 +1216,7 @@ func oauthCredential(spec AccountPoolSpec, tokens accountauth.OAuth2Tokens, prev
 		}
 		out[field.Name] = previous[field.Name]
 	}
+	FillExpiresFrom(spec, out)
 	return out, nil
 }
 
@@ -1315,7 +1336,7 @@ func scrubLogEntries(bag *SecretBag, logs []LogEntry) []LogEntry {
 }
 
 func scrubSummary(bag *SecretBag, parsed AccountSummaryResult) AccountSummary {
-	summary := AccountSummary{Status: parsed.Status, Remark: bag.Scrub(parsed.Remark)}
+	summary := AccountSummary{Status: parsed.Status, Remark: bag.Scrub(parsed.Remark), Label: cleanSummaryLabel(bag, parsed.Label)}
 	summary.Entries = make([]ProbeEntry, len(parsed.Entries))
 	for i, entry := range parsed.Entries {
 		entry.Label = bag.Scrub(entry.Label)

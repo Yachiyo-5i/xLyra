@@ -28,7 +28,7 @@ func TestConvertAccountPoolSiteProvider(t *testing.T) {
 					{Name: "access_token", Secret: true},
 					{Name: "realm"},
 				},
-				Identity: "field.realm",
+				Identity: jsplugin.Sources("field.realm"),
 			},
 			Protocol: jsplugin.SiteProviderProtocol{
 				Kind: "openai_chat", Path: "/v1/chat/completions", OfficialBaseURL: "https://api.example.com/v1",
@@ -41,7 +41,7 @@ func TestConvertAccountPoolSiteProvider(t *testing.T) {
 			Refresh:       &jsplugin.SiteProviderRefresh{Kind: "none"},
 			Import:        &jsplugin.SiteProviderImport{Enabled: true},
 			Request: jsplugin.SiteProviderRequest{
-				Headers: map[string]string{"X-Realm": "{{cred.realm}}"}, StripDownstreamHeaders: true,
+				Headers: jsplugin.HeaderMap(map[string]string{"X-Realm": "{{cred.realm}}"}), StripDownstreamHeaders: true,
 				UpstreamStreamOnly: true, BaseURLFrom: "region",
 			},
 		},
@@ -60,7 +60,7 @@ func TestConvertAccountPoolSiteProvider(t *testing.T) {
 	if prepared.item.Descriptor.OfficialBaseURL != "https://api.example.cn/v1" || prepared.item.Descriptor.RequiresBaseURL {
 		t.Fatalf("descriptor = %#v", prepared.item.Descriptor)
 	}
-	if !prepared.item.Request.UpstreamStreamOnly || prepared.item.Request.BaseURLFrom != "region" || prepared.item.Request.Headers["X-Realm"] != "{{cred.realm}}" {
+	if !prepared.item.Request.UpstreamStreamOnly || prepared.item.Request.BaseURLFrom != "region" || prepared.item.Request.Headers["X-Realm"].Value != "{{cred.realm}}" {
 		t.Fatalf("request = %#v", prepared.item.Request)
 	}
 	var spec struct {

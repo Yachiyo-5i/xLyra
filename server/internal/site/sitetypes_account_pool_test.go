@@ -15,7 +15,7 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 	t.Cleanup(ClearPluginSiteTypes)
 
 	spec := accountPoolSpec()
-	headers := map[string]string{"Authorization": "Bearer {{cred.access_token}}"}
+	headers := jsplugin.HeaderMap(map[string]string{"Authorization": "Bearer {{cred.access_token}}"})
 	if err := SetPluginSiteTypes([]PluginSiteType{
 		{
 			Descriptor: SiteTypeDescriptor{
@@ -58,8 +58,8 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 	spec.Regions[0].Label["zh"] = "改了"
 	spec.Login.SecretPaths["data.accessToken"] = "mutated"
 	spec.Import.FieldMap["access_token"][0] = "mutated"
-	spec.Request.Headers["Authorization"] = "mutated"
-	headers["Authorization"] = "mutated"
+	spec.Request.Headers["Authorization"] = jsplugin.HeaderSpec{Value: "mutated"}
+	headers["Authorization"] = jsplugin.HeaderSpec{Value: "mutated"}
 
 	desc, ok := LookupSiteType("acme.example/pool")
 	if !ok || desc.APICredentialType != "account" || desc.CredentialCategory != "account" || desc.SupportsAPIKeyCostMultiplier || desc.RequiresBaseURL {
@@ -78,7 +78,7 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 	if item.QuotaAggregate != "" || item.Pool.QuotaAggregate != "sum" {
 		t.Fatalf("quota aggregate item %q pool %q", item.QuotaAggregate, item.Pool.QuotaAggregate)
 	}
-	if item.Request.Headers["Authorization"] != "Bearer {{cred.access_token}}" || !item.Request.UpstreamStreamOnly || item.Request.BaseURLFrom != "region" {
+	if item.Request.Headers["Authorization"].Value != "Bearer {{cred.access_token}}" || !item.Request.UpstreamStreamOnly || item.Request.BaseURLFrom != "region" {
 		t.Fatalf("request = %#v", item.Request)
 	}
 	item.Pool.Regions[0].BaseURL = "https://mutated.example"
@@ -183,6 +183,6 @@ func accountPoolSpec() jsplugin.AccountPoolSpec {
 		Import:         jsplugin.SiteProviderImport{Enabled: true, FieldMap: map[string][]string{"access_token": {"accessToken"}}},
 		Selection:      "ordered",
 		QuotaAggregate: "sum",
-		Request:        jsplugin.SiteProviderRequest{Headers: map[string]string{"Authorization": "Bearer {{cred.access_token}}"}, BaseURLFrom: "region"},
+		Request:        jsplugin.SiteProviderRequest{Headers: jsplugin.HeaderMap(map[string]string{"Authorization": "Bearer {{cred.access_token}}"}), BaseURLFrom: "region"},
 	}
 }

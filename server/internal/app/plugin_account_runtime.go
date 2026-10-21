@@ -73,6 +73,7 @@ func (a accountPoolRuntimeAdapter) Summarize(ctx context.Context, baseURL string
 	return site.PluginAccountSummary{
 		Status:  summary.Status,
 		Remark:  summary.Remark,
+		Label:   summary.Label,
 		Entries: quotaEntriesFromProbe(summary.Entries),
 	}, nil
 }
@@ -106,7 +107,7 @@ func (a accountPoolRuntimeAdapter) ParseImport(raw []byte) ([]site.PluginImporte
 		return nil, site.ErrAccountImportUnsupported
 	}
 	cfg := a.spec.Import
-	imported, err := jsplugin.ParseAccountImport(raw, &cfg, a.spec.Credential.Fields, a.spec.Credential.ExpiresAtField)
+	imported, err := jsplugin.ParseAccountImport(raw, &cfg, a.spec.Credential)
 	if err != nil {
 		return nil, err
 	}

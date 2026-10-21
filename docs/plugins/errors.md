@@ -86,6 +86,8 @@ js_timeout: interrupted: timeout
 
 上游 401 和传输失败是否换凭据，按凭据类型是不是账号凭据判断（含 `account:<siteType>:<uuid>`，以及内置的 `grok_sso:`）。API Key 不走这条。
 
+`summarizeAccount` 返回 `status: "reauth"` 时不是上面的网关错误。宿主把这把凭据标成 `reauth_required` 并停用，不另起错误码。
+
 管理端账号接口（插件账号池与内置账号池共用）：
 
 | 错误码 | HTTP | 含义 |

@@ -336,7 +336,7 @@ func pluginAccountTestSpec() *jsplugin.AccountPoolSpec {
 			},
 			AccessTokenField:  "access_token",
 			RefreshTokenField: "refresh_token",
-			Identity:          "field.subject",
+			Identity:          jsplugin.Sources("field.subject"),
 		},
 		Regions: []jsplugin.SiteProviderRegion{
 			{ID: "cn", Label: jsplugin.LocalizedText{"zh": "中国", "en": "China"}, BaseURL: "https://api.example.cn"},

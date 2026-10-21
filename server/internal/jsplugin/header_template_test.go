@@ -11,12 +11,12 @@ func TestSiteProviderRequestManifestAccepts(t *testing.T) {
 	source := meta("acme.example", KindSiteProvider)
 	manifest := siteProviderManifest(source)
 	manifest.SiteProvider.Request = SiteProviderRequest{
-		Headers: map[string]string{
+		Headers: HeaderMap(map[string]string{
 			"Authorization": "Bearer {{cred.api_key}}",
 			"X-Client":      "xlyra",
 			"X-Base":        "{{site.baseURL}}",
 			"X-Repeat":      "{{cred.api_key}}-{{cred.api_key}}",
-		},
+		}),
 		StripDownstreamHeaders: true,
 	}
 	if err := validateManifest(manifest, source); err != nil {
@@ -31,7 +31,7 @@ func TestSiteProviderRequestManifestAccepts(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := decoded.SiteProvider.Request
-	if !got.StripDownstreamHeaders || got.Headers["Authorization"] != "Bearer {{cred.api_key}}" || got.Headers["X-Client"] != "xlyra" || got.Headers["X-Base"] != "{{site.baseURL}}" {
+	if !got.StripDownstreamHeaders || got.Headers["Authorization"].Value != "Bearer {{cred.api_key}}" || got.Headers["X-Client"].Value != "xlyra" || got.Headers["X-Base"].Value != "{{site.baseURL}}" {
 		t.Fatalf("request = %#v", got)
 	}
 	if decoded.SiteProvider.Models.Auth != "header:X-Api-Key" {
@@ -39,9 +39,9 @@ func TestSiteProviderRequestManifestAccepts(t *testing.T) {
 	}
 
 	many := manifest
-	headers := make(map[string]string, maxSiteProviderRequestHeaders)
+	headers := make(map[string]HeaderSpec, maxSiteProviderRequestHeaders)
 	for i := 0; i < maxSiteProviderRequestHeaders; i++ {
-		headers[sprintfHeader(i)] = "x"
+		headers[sprintfHeader(i)] = HeaderSpec{Value: "x"}
 	}
 	many.SiteProvider.Request = SiteProviderRequest{Headers: headers}
 	if err := validateManifest(many, source); err != nil {
@@ -110,7 +110,7 @@ func TestSiteProviderRequestManifestRejects(t *testing.T) {
 			if kind == KindQuotaProbe {
 				manifest.QuotaProbe.BaseURLMode = "as_is"
 			}
-			manifest.SiteProvider.Request = SiteProviderRequest{Headers: map[string]string{"X-Client": "xlyra"}}
+			manifest.SiteProvider.Request = SiteProviderRequest{Headers: HeaderMap(map[string]string{"X-Client": "xlyra"})}
 			err := validateManifest(manifest, source)
 			if err == nil || !strings.Contains(err.Error(), "request is not allowed for "+kind) {
 				t.Fatalf("%s err = %v", kind, err)
@@ -127,34 +127,66 @@ func TestSiteProviderRequestManifestRejects(t *testing.T) {
 func TestValidateHeaderTemplateAllowedFields(t *testing.T) {
 	t.Parallel()
 	apiKey := map[string]struct{}{"api_key": {}}
-	if err := ValidateHeaderTemplate("Bearer {{cred.api_key}} @ {{site.baseURL}}", apiKey); err != nil {
+	if err := ValidateHeaderTemplate("Bearer {{cred.api_key}} @ {{site.baseURL}}", apiKey, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateHeaderTemplate("{{cred.domain}}", apiKey); err == nil || !strings.Contains(err.Error(), `unknown field "domain"`) {
+	if err := ValidateHeaderTemplate("{{cred.domain}}", apiKey, nil); err == nil || !strings.Contains(err.Error(), `unknown field "domain"`) {
 		t.Fatalf("api_key model err = %v", err)
 	}
-	if err := ValidateHeaderTemplate("{{cred.api_key}}", map[string]struct{}{}); err == nil || !strings.Contains(err.Error(), "unknown field") {
+	if err := ValidateHeaderTemplate("{{cred.api_key}}", map[string]struct{}{}, nil); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("empty set err = %v", err)
 	}
 	pool := map[string]struct{}{"access_token": {}, "domain": {}}
-	if err := ValidateHeaderTemplate("{{cred.access_token}} {{cred.domain}}", pool); err != nil {
+	if err := ValidateHeaderTemplate("{{cred.access_token}} {{cred.domain}}", pool, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateHeaderTemplate("{{cred.api_key}}", pool); err == nil || !strings.Contains(err.Error(), `unknown field "api_key"`) {
+	if err := ValidateHeaderTemplate("{{cred.api_key}}", pool, nil); err == nil || !strings.Contains(err.Error(), `unknown field "api_key"`) {
 		t.Fatalf("pool set err = %v", err)
 	}
-	section := SiteProviderRequest{Headers: map[string]string{"X-Domain": "{{cred.domain}}"}}
-	if err := ValidateSiteProviderRequest(section, apiKey); err == nil || !strings.Contains(err.Error(), `unknown field "domain"`) {
+	section := SiteProviderRequest{Headers: HeaderMap(map[string]string{"X-Domain": "{{cred.domain}}"})}
+	if err := ValidateSiteProviderRequest(section, apiKey, nil); err == nil || !strings.Contains(err.Error(), `unknown field "domain"`) {
 		t.Fatalf("request err = %v", err)
 	}
-	if err := ValidateSiteProviderRequest(section, pool); err != nil {
+	if err := ValidateSiteProviderRequest(section, pool, nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestHeaderSpecConditionsAndRegionAttrs(t *testing.T) {
+	t.Parallel()
+	pool := map[string]struct{}{"domain": {}, "access_token": {}}
+	regions := map[string]struct{}{"origin": {}, "referer": {}}
+	raw := []byte(`{
+		"X-Domain": {"value": "{{cred.domain}}", "when": "cred.domain"},
+		"X-No-Department-Info": {"value": "1", "unless": "cred.domain"},
+		"Origin": "{{region.origin}}"
+	}`)
+	var headers map[string]HeaderSpec
+	if err := json.Unmarshal(raw, &headers); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateSiteProviderRequest(SiteProviderRequest{Headers: headers}, pool, regions); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(headers["Origin"])
+	if err != nil || string(encoded) != `"{{region.origin}}"` {
+		t.Fatalf("unconditional header = %s err=%v", encoded, err)
+	}
+	both := HeaderSpec{Value: "1", When: "cred.domain", Unless: "cred.domain"}
+	if err := validateHeaderSpec(both, pool, regions); err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("both conditions = %v", err)
+	}
+	if err := ValidateHeaderTemplate("{{region.theme}}", pool, regions); err == nil {
+		t.Fatal("theme key was accepted")
+	}
+	if err := ValidateHeaderTemplate("{{region.origin}}", pool, nil); err == nil || !strings.Contains(err.Error(), "unknown region attribute") {
+		t.Fatalf("missing region attr = %v", err)
 	}
 }
 
 func validateRequestManifest(source string, headers map[string]string, strip bool) error {
 	manifest := siteProviderManifest(source)
-	manifest.SiteProvider.Request = SiteProviderRequest{Headers: headers, StripDownstreamHeaders: strip}
+	manifest.SiteProvider.Request = SiteProviderRequest{Headers: HeaderMap(headers), StripDownstreamHeaders: strip}
 	return validateManifest(manifest, source)
 }
 
