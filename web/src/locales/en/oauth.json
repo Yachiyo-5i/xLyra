@@ -53,6 +53,15 @@
       "cancel": "Cancel",
       "delete": "Confirm delete"
     },
+    "disclaimer": {
+      "title": "Risk notice and disclaimer",
+      "terms": "Connecting a third-party account through OAuth and relaying requests with it is not an officially supported way to use that service, and may violate its terms of service.",
+      "ban": "The provider may respond by rate-limiting, suspending, or banning the account, and any subscription, quota, or data tied to it may be lost, usually with no way to appeal or recover it. Do not connect an account you cannot afford to lose.",
+      "liability": "By continuing, you acknowledge these risks and voluntarily accept all consequences. xLyra and its developers and maintainers are not liable for any account or financial loss that results.",
+      "acknowledge": "I have read and understand the risks above, and accept the consequences",
+      "cancel": "Cancel",
+      "confirm": "I understand, continue"
+    },
     "toast": {
       "linkGenerated": "Auth link generated",
       "linkFailed": "Failed to generate auth link",

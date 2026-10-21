@@ -45,6 +45,7 @@ import {
 } from '@/features/oauth/api/oauth'
 import { OAuthConnectionCard } from '@/features/oauth/components/oauth-connection-card'
 import { OAuthCreateDraw } from '@/features/oauth/components/oauth-create-draw'
+import { OAuthDisclaimerDialog } from '@/features/oauth/components/oauth-disclaimer-dialog'
 import { OAuthImportSheet } from '@/features/oauth/components/oauth-import-sheet'
 import { cn } from '@/lib/utils'
 import { OAuthWorkspaceSkeleton } from '@/features/oauth/components/oauth-workspace-skeleton'
@@ -76,6 +77,11 @@ const EMPTY_SITE_MODELS: SiteModel[] = []
 const EMPTY_SITE_GROUPS: SiteGroup[] = []
 const EMPTY_SITES: Site[] = []
 
+type OAuthDisclaimerAction =
+  | { type: 'create' }
+  | { type: 'import' }
+  | { type: 'reauth'; item: OAuthConnectionListItem }
+
 const PROVIDER_GROUP_ORDER: string[] = ['codex', 'claude_code', 'antigravity']
 
 type StartOAuthFlowInput = {
@@ -98,6 +104,7 @@ export function OAuthWorkspace() {
   const [providerFilter, setProviderFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
+  const [disclaimer, setDisclaimer] = useState<OAuthDisclaimerAction | null>(null)
   const [createState, setCreateState] = useState<OAuthCreateState>(DEFAULT_CREATE_STATE)
   const [createMode, setCreateMode] = useState<'create' | 'reauth'>('create')
   const [createProxyId, setCreateProxyId] = useState('direct')
@@ -494,6 +501,24 @@ export function OAuthWorkspace() {
     })
   }, [queryClient, searchParams, setSearchParams, t])
 
+  function confirmDisclaimer() {
+    const action = disclaimer
+    setDisclaimer(null)
+    if (!action) return
+    if (action.type === 'create') {
+      setCreateMode('create')
+      setCreateProxyId('direct')
+      setCreateOpen(true)
+      return
+    }
+    if (action.type === 'import') {
+      setImportResult(null)
+      setImportSheetOpen(true)
+      return
+    }
+    startReconnectOAuth(action.item)
+  }
+
   function startReconnectOAuth(item: OAuthConnectionListItem) {
     if (item.provider !== 'codex' && item.provider !== 'antigravity' && item.provider !== 'claude_code') {
       toast.error(t('workspace.toast.linkFailed'), { description: item.provider })
@@ -545,7 +570,7 @@ export function OAuthWorkspace() {
         if (item.site_id) toggleEnabledMutation.mutate({ siteId: item.site_id, enabled })
       },
       onDelete: () => setDeleteTarget(item),
-      onReconnect: () => startReconnectOAuth(item),
+      onReconnect: () => setDisclaimer({ type: 'reauth', item }),
       updatedAtMode,
       now,
       onUpdatedAtModeChange: setUpdatedAtMode,
@@ -617,6 +642,12 @@ export function OAuthWorkspace() {
           }}
         />
       ) : null}
+
+      <OAuthDisclaimerDialog
+        open={Boolean(disclaimer)}
+        onOpenChange={(next) => { if (!next) setDisclaimer(null) }}
+        onConfirm={confirmDisclaimer}
+      />
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(next) => { if (!next && !deleteTargetPending) setDeleteTarget(null) }}>
         <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
@@ -720,7 +751,7 @@ export function OAuthWorkspace() {
               size="icon"
               className="rounded-full"
               aria-label={t('workspace.import')}
-              onClick={() => { setImportSheetOpen(true); setImportResult(null) }}
+              onClick={() => setDisclaimer({ type: 'import' })}
             >
               <Upload />
             </Button>
@@ -800,11 +831,7 @@ export function OAuthWorkspace() {
 
         <Button
           className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
-          onClick={() => {
-            setCreateMode('create')
-            setCreateProxyId('direct')
-            setCreateOpen(true)
-          }}
+          onClick={() => setDisclaimer({ type: 'create' })}
           aria-label={t('workspace.createNew')}
         >
           <Plus className="h-5 w-5" />
@@ -847,15 +874,11 @@ export function OAuthWorkspace() {
             {refreshAllMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
             {t('workspace.refreshAll')}
           </Button>
-          <Button variant="outline" onClick={() => { setImportSheetOpen(true); setImportResult(null) }}>
+          <Button variant="outline" onClick={() => setDisclaimer({ type: 'import' })}>
             <Upload className="h-4 w-4" />
             {t('workspace.import')}
           </Button>
-          <Button onClick={() => {
-            setCreateMode('create')
-            setCreateProxyId('direct')
-            setCreateOpen(true)
-          }}>
+          <Button onClick={() => setDisclaimer({ type: 'create' })}>
             <Plus className="h-4 w-4" />
             {t('workspace.createNew')}
           </Button>
