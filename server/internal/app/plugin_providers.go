@@ -20,10 +20,8 @@ import (
 // Account-pool plugins can be enabled. Login cookie jars and device-code
 // sessions stay in this process: a poll that hits another instance, or a
 // restart, loses the session. Catalog reload replaces the runtime snapshot
-// and drops those sessions with it. The gateway refresher is P3-7.
-func init() {
-	jsplugin.AccountPoolEnabled = true
-}
+// and drops those sessions with it. The gateway refresher is installed
+// next to the gateway handler.
 
 // siteProviderCurrent, when set by the router, drops an apply whose registry
 // is no longer the manager's current one so a newer reload wins.

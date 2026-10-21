@@ -133,6 +133,9 @@ func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, c
 	systemStatsService := systemstats.NewService(appTimeZone)
 	downloadService := downloads.NewService()
 	gatewayHandler := gateway.NewHandlerWithOAuthService(logger.With("thread", "gateway"), authService, routerService, db, masterKey, appTimeZone, oauthService, confFile)
+	if siteService != nil {
+		gatewayHandler = gatewayHandler.WithPluginAccountRefresher(pluginAccountRefresher{sites: siteService})
+	}
 	playgroundGatewayHandler := gatewayHandler.WithRouteSiteHeader()
 	playgroundRoot := filepath.Join(config.ResolveWorkdir(), "playground")
 	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, playgroundRoot)

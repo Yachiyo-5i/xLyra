@@ -16,6 +16,8 @@ const (
 	maxImportAliases          = 8
 	maxImportContainers       = 8
 	maxRowPills               = 4
+	maxPillLabels             = 8
+	maxPillLabelKey           = 64
 	minRefreshLeadSeconds     = 30
 	maxRefreshLeadSeconds     = 3600
 	defaultRefreshLeadSeconds = 300
@@ -31,6 +33,14 @@ var (
 	importNamePattern      = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 	accountPoolUIOps       = map[string]struct{}{
 		"add": {}, "reauth": {}, "refresh": {}, "delete": {}, "toggle": {}, "models": {}, "import": {},
+	}
+	accountPoolUITextKeys = map[string]struct{}{
+		"title": {}, "login_reauth_title": {}, "login_title": {}, "login_starting": {},
+		"login_instructions": {}, "login_authorize": {}, "login_waiting": {}, "cancel": {},
+		"region_title": {}, "region_description": {}, "region_continue": {}, "loading": {},
+		"add": {}, "import": {}, "refresh_all": {}, "unnamed": {}, "refresh": {},
+		"delete": {}, "reauthorize": {}, "toggle_label": {}, "empty": {},
+		"delete_title": {}, "delete_confirm": {}, "delete_delete": {}, "login_hint": {},
 	}
 )
 
@@ -93,14 +103,18 @@ type SiteProviderQuota struct {
 }
 
 // SiteProviderRowPill is one non-secret field shown on an account row.
+// Labels optionally renames field values.
 type SiteProviderRowPill struct {
-	Field string `json:"field"`
+	Field  string                   `json:"field"`
+	Labels map[string]LocalizedText `json:"labels,omitempty"`
 }
 
 // SiteProviderUI is the account-pool admin surface.
+// Texts values are a plain string or {"zh","en","jp",...}.
 type SiteProviderUI struct {
-	RowPills   []SiteProviderRowPill `json:"rowPills,omitempty"`
-	Operations []string              `json:"operations,omitempty"`
+	RowPills   []SiteProviderRowPill            `json:"rowPills,omitempty"`
+	Operations []string                         `json:"operations,omitempty"`
+	Texts      map[string]LocalizedTextOrString `json:"texts,omitempty"`
 }
 
 // AccountPoolSpec is an immutable copy of the account-pool manifest sections.
@@ -703,6 +717,17 @@ func validateAccountUI(ui *SiteProviderUI, fields map[string]credentialFieldMeta
 		if meta.secret {
 			return fmt.Errorf("siteProvider.ui.rowPills[%d].field %q must not be secret", i, pill.Field)
 		}
+		if len(pill.Labels) > maxPillLabels {
+			return fmt.Errorf("siteProvider.ui.rowPills[%d].labels must list at most %d items", i, maxPillLabels)
+		}
+		for key, label := range pill.Labels {
+			if key == "" || len(key) > maxPillLabelKey || strings.IndexFunc(key, unicode.IsControl) >= 0 {
+				return fmt.Errorf("siteProvider.ui.rowPills[%d].labels key is invalid", i)
+			}
+			if err := label.validate(); err != nil {
+				return fmt.Errorf("siteProvider.ui.rowPills[%d].labels[%q]: %w", i, key, err)
+			}
+		}
 	}
 	seen := make(map[string]struct{}, len(ui.Operations))
 	for i, op := range ui.Operations {
@@ -715,6 +740,14 @@ func validateAccountUI(ui *SiteProviderUI, fields map[string]credentialFieldMeta
 		seen[op] = struct{}{}
 		if op == "import" && !importEnabled {
 			return fmt.Errorf("siteProvider.ui.operations %q requires import.enabled", op)
+		}
+	}
+	for key, text := range ui.Texts {
+		if _, ok := accountPoolUITextKeys[key]; !ok {
+			return fmt.Errorf("siteProvider.ui.texts[%q] is not supported", key)
+		}
+		if err := text.validate(); err != nil {
+			return fmt.Errorf("siteProvider.ui.texts[%q]: %w", key, err)
 		}
 	}
 	return nil
@@ -932,11 +965,30 @@ func cloneImport(in SiteProviderImport) SiteProviderImport {
 }
 
 func cloneUI(in SiteProviderUI) SiteProviderUI {
-	out := in
-	if in.RowPills != nil {
-		out.RowPills = append([]SiteProviderRowPill(nil), in.RowPills...)
+	out := SiteProviderUI{Operations: append([]string(nil), in.Operations...)}
+	if len(in.RowPills) > 0 {
+		out.RowPills = make([]SiteProviderRowPill, len(in.RowPills))
+		for i, pill := range in.RowPills {
+			out.RowPills[i] = SiteProviderRowPill{Field: pill.Field, Labels: cloneLocalizedMap(pill.Labels)}
+		}
 	}
-	out.Operations = append([]string(nil), in.Operations...)
+	if len(in.Texts) > 0 {
+		out.Texts = make(map[string]LocalizedTextOrString, len(in.Texts))
+		for key, text := range in.Texts {
+			out.Texts[key] = cloneLocalized(text)
+		}
+	}
+	return out
+}
+
+func cloneLocalizedMap(in map[string]LocalizedText) map[string]LocalizedText {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]LocalizedText, len(in))
+	for key, text := range in {
+		out[key] = cloneLocalized(text)
+	}
 	return out
 }
 

@@ -7,6 +7,11 @@ import (
 	"sort"
 )
 
+// LocalizedTextOrString is a manifest text that is either a plain string or
+// an object keyed by language. It is LocalizedText; the name matches the
+// account-ui field.
+type LocalizedTextOrString = LocalizedText
+
 // LocalizedText is copy a plugin shows in the admin form. In a manifest it is
 // either a plain string, used for every language, or an object keyed by
 // language: {"zh": "...", "en": "..."}. The page picks the language it is shown

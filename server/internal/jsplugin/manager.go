@@ -16,18 +16,6 @@ import (
 	"xlyra/server/internal/store"
 )
 
-// AccountPoolEnabled allows enabling account_pool site providers.
-// It stays false until login, refresh, and gateway wiring exist.
-var AccountPoolEnabled bool
-
-// AccountPoolUnavailableError means an account_pool site_provider cannot be
-// enabled yet. Upload and manifest checks are unaffected.
-type AccountPoolUnavailableError struct{}
-
-func (e *AccountPoolUnavailableError) Error() string {
-	return "账号池插件的登录、刷新与网关接入尚未完成,暂不能启用"
-}
-
 // EnableOptions controls optional enable-time checks.
 type EnableOptions struct {
 	ConfirmUntrusted bool
@@ -327,9 +315,6 @@ func (m *Manager) Enable(ctx context.Context, pluginID, version string, opts Ena
 		if len(missing) > 0 {
 			return &PermissionsRequiredError{Required: pkg.Manifest.Automation.Permissions}
 		}
-	}
-	if pkg.Manifest.Kind == KindSiteProvider && pkg.Manifest.SiteProvider.Credential.Model == "account_pool" && !AccountPoolEnabled {
-		return &AccountPoolUnavailableError{}
 	}
 	plugin, err := CompilePackage(pkg)
 	if err != nil {

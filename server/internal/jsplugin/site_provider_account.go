@@ -56,9 +56,6 @@ var (
 // {{secret.<field>}} placeholders, never access tokens, refresh tokens, or
 // other secret field values. Logs and errors are scrubbed with that bag.
 //
-// AccountPoolEnabled is not consulted here. Manager.Enable still refuses an
-// account pool while that gate is closed.
-//
 // Login cookie jars live in this process, keyed by session id. They are not
 // shared across instances and do not survive a restart.
 type AccountProviderRuntime struct {

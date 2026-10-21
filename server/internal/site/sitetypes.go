@@ -30,10 +30,27 @@ type SiteTypeDescriptor struct {
 
 // AccountCapabilities is the account-pool surface of a site type.
 // LoginKind is oauth2_device_code or custom_poll.
+// UI is omitted when the manifest does not declare account chrome.
 type AccountCapabilities struct {
 	LoginKind       string
 	SupportsImport  bool
 	SupportsRegions bool
+	UI              *AccountUI
+}
+
+// AccountUI is the admin chrome for one account-pool site type.
+// JSON names match the admin site-type payload.
+type AccountUI struct {
+	RowPills   []AccountRowPill                  `json:"row_pills,omitempty"`
+	Operations []string                          `json:"operations,omitempty"`
+	Texts      map[string]jsplugin.LocalizedText `json:"texts,omitempty"`
+}
+
+// AccountRowPill is one non-secret field shown on an account row.
+// Labels optionally renames field values.
+type AccountRowPill struct {
+	Field  string                            `json:"field"`
+	Labels map[string]jsplugin.LocalizedText `json:"labels,omitempty"`
 }
 
 // PluginSiteRequest is the upstream header template for a plugin site type.
@@ -273,6 +290,51 @@ func IsPluginSiteTypeID(id string) bool {
 	return ValidatePluginSiteTypeID(id) == nil
 }
 
+func accountUIFromPool(ui jsplugin.SiteProviderUI) *AccountUI {
+	if len(ui.RowPills) == 0 && len(ui.Operations) == 0 && len(ui.Texts) == 0 {
+		return nil
+	}
+	out := &AccountUI{}
+	if len(ui.Operations) > 0 {
+		out.Operations = append([]string(nil), ui.Operations...)
+	}
+	if len(ui.RowPills) > 0 {
+		out.RowPills = make([]AccountRowPill, len(ui.RowPills))
+		for i, pill := range ui.RowPills {
+			out.RowPills[i] = AccountRowPill{Field: pill.Field, Labels: copyLocalizedLabels(pill.Labels)}
+		}
+	}
+	if len(ui.Texts) > 0 {
+		out.Texts = make(map[string]jsplugin.LocalizedText, len(ui.Texts))
+		for key, text := range ui.Texts {
+			out.Texts[key] = copyLocalizedText(text)
+		}
+	}
+	return out
+}
+
+func copyLocalizedLabels(in map[string]jsplugin.LocalizedText) map[string]jsplugin.LocalizedText {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]jsplugin.LocalizedText, len(in))
+	for key, text := range in {
+		out[key] = copyLocalizedText(text)
+	}
+	return out
+}
+
+func copyLocalizedText(in jsplugin.LocalizedText) jsplugin.LocalizedText {
+	if in == nil {
+		return nil
+	}
+	out := make(jsplugin.LocalizedText, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
 func builtinSiteType(id string) bool {
 	for _, desc := range siteTypeRegistry {
 		if desc.SiteType == id {
@@ -331,6 +393,7 @@ func normalizePluginSiteType(item PluginSiteType, id string) PluginSiteType {
 			LoginKind:       pool.Login.Kind,
 			SupportsImport:  pool.Import.Enabled,
 			SupportsRegions: len(pool.Regions) > 0,
+			UI:              accountUIFromPool(pool.UI),
 		}
 		item.QuotaAggregate = ""
 	} else {

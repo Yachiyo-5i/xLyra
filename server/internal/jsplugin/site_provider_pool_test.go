@@ -1,11 +1,7 @@
 package jsplugin
 
 import (
-	"context"
-	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -237,6 +233,15 @@ func TestAccountPoolManifestRejects(t *testing.T) {
 		{name: "import operation", base: "pool", mutate: func(m *Manifest) {
 			m.SiteProvider.Import.Enabled = false
 		}, want: "requires import.enabled"},
+		{name: "ui text key", base: "pool", mutate: func(m *Manifest) {
+			m.SiteProvider.UI.Texts = map[string]LocalizedTextOrString{"toast": {"": "nope"}}
+		}, want: "texts["},
+		{name: "ui text length", base: "pool", mutate: func(m *Manifest) {
+			m.SiteProvider.UI.Texts = map[string]LocalizedTextOrString{"add": {"": strings.Repeat("a", 401)}}
+		}, want: "longer than"},
+		{name: "ui pill label", base: "pool", mutate: func(m *Manifest) {
+			m.SiteProvider.UI.RowPills[0].Labels = map[string]LocalizedText{"bad\nkey": {"en": "nope"}}
+		}, want: "labels key"},
 		{name: "api key regions", base: "api_key", mutate: func(m *Manifest) {
 			m.SiteProvider.Regions = []SiteProviderRegion{{ID: "cn", BaseURL: "https://api.example.com"}}
 		}, want: "regions is not allowed"},
@@ -325,42 +330,6 @@ func TestAccountPoolExports(t *testing.T) {
 	}
 }
 
-func TestAccountPoolEnableGate(t *testing.T) {
-	prev := AccountPoolEnabled
-	t.Cleanup(func() { AccountPoolEnabled = prev })
-	AccountPoolEnabled = false
-
-	st := openTestStore(t)
-	mgr := NewManager(st, nil)
-	ctx := context.Background()
-	source := poolSource("acme.example", "summarizeAccount", "startLogin", "pollLogin", "refreshTokens")
-	manifest := poolManifest(source, poolSection())
-	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := AttachSignature(siteProviderZip(t, manifest, source, nil), priv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := mgr.Upload(ctx, "", raw); err != nil {
-		t.Fatalf("upload: %v", err)
-	}
-	if _, err := mgr.AddTrustedKey(ctx, "", "acme", base64.StdEncoding.EncodeToString(pub)); err != nil {
-		t.Fatal(err)
-	}
-	err = mgr.Enable(ctx, "acme.example", "1.0.0", EnableOptions{ConfirmedHosts: manifest.SiteProvider.Hosts})
-	var gate *AccountPoolUnavailableError
-	if !errors.As(err, &gate) || err.Error() != "账号池插件的登录、刷新与网关接入尚未完成,暂不能启用" {
-		t.Fatalf("enable = %v", err)
-	}
-
-	AccountPoolEnabled = true
-	if err := mgr.Enable(ctx, "acme.example", "1.0.0", EnableOptions{ConfirmedHosts: append([]string(nil), manifest.SiteProvider.Hosts...)}); err != nil {
-		t.Fatalf("enable with gate open: %v", err)
-	}
-}
-
 func poolSource(id string, exports ...string) string {
 	var b strings.Builder
 	b.WriteString(meta(id, KindSiteProvider))
@@ -440,8 +409,15 @@ func poolSection() SiteProviderSection {
 			BaseURLFrom:            "region",
 		},
 		UI: &SiteProviderUI{
-			RowPills:   []SiteProviderRowPill{{Field: "realm"}},
+			RowPills: []SiteProviderRowPill{{
+				Field:  "realm",
+				Labels: map[string]LocalizedText{"intl": {"zh": "国际", "en": "International"}},
+			}},
 			Operations: []string{"add", "reauth", "refresh", "delete", "toggle", "models", "import"},
+			Texts: map[string]LocalizedTextOrString{
+				"add":        {"zh": "登录", "en": "Sign in"},
+				"login_hint": {"": "用设备码"},
+			},
 		},
 	}
 }

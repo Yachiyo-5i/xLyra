@@ -107,8 +107,8 @@ func TestPluginAccountResolveRefreshAndReauth(t *testing.T) {
 	if failure != nil {
 		t.Fatalf("refresh resolve: %v", failure.Err)
 	}
-	if refresher.calls != 1 || refresher.gotSite != pluginAccountSiteType || refresher.gotFields["access_token"] != "token-old" {
-		t.Fatalf("refresh call site=%q fields=%#v calls=%d", refresher.gotSite, refresher.gotFields, refresher.calls)
+	if refresher.calls != 1 || refresher.gotSite != pluginAccountSiteType || refresher.gotSiteID != pluginResolveSiteID || refresher.gotCredentialID != pluginResolveCredentialID || refresher.gotFields["access_token"] != "token-old" {
+		t.Fatalf("refresh call site=%q siteID=%s credentialID=%s fields=%#v calls=%d", refresher.gotSite, refresher.gotSiteID, refresher.gotCredentialID, refresher.gotFields, refresher.calls)
 	}
 	if resolved.Key != "token-new" || resolved.BaseURL != "http://127.0.0.1/intl" || resolved.HeaderVars["cred.domain"] != "refreshed.example" {
 		t.Fatalf("refreshed credential = %+v", resolved)
@@ -544,27 +544,37 @@ func testPluginAccountSpec(selection string, lead int) jsplugin.AccountPoolSpec 
 	}
 }
 
+var (
+	pluginResolveSiteID       = uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	pluginResolveCredentialID = uuid.MustParse("22222222-2222-4222-8222-222222222222")
+)
+
 func resolvePluginAccount(t *testing.T, handler Handler, fields map[string]any) (resolvedUpstreamCredential, *credentialResolveFailure) {
 	t.Helper()
 	raw, err := json.Marshal(fields)
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate := routeengine.Candidate{Site: routeengine.CandidateSite{SiteType: pluginAccountSiteType}}
-	return (pluginAccountCredentialResolver{}).Resolve(context.Background(), handler, candidate, store.GatewayCredential{}, string(raw), "acct")
+	candidate := routeengine.Candidate{Site: routeengine.CandidateSite{ID: pluginResolveSiteID, SiteType: pluginAccountSiteType}}
+	credential := store.GatewayCredential{Credential: store.SiteCredential{ID: pluginResolveCredentialID}}
+	return (pluginAccountCredentialResolver{}).Resolve(context.Background(), handler, candidate, credential, string(raw), "acct")
 }
 
 type fakePluginRefresher struct {
-	calls     int
-	gotSite   string
-	gotFields map[string]string
-	fields    map[string]string
-	err       error
+	calls           int
+	gotSite         string
+	gotSiteID       uuid.UUID
+	gotCredentialID uuid.UUID
+	gotFields       map[string]string
+	fields          map[string]string
+	err             error
 }
 
-func (f *fakePluginRefresher) Refresh(_ context.Context, siteType string, fields map[string]string) (map[string]string, error) {
+func (f *fakePluginRefresher) Refresh(_ context.Context, siteID, credentialID uuid.UUID, siteType string, fields map[string]string) (map[string]string, error) {
 	f.calls++
 	f.gotSite = siteType
+	f.gotSiteID = siteID
+	f.gotCredentialID = credentialID
 	f.gotFields = fields
 	if f.err != nil {
 		return nil, f.err

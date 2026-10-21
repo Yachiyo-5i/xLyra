@@ -12,10 +12,6 @@ import (
 )
 
 func TestEnableAccountPoolPlugin(t *testing.T) {
-	prev := jsplugin.AccountPoolEnabled
-	t.Cleanup(func() { jsplugin.AccountPoolEnabled = prev })
-	jsplugin.AccountPoolEnabled = true
-
 	st := openAdminJSPluginStore(t)
 	manager := jsplugin.NewManager(st, nil)
 	h := Handler{}.WithJSPlugins(manager)

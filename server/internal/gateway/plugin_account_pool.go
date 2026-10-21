@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,15 +22,14 @@ import (
 )
 
 const (
-	pluginAccountRefreshLeadDefault = 300 * time.Second
-	pluginQuotaExhaustedMax         = 7 * 24 * time.Hour
-	pluginQuotaExhaustedReason      = "quota_exhausted"
-	pluginAccountAccessTokenField   = "access_token"
+	pluginQuotaExhaustedMax       = 7 * 24 * time.Hour
+	pluginQuotaExhaustedReason    = "quota_exhausted"
+	pluginAccountAccessTokenField = "access_token"
 )
 
 type pluginAccountCredentialResolver struct{}
 
-func (pluginAccountCredentialResolver) Resolve(ctx context.Context, h Handler, candidate routeengine.Candidate, _ store.GatewayCredential, key string, accountID string) (resolvedUpstreamCredential, *credentialResolveFailure) {
+func (pluginAccountCredentialResolver) Resolve(ctx context.Context, h Handler, candidate routeengine.Candidate, credential store.GatewayCredential, key string, accountID string) (resolvedUpstreamCredential, *credentialResolveFailure) {
 	item, ok := site.LookupPluginSiteType(candidate.Site.SiteType)
 	if !ok || !item.Enabled || item.Pool == nil {
 		return resolvedUpstreamCredential{}, &credentialResolveFailure{
@@ -56,7 +54,7 @@ func (pluginAccountCredentialResolver) Resolve(ctx context.Context, h Handler, c
 				TryNextCredential: true,
 			}
 		}
-		refreshed, refreshErr := h.pluginAccounts.Refresh(ctx, item.Descriptor.SiteType, cloneStringMap(fields))
+		refreshed, refreshErr := h.pluginAccounts.Refresh(ctx, candidate.Site.ID, credential.Credential.ID, item.Descriptor.SiteType, cloneStringMap(fields))
 		if refreshErr != nil {
 			return resolvedUpstreamCredential{}, &credentialResolveFailure{
 				ErrorType:         "plugin_account_refresh_failed",
@@ -140,26 +138,7 @@ func applyPluginUpstreamStreamOnly(resolved *resolvedProtocolSpec, siteType stri
 }
 
 func accountCredentialNeedsRefresh(spec jsplugin.AccountPoolSpec, fields map[string]string, now time.Time) bool {
-	if spec.Refresh.Kind == "" || spec.Refresh.Kind == "none" {
-		return false
-	}
-	name := spec.Credential.ExpiresAtField
-	if name == "" {
-		return false
-	}
-	lead := pluginAccountRefreshLeadDefault
-	if spec.Refresh.LeadSeconds != nil {
-		if *spec.Refresh.LeadSeconds < 0 {
-			lead = 0
-		} else {
-			lead = time.Duration(*spec.Refresh.LeadSeconds) * time.Second
-		}
-	}
-	seconds, ok := parseUnixSeconds(fields[name])
-	if !ok {
-		return true
-	}
-	return time.Unix(seconds, 0).Before(now.Add(lead))
+	return site.PluginAccountNeedsRefresh(spec, fields, now)
 }
 
 func pluginAccountBaseURL(item site.PluginSiteType, fields map[string]string) (string, error) {
@@ -242,28 +221,6 @@ func parseAccountCredentialFields(raw string) (map[string]string, error) {
 		}
 	}
 	return fields, nil
-}
-
-func parseUnixSeconds(raw string) (int64, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0, false
-	}
-	if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
-		return normalizeUnixSeconds(n), true
-	}
-	value, err := strconv.ParseFloat(raw, 64)
-	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0, false
-	}
-	return normalizeUnixSeconds(int64(value)), true
-}
-
-func normalizeUnixSeconds(n int64) int64 {
-	if n > 10_000_000_000 {
-		return n / 1000
-	}
-	return n
 }
 
 func cloneStringMap(in map[string]string) map[string]string {

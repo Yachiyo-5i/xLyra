@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ import (
 const (
 	pluginAccountRefreshLeaseTTL  = 2 * time.Minute
 	pluginAccountRefreshLeaseWait = 250 * time.Millisecond
+	pluginAccountRefreshLead      = 300 * time.Second
 	pluginLoginResultTTL          = 10 * time.Minute
 	pluginImportMaxFiles          = 50
 	pluginImportMaxAccounts       = 200
@@ -31,10 +33,6 @@ const (
 // Login sessions live in the process that called StartLogin. A poll that lands
 // on another instance, or a restart, loses the session. Replacing the runtime
 // snapshot (catalog reload) drops in-flight sessions the same way.
-//
-// P3-7 may add a gateway refresher. Align it with Refresh:
-//
-//	Refresh(ctx context.Context, fields map[string]string) (map[string]string, error)
 //
 // Credential maps and PluginLoginStart.Credential / PluginLoginPoll.Credential
 // hold secrets. Do not log them or put them on an API response.
@@ -633,6 +631,81 @@ func (p pluginAccountAPI) failRefresh(ctx context.Context, credential store.Site
 	scrubbed := redactCredentialError(cause, fields, p.secretNames())
 	p.s.recordAccountRefreshFailure(ctx, credential, scrubbed, func(error) bool { return reauth })
 	return scrubbed
+}
+
+// RefreshPluginAccountForGateway renews one stored account for a gateway
+// request. The same credential's refreshes share the site refresh lease.
+// Inside the lease the stored bag is read again, so a refresh that already
+// landed is not repeated. A successful refresh is written back. A dead grant
+// is marked for reauthorization and still matches
+// accountauth.ErrReauthorizationRequired. fields is the bag the gateway
+// already decrypted; the stored bag wins.
+func (s *Service) RefreshPluginAccountForGateway(ctx context.Context, siteID, credentialID uuid.UUID, siteType string, fields map[string]string) (map[string]string, error) {
+	provider, ok := s.pluginAccountProvider(siteType)
+	if !ok {
+		return nil, errors.New("plugin account pool is not configured")
+	}
+	api, ok := provider.(pluginAccountAPI)
+	if !ok {
+		return nil, errors.New("plugin account pool is not configured")
+	}
+	return api.refreshForGateway(ctx, siteID, credentialID, fields)
+}
+
+func (p pluginAccountAPI) refreshForGateway(ctx context.Context, siteID, credentialID uuid.UUID, _ map[string]string) (map[string]string, error) {
+	if err := p.requireSite(ctx, siteID); err != nil {
+		return nil, err
+	}
+	defer p.s.siteLocks.lock(siteID)()
+	repo := store.NewSiteCredentialRepository(p.s.db.DB())
+	credential, err := repo.GetByID(ctx, credentialID)
+	if err != nil {
+		return nil, err
+	}
+	if credential.SiteID != siteID || !store.IsAccountCredentialTypeOf(credential.CredentialType, p.siteType) {
+		return nil, fmt.Errorf("%s account was not found", p.siteType)
+	}
+	var fields map[string]string
+	err = p.s.withPluginRefreshLease(ctx, credential.ID, func() error {
+		current, err := repo.GetByID(ctx, credentialID)
+		if err != nil {
+			return err
+		}
+		stored, err := p.readCredentialFields(current)
+		if err != nil {
+			return err
+		}
+		if p.pool == nil || !PluginAccountNeedsRefresh(*p.pool, stored, time.Now()) {
+			fields = stored
+			return nil
+		}
+		refreshed, refreshErr := p.runtime.Refresh(ctx, cloneStringMap(stored))
+		if refreshErr != nil {
+			return p.failGatewayRefresh(ctx, current, refreshErr, stored)
+		}
+		if strings.TrimSpace(refreshed[p.accessField()]) == "" {
+			return fmt.Errorf("refreshed account is missing %s", p.accessField())
+		}
+		if _, err := p.saveCredentialFields(ctx, current, refreshed); err != nil {
+			return err
+		}
+		fields = refreshed
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fields, nil
+}
+
+func (p pluginAccountAPI) failGatewayRefresh(ctx context.Context, credential store.SiteCredential, cause error, fields map[string]string) error {
+	reauth := errors.Is(cause, accountauth.ErrReauthorizationRequired)
+	scrubbed := redactCredentialError(cause, fields, p.secretNames())
+	p.s.recordAccountRefreshFailure(ctx, credential, scrubbed, func(error) bool { return reauth })
+	if !reauth {
+		return scrubbed
+	}
+	return fmt.Errorf("%s: %w", scrubbed.Error(), accountauth.ErrReauthorizationRequired)
 }
 
 func (p pluginAccountAPI) readCredentialFields(credential store.SiteCredential) (map[string]string, error) {
@@ -1284,6 +1357,58 @@ func redactText(text string, fields map[string]string, secrets map[string]struct
 		text = strings.ReplaceAll(text, value, "[redacted]")
 	}
 	return text
+}
+
+// PluginAccountNeedsRefresh reports whether a decrypted account bag should be
+// renewed before this request. A missing or unreadable expiry is renewed.
+// An expiry exactly leadSeconds away is not.
+func PluginAccountNeedsRefresh(spec jsplugin.AccountPoolSpec, fields map[string]string, now time.Time) bool {
+	if spec.Refresh.Kind == "" || spec.Refresh.Kind == "none" {
+		return false
+	}
+	name := spec.Credential.ExpiresAtField
+	if name == "" {
+		return false
+	}
+	lead := pluginAccountRefreshLead
+	if spec.Refresh.LeadSeconds != nil {
+		if *spec.Refresh.LeadSeconds < 0 {
+			lead = 0
+		} else {
+			lead = time.Duration(*spec.Refresh.LeadSeconds) * time.Second
+		}
+	}
+	raw := ""
+	if fields != nil {
+		raw = fields[name]
+	}
+	seconds, ok := parsePluginUnixSeconds(raw)
+	if !ok {
+		return true
+	}
+	return time.Unix(seconds, 0).Before(now.Add(lead))
+}
+
+func parsePluginUnixSeconds(raw string) (int64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+	if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return normalizePluginUnixSeconds(n), true
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, false
+	}
+	return normalizePluginUnixSeconds(int64(value)), true
+}
+
+func normalizePluginUnixSeconds(n int64) int64 {
+	if n > 10_000_000_000 {
+		return n / 1000
+	}
+	return n
 }
 
 func (s *Service) withPluginRefreshLease(ctx context.Context, credentialID uuid.UUID, fn func() error) error {

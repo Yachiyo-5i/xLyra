@@ -12,9 +12,6 @@ import (
 )
 
 func TestApplyAccountPoolRuntime(t *testing.T) {
-	if !jsplugin.AccountPoolEnabled {
-		t.Fatal("account pool plugins are still gated")
-	}
 	svc := site.NewService(nil, "test-master-key")
 	logger, logs := discardLogger()
 	t.Cleanup(func() {

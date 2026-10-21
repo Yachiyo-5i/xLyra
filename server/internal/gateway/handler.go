@@ -55,6 +55,14 @@ func (h Handler) WithPluginAccountRefresher(refresher PluginAccountRefresher) Ha
 	return h
 }
 
+// WithHTTPClient replaces the upstream HTTP client. A nil client is ignored.
+func (h Handler) WithHTTPClient(client *http.Client) Handler {
+	if client != nil {
+		h.httpClient = client
+	}
+	return h
+}
+
 func NewHandler(logger *slog.Logger, authService *auth.Service, routerService *routeengine.Service, db *store.Store, masterKey string, confFiles ...*config.ConfigFile) Handler {
 	return NewHandlerWithTimeZone(logger, authService, routerService, db, masterKey, config.ResolveTimeZone(), confFiles...)
 }

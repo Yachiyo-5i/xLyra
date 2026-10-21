@@ -24,9 +24,10 @@ type siteTypeInfo struct {
 }
 
 type siteTypeAccountCapabilities struct {
-	LoginKind       string `json:"login_kind"`
-	SupportsImport  bool   `json:"supports_import"`
-	SupportsRegions bool   `json:"supports_regions"`
+	LoginKind       string             `json:"login_kind"`
+	SupportsImport  bool               `json:"supports_import"`
+	SupportsRegions bool               `json:"supports_regions"`
+	UI              *sitepkg.AccountUI `json:"ui,omitempty"`
 }
 
 func (h Handler) ListSiteTypes(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +48,7 @@ func (h Handler) ListSiteTypes(w http.ResponseWriter, r *http.Request) {
 				LoginKind:       desc.Accounts.LoginKind,
 				SupportsImport:  desc.Accounts.SupportsImport,
 				SupportsRegions: desc.Accounts.SupportsRegions,
+				UI:              desc.Accounts.UI,
 			}
 		}
 		info := siteTypeInfo{

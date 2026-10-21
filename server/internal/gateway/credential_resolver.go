@@ -11,12 +11,13 @@ import (
 	"xlyra/server/internal/store"
 )
 
-// PluginAccountRefresher renews one plugin account-pool credential bundle.
-// fields is the decrypted bag. The returned bag is what this request uses.
-// A dead grant must match accountauth.ErrReauthorizationRequired.
-// P3-8 implements this in app; the gateway does not persist the result.
+// PluginAccountRefresher renews one plugin account-pool credential.
+// siteID and credentialID identify the stored bundle. fields is the bag this
+// request already decrypted. The returned bag is what this request uses.
+// A successful refresh must be written back. A dead grant must match
+// accountauth.ErrReauthorizationRequired.
 type PluginAccountRefresher interface {
-	Refresh(ctx context.Context, siteType string, fields map[string]string) (map[string]string, error)
+	Refresh(ctx context.Context, siteID, credentialID uuid.UUID, siteType string, fields map[string]string) (map[string]string, error)
 }
 
 // gatewayOAuth is the oauth surface the gateway calls. *oauthsvc.Service

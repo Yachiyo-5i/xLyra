@@ -121,10 +121,22 @@ func sameSiteTypeInfo(got, want siteTypeInfo) bool {
 	if (gotAccounts == nil) != (wantAccounts == nil) {
 		return false
 	}
-	if gotAccounts == nil {
+	return sameAccountCapabilities(gotAccounts, wantAccounts)
+}
+
+func sameAccountCapabilities(got, want *siteTypeAccountCapabilities) bool {
+	if (got == nil) != (want == nil) {
+		return false
+	}
+	if got == nil {
 		return true
 	}
-	return *gotAccounts == *wantAccounts
+	if got.LoginKind != want.LoginKind || got.SupportsImport != want.SupportsImport || got.SupportsRegions != want.SupportsRegions {
+		return false
+	}
+	gotUI, err1 := json.Marshal(got.UI)
+	wantUI, err2 := json.Marshal(want.UI)
+	return err1 == nil && err2 == nil && string(gotUI) == string(wantUI)
 }
 
 func TestSiteTypeIconURLReadsRegistry(t *testing.T) {
