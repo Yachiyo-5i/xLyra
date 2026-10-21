@@ -335,6 +335,57 @@ export interface RewritePayloadContext {
   protocol: string;
 }
 
+export interface AccountLoginContext {
+  siteType: string;
+  baseURL: string;
+  /** Login parameters from the admin UI. Not credentials. */
+  params: Record<string, string>;
+  /** Unix time in milliseconds. */
+  now: number;
+}
+
+export type AccountLoginStatus = "pending" | "complete";
+
+export interface AccountLoginResult {
+  /** Must be account_login. */
+  kind: string;
+  status: AccountLoginStatus;
+  verificationURL?: string;
+  userCode?: string;
+  interval?: number;
+  /** Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected. */
+  credential?: Record<string, string>;
+}
+
+export interface AccountCredentialContext {
+  siteType: string;
+  baseURL: string;
+  /** Non-secret credential fields only. Access tokens and other secrets are omitted. */
+  fields: Record<string, string>;
+  /** Unix time in milliseconds. */
+  now: number;
+}
+
+export type AccountRefreshStatus = "ok" | "reauth";
+
+export interface AccountRefreshResult {
+  /** Must be account_refresh. */
+  kind: string;
+  status: AccountRefreshStatus;
+  /** Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected. */
+  credential?: Record<string, string>;
+}
+
+export type AccountSummaryStatus = "ok" | "unavailable";
+
+export interface AccountSummaryResult {
+  /** Must be account_summary. */
+  kind: string;
+  status: AccountSummaryStatus;
+  remark?: string;
+  entries: ProbeEntry[];
+}
+
 export type PluginKind = "quota_probe" | "protocol" | "model_list" | "credential_check" | "site_detect" | "error_classifier" | "model_metadata" | "pricing_parse" | "automation" | "site_provider";
 
 export interface PluginMeta {
@@ -417,10 +468,22 @@ export type SiteProviderCheck = (ctx: ProbeContext, steps: ProbeStep[]) => Crede
 export type SiteProviderClassify = (ctx: ErrorClassifyContext, input: ErrorClassifyInput) => ErrorClassifyResult;
 export type SiteProviderRewritePayload = (ctx: RewritePayloadContext, payload: Record<string, unknown>) => Record<string, unknown>;
 
+export type AccountLoginDecision = SteppedDecision<AccountLoginResult>;
+export type AccountRefreshDecision = SteppedDecision<AccountRefreshResult>;
+export type AccountSummaryDecision = SteppedDecision<AccountSummaryResult>;
+export type SiteProviderStartLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderPollLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderRefreshTokens = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountRefreshDecision;
+export type SiteProviderSummarizeAccount = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountSummaryDecision;
+
 export interface SiteProviderHooks {
   probe?: SiteProviderProbe;
   listModels?: SiteProviderListModels;
   check?: SiteProviderCheck;
   classify?: SiteProviderClassify;
   rewritePayload?: SiteProviderRewritePayload;
+  startLogin?: SiteProviderStartLogin;
+  pollLogin?: SiteProviderPollLogin;
+  refreshTokens?: SiteProviderRefreshTokens;
+  summarizeAccount?: SiteProviderSummarizeAccount;
 }

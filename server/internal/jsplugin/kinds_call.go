@@ -10,7 +10,8 @@ import (
 
 // SteppedDecision is one hook return of a stepped kind other than quota_probe:
 // the next request, the final result, or an error. Result holds a
-// *ModelListResult, *CredentialCheckResult or *SiteDetectResult.
+// *ModelListResult, *CredentialCheckResult, *SiteDetectResult,
+// *AccountLoginResult, *AccountRefreshResult, or *AccountSummaryResult.
 type SteppedDecision struct {
 	Request     *ProbeRequest
 	Result      any
@@ -27,8 +28,23 @@ func newSteppedResult(kind string) any {
 		return &CredentialCheckResult{}
 	case KindSiteDetect:
 		return &SiteDetectResult{}
+	case KindAccountLogin:
+		return &AccountLoginResult{}
+	case KindAccountRefresh:
+		return &AccountRefreshResult{}
+	case KindAccountSummary:
+		return &AccountSummaryResult{}
 	}
 	return nil
+}
+
+func isAccountResultKind(kind string) bool {
+	switch kind {
+	case KindAccountLogin, KindAccountRefresh, KindAccountSummary:
+		return true
+	default:
+		return false
+	}
 }
 
 // CallStepped runs the hook of a model_list, credential_check or site_detect
@@ -58,6 +74,28 @@ func (p *Plugin) CallSteppedHook(ctx context.Context, hook, resultKind string, p
 		ctxValue = encodeValue(DetectContext{BaseURL: probeCtx.BaseURL, Now: probeCtx.Now}).(map[string]any)
 	}
 	out, logs, dropped, err := p.callHook(ctx, hook, spec.Timeout, len(steps), ctxValue, stepsAsValue(steps))
+	if err != nil {
+		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, err
+	}
+	decision, err := decodeSteppedDecision(out, resultKind)
+	if err != nil {
+		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, hook, len(steps), 0)
+	}
+	decision.Logs, decision.DroppedLogs = logs, dropped
+	return decision, nil
+}
+
+// CallAccountHook runs one account-pool hook and decodes resultKind
+// (account_login, account_refresh, or account_summary). The timeout is the
+// stepped hook budget, 200ms. A missing export does not enter the runtime.
+func (p *Plugin) CallAccountHook(ctx context.Context, hook, resultKind string, ctxValue map[string]any, steps []ProbeStep) (SteppedDecision, error) {
+	if p == nil || !p.HasHook(hook) {
+		return SteppedDecision{}, fmt.Errorf("%s hook is missing", hook)
+	}
+	if !isAccountResultKind(resultKind) {
+		return SteppedDecision{}, fmt.Errorf("kind %q is not an account result kind", resultKind)
+	}
+	out, logs, dropped, err := p.callHook(ctx, hook, probeHookTimeout, len(steps), ctxValue, stepsAsValue(steps))
 	if err != nil {
 		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, err
 	}

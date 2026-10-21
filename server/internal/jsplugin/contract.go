@@ -353,6 +353,73 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	}, nil
 }
 
+// Account-pool hook result kinds. These are not plugin kinds: a site_provider
+// package returns them from startLogin, pollLogin, refreshTokens, and
+// summarizeAccount. Token values never appear in these payloads.
+const (
+	KindAccountLogin   = "account_login"
+	KindAccountRefresh = "account_refresh"
+	KindAccountSummary = "account_summary"
+)
+
+// AccountLoginStatuses are the account_login status values.
+var AccountLoginStatuses = []string{"pending", "complete"}
+
+// AccountRefreshStatuses are the account_refresh status values.
+// reauth means the grant is dead. A transport failure is not this status.
+var AccountRefreshStatuses = []string{"ok", "reauth"}
+
+// AccountSummaryStatuses are the account_summary status values.
+var AccountSummaryStatuses = []string{"ok", "unavailable"}
+
+// AccountLoginContext is the credential-free object passed to startLogin and
+// pollLogin. It carries login UI parameters only, never tokens.
+type AccountLoginContext struct {
+	SiteType string            `ts:"siteType"`
+	BaseURL  string            `ts:"baseURL"`
+	Params   map[string]string `ts:"params,doc=Login parameters from the admin UI. Not credentials."`
+	Now      int64             `ts:"now,doc=Unix time in milliseconds."`
+}
+
+// AccountLoginResult is the account_login hook result.
+// Credential values for secret fields must be {{secret.<field>}} naming a
+// SecretBag field. A raw token in this object is rejected.
+type AccountLoginResult struct {
+	Kind            string            `ts:"kind,doc=Must be account_login." enum:"account_login"`
+	Status          string            `ts:"status,type=AccountLoginStatus" enum:"pending,complete"`
+	VerificationURL string            `ts:"verificationURL,optional"`
+	UserCode        string            `ts:"userCode,optional"`
+	Interval        *int              `ts:"interval,optional"`
+	Credential      map[string]string `ts:"credential,optional,doc=Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected." max:"16"`
+}
+
+// AccountCredentialContext is the object passed to refreshTokens and
+// summarizeAccount. Fields are non-secret credential fields only.
+type AccountCredentialContext struct {
+	SiteType string            `ts:"siteType"`
+	BaseURL  string            `ts:"baseURL"`
+	Fields   map[string]string `ts:"fields,doc=Non-secret credential fields only. Access tokens and other secrets are omitted."`
+	Now      int64             `ts:"now,doc=Unix time in milliseconds."`
+}
+
+// AccountRefreshResult is the account_refresh hook result.
+// Credential uses the same {{secret.<field>}} rule as account_login.
+type AccountRefreshResult struct {
+	Kind       string            `ts:"kind,doc=Must be account_refresh." enum:"account_refresh"`
+	Status     string            `ts:"status,type=AccountRefreshStatus" enum:"ok,reauth"`
+	Credential map[string]string `ts:"credential,optional,doc=Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected." max:"16"`
+}
+
+// AccountSummaryResult is the account_summary hook result.
+// entries use the quota probe entry shape. remark must not contain secrets;
+// the host scrubs it anyway.
+type AccountSummaryResult struct {
+	Kind    string       `ts:"kind,doc=Must be account_summary." enum:"account_summary"`
+	Status  string       `ts:"status,type=AccountSummaryStatus" enum:"ok,unavailable"`
+	Remark  string       `ts:"remark,optional"`
+	Entries []ProbeEntry `ts:"entries"`
+}
+
 func optionalString(value any, path string) (string, error) {
 	if value == nil {
 		return "", nil

@@ -68,6 +68,11 @@ var tsTypes = []tsType{
 	{value: AutomationAction{}, name: "AutomationAction", enum: &tsEnum{"AutomationNoticeLevel", []string{"info", "warn"}}},
 	{value: AutomationResult{}, name: "AutomationResult"},
 	{value: RewritePayloadContext{}, name: "RewritePayloadContext", section: "site_provider"},
+	{value: AccountLoginContext{}, name: "AccountLoginContext"},
+	{value: AccountLoginResult{}, name: "AccountLoginResult", enum: &tsEnum{"AccountLoginStatus", AccountLoginStatuses}},
+	{value: AccountCredentialContext{}, name: "AccountCredentialContext"},
+	{value: AccountRefreshResult{}, name: "AccountRefreshResult", enum: &tsEnum{"AccountRefreshStatus", AccountRefreshStatuses}},
+	{value: AccountSummaryResult{}, name: "AccountSummaryResult", enum: &tsEnum{"AccountSummaryStatus", AccountSummaryStatuses}},
 }
 
 // TypeDeclarations renders the plugin SDK .d.ts: interfaces generated from the
@@ -132,12 +137,24 @@ export type SiteProviderCheck = (ctx: ProbeContext, steps: ProbeStep[]) => Crede
 export type SiteProviderClassify = (ctx: ErrorClassifyContext, input: ErrorClassifyInput) => ErrorClassifyResult;
 export type SiteProviderRewritePayload = (ctx: RewritePayloadContext, payload: Record<string, unknown>) => Record<string, unknown>;
 
+export type AccountLoginDecision = SteppedDecision<AccountLoginResult>;
+export type AccountRefreshDecision = SteppedDecision<AccountRefreshResult>;
+export type AccountSummaryDecision = SteppedDecision<AccountSummaryResult>;
+export type SiteProviderStartLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderPollLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderRefreshTokens = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountRefreshDecision;
+export type SiteProviderSummarizeAccount = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountSummaryDecision;
+
 export interface SiteProviderHooks {
   probe?: SiteProviderProbe;
   listModels?: SiteProviderListModels;
   check?: SiteProviderCheck;
   classify?: SiteProviderClassify;
   rewritePayload?: SiteProviderRewritePayload;
+  startLogin?: SiteProviderStartLogin;
+  pollLogin?: SiteProviderPollLogin;
+  refreshTokens?: SiteProviderRefreshTokens;
+  summarizeAccount?: SiteProviderSummarizeAccount;
 }
 `
 
