@@ -1,0 +1,7 @@
+{
+  "name": "other error",
+  "hook": "classify",
+  "ctx": { "siteType": "example.minimal/chat" },
+  "input": { "status": 429, "code": "rate_limit_exceeded", "message": "too many requests" },
+  "expect": { "result": { "class": "unknown" } }
+}

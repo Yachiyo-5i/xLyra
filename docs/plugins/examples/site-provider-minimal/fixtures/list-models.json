@@ -1,0 +1,21 @@
+{
+  "name": "nonstandard model list",
+  "hook": "listModels",
+  "ctx": {
+    "siteType": "example.minimal/chat",
+    "baseURL": "https://api.example.com",
+    "credentialType": "api_key",
+    "now": 0
+  },
+  "responses": [
+    {
+      "match": { "method": "GET", "path": "/api/models" },
+      "status": 200,
+      "json": { "items": [{ "model_id": "m1", "title": "Model 1" }] }
+    }
+  ],
+  "expect": {
+    "requests": [{ "method": "GET", "path": "/api/models" }],
+    "result": { "models": [{ "name": "m1", "displayName": "Model 1" }] }
+  }
+}
