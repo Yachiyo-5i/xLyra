@@ -179,9 +179,17 @@ func (a Grok) fetchBilling(ctx context.Context, site SiteConfig, token string) (
 		return grokBilling{}, fmt.Errorf("decode grok billing: %w", err)
 	}
 	config, _ := payload["config"].(map[string]any)
+	period, _ := config["currentPeriod"].(map[string]any)
 	usedPercent, ok := grokBillingFloat(config["creditUsagePercent"])
 	if !ok {
-		return grokBilling{}, fmt.Errorf("grok billing response has no credit usage percent")
+		// The upstream omits zero values: a fresh period without any usage has no
+		// creditUsagePercent (and no productUsage). A response that still describes
+		// the current period therefore means 0% used; anything else is not a billing
+		// response at all.
+		if !grokBillingHasPeriod(config, period) {
+			return grokBilling{}, fmt.Errorf("grok billing response has no credit usage percent")
+		}
+		usedPercent = 0
 	}
 	if usedPercent < 0 {
 		usedPercent = 0
@@ -189,7 +197,6 @@ func (a Grok) fetchBilling(ctx context.Context, site SiteConfig, token string) (
 	if usedPercent > 100 {
 		usedPercent = 100
 	}
-	period, _ := config["currentPeriod"].(map[string]any)
 	product := ""
 	if items, _ := config["productUsage"].([]any); len(items) > 0 {
 		first, _ := items[0].(map[string]any)
@@ -204,6 +211,12 @@ func (a Grok) fetchBilling(ctx context.Context, site SiteConfig, token string) (
 		product:          product,
 		raw:              payload,
 	}, nil
+}
+
+// grokBillingHasPeriod reports whether the billing config carries a period.
+func grokBillingHasPeriod(config map[string]any, period map[string]any) bool {
+	return anyString(period["start"]) != "" || anyString(period["end"]) != "" ||
+		anyString(config["billingPeriodStart"]) != "" || anyString(config["billingPeriodEnd"]) != ""
 }
 
 func grokBillingFloat(value any) (float64, bool) {

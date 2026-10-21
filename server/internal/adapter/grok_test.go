@@ -208,6 +208,64 @@ func TestGrokSummaryReadsBilling(t *testing.T) {
 	}
 }
 
+// A fresh billing period without usage has no creditUsagePercent: the upstream
+// leaves zero values out. That is 0% used, not a failed quota fetch.
+func TestGrokSummaryTreatsMissingUsageAsZeroPercent(t *testing.T) {
+	cases := map[string]string{
+		"period only":    `{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-10-19T17:04:45.204017+00:00","end":"2026-10-26T17:04:45.204017+00:00"},"isUnifiedBillingUser":true}}`,
+		"billing period": `{"config":{"billingPeriodStart":"2026-10-19T17:04:45Z","billingPeriodEnd":"2026-10-26T17:04:45Z"}}`,
+	}
+	for name, billing := range cases {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.HasSuffix(r.URL.Path, "/billing"):
+				_, _ = w.Write([]byte(billing))
+			case strings.HasSuffix(r.URL.Path, "/user"):
+				_, _ = w.Write([]byte(`{"subscriptionTier":"GrokPro"}`))
+			default:
+				_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
+			}
+		}))
+		summary, err := NewGrok().SummarizeAPIKey(context.Background(), grokTestSite(t, server.URL), grokTestToken(t, "premium"))
+		server.Close()
+		if err != nil {
+			t.Fatalf("%s: SummarizeAPIKey() error = %v", name, err)
+		}
+		usage, _ := summary.Usage.(map[string]any)
+		if usage["quota_status"] != "ok" || usage["unit"] != "percent" || usage["used"] != 0.0 || usage["remaining"] != 100.0 {
+			t.Fatalf("%s: usage = %#v, want 0%% used / 100%% remaining", name, usage)
+		}
+		if usage["period_end"] == "" {
+			t.Fatalf("%s: period end was not kept: %#v", name, usage)
+		}
+	}
+}
+
+// A response that is not a billing config must still count as unknown.
+func TestGrokSummaryKeepsQuotaUnknownForEmptyBilling(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/billing"):
+			_, _ = w.Write([]byte(`{"config":{}}`))
+		case strings.HasSuffix(r.URL.Path, "/user"):
+			_, _ = w.Write([]byte(`{"subscriptionTier":"GrokPro"}`))
+		default:
+			_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
+		}
+	}))
+	defer server.Close()
+	summary, err := NewGrok().SummarizeAPIKey(context.Background(), grokTestSite(t, server.URL), grokTestToken(t, "premium"))
+	if err != nil {
+		t.Fatalf("SummarizeAPIKey() error = %v", err)
+	}
+	usage, _ := summary.Usage.(map[string]any)
+	if usage["quota_status"] != "unknown" {
+		t.Fatalf("usage = %#v, want unknown quota", usage)
+	}
+}
+
 func TestGrokSummaryOmitsImageModelForFreeTier(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
