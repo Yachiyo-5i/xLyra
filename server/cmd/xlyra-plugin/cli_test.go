@@ -141,6 +141,18 @@ func TestWriteTreeKeepsPackages(t *testing.T) {
 	}
 }
 
+func TestUsageListsSupportedKinds(t *testing.T) {
+	out := captureStderr(t, usage)
+	names := make([]string, 0, len(jsplugin.SupportedKinds()))
+	for _, info := range jsplugin.SupportedKinds() {
+		names = append(names, info.Name)
+	}
+	want := "[--kind " + strings.Join(names, "|") + "]"
+	if !strings.Contains(out, want) || !strings.Contains(want, "site_provider") {
+		t.Fatalf("usage kind list missing %q:\n%s", want, out)
+	}
+}
+
 func TestKindsListsSiteProvider(t *testing.T) {
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -381,6 +393,26 @@ func captureStdout(t *testing.T, fn func()) string {
 	old := os.Stdout
 	os.Stdout = w
 	defer func() { os.Stdout = old }()
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = old }()
 	fn()
 	if err := w.Close(); err != nil {
 		t.Fatal(err)
