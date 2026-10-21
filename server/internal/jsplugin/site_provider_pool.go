@@ -51,6 +51,10 @@ var (
 		"add": {}, "import": {}, "refresh_all": {}, "unnamed": {}, "refresh": {},
 		"delete": {}, "reauthorize": {}, "toggle_label": {}, "empty": {},
 		"delete_title": {}, "delete_confirm": {}, "delete_delete": {}, "login_hint": {},
+		"import_title": {}, "import_dropzone": {}, "import_hint": {}, "import_selected_count": {},
+		"import_summary": {}, "import_imported": {}, "import_failed": {}, "import_unnamed": {},
+		"import_done": {}, "import_with_count": {}, "import_submit": {}, "import_toast_done": {},
+		"import_toast_failed": {},
 	}
 )
 

@@ -35,7 +35,7 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 
 - 额度探测：`server/internal/jsplugin/builtin/xlyra.quota.*`（`src/plugin.js` 是源码，`fixtures/` 是样本）
 - API Key 站点类型：[`examples/site-provider-minimal/`](./examples/site-provider-minimal/)
-- 账号池站点类型暂无仓库内示例。其余类型暂无内置示例，请用 `xlyra-plugin init --kind <类型>` 生成的模板
+- 账号池站点类型暂无入库示例，请用 `xlyra-plugin init --kind <类型>` 生成的模板
 - 协议：`server/internal/jsplugin/builtin/xlyra.protocol.typesafe-systemone`
 
 内置插件用到的辅助函数在 `builtin/_shared/helpers.js`，由构建脚本拼进 `plugin.js`。你自己的插件需要的话，直接写在自己的源码里。

@@ -11,7 +11,7 @@
 
 `api_key` 的可选钩子用来处理这个类型和内置站点不一样的地方：额度查询、模型列表、密钥校验、错误分类、请求正文改写。五个都可以不导出。没导出的那一项走通用适配器或 xLyra 的默认行为。`account_pool` 在这五个之外还有登录、刷新、摘要钩子，哪些必填见[账号池站点](#账号池站点credentialmodelaccount_pool)。
 
-仓库里的最小 API Key 示例是 [`examples/site-provider-minimal/`](./examples/site-provider-minimal/)。下文 API Key 的清单和钩子引用 minimal 目录里的文件。
+仓库里的最小 API Key 示例是 [`examples/site-provider-minimal/`](./examples/site-provider-minimal/)。下文 API Key 的清单和钩子引用 minimal 目录里的文件。账号池没有入库示例，用 `xlyra-plugin init` 生成模板。
 
 ## 和其他 kind 的区别
 
@@ -387,7 +387,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `texts` 的值是一个字符串（各语言共用），或 `{"zh","en",...}`（最多 8 种语言，每种不超过 400 字节）。键只能是：
 
-`title`、`login_reauth_title`、`login_title`、`login_starting`、`login_instructions`、`login_authorize`、`login_waiting`、`cancel`、`region_title`、`region_description`、`region_continue`、`loading`、`add`、`import`、`refresh_all`、`unnamed`、`refresh`、`delete`、`reauthorize`、`toggle_label`、`empty`、`delete_title`、`delete_confirm`、`delete_delete`、`login_hint`
+`title`、`login_reauth_title`、`login_title`、`login_starting`、`login_instructions`、`login_authorize`、`login_waiting`、`cancel`、`region_title`、`region_description`、`region_continue`、`loading`、`add`、`import`、`refresh_all`、`unnamed`、`refresh`、`delete`、`reauthorize`、`toggle_label`、`empty`、`delete_title`、`delete_confirm`、`delete_delete`、`login_hint`、`import_title`、`import_dropzone`、`import_hint`、`import_selected_count`、`import_summary`、`import_imported`、`import_failed`、`import_unnamed`、`import_done`、`import_with_count`、`import_submit`、`import_toast_done`、`import_toast_failed`
 
 ### 钩子
 
