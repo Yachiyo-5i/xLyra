@@ -517,6 +517,7 @@ func TestSiteCredentialRepositoryDeleteAndUpdatesOffline(t *testing.T) {
 
 	credentialID := uuid.New()
 	siteID := uuid.New()
+	credential := SiteCredential{ID: credentialID, SiteID: siteID, CredentialType: " api_key ", EncryptedSecret: "secret-v1", DisplayName: "pool-a", Meta: JSON(`{"old":true}`)}
 	db := storeRepositoryOfflineGorm(t)
 	storeReplaceQueryCallback(t, db, func(tx *gorm.DB) {
 		item, ok := tx.Statement.Dest.(*SiteCredential)
@@ -524,17 +525,39 @@ func TestSiteCredentialRepositoryDeleteAndUpdatesOffline(t *testing.T) {
 			tx.AddError(errors.New("unexpected site credential query destination"))
 			return
 		}
-		*item = SiteCredential{ID: credentialID, SiteID: siteID, CredentialType: " api_key ", Meta: JSON(`{"old":true}`)}
+		*item = credential
+		tx.RowsAffected = 1
 		tx.Statement.RowsAffected = 1
 	})
-	var saved []SiteCredential
+	var updatedColumns []string
 	storeReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
-		item, ok := tx.Statement.Dest.(*SiteCredential)
-		if !ok {
-			tx.AddError(errors.New("unexpected site credential update destination"))
+		values, ok := tx.Statement.Dest.(map[string]any)
+		if !ok || len(values) != 1 {
+			tx.AddError(errors.New("site credential update must write one column"))
 			return
 		}
-		saved = append(saved, *item)
+		switch {
+		case values["meta"] != nil:
+			meta, ok := values["meta"].(JSON)
+			if !ok {
+				tx.AddError(errors.New("site credential meta update has the wrong type"))
+				return
+			}
+			credential.Meta = meta
+			updatedColumns = append(updatedColumns, "meta")
+		case values["credential_type"] != nil:
+			credentialType, ok := values["credential_type"].(string)
+			if !ok {
+				tx.AddError(errors.New("site credential type update has the wrong type"))
+				return
+			}
+			credential.CredentialType = credentialType
+			updatedColumns = append(updatedColumns, "credential_type")
+		default:
+			tx.AddError(errors.New("site credential update wrote an unexpected column"))
+			return
+		}
+		tx.RowsAffected = 1
 		tx.Statement.RowsAffected = 1
 	})
 	deleteCalls := 0
@@ -556,14 +579,14 @@ func TestSiteCredentialRepositoryDeleteAndUpdatesOffline(t *testing.T) {
 		t.Fatalf("DeleteBySite returned error: %v", err)
 	}
 
-	if len(saved) != 2 {
-		t.Fatalf("saved credentials = %d, want 2", len(saved))
+	if len(updatedColumns) != 2 || updatedColumns[0] != "meta" || updatedColumns[1] != "credential_type" {
+		t.Fatalf("updated columns = %#v, want meta then credential_type", updatedColumns)
 	}
-	if string(metaUpdated.Meta) != "{}" || string(saved[0].Meta) != "{}" {
-		t.Fatalf("meta update = item:%#v saved:%#v", metaUpdated, saved[0])
+	if string(metaUpdated.Meta) != "{}" || metaUpdated.EncryptedSecret != "secret-v1" || metaUpdated.DisplayName != "pool-a" {
+		t.Fatalf("meta update = %#v, want only meta replaced", metaUpdated)
 	}
-	if typeUpdated.CredentialType != "api_key:secondary" || saved[1].CredentialType != "api_key:secondary" {
-		t.Fatalf("type update = item:%#v saved:%#v", typeUpdated, saved[1])
+	if typeUpdated.CredentialType != "api_key:secondary" || typeUpdated.EncryptedSecret != "secret-v1" || string(typeUpdated.Meta) != "{}" {
+		t.Fatalf("type update = %#v, want trimmed type and the meta written above", typeUpdated)
 	}
 	if deleteCalls != 1 {
 		t.Fatalf("delete calls = %d, want 1", deleteCalls)

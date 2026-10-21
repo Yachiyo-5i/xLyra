@@ -74,6 +74,7 @@ func TestMarkGrokCredentialSyncFailedDisablesCredentialAndStateAtomically(t *tes
 					tx.AddError(gorm.ErrInvalidData)
 					return
 				}
+				tx.RowsAffected = 1
 				tx.Statement.RowsAffected = 1
 			}); err != nil {
 				t.Fatalf("replace query callback: %v", err)
@@ -88,12 +89,20 @@ func TestMarkGrokCredentialSyncFailedDisablesCredentialAndStateAtomically(t *tes
 				switch item := tx.Statement.Dest.(type) {
 				case *store.SiteCredential:
 					credential = *item
+				case map[string]any:
+					meta, ok := item["meta"].(store.JSON)
+					if !ok {
+						tx.AddError(gorm.ErrInvalidData)
+						return
+					}
+					credential.Meta = append(store.JSON(nil), meta...)
 				case *store.SiteAPIKeyState:
 					state = *item
 				default:
 					tx.AddError(gorm.ErrInvalidData)
 					return
 				}
+				tx.RowsAffected = 1
 				tx.Statement.RowsAffected = 1
 			}); err != nil {
 				t.Fatalf("replace update callback: %v", err)

@@ -171,15 +171,16 @@ func (r SiteCredentialRepository) DeleteByID(ctx context.Context, id uuid.UUID) 
 }
 
 func (r SiteCredentialRepository) UpdateMeta(ctx context.Context, id uuid.UUID, meta JSON) (SiteCredential, error) {
-	credential, err := r.GetByID(ctx, id)
-	if err != nil {
-		return SiteCredential{}, err
+	result := r.db.WithContext(ctx).Model(&SiteCredential{}).Where("id = ?", id).UpdateColumns(map[string]any{
+		"meta": jsonDefault(meta, "{}"),
+	})
+	if result.Error != nil {
+		return SiteCredential{}, fmt.Errorf("update site credential meta: %w", result.Error)
 	}
-	credential.Meta = jsonDefault(meta, "{}")
-	if err := r.db.WithContext(ctx).Save(&credential).Error; err != nil {
-		return SiteCredential{}, fmt.Errorf("update site credential meta: %w", err)
+	if result.RowsAffected == 0 {
+		return SiteCredential{}, fmt.Errorf("update site credential meta: %w", gorm.ErrRecordNotFound)
 	}
-	return credential, nil
+	return r.GetByID(ctx, id)
 }
 
 func (r SiteCredentialRepository) UpdateRoutingConfig(ctx context.Context, id uuid.UUID, params UpdateSiteCredentialRoutingConfigParams) (SiteCredential, error) {
@@ -206,26 +207,27 @@ func (r SiteCredentialRepository) UpdateRoutingConfig(ctx context.Context, id uu
 }
 
 func (r SiteCredentialRepository) UpdateSecret(ctx context.Context, id uuid.UUID, encryptedSecret string) (SiteCredential, error) {
-	var credential SiteCredential
-	db := r.db.WithContext(ctx)
-	if err := db.Where(&SiteCredential{ID: id}).First(&credential).Error; err != nil {
-		return SiteCredential{}, fmt.Errorf("update site credential secret: %w", err)
+	result := r.db.WithContext(ctx).Model(&SiteCredential{}).Where("id = ?", id).UpdateColumns(map[string]any{
+		"encrypted_secret": encryptedSecret,
+	})
+	if result.Error != nil {
+		return SiteCredential{}, fmt.Errorf("update site credential secret: %w", result.Error)
 	}
-	credential.EncryptedSecret = encryptedSecret
-	if err := db.Save(&credential).Error; err != nil {
-		return SiteCredential{}, fmt.Errorf("update site credential secret: %w", err)
+	if result.RowsAffected == 0 {
+		return SiteCredential{}, fmt.Errorf("update site credential secret: %w", gorm.ErrRecordNotFound)
 	}
-	return credential, nil
+	return r.GetByID(ctx, id)
 }
 
 func (r SiteCredentialRepository) UpdateCredentialType(ctx context.Context, id uuid.UUID, credentialType string) (SiteCredential, error) {
-	credential, err := r.GetByID(ctx, id)
-	if err != nil {
-		return SiteCredential{}, err
+	result := r.db.WithContext(ctx).Model(&SiteCredential{}).Where("id = ?", id).UpdateColumns(map[string]any{
+		"credential_type": strings.TrimSpace(credentialType),
+	})
+	if result.Error != nil {
+		return SiteCredential{}, fmt.Errorf("update site credential type: %w", result.Error)
 	}
-	credential.CredentialType = strings.TrimSpace(credentialType)
-	if err := r.db.WithContext(ctx).Save(&credential).Error; err != nil {
-		return SiteCredential{}, fmt.Errorf("update site credential type: %w", err)
+	if result.RowsAffected == 0 {
+		return SiteCredential{}, fmt.Errorf("update site credential type: %w", gorm.ErrRecordNotFound)
 	}
-	return credential, nil
+	return r.GetByID(ctx, id)
 }

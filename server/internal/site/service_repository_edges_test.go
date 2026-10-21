@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"xlyra/server/internal/store"
 )
@@ -38,14 +39,29 @@ func TestUpdateAPIKeyAllowsCacheDomainWithoutEnabled(t *testing.T) {
 			tx.RowsAffected = 1
 		case *store.SiteCredential:
 			*dest = credential
+			if len(savedMeta) > 0 {
+				dest.Meta = append(store.JSON(nil), savedMeta...)
+			}
 			tx.RowsAffected = 1
 		default:
 			tx.AddError(gorm.ErrInvalidData)
 		}
 	})
-	siteReplaceUpdateCallback(t, db, siteCaptureUpdate[store.SiteCredential](t, "site credential", func(item store.SiteCredential) {
-		savedMeta = append(store.JSON(nil), item.Meta...)
-	}))
+	siteReplaceUpdateCallback(t, db, func(tx *gorm.DB) {
+		values, ok := tx.Statement.Dest.(map[string]any)
+		if !ok {
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		meta, ok := values["meta"].(store.JSON)
+		if !ok || len(values) != 1 {
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		savedMeta = append(store.JSON(nil), meta...)
+		tx.RowsAffected = 1
+		tx.Statement.RowsAffected = 1
+	})
 	service := NewService(siteStoreWithGorm(t, db), siteTestMasterKey)
 
 	cacheDomain := " shared-project "
@@ -68,7 +84,8 @@ func TestMigrateDefaultAPIKeyCredentialScopesFirstDefaultCredential(t *testing.T
 	defaultID := uuid.New()
 	laterID := uuid.New()
 
-	var saved store.SiteCredential
+	var savedID uuid.UUID
+	var savedType string
 	db := siteGormWithCallbacks(t, siteGormCallbacks{
 		query: func(tx *gorm.DB) {
 			credential, ok := tx.Statement.Dest.(*store.SiteCredential)
@@ -80,12 +97,33 @@ func TestMigrateDefaultAPIKeyCredentialScopesFirstDefaultCredential(t *testing.T
 			tx.RowsAffected = 1
 		},
 		update: func(tx *gorm.DB) {
-			credential, ok := tx.Statement.Dest.(*store.SiteCredential)
+			values, ok := tx.Statement.Dest.(map[string]any)
+			if !ok || len(values) != 1 {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			credentialType, ok := values["credential_type"].(string)
 			if !ok {
 				tx.AddError(gorm.ErrInvalidData)
 				return
 			}
-			saved = *credential
+			where, ok := tx.Statement.Clauses["WHERE"].Expression.(clause.Where)
+			if !ok || len(where.Exprs) != 1 {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			expression, ok := where.Exprs[0].(clause.Expr)
+			if !ok || len(expression.Vars) != 1 {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			id, ok := expression.Vars[0].(uuid.UUID)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			savedID = id
+			savedType = credentialType
 			tx.RowsAffected = 1
 		},
 	})
@@ -97,11 +135,11 @@ func TestMigrateDefaultAPIKeyCredentialScopesFirstDefaultCredential(t *testing.T
 	if err != nil {
 		t.Fatalf("migrateDefaultAPIKeyCredential() error = %v, want nil", err)
 	}
-	if saved.ID != defaultID {
-		t.Fatalf("updated credential id = %s, want first default credential %s", saved.ID, defaultID)
+	if savedID != defaultID {
+		t.Fatalf("updated credential id = %s, want first default credential %s", savedID, defaultID)
 	}
-	if saved.CredentialType == defaultCredentialType || !strings.HasPrefix(saved.CredentialType, defaultCredentialType+":") {
-		t.Fatalf("updated credential type = %q, want scoped api key type", saved.CredentialType)
+	if savedType == defaultCredentialType || !strings.HasPrefix(savedType, defaultCredentialType+":") {
+		t.Fatalf("updated credential type = %q, want scoped api key type", savedType)
 	}
 }
 
@@ -109,12 +147,16 @@ func TestMigrateDefaultAPIKeyCredentialWrapsRepositoryLookupError(t *testing.T) 
 	t.Parallel()
 
 	queryErr := errors.New("default credential lookup stopped")
-	db := siteGormWithQueryError(t, queryErr)
+	db := siteGormWithCallbacks(t, siteGormCallbacks{
+		update: func(tx *gorm.DB) {
+			tx.AddError(queryErr)
+		},
+	})
 
 	err := migrateDefaultAPIKeyCredential(t.Context(), store.NewSiteCredentialRepository(db), []store.SiteCredential{
 		{ID: uuid.New(), CredentialType: defaultCredentialType},
 	})
-	assertSiteWrappedQueryError(t, "migrateDefaultAPIKeyCredential", err, queryErr, "get site credential by id")
+	assertSiteWrappedQueryError(t, "migrateDefaultAPIKeyCredential", err, queryErr, "update site credential type")
 }
 
 func TestSyncSiteModelStatusFromAPIKeyModelsDisablesModelWhenAnyLinkedAPIKeyModelIsDisabled(t *testing.T) {
@@ -234,9 +276,15 @@ func TestSetAPIKeyModelEnabledPersistsCredentialMetaWhenAPIKeyModelSyncFails(t *
 				tx.AddError(gorm.ErrInvalidData)
 			}
 		},
-		update: siteCaptureUpdate[store.SiteCredential](t, "site credential", func(credential store.SiteCredential) {
-			savedMeta = append(store.JSON(nil), credential.Meta...)
-		}),
+		update: func(tx *gorm.DB) {
+			if values, ok := tx.Statement.Dest.(map[string]any); ok {
+				if meta, ok := values["meta"].(store.JSON); ok {
+					savedMeta = append(store.JSON(nil), meta...)
+				}
+			}
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
 	})
 	got, err := service.SetAPIKeyModelEnabled(t.Context(), siteID, credentialID, " gpt-model-meta-fallback ", false)
 	if err != nil {

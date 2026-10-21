@@ -347,6 +347,10 @@ export function probe() { for (;;) {} }`
 			switch dest := tx.Statement.Dest.(type) {
 			case *store.SiteCredential:
 				savedCredential = *dest
+			case map[string]any:
+				if meta, ok := dest["meta"].(store.JSON); ok {
+					savedCredential.Meta = append(store.JSON(nil), meta...)
+				}
 			case *store.Site:
 				savedSite = *dest
 			}

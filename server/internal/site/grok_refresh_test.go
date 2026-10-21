@@ -58,9 +58,21 @@ func TestPersistGrokRefreshMapsTierQuotaAndModels(t *testing.T) {
 			tx.RowsAffected = 1
 			tx.Statement.RowsAffected = 1
 		},
-		update: siteCaptureUpdate[store.SiteCredential](t, "grok credential", func(item store.SiteCredential) {
-			savedCredential = item
-		}),
+		update: func(tx *gorm.DB) {
+			values, ok := tx.Statement.Dest.(map[string]any)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			meta, ok := values["meta"].(store.JSON)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			savedCredential.Meta = append(store.JSON(nil), meta...)
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
 	})
 	summary := adapter.APIKeySummary{
 		Usage: map[string]any{"tier": "premium_plus", "limit": int64(100), "remaining": int64(42), "used": int64(58)},
@@ -130,7 +142,7 @@ func TestPersistGrokRefreshUsesTransactionAndRollsBackWriteFailure(t *testing.T)
 			if _, ok := tx.Statement.ConnPool.(gorm.TxCommitter); ok {
 				transactionalWrites++
 			}
-			if _, ok := tx.Statement.Dest.(*store.SiteCredential); !ok {
+			if _, ok := tx.Statement.Dest.(map[string]any); !ok {
 				tx.AddError(gorm.ErrInvalidData)
 				return
 			}
@@ -428,6 +440,9 @@ func grokRefreshService(t *testing.T, modelCount int, syncErr error) (*Service, 
 			case *store.SiteCredential:
 				credential = *dest
 			case map[string]any:
+				if meta, ok := dest["meta"].(store.JSON); ok {
+					credential.Meta = meta
+				}
 			case *store.SiteState:
 				*savedSiteState = *dest
 			default:

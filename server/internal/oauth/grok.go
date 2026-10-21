@@ -335,35 +335,35 @@ func (s *Service) EnsureGrokAccessToken(ctx context.Context, credentialID uuid.U
 	if s.db == nil {
 		return "", fmt.Errorf("oauth store is not available")
 	}
-	repo := store.NewSiteCredentialRepository(s.db.DB())
-	cred, err := repo.GetByID(ctx, credentialID)
-	if err != nil {
-		return "", fmt.Errorf("load grok credential: %w", err)
-	}
-	decrypted, err := s.credentials.Decrypt(cred.EncryptedSecret)
-	if err != nil {
-		return "", fmt.Errorf("decrypt grok credential: %w", err)
-	}
-	bundle, err := DecodeGrokBundle(decrypted)
-	if err != nil {
-		return "", err
-	}
-	if bundle.AccessToken != "" && grokBundleFresh(bundle) {
-		return bundle.AccessToken, nil
-	}
-	if strings.TrimSpace(bundle.RefreshToken) == "" {
-		if strings.TrimSpace(bundle.AccessToken) == "" {
-			return "", fmt.Errorf("grok credential is missing tokens")
-		}
-		return "", fmt.Errorf("%w: access token is expired or has unknown expiry and no refresh token is available", ErrGrokReauthorizationRequired)
-	}
 	result, err, _ := s.refreshGroup.Do("grok:"+credentialID.String(), func() (any, error) {
-		return s.refreshGrokCredentialOnce(ctx, cred.ID, cred.SiteID, bundle)
+		return s.refreshCredentialWithLease(ctx, credentialID, "load grok credential", s.inspectGrokCredential, s.refreshGrokCredential)
 	})
 	if err != nil {
 		return "", err
 	}
-	return result.(string), nil
+	token, _ := result.(string)
+	return token, nil
+}
+
+func (s *Service) inspectGrokCredential(cred store.SiteCredential) (any, bool, error) {
+	decrypted, err := s.credentials.Decrypt(cred.EncryptedSecret)
+	if err != nil {
+		return nil, false, fmt.Errorf("decrypt grok credential: %w", err)
+	}
+	bundle, err := DecodeGrokBundle(decrypted)
+	if err != nil {
+		return nil, false, err
+	}
+	if bundle.AccessToken != "" && grokBundleFresh(bundle) {
+		return bundle.AccessToken, true, nil
+	}
+	if strings.TrimSpace(bundle.RefreshToken) == "" {
+		if strings.TrimSpace(bundle.AccessToken) == "" {
+			return nil, false, fmt.Errorf("grok credential is missing tokens")
+		}
+		return nil, false, fmt.Errorf("%w: access token is expired or has unknown expiry and no refresh token is available", ErrGrokReauthorizationRequired)
+	}
+	return nil, false, nil
 }
 
 func grokBundleFresh(bundle GrokCredentialBundle) bool {
@@ -383,10 +383,18 @@ func grokBundleFresh(bundle GrokCredentialBundle) bool {
 	return time.Until(time.Unix(expiresAt, 0)) > grokRefreshLead
 }
 
-func (s *Service) refreshGrokCredentialOnce(ctx context.Context, credentialID uuid.UUID, siteID uuid.UUID, current GrokCredentialBundle) (string, error) {
-	tokens, err := s.RefreshGrokTokens(ctx, siteID, current.RefreshToken)
+func (s *Service) refreshGrokCredential(ctx context.Context, cred store.SiteCredential) (any, error) {
+	decrypted, err := s.credentials.Decrypt(cred.EncryptedSecret)
 	if err != nil {
-		return "", fmt.Errorf("refresh grok token: %w", err)
+		return nil, fmt.Errorf("decrypt grok credential: %w", err)
+	}
+	current, err := DecodeGrokBundle(decrypted)
+	if err != nil {
+		return nil, err
+	}
+	tokens, err := s.RefreshGrokTokens(ctx, cred.SiteID, current.RefreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("refresh grok token: %w", err)
 	}
 	next := GrokBundleFromTokens(tokens)
 	if strings.TrimSpace(next.RefreshToken) == "" {
@@ -394,14 +402,14 @@ func (s *Service) refreshGrokCredentialOnce(ctx context.Context, credentialID uu
 	}
 	encoded, err := EncodeGrokBundle(next)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	encrypted, _, err := s.credentials.Encrypt(encoded)
 	if err != nil {
-		return "", fmt.Errorf("encrypt grok credential: %w", err)
+		return nil, fmt.Errorf("encrypt grok credential: %w", err)
 	}
-	if _, err := store.NewSiteCredentialRepository(s.db.DB()).UpdateSecret(ctx, credentialID, encrypted); err != nil {
-		return "", err
+	if _, err := store.NewSiteCredentialRepository(s.db.DB()).UpdateSecret(ctx, cred.ID, encrypted); err != nil {
+		return nil, err
 	}
 	return next.AccessToken, nil
 }
