@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteAccountCapabilities, SiteQuotaProbeEntry, SiteTypeInfo } from '@/features/sites/api/sites'
-import { accountBalanceDetails, accountLoginHintKey, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatQuotaProbeBalance, formatSiteBalance, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { accountBalanceDetails, accountLoginHintKey, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatQuotaProbeBalance, formatSiteBalance, formatSiteTypeLabel, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, siteTypeColor, siteTypeIcon, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -435,6 +435,38 @@ describe('accountLoginHintKey', () => {
     expect(accountLoginHintKey(deviceAccounts)).toBe('form.grokDeviceHint')
     expect(accountLoginHintKey(pollAccounts)).toBe('form.grokDeviceHint')
     expect(accountLoginHintKey('grok')).toBe('form.grokDeviceHint')
+  })
+})
+
+describe('plugin site type fallback', () => {
+  const pluginType = 'acme.example/chat'
+  const info: SiteTypeInfo = {
+    site_type: pluginType,
+    display_name: '示例',
+    subtitle: '示例站点',
+    credential_key: 'api_key',
+    credential_type: 'api_key',
+    requires_base_url: true,
+    show_in_create_dialog: true,
+    icon_url: '',
+    plugin_id: 'acme.example',
+    provider_status: 'enabled',
+  }
+
+  it('uses a neutral color and no icon when a plugin site type has no local mapping', () => {
+    expect(() => {
+      siteTypeColor(pluginType)
+      siteTypeIcon(pluginType)
+      siteTypeIcon(pluginType, [info])
+      formatSiteTypeLabel(pluginType, [info])
+    }).not.toThrow()
+    expect(siteTypeColor(pluginType)).toBeNull()
+    expect(siteTypeColor('openai')).toBe('#10a37f')
+    expect(siteTypeIcon(pluginType)).toBeNull()
+    expect(siteTypeIcon(pluginType, [info])).toBeNull()
+    expect(siteTypeIcon(pluginType, [{ ...info, icon_url: 'https://cdn.example/icon.webp' }])).toBe('https://cdn.example/icon.webp')
+    expect(formatSiteTypeLabel(pluginType)).toBe(pluginType)
+    expect(formatSiteTypeLabel(pluginType, [info])).toBe('示例')
   })
 })
 

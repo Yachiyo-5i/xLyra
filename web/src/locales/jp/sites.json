@@ -99,12 +99,15 @@
     "updatedAtMode": {
       "showAbsolute": "絶対時刻に切り替え",
       "showRelative": "相対時刻に切り替え"
-    }
+    },
+    "providerUnavailable": "プロバイダープラグインが無効",
+    "providerUnavailableHint": "このサイトタイプはプラグインが提供しています。プラグインは停止または削除済みです。サイトデータは残りますが、ルーティングには参加しません"
   },
   "form": {
     "createTitle": "サイトを追加",
     "backToProviders": "プロバイダー一覧へ戻る",
     "editTitle": "サイトを編集",
+    "pluginTag": "プラグイン",
     "sections": {
       "basic": "基本情報",
       "connection": "接続",

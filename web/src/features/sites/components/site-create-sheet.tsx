@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
+import { SiteTypePluginTag } from '@/features/sites/components/site-type-plugin-tag'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import {
@@ -442,7 +443,10 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-headline text-label">{st.display_name}</div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="text-headline text-label">{st.display_name}</div>
+                      <SiteTypePluginTag pluginId={st.plugin_id} />
+                    </div>
                     {subtitle ? (
                       <div className="truncate text-footnote text-label-2">{subtitle}</div>
                     ) : null}

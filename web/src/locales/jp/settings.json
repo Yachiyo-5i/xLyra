@@ -716,6 +716,12 @@
     "kindNotConnected": "この種類のプラグインは定義済みですが、xLyra にはまだ接続されていないため有効化できません。",
     "enableSuccess": "バージョンを有効化しました",
     "enableFailed": "有効化に失敗しました",
+    "errors": {
+      "untrustedNotAllowed": "このプラグイン種別は信頼済みキーによる署名が必要です。先に「信頼済みキー」で対応する公開鍵をインポートしてください",
+      "siteTypeLocked": "サイトタイプ {{from}} を使用中のサイトが {{count}} 件あります。新しいバージョンで {{to}} に変更できません",
+      "inUse": "サイトタイプ {{site_type}} を使用中のサイトが {{count}} 件あります。先にそれらのサイトを削除してください",
+      "hostsRequired": "有効にする前に、このプラグインがアクセスできるホストを確認してください"
+    },
     "disableSuccess": "プラグインを無効化しました",
     "disableFailed": "無効化に失敗しました",
     "deleteSuccess": "バージョンを削除しました",
@@ -734,7 +740,8 @@
       "errorClassifier": "エラー分類",
       "modelMetadata": "モデルメタデータ",
       "pricingParse": "価格解析",
-      "automation": "自動化"
+      "automation": "自動化",
+      "siteProvider": "サイトプロバイダー"
     },
     "metricsEmpty": "呼び出しなし",
     "metricsSummary": "失敗 {{errors}}/{{calls}}（{{rate}}%）",
@@ -771,6 +778,8 @@
     "untrustedTitle": "未信頼の署名者",
     "untrustedBody": "パッケージは署名されていますが、署名者は信頼鍵リストにありません。上で公開鍵を登録するか、確認して有効化してください。",
     "enableConfirm": "リスクを理解し、このバージョンを有効化する",
+    "hostsTitle": "ホストの確認",
+    "hostsBody": "このプラグインは次のホストへのアクセスを許可されます。確認してください",
     "permissionsTitle": "プラグインに権限を付与",
     "permissionsBody": "このプラグインは、xLyra 内で特定のイベントが起きると自動で操作を行います。有効化すると、下記の権限を付与します。",
     "permissionsList": "このバージョンに付与される権限",
@@ -849,6 +858,13 @@
     "bindQuota": "プローブを紐付け",
     "bindQuotaSuccess": "サイトクォータを紐付けました",
     "bindQuotaFailed": "紐付け失敗",
+    "siteProvider": {
+      "title": "サイトプロバイダー",
+      "siteType": "サイトタイプ ID",
+      "displayName": "表示名",
+      "hosts": "ホスト",
+      "grantedHosts": "付与済みのホスト権限"
+    },
     "columns": {
       "name": "名前",
       "id": "プラグイン ID",

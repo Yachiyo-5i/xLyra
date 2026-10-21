@@ -99,12 +99,15 @@
     "updatedAtMode": {
       "showAbsolute": "切换为绝对时间",
       "showRelative": "切换为相对时间"
-    }
+    },
+    "providerUnavailable": "提供方插件未启用",
+    "providerUnavailableHint": "该站点类型由插件提供，插件已停用或卸载；站点数据保留，但不参与路由"
   },
   "form": {
     "createTitle": "新增站点",
     "backToProviders": "返回服务商列表",
     "editTitle": "编辑站点",
+    "pluginTag": "插件",
     "sections": {
       "basic": "基础信息",
       "connection": "连接配置",

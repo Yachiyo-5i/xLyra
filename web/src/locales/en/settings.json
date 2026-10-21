@@ -716,6 +716,12 @@
     "kindNotConnected": "This plugin type is defined but not connected to xLyra yet, so it cannot be enabled.",
     "enableSuccess": "Plugin version enabled",
     "enableFailed": "Enable failed",
+    "errors": {
+      "untrustedNotAllowed": "This plugin type must be signed by a trusted key. Import the matching public key under Trusted keys first.",
+      "siteTypeLocked": "Sites are still using site type {{from}}. The new version cannot change it to {{to}} ({{count}} sites).",
+      "inUse": "{{count}} sites still use site type {{site_type}}. Delete those sites first.",
+      "hostsRequired": "Confirm the hosts this plugin may access before enabling it."
+    },
     "disableSuccess": "Plugin disabled",
     "disableFailed": "Disable failed",
     "deleteSuccess": "Version removed",
@@ -734,7 +740,8 @@
       "errorClassifier": "Error classifier",
       "modelMetadata": "Model metadata",
       "pricingParse": "Pricing parser",
-      "automation": "Automation"
+      "automation": "Automation",
+      "siteProvider": "Site provider"
     },
     "metricsEmpty": "No calls yet",
     "metricsSummary": "{{errors}}/{{calls}} failed ({{rate}}%)",
@@ -771,6 +778,8 @@
     "untrustedTitle": "Untrusted signer",
     "untrustedBody": "This package is signed, but the signer is not in your trusted keys list. Import the public key above or confirm to enable anyway.",
     "enableConfirm": "I understand the risk and want to enable this version",
+    "hostsTitle": "Confirm hosts",
+    "hostsBody": "This plugin will be allowed to access the following hosts. Please confirm.",
     "permissionsTitle": "Grant plugin permissions",
     "permissionsBody": "This plugin acts automatically when certain events happen in xLyra. Enabling it grants the permissions listed below.",
     "permissionsList": "Permissions this version will get",
@@ -849,6 +858,13 @@
     "bindQuota": "Bind probe",
     "bindQuotaSuccess": "Site quota probe bound",
     "bindQuotaFailed": "Bind failed",
+    "siteProvider": {
+      "title": "Site provider",
+      "siteType": "Site type ID",
+      "displayName": "Display name",
+      "hosts": "Hosts",
+      "grantedHosts": "Granted host permissions"
+    },
     "columns": {
       "name": "Name",
       "id": "Plugin ID",

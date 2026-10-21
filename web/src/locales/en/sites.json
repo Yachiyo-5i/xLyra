@@ -99,12 +99,15 @@
     "updatedAtMode": {
       "showAbsolute": "Switch to absolute time",
       "showRelative": "Switch to relative time"
-    }
+    },
+    "providerUnavailable": "Provider plugin disabled",
+    "providerUnavailableHint": "This site type comes from a plugin that is disabled or uninstalled. Site data is kept, but the site is not routed."
   },
   "form": {
     "createTitle": "Add Site",
     "backToProviders": "Back to providers",
     "editTitle": "Edit Site",
+    "pluginTag": "Plugin",
     "sections": {
       "basic": "Basic Info",
       "connection": "Connection",

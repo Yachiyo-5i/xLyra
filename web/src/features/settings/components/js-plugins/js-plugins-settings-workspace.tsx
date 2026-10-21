@@ -11,6 +11,19 @@ import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
 import { JSPluginVersionMenu, type VersionMenuItem } from '@/features/settings/components/js-plugins/js-plugin-version-menu'
 import { JSPluginAutomationSection } from '@/features/settings/components/js-plugins/js-plugin-automation'
+import {
+  acceptEnableDialog,
+  beginEnable,
+  cancelEnable,
+  enableFlowOffersUntrusted,
+  failEnable,
+  resumeEnableFlow,
+  type EnableFlowState,
+  type EnableFlowStep,
+  type EnableTrust,
+} from '@/features/settings/components/js-plugins/enable-flow'
+import { JSPluginSiteProviderSection } from '@/features/settings/components/js-plugins/js-plugin-site-provider'
+import { jsPluginErrorNotice, readJSPluginErrorFields } from '@/features/settings/components/js-plugins/js-plugin-errors'
 import { permissionLabelKey } from '@/features/settings/components/js-plugins/permissions'
 import { JSPluginSiteBindingSection } from '@/features/settings/components/js-plugins/js-plugin-site-binding'
 import { useSiteBinding } from '@/features/settings/components/js-plugins/use-site-binding'
@@ -44,19 +57,21 @@ import {
   disableJSPlugin,
   automationManifest,
   enableJSPluginVersion,
+  grantedHostPermissions,
   getJSPlugin,
   JS_PLUGIN_MAX_PACKAGE_BYTES,
   jsPluginQueryKeys,
   listJSPluginTrustedKeys,
   listUploadedJSPlugins,
+  siteProviderOf,
   tryJSPlugin,
   uploadJSPlugin,
   type JSPluginListItem,
   type JSPluginMetrics24h,
-  type JSPluginTrust,
   type JSPluginTrustedKey,
   type JSPluginVersion,
 } from '@/features/settings/api/js-plugins'
+import { resolveText } from '@/features/settings/lib/localized-text'
 import { listSites, sitesQueryKeys } from '@/features/sites/api/sites'
 import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
@@ -85,12 +100,35 @@ const KIND_LABEL_KEYS: Record<string, string> = {
   model_metadata: 'modelMetadata',
   pricing_parse: 'pricingParse',
   automation: 'automation',
+  site_provider: 'siteProvider',
 }
 
 function kindLabel(t: TFunction, kind: string) {
   const key = KIND_LABEL_KEYS[kind]
   if (key) return t(`settings:jsPlugins.kind.${key}`)
   return kind || '—'
+}
+
+function toastPluginFailure(t: TFunction, error: unknown, fallbackKey: string) {
+  if (!(error instanceof APIError)) {
+    toast.error(t(fallbackKey))
+    return
+  }
+  const notice = jsPluginErrorNotice(error.code, readJSPluginErrorFields(error.details))
+  toast.error(notice ? t(notice.key, notice.params) : error.message || t(fallbackKey))
+}
+
+type EnableVariables = {
+  pluginId: string
+  version: string
+  confirmUntrusted?: boolean
+  grantPermissions?: string[]
+  confirmHosts?: string[]
+}
+
+function enableTrustFor(version: JSPluginVersion | undefined, fallback: EnableTrust, confirmUntrusted?: boolean): EnableTrust {
+  if (confirmUntrusted) return version?.signer ? 'untrusted_signer' : (fallback === 'trusted' ? 'unsigned' : fallback)
+  return version?.trust ?? fallback
 }
 
 function manifestString(manifest: Record<string, unknown> | undefined, key: string) {
@@ -123,21 +161,20 @@ const UPLOADED_COLUMN_SIZING = {
 }
 
 export function JSPluginsSettingsWorkspace() {
-  const { t } = useTranslation(['settings', 'common'])
+  const { t, i18n } = useTranslation(['settings', 'common'])
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [managePlugin, setManagePlugin] = useState<JSPluginListItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ pluginId: string; version: string } | null>(null)
   const [uninstallTarget, setUninstallTarget] = useState<{ pluginId: string; name: string; versions: number } | null>(null)
-  const [enableConfirm, setEnableConfirm] = useState<{
-    pluginId: string
-    version: string
-    trust: JSPluginTrust
-    signer?: string
-    /** Automation actions the version declares; the admin grants them by enabling it. */
-    permissions: string[]
-  } | null>(null)
+  const enableFlowRef = useRef<EnableFlowState | null>(null)
+  const [enableFlow, setEnableFlow] = useState<EnableFlowState | null>(null)
   const [enableConfirmed, setEnableConfirmed] = useState(false)
+  const rememberEnableFlow = (state: EnableFlowState | null) => {
+    enableFlowRef.current = state
+    setEnableFlow(state)
+    setEnableConfirmed(false)
+  }
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadDragging, setUploadDragging] = useState(false)
   const [trustedKeysOpen, setTrustedKeysOpen] = useState(false)
@@ -203,48 +240,66 @@ export function JSPluginsSettingsWorkspace() {
   })
 
   const enableMutation = useMutation({
-    mutationFn: ({
-      pluginId,
-      version,
-      confirmUntrusted,
-      grantPermissions,
-    }: {
-      pluginId: string
-      version: string
-      confirmUntrusted?: boolean
-      grantPermissions?: string[]
-    }) =>
+    mutationFn: ({ pluginId, version, confirmUntrusted, grantPermissions, confirmHosts }: EnableVariables) =>
       enableJSPluginVersion(pluginId, version, {
         confirm_untrusted: confirmUntrusted,
         grant_permissions: grantPermissions,
+        confirm_hosts: confirmHosts,
       }),
     onSuccess: () => {
       toast.success(t('settings:jsPlugins.enableSuccess'))
-      setEnableConfirm(null)
-      setEnableConfirmed(false)
+      rememberEnableFlow(null)
       invalidateAll()
       if (managePlugin) {
         void queryClient.invalidateQueries({ queryKey: jsPluginQueryKeys.detail(managePlugin.id) })
       }
     },
     onError: (error: unknown, variables) => {
-      if (error instanceof APIError && error.code === 'js_plugin_confirm_required') {
-        const row = detailQuery.data?.versions.find((item) => item.version === variables.version)
-        setEnableConfirm({
-          pluginId: variables.pluginId,
-          version: variables.version,
-          trust: row?.signer ? 'untrusted_signer' : 'unsigned',
-          signer: row?.signer,
-          permissions: automationManifest(row?.manifest)?.permissions ?? [],
-        })
-        setEnableConfirmed(false)
+      const version = detailQuery.data?.versions.find((item) => item.version === variables.version)
+      const current = enableFlowRef.current
+      const base = current && current.pluginId === variables.pluginId && current.version === variables.version
+        ? current
+        : resumeEnableFlow({
+            pluginId: variables.pluginId,
+            version: variables.version,
+            trust: enableTrustFor(version, 'trusted', variables.confirmUntrusted),
+            signer: version?.signer,
+            permissions: automationManifest(version?.manifest)?.permissions ?? variables.grantPermissions ?? [],
+            siteProvider: manifestString(version?.manifest, 'kind') === 'site_provider',
+            confirmUntrusted: variables.confirmUntrusted,
+            grantPermissions: variables.grantPermissions,
+            confirmHosts: variables.confirmHosts,
+          })
+      const manifestKind = manifestString(version?.manifest, 'kind')
+      const code = error instanceof APIError ? error.code : undefined
+      const step = failEnable(
+        {
+          ...base,
+          signer: version?.signer ?? base.signer,
+          trust: code === 'js_plugin_confirm_required'
+            ? (version?.signer ? 'untrusted_signer' : 'unsigned')
+            : enableTrustFor(version, base.trust, variables.confirmUntrusted),
+          permissions: version ? (automationManifest(version.manifest)?.permissions ?? []) : base.permissions,
+          siteProvider: manifestKind ? manifestKind === 'site_provider' : base.siteProvider,
+        },
+        { code, fields: error instanceof APIError ? readJSPluginErrorFields(error.details) : {} },
+      )
+      if (step.type === 'cancel') {
+        rememberEnableFlow(null)
+        return
+      }
+      rememberEnableFlow(step.state)
+      if (step.type === 'dialog') return
+      if (step.type === 'toast') {
+        const notice = jsPluginErrorNotice(step.code, step.fields)
+        toast.error(notice ? t(notice.key, notice.params) : t('settings:jsPlugins.enableFailed'))
         return
       }
       if (error instanceof APIError && error.code === 'js_plugin_kind_not_connected') {
         toast.error(t('settings:jsPlugins.kindNotConnected'))
         return
       }
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.enableFailed'))
+      toastPluginFailure(t, error, 'settings:jsPlugins.enableFailed')
     },
   })
 
@@ -316,7 +371,7 @@ export function JSPluginsSettingsWorkspace() {
       }
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.deleteFailed'))
+      toastPluginFailure(t, error, 'settings:jsPlugins.deleteFailed')
     },
   })
 
@@ -329,7 +384,7 @@ export function JSPluginsSettingsWorkspace() {
       if (managePlugin?.id === pluginId) closeManage()
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof APIError ? error.message : t('settings:jsPlugins.deleteFailed'))
+      toastPluginFailure(t, error, 'settings:jsPlugins.deleteFailed')
     },
   })
 
@@ -427,6 +482,17 @@ export function JSPluginsSettingsWorkspace() {
   }, [])
 
   const enabledVersionRow = (detailQuery.data?.versions ?? []).find((row) => row.status === 'enabled')
+  const siteProviderItems = (detailQuery.data?.versions ?? []).flatMap((row) => {
+    const info = siteProviderOf(row.manifest)
+    if (!info) return []
+    return [{
+      version: row.version,
+      siteType: info.siteType,
+      displayName: resolveText(info.displayName, i18n.language) ?? '',
+      hosts: info.hosts,
+      grantedHosts: grantedHostPermissions(row.granted_permissions),
+    }]
+  })
   const bindsToSites = managePlugin?.scope === 'site'
   const siteBinding = useSiteBinding(
     managePlugin && enabledVersionRow && bindsToSites
@@ -546,22 +612,44 @@ export function JSPluginsSettingsWorkspace() {
     [t, busy, openManage, disablePlugin, requestUninstall],
   )
 
-  const requestEnable = (row: JSPluginVersion) => {
-    const permissions = automationManifest(row.manifest)?.permissions ?? []
-    // Untrusted code, or a plugin that wants to act on xLyra, needs the admin's explicit yes.
-    if ((row.trust && row.trust !== 'trusted') || permissions.length > 0) {
-      setEnableConfirm({
-        pluginId: row.plugin_id,
-        version: row.version,
-        trust: row.trust ?? 'trusted',
-        signer: row.signer,
-        permissions,
-      })
-      setEnableConfirmed(false)
+  const applyEnableStep = (step: EnableFlowStep) => {
+    if (step.type === 'cancel') {
+      rememberEnableFlow(null)
       return
     }
-    enableMutation.mutate({ pluginId: row.plugin_id, version: row.version })
+    rememberEnableFlow(step.state)
+    if (step.type !== 'request') return
+    enableMutation.mutate({
+      pluginId: step.request.pluginId,
+      version: step.request.version,
+      confirmUntrusted: step.request.confirmUntrusted,
+      grantPermissions: step.request.grantPermissions,
+      confirmHosts: step.request.confirmHosts,
+    })
   }
+
+  const requestEnable = (row: JSPluginVersion) => {
+    applyEnableStep(beginEnable({
+      pluginId: row.plugin_id,
+      version: row.version,
+      trust: row.trust ?? 'trusted',
+      signer: row.signer,
+      permissions: automationManifest(row.manifest)?.permissions ?? [],
+      siteProvider: manifestString(row.manifest, 'kind') === 'site_provider',
+    }))
+  }
+
+  const dismissEnableDialog = () => {
+    if (cancelEnable().type === 'cancel') rememberEnableFlow(null)
+  }
+
+  const submitEnableDialog = () => {
+    if (!enableFlow?.dialog) return
+    if (enableFlow.dialog === 'trust' && !enableConfirmed) return
+    applyEnableStep(acceptEnableDialog(enableFlow))
+  }
+
+  const offerUntrusted = enableFlow ? enableFlowOffersUntrusted(enableFlow) : false
 
   return (
     <div className="max-w-5xl space-y-7">
@@ -786,6 +874,8 @@ export function JSPluginsSettingsWorkspace() {
                     </FormField>
                   </section>
                 ) : null}
+
+                {siteProviderItems.length > 0 ? <JSPluginSiteProviderSection items={siteProviderItems} /> : null}
 
                 {siteBinding.applicable ? (
                   <JSPluginSiteBindingSection
@@ -1089,81 +1179,96 @@ export function JSPluginsSettingsWorkspace() {
       </Dialog>
 
       <Dialog
-        open={enableConfirm != null}
+        open={enableFlow?.dialog != null}
         onOpenChange={(open) => {
-          if (!open) {
-            setEnableConfirm(null)
-            setEnableConfirmed(false)
-          }
+          if (!open) dismissEnableDialog()
         }}
       >
         <DialogContent presentation="center">
-          <DialogHeader>
-            <DialogTitle>
-              {enableConfirm?.trust === 'untrusted_signer'
-                ? t('settings:jsPlugins.untrustedTitle')
-                : enableConfirm?.trust === 'trusted'
-                  ? t('settings:jsPlugins.permissionsTitle')
-                  : t('settings:jsPlugins.unsignedTitle')}
-            </DialogTitle>
-            <DialogDescription>
-              {enableConfirm?.trust === 'untrusted_signer'
-                ? t('settings:jsPlugins.untrustedBody')
-                : enableConfirm?.trust === 'trusted'
-                  ? t('settings:jsPlugins.permissionsBody')
-                  : t('settings:jsPlugins.unsignedBody')}
-              {enableConfirm?.signer ? (
-                <span className="mt-2 block font-mono text-footnote">{enableConfirm.signer}</span>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            {enableConfirm && enableConfirm.permissions.length > 0 ? (
-              <div className="mb-4 space-y-2">
-                <p className="text-body font-medium text-label">{t('settings:jsPlugins.permissionsList')}</p>
-                <ul className="space-y-1.5 text-body">
-                  {enableConfirm.permissions.map((permission) => {
-                    const key = permissionLabelKey(permission)
-                    return (
-                      <li key={permission} className="flex flex-col">
-                        <span className="font-mono text-footnote text-label">{permission}</span>
-                        {key ? <span className="text-footnote text-label-2">{t(key)}</span> : null}
-                      </li>
-                    )
-                  })}
+          {enableFlow?.dialog === 'hosts' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t('settings:jsPlugins.hostsTitle')}</DialogTitle>
+                <DialogDescription>{t('settings:jsPlugins.hostsBody')}</DialogDescription>
+              </DialogHeader>
+              <DialogBody>
+                <ul className="space-y-1 font-mono text-footnote text-label">
+                  {enableFlow.hosts.map((host) => (
+                    <li key={host} className="break-all">{host}</li>
+                  ))}
                 </ul>
-                <p className="text-footnote text-label-2">{t('settings:jsPlugins.permissionsScopeHint')}</p>
-              </div>
-            ) : null}
-            <label className="flex items-start gap-3 text-body">
-              <Checkbox checked={enableConfirmed} onCheckedChange={(v) => setEnableConfirmed(v === true)} />
-              <span>
-                {enableConfirm?.trust === 'trusted'
-                  ? t('settings:jsPlugins.permissionsConfirm')
-                  : t('settings:jsPlugins.enableConfirm')}
-              </span>
-            </label>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setEnableConfirm(null)}>
-              {t('common:actions.cancel')}
-            </Button>
-            <Button
-              type="button"
-              disabled={!enableConfirmed || !enableConfirm || enableMutation.isPending}
-              onClick={() =>
-                enableConfirm &&
-                enableMutation.mutate({
-                  pluginId: enableConfirm.pluginId,
-                  version: enableConfirm.version,
-                  confirmUntrusted: enableConfirm.trust !== 'trusted',
-                  grantPermissions: enableConfirm.permissions,
-                })
-              }
-            >
-              {t('settings:jsPlugins.enable')}
-            </Button>
-          </DialogFooter>
+              </DialogBody>
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={dismissEnableDialog}>
+                  {t('common:actions.cancel')}
+                </Button>
+                <Button type="button" disabled={enableMutation.isPending} onClick={submitEnableDialog}>
+                  {t('common:actions.confirm')}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {offerUntrusted
+                    ? enableFlow?.trust === 'untrusted_signer'
+                      ? t('settings:jsPlugins.untrustedTitle')
+                      : t('settings:jsPlugins.unsignedTitle')
+                    : t('settings:jsPlugins.permissionsTitle')}
+                </DialogTitle>
+                <DialogDescription>
+                  {offerUntrusted
+                    ? enableFlow?.trust === 'untrusted_signer'
+                      ? t('settings:jsPlugins.untrustedBody')
+                      : t('settings:jsPlugins.unsignedBody')
+                    : t('settings:jsPlugins.permissionsBody')}
+                  {enableFlow?.signer ? (
+                    <span className="mt-2 block font-mono text-footnote">{enableFlow.signer}</span>
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogBody>
+                {enableFlow && enableFlow.permissions.length > 0 ? (
+                  <div className="mb-4 space-y-2">
+                    <p className="text-body font-medium text-label">{t('settings:jsPlugins.permissionsList')}</p>
+                    <ul className="space-y-1.5 text-body">
+                      {enableFlow.permissions.map((permission) => {
+                        const key = permissionLabelKey(permission)
+                        return (
+                          <li key={permission} className="flex flex-col">
+                            <span className="font-mono text-footnote text-label">{permission}</span>
+                            {key ? <span className="text-footnote text-label-2">{t(key)}</span> : null}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    <p className="text-footnote text-label-2">{t('settings:jsPlugins.permissionsScopeHint')}</p>
+                  </div>
+                ) : null}
+                <label className="flex items-start gap-3 text-body">
+                  <Checkbox checked={enableConfirmed} onCheckedChange={(v) => setEnableConfirmed(v === true)} />
+                  <span>
+                    {offerUntrusted
+                      ? t('settings:jsPlugins.enableConfirm')
+                      : t('settings:jsPlugins.permissionsConfirm')}
+                  </span>
+                </label>
+              </DialogBody>
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={dismissEnableDialog}>
+                  {t('common:actions.cancel')}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!enableConfirmed || !enableFlow || enableMutation.isPending}
+                  onClick={submitEnableDialog}
+                >
+                  {t('settings:jsPlugins.enable')}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

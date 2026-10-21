@@ -716,6 +716,12 @@
     "kindNotConnected": "这种类型的插件已定义，但 xLyra 尚未接入，暂时无法启用。",
     "enableSuccess": "已启用该版本",
     "enableFailed": "启用失败",
+    "errors": {
+      "untrustedNotAllowed": "此插件类型必须由受信密钥签名，请先在「受信密钥」中导入对应公钥",
+      "siteTypeLocked": "该插件已有站点在使用站点类型 {{from}}，新版本不能改为 {{to}}（共 {{count}} 个站点）",
+      "inUse": "仍有 {{count}} 个站点在使用站点类型 {{site_type}}，请先删除这些站点",
+      "hostsRequired": "启用前需要确认该插件可访问的主机列表"
+    },
     "disableSuccess": "已停用插件",
     "disableFailed": "停用失败",
     "deleteSuccess": "已删除该版本",
@@ -734,7 +740,8 @@
       "errorClassifier": "错误分类",
       "modelMetadata": "模型元数据",
       "pricingParse": "价格解析",
-      "automation": "自动化"
+      "automation": "自动化",
+      "siteProvider": "站点类型"
     },
     "metricsEmpty": "暂无调用",
     "metricsSummary": "{{errors}}/{{calls}} 失败（{{rate}}%）",
@@ -771,6 +778,8 @@
     "untrustedTitle": "未受信的签名方",
     "untrustedBody": "包已签名，但签名方不在受信公钥列表中。可在上方导入公钥，或确认后仍要启用。",
     "enableConfirm": "我了解风险，仍要启用此版本",
+    "hostsTitle": "确认可访问的主机",
+    "hostsBody": "该插件将被允许访问以下主机，请确认",
     "permissionsTitle": "授予插件权限",
     "permissionsBody": "这个插件会在 xLyra 内发生某些事件时自动执行操作。启用即表示授予它下面列出的权限。",
     "permissionsList": "此版本将获得的权限",
@@ -849,6 +858,13 @@
     "bindQuota": "绑定探测",
     "bindQuotaSuccess": "已绑定站点额度探测",
     "bindQuotaFailed": "绑定失败",
+    "siteProvider": {
+      "title": "站点提供方",
+      "siteType": "站点类型 ID",
+      "displayName": "显示名",
+      "hosts": "主机",
+      "grantedHosts": "已授予的主机权限"
+    },
     "columns": {
       "name": "名称",
       "id": "插件 ID",

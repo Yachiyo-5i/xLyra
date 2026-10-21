@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { SiteBalanceDetailsContent } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
+import { ProviderUnavailableBadge } from '@/features/sites/components/provider-unavailable-badge'
 import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
@@ -203,6 +204,7 @@ function MobileSiteCard({
         tags={(
           <>
             <SiteTypeBadge siteType={site.site_type} siteTypes={siteTypes} />
+            <ProviderUnavailableBadge status={site.provider_status} />
             <SitePlanBadge site={site} />
             {statusBadge}
           </>

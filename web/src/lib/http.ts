@@ -1,9 +1,12 @@
+type APIErrorBody = {
+  code?: string
+  message?: string
+  request_id?: string
+  [key: string]: unknown
+}
+
 type APIErrorEnvelope = {
-  error?: {
-    code?: string
-    message?: string
-    request_id?: string
-  }
+  error?: APIErrorBody
   message?: string
   code?: string | number
 }
@@ -16,14 +19,27 @@ export class APIError extends Error {
   status: number
   code?: string
   requestId?: string
+  /** Fields beside code/message/request_id, such as hosts or site_type. */
+  details: Record<string, unknown>
 
-  constructor(message: string, status: number, code?: string, requestId?: string) {
+  constructor(message: string, status: number, code?: string, requestId?: string, details?: Record<string, unknown>) {
     super(message)
     this.name = 'APIError'
     this.status = status
     this.code = code
     this.requestId = requestId
+    this.details = details ?? {}
   }
+}
+
+function apiErrorDetails(error: APIErrorBody | undefined) {
+  if (!error) return {}
+  const details: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(error)) {
+    if (key === 'code' || key === 'message' || key === 'request_id') continue
+    details[key] = value
+  }
+  return details
 }
 
 export type RequestOptions = Omit<RequestInit, 'body'> & {
@@ -98,12 +114,14 @@ async function toAPIError(response: Response) {
   let message = `Request failed with status ${response.status}`
   let code: string | undefined
   let requestId: string | undefined
+  let details: Record<string, unknown> | undefined
 
   if (isJSON) {
     const payload = (await response.json()) as APIErrorEnvelope
     message = payload.error?.message ?? payload.message ?? message
     code = payload.error?.code ?? (payload.code !== undefined ? String(payload.code) : undefined)
     requestId = payload.error?.request_id
+    details = apiErrorDetails(payload.error)
   } else {
     const text = (await response.text()).trim()
     if (text) {
@@ -111,7 +129,7 @@ async function toAPIError(response: Response) {
     }
   }
 
-  return new APIError(message, response.status, code, requestId)
+  return new APIError(message, response.status, code, requestId, details)
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {

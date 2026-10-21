@@ -8,6 +8,8 @@ export type SiteAccountCapabilities = {
   supports_regions: boolean
 }
 
+export type ProviderStatus = 'enabled' | 'unavailable'
+
 export type SiteTypeInfo = {
   site_type: string
   display_name: string
@@ -19,6 +21,8 @@ export type SiteTypeInfo = {
   show_in_create_dialog: boolean
   icon_url?: string
   accounts?: SiteAccountCapabilities
+  plugin_id?: string
+  provider_status?: ProviderStatus
 }
 
 export type Site = {
@@ -27,6 +31,7 @@ export type Site = {
   slug: string
   site_type: SiteType
   icon_url?: string
+  provider_status?: ProviderStatus
   base_url: string
   status: string
   sync_status?: string | null

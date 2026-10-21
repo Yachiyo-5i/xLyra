@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { SiteBalanceCell } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
+import { ProviderUnavailableBadge } from '@/features/sites/components/provider-unavailable-badge'
 import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
@@ -113,6 +114,7 @@ export function SitesTable({
               <div className="flex items-center gap-2">
                 <span className="truncate font-medium text-label">{site.name}</span>
                 <SiteTypeBadge siteType={site.site_type} siteTypes={siteTypes} className="shrink-0 select-none" />
+                <ProviderUnavailableBadge status={site.provider_status} />
                 <SitePlanBadge site={site} />
               </div>
               <div className="text-label-2 truncate text-footnote">
