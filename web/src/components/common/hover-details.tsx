@@ -1,6 +1,7 @@
 import { isValidElement, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Slot } from '@radix-ui/react-slot'
+import { activateHoverCard, releaseHoverCard } from '@/components/common/hover-details-registry'
 import { useLiquidGlassRef } from '@/components/glass/use-liquid-glass'
 import { popoverPanelClass } from '@/components/ui/field-styles'
 import { useMobileLayout } from '@/hooks/use-media-query'
@@ -35,7 +36,15 @@ function pointerAnchorAt(x: number, y: number): PointerAnchor {
   }
 }
 
-export function HoverDetails({ children, content, title, description, accessibleDescription, disabled = false, asChild = false, className, contentClassName, titleClassName }: HoverDetailsProps) {
+export function HoverDetails(props: HoverDetailsProps) {
+  // The open state lives in the inner component, so a trigger that becomes
+  // disabled while its card is open (details loading or disappearing) drops that
+  // state instead of bringing the card back when it is enabled again.
+  if (props.disabled) return props.asChild ? props.children : <div className={props.className}>{props.children}</div>
+  return <HoverDetailsCard {...props} />
+}
+
+function HoverDetailsCard({ children, content, title, description, accessibleDescription, asChild = false, className, contentClassName, titleClassName }: HoverDetailsProps) {
   const isMobile = useMobileLayout()
   const [open, setOpen] = useState(false)
   const [anchorToPointer, setAnchorToPointer] = useState(false)
@@ -47,17 +56,32 @@ export function HoverDetails({ children, content, title, description, accessible
 
   useEffect(() => () => {
     if (closeTimer.current !== null) clearTimeout(closeTimer.current)
-  }, [])
+    releaseHoverCard(descriptionId)
+  }, [descriptionId])
 
   function cancelClose() {
     if (closeTimer.current !== null) clearTimeout(closeTimer.current)
     closeTimer.current = null
   }
 
+  // Closes at once; used when another hover card takes over.
+  function hideNow() {
+    cancelClose()
+    setOpen(false)
+    setAnchorToPointer(false)
+  }
+
   function changeOpen(nextOpen: boolean) {
     cancelClose()
     setOpen(nextOpen)
-    if (!nextOpen) setAnchorToPointer(false)
+    if (nextOpen) {
+      // Only one card at a time: the previous one closes immediately instead of
+      // lingering until its close timer fires.
+      activateHoverCard({ id: descriptionId, close: hideNow })
+      return
+    }
+    setAnchorToPointer(false)
+    releaseHoverCard(descriptionId)
   }
 
   function scheduleClose() {
@@ -74,8 +98,6 @@ export function HoverDetails({ children, content, title, description, accessible
   const Trigger = asChild ? Slot : 'div'
   const childClassName = asChild && isValidElement<{ className?: string }>(children) ? children.props.className : undefined
   const hasOwnCursor = /(^|\s)cursor-/.test(`${childClassName ?? ''} ${className ?? ''}`)
-  if (disabled) return asChild ? children : <div className={className}>{children}</div>
-
   const trigger = (
     <Trigger
       // 可点击查看详情：默认手形光标；触发元素自己指定了 cursor-* 时保留它
@@ -90,7 +112,10 @@ export function HoverDetails({ children, content, title, description, accessible
         }
       }}
       onPointerLeave={isMobile ? undefined : scheduleClose}
-      onFocus={isMobile ? undefined : () => {
+      onFocus={isMobile ? undefined : (event) => {
+        // A mouse click also focuses the trigger; that must not re-anchor the card
+        // to the trigger before the click anchors it to the pointer.
+        if (!event.currentTarget.matches(':focus-visible')) return
         setAnchorToPointer(false)
         changeOpen(true)
       }}
