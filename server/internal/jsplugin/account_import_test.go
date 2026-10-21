@@ -549,3 +549,15 @@ func unsignedImportJWT(t *testing.T, claims map[string]any) string {
 	}
 	return "e30." + base64.RawURLEncoding.EncodeToString(payload) + ".sig"
 }
+
+func TestApplyImportValueMapIsCaseInsensitive(t *testing.T) {
+	entries := map[string]string{"international": "intl"}
+	for _, in := range []string{"international", "International", "INTERNATIONAL"} {
+		if got := applyImportValueMap(in, entries); got != "intl" {
+			t.Fatalf("applyImportValueMap(%q) = %q, want intl", in, got)
+		}
+	}
+	if got := applyImportValueMap("other", entries); got != "other" {
+		t.Fatalf("unmapped value changed to %q", got)
+	}
+}

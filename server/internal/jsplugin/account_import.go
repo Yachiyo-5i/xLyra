@@ -292,6 +292,11 @@ func applyImportValueMap(text string, entries map[string]string) string {
 	if mapped, ok := entries[text]; ok {
 		return mapped
 	}
+	for source, mapped := range entries {
+		if strings.EqualFold(source, text) {
+			return mapped
+		}
+	}
 	return text
 }
 
