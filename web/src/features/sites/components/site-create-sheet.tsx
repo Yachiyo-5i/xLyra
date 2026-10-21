@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
+import { accountCreateHint } from '@/features/sites/components/account-provider-login'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import { SiteTypePluginTag } from '@/features/sites/components/site-type-plugin-tag'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
@@ -35,7 +37,7 @@ import {
 } from '@/features/sites/api/sites'
 import type { SiteGroup } from '@/features/settings/api/site-groups'
 import { type ProxyConfig } from '@/features/settings/api/settings'
-import { accountLoginHintKey, isAccountLoginSiteType, siteTypeIconClassName } from '@/features/sites/lib/site-utils'
+import { isAccountLoginSiteType, siteTypeIconClassName } from '@/features/sites/lib/site-utils'
 import { editSiteFormResetKey } from '@/features/sites/lib/site-cache'
 import {
   SiteAPIKeyFormFields,
@@ -431,17 +433,12 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
                   className="flex w-full items-center gap-3 rounded-inner border border-separator bg-fill-4 px-4 py-3 text-left hover:bg-fill-3 transition-colors cursor-pointer"
                   onClick={() => onSelect(st.site_type)}
                 >
-                  {icon ? (
-                    <img
-                      src={icon}
-                      alt=""
-                      className={cn('h-8 w-8 shrink-0 rounded-control object-contain', siteTypeIconClassName(st.site_type))}
-                    />
-                  ) : (
-                    <div className="h-8 w-8 shrink-0 rounded-control bg-fill-3 flex items-center justify-center text-body font-medium text-label-2">
-                      {st.display_name.charAt(0)}
-                    </div>
-                  )}
+                  <SiteTypeIcon
+                    src={icon}
+                    name={st.display_name}
+                    className="h-8 w-8 shrink-0 rounded-control"
+                    imageClassName={siteTypeIconClassName(st.site_type)}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <div className="text-headline text-label">{st.display_name}</div>
@@ -557,6 +554,7 @@ export function SiteCreateSheet({
   const showXLyraFields = currentCredType === 'xlyra'
   const xlyraAuthMode = useWatch({ control, name: 'xlyraAuthMode' })
   const isGrok = isAccountLoginSiteType(siteType, siteTypes)
+  const accountHint = accountCreateHint(siteType, siteTypes?.find((item) => item.site_type === siteType), i18n.language)
   const canConfigureQuotaProbe = siteType === 'openai' || siteType === 'anthropic'
   const showAPIKeyField = !isGrok && currentCredType !== 'system_token' && currentCredType !== 'oauth' && currentCredType !== 'xlyra' && !!siteType && mode === 'create'
   const supportsAPIKeyCostMultiplier = siteType === 'openai' || siteType === 'anthropic' || siteType === 'google_gemini'
@@ -758,13 +756,13 @@ export function SiteCreateSheet({
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               ) : null}
-              {selectedProviderIcon ? (
-                <img
-                  src={selectedProviderIcon}
-                  alt=""
-                  className={cn('h-6 w-6 shrink-0 rounded-control object-contain', siteTypeIconClassName(selectedProvider))}
-                />
-              ) : null}
+              <SiteTypeIcon
+                src={selectedProviderIcon}
+                name={selectedProviderInfo?.display_name ?? ''}
+                empty="hidden"
+                className="h-6 w-6 shrink-0 rounded-control"
+                imageClassName={siteTypeIconClassName(selectedProvider)}
+              />
               <SheetTitle>
                 {selectedProviderInfo?.display_name ?? t('form.createTitle')}
               </SheetTitle>
@@ -823,7 +821,7 @@ export function SiteCreateSheet({
 
               {isGrok && mode === 'create' ? (
                 <FormSection title={t('form.sections.grokAccounts')} divided>
-                  <p className="text-body text-label-2">{t(accountLoginHintKey(siteTypes?.find((item) => item.site_type === siteType)?.accounts ?? siteType))}</p>
+                  <p className="text-body text-label-2">{accountHint.override ?? t(accountHint.key)}</p>
                 </FormSection>
               ) : null}
 

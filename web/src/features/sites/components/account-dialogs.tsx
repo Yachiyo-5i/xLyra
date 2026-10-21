@@ -44,7 +44,7 @@ export function AccountsListDialog({
   children,
 }: {
   open: boolean
-  title: string
+  title: ReactNode
   headerActions?: ReactNode
   /** True while any nested dialog (login, delete, models) is open. */
   nestedOpen: boolean
@@ -121,6 +121,7 @@ export function AccountHeaderActions({
   refreshingAll,
   refreshAllDisabled,
   onRefreshAll,
+  showRefreshAll,
 }: {
   addLabel: string
   addDisabled?: boolean
@@ -133,22 +134,26 @@ export function AccountHeaderActions({
   refreshingAll?: boolean
   refreshAllDisabled?: boolean
   onRefreshAll: () => void
+  showRefreshAll?: boolean
 }) {
   const isMobile = useMobileLayout()
   const showImport = Boolean(onImport && importLabel)
+  const refreshAllVisible = showRefreshAll !== false
   return (
     <div className={cn('flex shrink-0 items-center', isMobile ? 'gap-1' : 'gap-2')}>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-8 w-8"
-        title={refreshAllLabel}
-        aria-label={refreshAllLabel}
-        disabled={refreshingAll || refreshAllDisabled}
-        onClick={onRefreshAll}
-      >
-        {refreshingAll ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-      </Button>
+      {refreshAllVisible ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          title={refreshAllLabel}
+          aria-label={refreshAllLabel}
+          disabled={refreshingAll || refreshAllDisabled}
+          onClick={onRefreshAll}
+        >
+          {refreshingAll ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+        </Button>
+      ) : null}
       {showImport ? (
         isMobile ? (
           <Button size="icon" variant="ghost" className="h-8 w-8" title={importLabel} aria-label={importLabel} disabled={importDisabled} onClick={onImport}>
@@ -200,6 +205,8 @@ export function AccountRow({
   modelCountLabel,
   onOpenModels,
   actions,
+  showToggle,
+  showModels,
 }: {
   name: string
   badges?: ReactNode
@@ -214,7 +221,11 @@ export function AccountRow({
   modelCountLabel: string
   onOpenModels: () => void
   actions: ReactNode
+  showToggle?: boolean
+  showModels?: boolean
 }) {
+  const toggleVisible = showToggle !== false
+  const modelsVisible = showModels !== false
   return (
     <div className="space-y-3 py-4 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-2">
@@ -222,7 +233,7 @@ export function AccountRow({
           <span className="truncate text-body font-medium text-label">{name}</span>
           {badges}
         </div>
-        <Switch checked={enabled} disabled={toggleDisabled} aria-label={toggleLabel} onCheckedChange={onToggle} />
+        {toggleVisible ? <Switch checked={enabled} disabled={toggleDisabled} aria-label={toggleLabel} onCheckedChange={onToggle} /> : null}
       </div>
       {pills ? <div className="flex flex-wrap items-center gap-2 text-footnote text-label-2">{pills}</div> : null}
       {detail ? <div className="rounded-control bg-fill-3 px-3 py-2">{detail}</div> : null}
@@ -230,9 +241,11 @@ export function AccountRow({
       <div className="flex items-center justify-between text-footnote text-label-2">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           {summary}
-          <button type="button" className="cursor-pointer hover:text-label" onClick={onOpenModels}>
-            {modelCountLabel}
-          </button>
+          {modelsVisible ? (
+            <button type="button" className="cursor-pointer hover:text-label" onClick={onOpenModels}>
+              {modelCountLabel}
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">{actions}</div>
       </div>

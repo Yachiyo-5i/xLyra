@@ -9,6 +9,7 @@ import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
 import { ProviderUnavailableBadge } from '@/features/sites/components/provider-unavailable-badge'
 import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   formatCompactTokens,
@@ -199,7 +200,15 @@ function MobileSiteCard({
     // 站点卡片：名字独占标题行，标签放到下一行可换行，名字不再被挤成「h…」
     <ItemCard>
       <CardHeading
-        leading={icon ? <img src={icon} alt="" className={cn('mt-0.5 size-8 shrink-0 rounded-inner object-contain', siteTypeIconClassName(site.site_type))} /> : null}
+        leading={(
+          <SiteTypeIcon
+            src={icon}
+            name={site.name}
+            empty="hidden"
+            className="mt-0.5 size-8 shrink-0 rounded-inner"
+            imageClassName={siteTypeIconClassName(site.site_type)}
+          />
+        )}
         title={site.name}
         tags={(
           <>

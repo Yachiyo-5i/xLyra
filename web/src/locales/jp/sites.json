@@ -214,7 +214,8 @@
       "addHeader": "ヘッダーを追加",
       "removeHeader": "ヘッダーを削除"
     },
-    "grokDeviceHint": "Grok アカウントはサイト作成後に追加します。サイトのアカウントパネルを開き、xAI デバイス認証でログインしてください。"
+    "grokDeviceHint": "Grok アカウントはサイト作成後に追加します。サイトのアカウントパネルを開き、xAI デバイス認証でログインしてください。",
+    "accountLoginHint": "アカウントはサイト作成後に追加します。サイトのアカウントパネルを開き、画面の案内に従ってログインしてください。"
   },
   "apiKeys": {
     "title": "API キー",
@@ -289,6 +290,92 @@
       "unknown": "未同期",
       "pending": "同期待ち",
       "syncing": "同期中"
+    }
+  },
+  "accountModels": {
+    "available": "利用可能なモデル",
+    "backToAccounts": "アカウント一覧に戻る",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "protocol": {
+      "title": "モデルのプロトコル設定",
+      "configure": "プロトコルを設定",
+      "configureLabel": "{{name}} のプロトコルを設定",
+      "description": "このアカウントがこのモデルに使用できるアップストリームプロトコルを選択します。",
+      "namedDescription": "{{name}} にこのアカウントが使用できるアップストリームプロトコルを選択します。",
+      "modeInherit": "サイトのデフォルトプロトコルを使用中",
+      "modeAllowlist": "チェックしたプロトコルのみ使用中",
+      "modeDisabled": "すべてのプロトコルが無効です",
+      "empty": "設定可能なプロトコルがありません"
+    }
+  },
+  "accounts": {
+    "title": "アカウント",
+    "add": "アカウントを追加",
+    "import": "アカウントをインポート",
+    "loading": "アカウントを読み込み中",
+    "empty": "アカウントがありません",
+    "unnamed": "アカウント",
+    "refresh": "アカウントを更新",
+    "refreshAll": "すべて更新",
+    "reauthorize": "アカウントを再認可",
+    "delete": "アカウントを削除",
+    "toggleLabel": "{{name}} を切り替え",
+    "cancel": "キャンセル",
+    "toast": {
+      "created": "アカウントを作成しました",
+      "updateFailed": "アカウントの更新に失敗しました",
+      "updated": "アカウントを更新しました",
+      "deleteFailed": "アカウントの削除に失敗しました",
+      "deleted": "アカウントを削除しました",
+      "refreshed": "アカウントを更新しました",
+      "refreshFailed": "アカウントの更新に失敗しました",
+      "refreshedAll": "すべてのアカウントを更新しました",
+      "refreshAllPartial": "一部のアカウントを更新できませんでした",
+      "refreshAllPartialDesc": "{{count}} 件のアカウントを更新できませんでした",
+      "refreshAllFailed": "アカウントの一括更新に失敗しました"
+    },
+    "deleteDialog": {
+      "title": "アカウントを削除",
+      "confirm": "「{{name}}」を削除しますか？状態、利用枠、モデルの関連も削除されます。",
+      "delete": "削除する"
+    },
+    "login": {
+      "title": "アカウントを追加",
+      "reauthTitle": "アカウントを再認可",
+      "starting": "ログインを準備しています…",
+      "instructions": "開いたページで認可を完了してください。ページが開かない場合は下のボタンを押してください。",
+      "authorize": "認可ページを開く",
+      "waiting": "認可を待っています…"
+    },
+    "sync": {
+      "synced": "同期済み",
+      "failed": "失敗",
+      "reauthRequired": "再認可が必要",
+      "stale": "前回同期したモデルを使用",
+      "partial": "一部",
+      "unknown": "未同期"
+    },
+    "regionDialog": {
+      "title": "リージョンを選択",
+      "description": "アカウントのリージョンを選ぶと、そのアドレスでログインを続けます。",
+      "continue": "ログインを続ける"
+    },
+    "importDialog": {
+      "title": "アカウントをインポート",
+      "dropzone": "JSON ファイルをここにドロップするか、クリックして選択",
+      "hint": "このサイトタイプのアカウント JSON をアップロードします。解析はサーバーが行います。",
+      "selectedCount": "{{count}} 件のファイルを選択",
+      "import": "インポート",
+      "importWithCount": "{{count}} 件のファイルをインポート",
+      "cancel": "キャンセル",
+      "done": "完了",
+      "summary": "合計 {{total}} 件、成功 {{imported}} 件、失敗 {{failed}} 件",
+      "imported": "インポート済み",
+      "failed": "失敗",
+      "unnamed": "名前のないアカウント",
+      "toastDone": "アカウントのインポートが完了しました",
+      "toastFailed": "アカウントのインポートに失敗しました"
     }
   },
   "grokAccounts": {

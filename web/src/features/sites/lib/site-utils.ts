@@ -135,6 +135,7 @@ export function siteTypeColor(siteType: string): string | null {
 /**
  * Sites that sign in with an account instead of an upstream API key.
  * When the catalog lists the type, follow its accounts capability.
+ * A credential_type of account is an account pool too.
  * Before the catalog loads, Grok is still recognized.
  */
 export function isAccountLoginSiteType(
@@ -143,8 +144,16 @@ export function isAccountLoginSiteType(
 ): boolean {
   const type = (siteType ?? '').trim().toLowerCase()
   const listed = siteTypes?.find((item) => item.site_type.trim().toLowerCase() === type)
-  if (listed) return listed.accounts !== undefined
+  if (listed) {
+    if (listed.accounts !== undefined) return true
+    return listed.credential_type === 'account'
+  }
   return type === 'grok'
+}
+
+/** Grok keeps its existing drawer. Every other account-login type is a plugin pool. */
+export function isBuiltinAccountSite(siteType: string | null | undefined) {
+  return (siteType ?? '').trim().toLowerCase() === 'grok'
 }
 
 export function accountLoginHintKey(
@@ -164,6 +173,24 @@ export function siteAccountCounts(site: Pick<Site, 'account_count' | 'valid_acco
   const total = Math.max(site.account_count ?? site.api_key_count ?? 0, 0)
   const valid = Math.min(Math.max(site.valid_account_count ?? total, 0), total)
   return { valid, total }
+}
+
+export type SiteTypeIconState =
+  | { kind: 'image'; src: string }
+  | { kind: 'letter'; text: string }
+  | { kind: 'hidden' }
+
+/** Image when `src` is usable, the first character when it is missing or failed, or nothing. */
+export function resolveSiteTypeIcon(
+  src: string | null | undefined,
+  failed: boolean,
+  empty: 'letter' | 'hidden',
+  name: string,
+): SiteTypeIconState {
+  const trimmed = src?.trim() ?? ''
+  if (trimmed && !failed) return { kind: 'image', src: trimmed }
+  if (!trimmed && empty === 'hidden') return { kind: 'hidden' }
+  return { kind: 'letter', text: name.trim().charAt(0) || '?' }
 }
 
 export function siteTypeIconClassName(siteType: string): string | undefined {

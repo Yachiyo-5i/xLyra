@@ -422,6 +422,11 @@ describe('isAccountLoginSiteType', () => {
     expect(isAccountLoginSiteType('grok', [catalogEntry('openai')])).toBe(true)
   })
 
+  it('treats credential_type account as an account-login site when accounts is omitted', () => {
+    const info = { ...catalogEntry('acme.pool/chat'), credential_type: 'account' as const }
+    expect(isAccountLoginSiteType('acme.pool/chat', [info])).toBe(true)
+  })
+
   it('is false for an unknown type', () => {
     expect(isAccountLoginSiteType('plugin')).toBe(false)
     expect(isAccountLoginSiteType('openai')).toBe(false)

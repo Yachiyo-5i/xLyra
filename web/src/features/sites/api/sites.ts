@@ -2,10 +2,32 @@ import { apiFetch } from '@/lib/http'
 
 type SiteType = string
 
+/** Plain string, or copy keyed by language (`zh` / `en` / `jp`). Rendered as text. */
+export type AccountUIText = string | Record<string, string>
+
+/** One account-row pill. `field` is a non-secret account field; `labels` optionally renames values. */
+export type AccountRowPill = {
+  field?: string
+  labels?: Record<string, AccountUIText>
+}
+
+/**
+ * Account-pool chrome from the site type. Omitted pieces fall back:
+ * missing `operations` keeps the full button set, missing texts use `accounts.*`.
+ * Operation names match the manifest allowlist: add, reauth, refresh, delete, toggle, models, import.
+ * `refresh` also shows refresh-all. There is no separate refresh-all operation.
+ */
+export type AccountUI = {
+  row_pills?: AccountRowPill[]
+  operations?: string[]
+  texts?: Record<string, AccountUIText>
+}
+
 export type SiteAccountCapabilities = {
   login_kind: 'oauth2_device_code' | 'custom_poll'
   supports_import: boolean
   supports_regions: boolean
+  ui?: AccountUI
 }
 
 export type ProviderStatus = 'enabled' | 'unavailable'
@@ -15,7 +37,7 @@ export type SiteTypeInfo = {
   display_name: string
   subtitle: string
   credential_key: string
-  credential_type: 'api_key' | 'system_token' | 'oauth' | 'xlyra' | 'grok_sso'
+  credential_type: 'api_key' | 'system_token' | 'oauth' | 'xlyra' | 'grok_sso' | 'account'
   requires_base_url: boolean
   official_base_url?: string
   show_in_create_dialog: boolean
@@ -435,6 +457,8 @@ export interface AccountBase {
   entries?: SiteQuotaProbeEntry[]
   remaining_quota?: number | null
   used_quota?: number | null
+  /** Non-secret account fields. Plugin row pills read this first, then a same-named primitive on the account. */
+  fields?: Record<string, string | number | boolean | null>
 }
 
 /** Toggle a model and/or adjust the protocols an account may use for it. */

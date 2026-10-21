@@ -1140,6 +1140,8 @@ export function SitesWorkspace({
         key={activeAccountsSite?.id ?? 'accounts'}
         site={activeAccountsSite}
         capabilities={accountCapabilities(activeAccountsSite, siteTypes)}
+        iconURL={activeAccountsSite ? siteTypeIcon(activeAccountsSite.site_type, siteTypes) || activeAccountsSite.icon_url || null : null}
+        typeLabel={activeAccountsSite ? formatSiteTypeLabel(activeAccountsSite.site_type, siteTypes) : null}
         onOpenChange={(open) => {
           if (!open) {
             setAccountsSite(null)

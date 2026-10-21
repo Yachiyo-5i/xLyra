@@ -12,6 +12,7 @@ import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
 import { ProviderUnavailableBadge } from '@/features/sites/components/provider-unavailable-badge'
 import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   formatCompactTokens,
@@ -109,7 +110,13 @@ export function SitesTable({
         const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
         return (
           <div className="flex items-center gap-3 min-w-0">
-            {icon ? <img src={icon} alt="" className={cn('h-7 w-7 shrink-0 rounded-inner object-contain', siteTypeIconClassName(site.site_type))} /> : null}
+            <SiteTypeIcon
+              src={icon}
+              name={site.name}
+              empty="hidden"
+              className="h-7 w-7 shrink-0 rounded-inner"
+              imageClassName={siteTypeIconClassName(site.site_type)}
+            />
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="truncate font-medium text-label">{site.name}</span>

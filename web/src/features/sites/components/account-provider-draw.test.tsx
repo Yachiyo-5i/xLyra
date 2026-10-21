@@ -6,13 +6,20 @@ import type { ReactNode } from 'react'
 import type { AccountLoginStart, SiteAccount } from '@/features/sites/api/sites'
 import { AccountHeaderActions } from '@/features/sites/components/account-dialogs'
 import { AccountLoginDialog, AccountRegionDialog } from '@/features/sites/components/account-provider-draw'
+import type { SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   accountCopyPrefix,
+  accountCreateHint,
+  accountOperationFlags,
+  accountUIText,
+  fillAccountText,
   loginOpenURL,
   loginPollIntervalMs,
   loginPollOutcome,
 } from '@/features/sites/components/account-provider-login'
-import { grokRowView } from '@/features/sites/components/account-provider-rows'
+import { grokRowView, pluginRowView } from '@/features/sites/components/account-provider-rows'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
+import { resolveSiteTypeIcon } from '@/features/sites/lib/site-utils'
 import translations from '@/locales/zh/sites.json'
 
 const i18n = createInstance()
@@ -134,6 +141,21 @@ describe('AccountLoginDialog', () => {
     expect(markup).toContain('打开授权页面')
   })
 
+  it('keeps the built-in device dialog from printing the verification url', () => {
+    const info: AccountLoginStart = {
+      ...base,
+      kind: 'oauth2_device_code',
+      user_code: 'ABCD-EFGH',
+      verification_uri: 'https://example.test/device',
+      verification_uri_complete: 'https://example.test/device?user_code=ABCD-EFGH',
+    }
+    const markup = render(
+      <AccountLoginDialog login={{ status: 'waiting', purpose: 'add', info }} kind="oauth2_device_code" onClose={() => {}} />,
+    )
+    expect(markup).toContain('在 xAI 授权页面输入以下代码并批准访问：')
+    expect(markup).not.toContain('https://example.test/device')
+  })
+
   it('does not show a user code for browser login', () => {
     const info: AccountLoginStart = {
       ...base,
@@ -171,6 +193,184 @@ describe('AccountRegionDialog', () => {
     expect(markup).toContain('国内站')
     expect(markup).toContain('国际站')
     expect(markup).toContain('继续登录')
+  })
+})
+
+function pluginSiteType(extra: Partial<SiteTypeInfo> = {}): SiteTypeInfo {
+  return {
+    site_type: 'acme.pool/chat',
+    display_name: 'Acme',
+    subtitle: '',
+    credential_key: 'acme',
+    credential_type: 'account',
+    requires_base_url: false,
+    show_in_create_dialog: true,
+    icon_url: 'https://cdn.example/icon.webp',
+    accounts: {
+      login_kind: 'oauth2_device_code',
+      supports_import: true,
+      supports_regions: true,
+      ui: {
+        row_pills: [{ field: 'realm', labels: { cn: { zh: '国内', en: 'China' } } }],
+        operations: ['add', 'import', 'refresh'],
+        texts: { login_hint: { zh: '用设备码登录', en: 'Use a device code' }, add: '登录' },
+      },
+    },
+    ...extra,
+  }
+}
+
+describe('plugin account pool', () => {
+  it('renders row pills from fields, with label text when it is provided', () => {
+    const labeled = pluginRowView(
+      account({ fields: { realm: 'cn' } }),
+      pluginSiteType().accounts?.ui?.row_pills,
+      'zh',
+    )
+    expect(render(labeled.pills)).toContain('国内')
+    expect(labeled.detail).toBeUndefined()
+
+    const raw = pluginRowView(account({ fields: { realm: 'cn' } }), [{ field: 'realm' }], 'en')
+    expect(render(raw.pills)).toContain('cn')
+  })
+
+  it('reads a same-named primitive when fields is missing, and skips unknown or empty fields', () => {
+    expect(render(pluginRowView(account({ region: 'intl' }), [{ field: 'region' }], 'zh').pills)).toContain('intl')
+    expect(pluginRowView(account(), undefined, 'zh').pills).toBeUndefined()
+    expect(pluginRowView(account({ fields: { realm: '' } }), [{ field: 'realm' }], 'zh').pills).toBeUndefined()
+    expect(pluginRowView(account({ fields: { realm: 'cn' } }), [{ field: 'missing' }], 'zh').pills).toBeUndefined()
+  })
+
+  it('shows login, import, and refresh only for the declared operations', () => {
+    const flags = accountOperationFlags(['add', 'import', 'refresh'], true)
+    expect(flags).toEqual({
+      add: true,
+      import: true,
+      refresh: true,
+      reauth: false,
+      delete: false,
+      toggle: false,
+      models: false,
+    })
+    const shown = render(
+      <AccountHeaderActions
+        addLabel="登录"
+        onAdd={() => {}}
+        importLabel="导入账号"
+        onImport={() => {}}
+        refreshAllLabel="全部刷新"
+        showRefreshAll
+        onRefreshAll={() => {}}
+      />,
+    )
+    expect(shown).toContain('登录')
+    expect(shown).toContain('导入账号')
+    expect(shown).toContain('全部刷新')
+
+    const hidden = accountOperationFlags(['add'], true)
+    const markup = render(
+      <AccountHeaderActions
+        addLabel="登录"
+        onAdd={hidden.add ? () => {} : undefined}
+        importLabel={hidden.import ? '导入账号' : undefined}
+        onImport={hidden.import ? () => {} : undefined}
+        refreshAllLabel="全部刷新"
+        showRefreshAll={hidden.refresh}
+        onRefreshAll={() => {}}
+      />,
+    )
+    expect(markup).toContain('登录')
+    expect(markup).not.toContain('导入账号')
+    expect(markup).not.toContain('全部刷新')
+  })
+
+  it('keeps every action when operations is missing, and still hides import without the capability', () => {
+    expect(accountOperationFlags(undefined, true)).toEqual({
+      add: true,
+      import: true,
+      refresh: true,
+      reauth: true,
+      delete: true,
+      toggle: true,
+      models: true,
+    })
+    expect(accountOperationFlags(undefined, false).import).toBe(false)
+    expect(accountOperationFlags(['import'], false).import).toBe(false)
+    expect(accountOperationFlags([], true).add).toBe(false)
+  })
+
+  it('shows the device code, verification url, and the polling wait state', () => {
+    const info: AccountLoginStart = {
+      session: 'sess-1',
+      interval: 5,
+      expires_at: '2026-10-21T00:00:00Z',
+      kind: 'oauth2_device_code',
+      user_code: 'ABCD-EFGH',
+      verification_uri: 'https://example.test/device',
+      verification_uri_complete: 'https://example.test/device?user_code=ABCD-EFGH',
+    }
+    const markup = render(
+      <AccountLoginDialog
+        login={{ status: 'waiting', purpose: 'add', info }}
+        kind="oauth2_device_code"
+        copyPrefix="accounts"
+        showVerificationURL
+        onClose={() => {}}
+      />,
+    )
+    expect(markup).toContain('ABCD-EFGH')
+    expect(markup).toContain('https://example.test/device?user_code=ABCD-EFGH')
+    expect(markup).toContain('等待授权中…')
+    expect(markup).toContain('打开授权页面')
+    expect(markup).not.toContain('xAI')
+  })
+
+  it('uses plugin text for the region picker', () => {
+    const markup = render(
+      <AccountRegionDialog
+        open
+        copyPrefix="accounts"
+        regions={[{ id: 'cn', label: '国内', hint: '国内节点' }]}
+        selectedId="cn"
+        onSelect={() => {}}
+        onConfirm={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(markup).toContain('选择区域')
+    expect(markup).toContain('国内')
+    expect(markup).toContain('继续登录')
+    expect(markup).toContain('role="radiogroup"')
+  })
+
+  it('falls back to the letter tile when the icon is missing or fails to load', () => {
+    const image = render(<SiteTypeIcon src="https://cdn.example/icon.webp" name="Acme" className="h-8 w-8" />)
+    expect(image).toContain('src="https://cdn.example/icon.webp"')
+    expect(image).toContain('<img')
+
+    const missing = render(<SiteTypeIcon src="" name="Acme" className="h-8 w-8" />)
+    expect(missing).not.toContain('<img')
+    expect(missing).toContain('A')
+
+    expect(resolveSiteTypeIcon('https://cdn.example/icon.webp', true, 'hidden', 'Acme')).toEqual({ kind: 'letter', text: 'A' })
+    expect(resolveSiteTypeIcon('', false, 'hidden', 'Acme')).toEqual({ kind: 'hidden' })
+    expect(resolveSiteTypeIcon(null, false, 'letter', 'Acme')).toEqual({ kind: 'letter', text: 'A' })
+  })
+
+  it('resolves plugin copy and leaves built-in create hints on their own keys', () => {
+    const info = pluginSiteType()
+    expect(accountUIText(info.accounts?.ui?.texts, 'add', 'en')).toBe('登录')
+    expect(accountUIText(info.accounts?.ui?.texts, 'login_hint', 'zh-CN')).toBe('用设备码登录')
+    expect(accountUIText(undefined, 'title', 'zh')).toBeUndefined()
+    expect(fillAccountText('切换 {{name}}', { name: 'a@b' })).toBe('切换 a@b')
+    expect(accountCreateHint(info.site_type, info, 'zh')).toEqual({
+      key: 'form.accountLoginHint',
+      override: '用设备码登录',
+    })
+    expect(accountCreateHint('grok', { ...info, site_type: 'grok' }, 'zh')).toEqual({
+      key: 'form.grokDeviceHint',
+    })
+    expect(accountCreateHint('acme.example/pool', undefined, 'en').key).toBe('form.accountLoginHint')
   })
 })
 

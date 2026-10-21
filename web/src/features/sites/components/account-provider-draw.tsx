@@ -14,12 +14,18 @@ import {
 } from '@/features/sites/components/account-dialogs'
 import {
   accountCopyPrefix,
+  accountOperationFlags,
+  accountUIText,
+  fillAccountText,
   loginOpenURL,
   loginPollIntervalMs,
   loginPollOutcome,
 } from '@/features/sites/components/account-provider-login'
 import type { AccountCopyPrefix, AccountLoginKind } from '@/features/sites/components/account-provider-login'
-import { grokRowView } from '@/features/sites/components/account-provider-rows'
+import { grokRowView, pluginRowView } from '@/features/sites/components/account-provider-rows'
+import { AccountImportDialog } from '@/features/sites/components/account-import-dialog'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
+import { isBuiltinAccountSite } from '@/features/sites/lib/site-utils'
 import { useNestedDialogClassNames } from '@/features/sites/components/use-nested-dialog'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
@@ -57,42 +63,59 @@ export function AccountLoginDialog({
   login,
   kind,
   onClose,
+  copyPrefix,
+  labels,
+  showVerificationURL = false,
 }: {
   login: LoginState | null
   kind: AccountLoginKind
   onClose: () => void
+  copyPrefix?: AccountCopyPrefix
+  labels?: {
+    title?: string
+    starting?: string
+    instructions?: string
+    authorize?: string
+    waiting?: string
+    cancel?: string
+  }
+  showVerificationURL?: boolean
 }) {
   const { t } = useTranslation('sites')
-  const prefix = 'grokAccounts'
-  const section = kind === 'custom_poll' ? 'login' : 'device'
+  const prefix = copyPrefix ?? (kind === 'custom_poll' ? 'accounts' : 'grokAccounts')
+  const section = prefix === 'grokAccounts' ? 'device' : 'login'
   const info = login?.info
+  const openURL = info ? loginOpenURL(info) : undefined
   return (
     <NestedDialog open={Boolean(login)} onOpenChange={(next) => { if (!next) onClose() }}>
       <DialogHeader className="border-b-0 pb-2">
-        <DialogTitle>{t(login?.purpose === 'reauth' ? `${prefix}.${section}.reauthTitle` : `${prefix}.${section}.title`)}</DialogTitle>
+        <DialogTitle>{labels?.title ?? t(login?.purpose === 'reauth' ? `${prefix}.${section}.reauthTitle` : `${prefix}.${section}.title`)}</DialogTitle>
       </DialogHeader>
       <DialogBody className="space-y-4 pt-0">
         {login?.status === 'starting' ? (
-          <p className="flex items-center gap-2 text-body text-label-2"><LoaderCircle className="h-4 w-4 animate-spin" />{t(`${prefix}.${section}.starting`)}</p>
+          <p className="flex items-center gap-2 text-body text-label-2"><LoaderCircle className="h-4 w-4 animate-spin" />{labels?.starting ?? t(`${prefix}.${section}.starting`)}</p>
         ) : login?.status === 'error' ? (
           <p className="text-body text-danger">{login.error}</p>
         ) : info ? (
           <>
-            <DialogDescription className="mt-0">{t(`${prefix}.${section}.instructions`)}</DialogDescription>
+            <DialogDescription className="mt-0">{labels?.instructions ?? t(`${prefix}.${section}.instructions`)}</DialogDescription>
             {kind === 'oauth2_device_code' ? (
               <div className="rounded-inner border border-separator bg-background/40 py-4 text-center">
                 <span className="font-mono text-2xl font-semibold tracking-[0.3em] text-label">{info.user_code}</span>
+                {showVerificationURL && openURL ? (
+                  <p className="mt-3 break-all px-4 font-mono text-footnote text-label-2">{openURL}</p>
+                ) : null}
               </div>
             ) : null}
-            <Button variant="secondary" className="w-full" onClick={() => window.open(loginOpenURL(info), '_blank', 'noopener')}>
-              <ExternalLink className="h-4 w-4" />{t(`${prefix}.${section}.authorize`)}
+            <Button variant="secondary" className="w-full" onClick={() => window.open(openURL, '_blank', 'noopener')}>
+              <ExternalLink className="h-4 w-4" />{labels?.authorize ?? t(`${prefix}.${section}.authorize`)}
             </Button>
-            <p className="flex items-center justify-center gap-2 text-footnote text-label-2"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{t(`${prefix}.${section}.waiting`)}</p>
+            <p className="flex items-center justify-center gap-2 text-footnote text-label-2"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{labels?.waiting ?? t(`${prefix}.${section}.waiting`)}</p>
           </>
         ) : null}
       </DialogBody>
       <DialogFooter className="border-t-0 pt-2">
-        <Button variant="secondary" onClick={onClose}>{t(`${prefix}.cancel`)}</Button>
+        <Button variant="secondary" onClick={onClose}>{labels?.cancel ?? t(`${prefix}.cancel`)}</Button>
       </DialogFooter>
     </NestedDialog>
   )
@@ -109,6 +132,7 @@ export function AccountRegionDialog({
   onSelect,
   onConfirm,
   onClose,
+  labels,
 }: {
   open: boolean
   copyPrefix: AccountCopyPrefix
@@ -120,15 +144,22 @@ export function AccountRegionDialog({
   onSelect: (id: string) => void
   onConfirm: () => void
   onClose: () => void
+  labels?: {
+    title?: string
+    description?: string
+    loading?: string
+    cancel?: string
+    continue?: string
+  }
 }) {
   const { t } = useTranslation('sites')
   return (
     <NestedDialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
-      <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t(`${copyPrefix}.regionDialog.title`)}</DialogTitle></DialogHeader>
+      <DialogHeader className="border-b-0 pb-2"><DialogTitle>{labels?.title ?? t(`${copyPrefix}.regionDialog.title`)}</DialogTitle></DialogHeader>
       <DialogBody className="space-y-3 pt-0">
-        <DialogDescription className="mt-0">{t(`${copyPrefix}.regionDialog.description`)}</DialogDescription>
+        <DialogDescription className="mt-0">{labels?.description ?? t(`${copyPrefix}.regionDialog.description`)}</DialogDescription>
         {loading ? (
-          <p className="flex items-center gap-2 text-body text-label-2"><LoaderCircle className="h-4 w-4 animate-spin" />{t(`${copyPrefix}.loading`)}</p>
+          <p className="flex items-center gap-2 text-body text-label-2"><LoaderCircle className="h-4 w-4 animate-spin" />{labels?.loading ?? t(`${copyPrefix}.loading`)}</p>
         ) : error ? (
           <p className="text-body text-danger">{error}</p>
         ) : (
@@ -157,10 +188,10 @@ export function AccountRegionDialog({
       </DialogBody>
       <DialogFooter
         className="border-t-0 pt-2"
-        cancel={<Button variant="secondary" onClick={onClose}>{t(`${copyPrefix}.cancel`)}</Button>}
+        cancel={<Button variant="secondary" onClick={onClose}>{labels?.cancel ?? t(`${copyPrefix}.cancel`)}</Button>}
         confirm={(
           <Button disabled={confirmDisabled} onClick={onConfirm}>
-            {t(`${copyPrefix}.regionDialog.continue`)}
+            {labels?.continue ?? t(`${copyPrefix}.regionDialog.continue`)}
           </Button>
         )}
       />
@@ -193,10 +224,14 @@ export function AccountProviderDraw({
   site,
   capabilities,
   onOpenChange,
+  iconURL,
+  typeLabel,
 }: {
   site: Site | null
   capabilities: SiteAccountCapabilities | null
   onOpenChange: (open: boolean) => void
+  iconURL?: string | null
+  typeLabel?: string | null
 }) {
   const { t, i18n } = useTranslation('sites')
   const queryClient = useQueryClient()
@@ -207,10 +242,20 @@ export function AccountProviderDraw({
   const [regionPickOpen, setRegionPickOpen] = useState(false)
   const [pickedRegion, setPickedRegion] = useState('')
   const open = Boolean(site)
-  const prefix = accountCopyPrefix(site?.site_type)
+  const builtin = !site || isBuiltinAccountSite(site.site_type)
+  const prefix: AccountCopyPrefix = builtin ? accountCopyPrefix(site?.site_type) : 'accounts'
   const loginKind = capabilities?.login_kind ?? 'oauth2_device_code'
   const supportsRegions = Boolean(capabilities?.supports_regions)
   const supportsImport = Boolean(capabilities?.supports_import)
+  const operationFlags = accountOperationFlags(builtin ? undefined : capabilities?.ui?.operations, supportsImport)
+  const texts = builtin ? undefined : capabilities?.ui?.texts
+  function accountLabel(suffix: string, textKey: string, vars?: Record<string, string | number>) {
+    if (!builtin) {
+      const custom = accountUIText(texts, textKey, i18n.language)
+      if (custom) return fillAccountText(custom, vars)
+    }
+    return vars ? t(`${prefix}.${suffix}`, vars) : t(`${prefix}.${suffix}`)
+  }
   const nestedOpen = Boolean(login) || Boolean(deleting) || Boolean(modelsAccount) || importOpen || regionPickOpen
   const queryKey = site ? sitesQueryKeys.accounts(site.id) : [...sitesQueryKeys.all, 'accounts', 'none']
 
@@ -387,12 +432,34 @@ export function AccountProviderDraw({
     const hint = t(`${prefix}.regionDialog.${region.id}Hint`, { defaultValue: '' })
     return { id: region.id, label: regionLabel(region.id), hint: hint || undefined }
   })
+  const titleText = accountLabel('title', 'title')
+  const title = builtin ? titleText : (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <SiteTypeIcon src={iconURL} name={typeLabel || titleText} className="h-5 w-5 shrink-0 rounded-control" />
+      <span className="truncate">{titleText}</span>
+    </span>
+  )
+  const loginLabels = builtin ? undefined : {
+    title: accountLabel(login?.purpose === 'reauth' ? 'login.reauthTitle' : 'login.title', login?.purpose === 'reauth' ? 'login_reauth_title' : 'login_title'),
+    starting: accountLabel('login.starting', 'login_starting'),
+    instructions: accountLabel('login.instructions', 'login_instructions'),
+    authorize: accountLabel('login.authorize', 'login_authorize'),
+    waiting: accountLabel('login.waiting', 'login_waiting'),
+    cancel: accountLabel('cancel', 'cancel'),
+  }
+  const regionLabels = builtin ? undefined : {
+    title: accountLabel('regionDialog.title', 'region_title'),
+    description: accountLabel('regionDialog.description', 'region_description'),
+    continue: accountLabel('regionDialog.continue', 'region_continue'),
+    cancel: accountLabel('cancel', 'cancel'),
+    loading: accountLabel('loading', 'loading'),
+  }
 
   return (
     <>
       <AccountsListDialog
         open={open}
-        title={t(`${prefix}.title`)}
+        title={title}
         nestedOpen={nestedOpen}
         onCloseInnermost={() => {
           if (importOpen) setImportOpen(false)
@@ -413,27 +480,28 @@ export function AccountProviderDraw({
         }}
         headerActions={(
           <AccountHeaderActions
-            addLabel={t(`${prefix}.add`)}
+            addLabel={accountLabel('add', 'add')}
             addDisabled={Boolean(login)}
-            onAdd={() => {
+            onAdd={operationFlags.add ? () => {
               if (supportsRegions) {
                 setPickedRegion((current) => current || defaultRegion)
                 setRegionPickOpen(true)
                 return
               }
               void startLogin('add')
-            }}
-            importLabel={supportsImport ? t(`${prefix}.import`) : undefined}
+            } : undefined}
+            importLabel={operationFlags.import ? accountLabel('import', 'import') : undefined}
             importDisabled={Boolean(login)}
-            onImport={supportsImport ? () => setImportOpen(true) : undefined}
-            refreshAllLabel={t(`${prefix}.refreshAll`)}
+            onImport={operationFlags.import ? () => setImportOpen(true) : undefined}
+            refreshAllLabel={accountLabel('refreshAll', 'refresh_all')}
             refreshingAll={refreshAllMutation.isPending}
+            showRefreshAll={operationFlags.refresh}
             onRefreshAll={() => refreshAllMutation.mutate()}
           />
         )}
       >
         {accountsQuery.isLoading ? (
-          <p className="py-10 text-center text-body text-label-2">{t(`${prefix}.loading`)}</p>
+          <p className="py-10 text-center text-body text-label-2">{accountLabel('loading', 'loading')}</p>
         ) : accountsQuery.isError ? (
           <p className="py-10 text-center text-body text-danger">{accountsQuery.error.message}</p>
         ) : items.length ? (
@@ -442,8 +510,13 @@ export function AccountProviderDraw({
               const refreshing = refreshMutation.isPending && refreshMutation.variables?.credential_id === account.credential_id
               const syncBadge = accountSyncBadge(prefix, account.sync_status)
               const reauthRequired = account.sync_status?.toLowerCase() === 'reauth_required'
-              const name = account.masked_token || t(`${prefix}.unnamed`)
-              const view = grokRowView(account)
+              const name = account.masked_token || accountLabel('unnamed', 'unnamed')
+              const view = !builtin
+                ? pluginRowView(account, capabilities?.ui?.row_pills, i18n.language)
+                : grokRowView(account)
+              const refreshLabel = accountLabel('refresh', 'refresh')
+              const deleteLabel = accountLabel('delete', 'delete')
+              const reauthorizeLabel = accountLabel('reauthorize', 'reauthorize')
               return (
                 <AccountRow
                   key={account.credential_id}
@@ -451,7 +524,9 @@ export function AccountProviderDraw({
                   badges={<Badge variant="secondary" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>{syncBadge.label(t)}</Badge>}
                   enabled={account.enabled}
                   toggleDisabled={updateMutation.isPending || reauthRequired}
-                  toggleLabel={t(`${prefix}.toggleLabel`, { name })}
+                  toggleLabel={accountLabel('toggleLabel', 'toggle_label', { name })}
+                  showToggle={operationFlags.toggle}
+                  showModels={operationFlags.models}
                   onToggle={(enabled) => updateMutation.mutate({ account, enabled })}
                   pills={view.pills}
                   detail={view.detail}
@@ -460,44 +535,48 @@ export function AccountProviderDraw({
                   onOpenModels={() => setModelsAccount(account)}
                   actions={(
                     <>
-                      {reauthRequired ? (
+                      {operationFlags.reauth && reauthRequired ? (
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7 text-danger"
                           disabled={Boolean(login)}
-                          title={t(`${prefix}.reauthorize`)}
-                          aria-label={t(`${prefix}.reauthorize`)}
+                          title={reauthorizeLabel}
+                          aria-label={reauthorizeLabel}
                           onClick={() => {
-                            const region = supportsRegions && 'region' in account && typeof account.region === 'string' ? account.region : undefined
+                            const region = supportsRegions ? accountRegionId(account) : undefined
                             void startLogin('reauth', account.credential_id, region)
                           }}
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                         </Button>
                       ) : null}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        disabled={refreshing}
-                        title={t(`${prefix}.refresh`)}
-                        aria-label={t(`${prefix}.refresh`)}
-                        onClick={() => refreshMutation.mutate(account)}
-                      >
-                        {refreshing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-danger hover:bg-danger/10 hover:text-danger"
-                        disabled={deleteMutation.isPending}
-                        title={t(`${prefix}.delete`)}
-                        aria-label={t(`${prefix}.delete`)}
-                        onClick={() => setDeleting(account)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {operationFlags.refresh ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          disabled={refreshing}
+                          title={refreshLabel}
+                          aria-label={refreshLabel}
+                          onClick={() => refreshMutation.mutate(account)}
+                        >
+                          {refreshing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                        </Button>
+                      ) : null}
+                      {operationFlags.delete ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-danger hover:bg-danger/10 hover:text-danger"
+                          disabled={deleteMutation.isPending}
+                          title={deleteLabel}
+                          aria-label={deleteLabel}
+                          onClick={() => setDeleting(account)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
                     </>
                   )}
                 />
@@ -505,7 +584,7 @@ export function AccountProviderDraw({
             })}
           </AccountList>
         ) : (
-          <p className="py-10 text-center text-body text-label-2">{t(`${prefix}.empty`)}</p>
+          <p className="py-10 text-center text-body text-label-2">{accountLabel('empty', 'empty')}</p>
         )}
       </AccountsListDialog>
 
@@ -518,6 +597,7 @@ export function AccountProviderDraw({
           loading={regionsQuery.isLoading}
           error={regionsQuery.isError ? regionsQuery.error.message : undefined}
           confirmDisabled={!regions.length || Boolean(login)}
+          labels={regionLabels}
           onSelect={setPickedRegion}
           onConfirm={() => {
             const region = pickedRegion || defaultRegion
@@ -528,19 +608,38 @@ export function AccountProviderDraw({
         />
       ) : null}
 
-      <AccountLoginDialog login={login} kind={loginKind} onClose={() => setLogin(null)} />
+      {site && operationFlags.import ? (
+        <AccountImportDialog
+          open={importOpen}
+          siteId={site.id}
+          regionLabel={regionLabel}
+          texts={texts}
+          language={i18n.language}
+          onOpenChange={setImportOpen}
+          onImported={refreshAccountQueries}
+        />
+      ) : null}
+
+      <AccountLoginDialog
+        login={login}
+        kind={loginKind}
+        onClose={() => setLogin(null)}
+        copyPrefix={builtin ? undefined : 'accounts'}
+        labels={loginLabels}
+        showVerificationURL={!builtin && loginKind === 'oauth2_device_code'}
+      />
 
       <NestedDialog open={Boolean(deleting)} onOpenChange={(next) => { if (!next && !deleteMutation.isPending) setDeleting(null) }}>
-        <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t(`${prefix}.deleteDialog.title`)}</DialogTitle></DialogHeader>
+        <DialogHeader className="border-b-0 pb-2"><DialogTitle>{accountLabel('deleteDialog.title', 'delete_title')}</DialogTitle></DialogHeader>
         <DialogBody className="pt-0">
-          <DialogDescription className="mt-0">{t(`${prefix}.deleteDialog.confirm`, { name: deleting?.masked_token || t(`${prefix}.unnamed`) })}</DialogDescription>
+          <DialogDescription className="mt-0">{accountLabel('deleteDialog.confirm', 'delete_confirm', { name: deleting?.masked_token || accountLabel('unnamed', 'unnamed') })}</DialogDescription>
         </DialogBody>
         <DialogFooter
           className="border-t-0 pt-2"
-          cancel={<Button variant="secondary" disabled={deleteMutation.isPending} onClick={() => setDeleting(null)}>{t(`${prefix}.cancel`)}</Button>}
+          cancel={<Button variant="secondary" disabled={deleteMutation.isPending} onClick={() => setDeleting(null)}>{accountLabel('cancel', 'cancel')}</Button>}
           confirm={(
             <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => { if (deleting) deleteMutation.mutate(deleting) }}>
-              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{t(`${prefix}.deleteDialog.delete`)}
+              {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{accountLabel('deleteDialog.delete', 'delete_delete')}
             </Button>
           )}
         />
@@ -572,6 +671,12 @@ export function AccountProviderDraw({
       />
     </>
   )
+}
+
+function accountRegionId(account: SiteAccount) {
+  if ('region' in account && typeof account.region === 'string' && account.region) return account.region
+  const fromFields = account.fields?.region
+  return typeof fromFields === 'string' && fromFields ? fromFields : undefined
 }
 
 function accountSyncBadge(prefix: AccountCopyPrefix, status?: string | null): { className: string; label: (t: (key: string) => string) => string } {
