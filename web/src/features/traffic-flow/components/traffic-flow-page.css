@@ -1,18 +1,13 @@
 
 /* 流量驾驶舱：独立全屏页。布局沿用原结构，外观全部取主程序令牌
-   （bg-base / bg-elevated / label / fill / separator / tint、mat-regular、lg-thick、Apple 字阶）。 */
+   （bg-base / bg-elevated / label / fill / separator / tint、traffic-flow-surface、Apple 字阶）。 */
 .traffic-flow-page {
   --flow-ink: var(--label-primary);
-  --flow-muted: var(--label-secondary);
-  --flow-accent: var(--tint);
   --flow-space-1: 4px;
   --flow-space-2: 8px;
   --flow-space-3: 12px;
   --flow-space-4: 16px;
   --flow-space-5: 24px;
-  --flow-radius-sm: var(--radius-small);
-  --flow-radius-md: var(--radius-inner);
-  --flow-radius-lg: var(--radius-card);
   --flow-radius-pill: 999px;
   position: relative;
   display: grid;
@@ -293,19 +288,6 @@
 .traffic-flow-activity-phase { margin-left: auto; padding: 1px 8px; color: var(--model-color); border-radius: 999px; background: color-mix(in srgb, var(--model-color) 14%, transparent); font-size: 11px; line-height: 18px; font-weight: 500; white-space: nowrap; }
 .traffic-flow-activity-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 28px var(--flow-space-4); color: var(--label-tertiary); font-size: 13px; text-align: center; }
 .traffic-flow-activity-state { display: flex; flex: none; align-items: center; justify-content: center; gap: 8px; height: 40px; color: var(--label-secondary); border-top: 1px solid var(--separator); font-size: 12px; }
-.traffic-flow-detail { display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.traffic-flow-detail-body { display: grid; min-height: 0; flex: 1; gap: 0; overflow: auto; }
-.traffic-flow-detail-endpoint, .traffic-flow-detail-phase { display: grid; align-content: center; gap: 4px; min-height: 64px; padding: 0 var(--flow-space-4); border-bottom: 1px solid var(--separator); }
-.traffic-flow-detail-endpoint span, .traffic-flow-detail-phase span, .traffic-flow-detail-model div > span { color: var(--label-tertiary); font-size: 11px; }
-.traffic-flow-detail-endpoint strong, .traffic-flow-detail-phase strong, .traffic-flow-detail-model strong { overflow: hidden; color: var(--label-primary); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.traffic-flow-detail-model { display: flex; align-items: center; gap: var(--flow-space-3); min-height: 72px; padding: 0 var(--flow-space-4); border-bottom: 1px solid var(--separator); }
-.traffic-flow-detail-model-icon { display: grid; flex: none; width: 36px; height: 36px; place-items: center; color: var(--model-color); border-radius: var(--radius-control); background: color-mix(in srgb, var(--model-color) 14%, transparent); }
-.traffic-flow-detail-model-icon img { width: 20px; height: 20px; object-fit: contain; }
-.traffic-flow-detail-model div { display: grid; min-width: 0; gap: 4px; }
-.traffic-flow-detail-phase strong { color: var(--model-color); }
-.traffic-flow-detail-phase i { color: var(--label-tertiary); font-size: 11px; font-style: normal; }
-.traffic-flow-detail-close { display: grid; margin-left: auto; width: 28px; height: 28px; place-items: center; color: var(--label-tertiary); border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
-.traffic-flow-detail-close:hover { color: var(--label-primary); background: var(--fill-quaternary); }
 
 .traffic-flow-footer {
   z-index: 5;
@@ -333,6 +315,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
+  /* 外观完全沿用 traffic-flow-surface（与指标卡一致），不再另加底色 */
   color-scheme: dark;
   color: var(--label-primary);
   font-family: var(--font-sans);
