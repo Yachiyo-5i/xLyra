@@ -11,6 +11,14 @@ import (
 	"xlyra/server/internal/store"
 )
 
+// PluginAccountRefresher renews one plugin account-pool credential bundle.
+// fields is the decrypted bag. The returned bag is what this request uses.
+// A dead grant must match accountauth.ErrReauthorizationRequired.
+// P3-8 implements this in app; the gateway does not persist the result.
+type PluginAccountRefresher interface {
+	Refresh(ctx context.Context, siteType string, fields map[string]string) (map[string]string, error)
+}
+
 // gatewayOAuth is the oauth surface the gateway calls. *oauthsvc.Service
 // implements it; tests supply a fake.
 type gatewayOAuth interface {
@@ -91,4 +99,16 @@ func credentialResolverForSite(siteType string) credentialResolver {
 	default:
 		return nil
 	}
+}
+
+// credentialResolverFor keeps the built-in site resolvers and adds the plugin
+// account-pool resolver only for account:<siteType>:<uuid> on a registered pool.
+func credentialResolverFor(siteType, credentialType string) credentialResolver {
+	if resolver := credentialResolverForSite(siteType); resolver != nil {
+		return resolver
+	}
+	if pluginAccountPoolCredential(siteType, credentialType) {
+		return pluginAccountCredentialResolver{}
+	}
+	return nil
 }

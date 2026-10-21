@@ -29,6 +29,7 @@ type Handler struct {
 	limits              *upstreamConcurrencyCache
 	recorder            Recorder
 	oauth               gatewayOAuth
+	pluginAccounts      PluginAccountRefresher
 	rateLimits          *ratelimit.Service
 	modelsCache         *modelsCache
 	noRoutes            *noRouteSuppressionCache
@@ -43,6 +44,14 @@ type Handler struct {
 
 func (h Handler) WithRouteSiteHeader() Handler {
 	h.exposeRouteSite = true
+	return h
+}
+
+// WithPluginAccountRefresher installs the plugin account-pool token refresher.
+// A nil refresher leaves account bundles that are still inside leadSeconds usable
+// and fails the credential when a refresh is due.
+func (h Handler) WithPluginAccountRefresher(refresher PluginAccountRefresher) Handler {
+	h.pluginAccounts = refresher
 	return h
 }
 

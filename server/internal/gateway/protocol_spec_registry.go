@@ -216,6 +216,7 @@ func effectiveProtocolSpec(protocol canonicalProtocol, candidate routeengine.Can
 		mergeModelDefinition(&resolved, modelDef)
 		applyDomesticModelRequestPolicy(&resolved, modelDef)
 	}
+	applyPluginUpstreamStreamOnly(&resolved, candidate.Site.SiteType)
 	return resolved
 }
 

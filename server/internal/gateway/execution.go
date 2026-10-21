@@ -144,6 +144,9 @@ func (h Handler) forwardGatewayRequest(
 			}
 		}
 	}
+	if err == nil {
+		credentials, err = h.preparePluginAccountCredentials(ctx, candidate, credentials)
+	}
 	if err != nil {
 		startedAt := time.Now()
 		result := gatewayAttemptResult{
@@ -269,7 +272,7 @@ func (h Handler) forwardGatewayRequest(
 		// when the selected account talks to a different host.
 		upstreamBaseURL := candidate.Site.BaseURL
 		var headerVars map[string]string
-		if resolver := credentialResolverForSite(candidate.Site.SiteType); resolver != nil {
+		if resolver := credentialResolverFor(candidate.Site.SiteType, selectedCredential.Credential.CredentialType); resolver != nil {
 			resolved, failure := resolver.Resolve(ctx, h, candidate, selectedCredential, upstreamKey, accountID)
 			if failure != nil {
 				if failure.MarkReauth {
@@ -489,7 +492,7 @@ func (h Handler) forwardGatewayRequest(
 			result.errorType = transportErrorType(err)
 			result.errorMessage = err.Error()
 			result.latencyMS = time.Since(startedAt).Milliseconds()
-			result = recordCredentialAttempt(result, nil, isGrokSite(candidate.Site.SiteType))
+			result = recordCredentialAttempt(result, nil, accountPoolCredentialFailover(selectedCredential.Credential.CredentialType))
 			if releaseCredentialSelection != nil {
 				releaseCredentialSelection()
 			}
@@ -506,9 +509,7 @@ func (h Handler) forwardGatewayRequest(
 
 		if request.Stream {
 			result = h.handleStreamResponse(ctx, w, requestID, apiKeyID, canonicalModelID, candidate, protocol, resp, result, startedAt)
-			if isGrokSite(candidate.Site.SiteType) {
-				h.markAccountCredentialSyncFailed(ctx, selectedCredential.Credential, "grok", result)
-			}
+			h.markAccountPoolAuthFailure(ctx, candidate.Site.SiteType, selectedCredential.Credential, result)
 			if !request.Diagnostic {
 				h.markCredentialModelUnavailableAfterNotFound(ctx, candidate, selectedCredential.Credential, result)
 			}
@@ -529,9 +530,7 @@ func (h Handler) forwardGatewayRequest(
 		}
 
 		result = h.handleBufferedResponse(ctx, requestID, apiKeyID, canonicalModelID, candidate, protocol, resp, result, startedAt)
-		if isGrokSite(candidate.Site.SiteType) {
-			h.markAccountCredentialSyncFailed(ctx, selectedCredential.Credential, "grok", result)
-		}
+		h.markAccountPoolAuthFailure(ctx, candidate.Site.SiteType, selectedCredential.Credential, result)
 		if !request.Diagnostic {
 			h.markCredentialModelUnavailableAfterNotFound(ctx, candidate, selectedCredential.Credential, result)
 		}

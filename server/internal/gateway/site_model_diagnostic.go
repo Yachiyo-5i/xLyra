@@ -324,6 +324,35 @@ func (h Handler) forwardSiteModelTestRequest(
 	result.pricingGroup = selectedPricing.GroupName
 	result.pricing = selectedPricing
 
+	var headerVars map[string]string
+	pluginBaseURL := ""
+	if selectedCredential != nil && pluginAccountPoolCredential(candidate.Site.SiteType, selectedCredential.Credential.CredentialType) {
+		resolved, failure := (pluginAccountCredentialResolver{}).Resolve(ctx, h, candidate, *selectedCredential, upstreamKey, accountID)
+		if failure != nil {
+			if failure.MarkReauth {
+				message := "plugin account credential failed"
+				if failure.Err != nil {
+					message = failure.Err.Error()
+				}
+				h.markAccountCredentialReauthRequired(ctx, selectedCredential.Credential, message)
+			}
+			result.statusCode = http.StatusBadGateway
+			result.errorType = failure.ErrorType
+			if failure.Err != nil {
+				result.errorMessage = failure.Err.Error()
+			}
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+			return result
+		}
+		upstreamKey = resolved.Key
+		if resolved.AccountID != "" {
+			accountID = resolved.AccountID
+		}
+		pluginBaseURL = resolved.BaseURL
+		headerVars = resolved.HeaderVars
+	}
+
 	payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
 	if err != nil {
 		result.statusCode = http.StatusBadRequest
@@ -373,7 +402,11 @@ func (h Handler) forwardSiteModelTestRequest(
 		return result
 	}
 
-	endpoint := protocol.UpstreamPath(candidate.Site.BaseURL)
+	upstreamBaseURL := candidate.Site.BaseURL
+	if pluginBaseURL != "" {
+		upstreamBaseURL = pluginBaseURL
+	}
+	endpoint := protocol.UpstreamPath(upstreamBaseURL)
 	result.upstreamPath = endpointPath(endpoint)
 	result.upstreamURL = endpoint
 	req, err := newUpstreamHTTPRequest(ctx, protocol, endpoint, body)
@@ -414,7 +447,7 @@ func (h Handler) forwardSiteModelTestRequest(
 	if isOpenCodeZenSite(candidate) {
 		applyOpenCodeGoGatewayHeaders(req, request, upstreamKey)
 	}
-	if err := applyPluginRequestHeaders(req, candidate.Site.SiteType, nil, upstreamKey, candidate.Site.BaseURL); err != nil {
+	if err := applyPluginRequestHeaders(req, candidate.Site.SiteType, headerVars, upstreamKey, upstreamBaseURL); err != nil {
 		result.statusCode = http.StatusBadGateway
 		result.errorType = "plugin_header_template_failed"
 		result.errorMessage = err.Error()
