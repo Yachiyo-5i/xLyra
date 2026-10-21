@@ -249,14 +249,25 @@ func (s *Service) recordAccountRefreshFailure(ctx context.Context, credential st
 		meta["reauth_required"] = true
 		_, _ = store.NewSiteCredentialRepository(s.db.DB()).UpdateMeta(ctx, credential.ID, store.JSON(jsonBytes(meta)))
 	}
-	state, err := store.NewSiteAPIKeyStateRepository(s.db.DB()).UpsertSyncResult(ctx, store.UpsertSiteAPIKeyStateParams{
+	params := store.UpsertSiteAPIKeyStateParams{
 		SiteCredentialID: credential.ID,
 		SiteID:           credential.SiteID,
 		Enabled:          enabled,
 		SyncStatus:       accountRefreshFailureStatus(refreshErr, needsReauth),
 		SyncMessage:      message,
 		LastSyncedAt:     now,
-	})
+	}
+	// Plugin account rows keep the last usage document. Built-in Grok
+	// callers of this helper pass no Usage, and UpsertSyncResult
+	// still stores {} for that empty value. Grok's model-sync failure path
+	// keeps quota through its own state upsert, not here.
+	if _, _, pluginAccount := store.ParseAccountCredentialType(credential.CredentialType); pluginAccount {
+		previous := accountCredentialState(ctx, s.db.DB(), credential.ID)
+		if previous.SiteCredentialID == credential.ID {
+			params.Usage = previous.Usage
+		}
+	}
+	state, err := store.NewSiteAPIKeyStateRepository(s.db.DB()).UpsertSyncResult(ctx, params)
 	if err == nil && !enabled && state.Enabled {
 		_, _ = store.NewSiteAPIKeyStateRepository(s.db.DB()).UpdateEnabled(ctx, credential.ID, false)
 	}

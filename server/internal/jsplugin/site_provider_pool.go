@@ -1119,6 +1119,16 @@ func secretFieldNames(fields map[string]credentialFieldMeta) map[string]struct{}
 	return out
 }
 
+func rejectListModelsWithoutPerAccount(manifest Manifest, program *program) error {
+	if manifest.SiteProvider.Credential.Model != "account_pool" || manifest.SiteProvider.Models.PerAccount || program == nil {
+		return nil
+	}
+	if _, ok := program.hooks["listModels"]; !ok {
+		return nil
+	}
+	return fmt.Errorf("siteProvider.models.perAccount must be true when listModels is exported")
+}
+
 func accountPoolRequiredExports(section SiteProviderSection) []string {
 	if section.Credential.Model != "account_pool" {
 		return nil

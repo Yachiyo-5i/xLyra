@@ -84,9 +84,14 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 		if api, ok := s.pluginAccountAPI(preview.SiteType); ok {
 			poolAPI = api
 			pool = true
-			// RefreshAll takes the per-site lock itself. Call it before this
-			// method locks, or the non-reentrant mutex deadlocks.
-			accountResults, accountErr = poolAPI.RefreshAll(ctx, siteID)
+			// RefreshAll takes the per-site lock around each account write.
+			// Call it before this method locks, or the non-reentrant mutex
+			// deadlocks. The child budget is shorter than the scheduler's
+			// 10 minute batch so one plugin site cannot cancel the sites
+			// that run after it.
+			accountCtx, accountCancel := context.WithTimeout(ctx, pluginSiteAccountRefreshBudget)
+			accountResults, accountErr = poolAPI.RefreshAll(accountCtx, siteID)
+			accountCancel()
 		}
 	}
 
@@ -885,8 +890,9 @@ func restoreAPIKeyStateAfterAuthRecovery(ctx context.Context, repo store.SiteAPI
 func (s *Service) markRefreshFailed(ctx context.Context, item store.Site, message string) (RefreshResult, error) {
 	now := time.Now()
 	failure := upstream.ClassifyMessage(message)
+	lowerMessage := strings.ToLower(message)
 	recoverable := failure.Limited() || failure.Transient() ||
-		(strings.Contains(strings.ToLower(message), "enabled api keys failed") && !failure.CredentialInvalid())
+		((strings.Contains(lowerMessage, "enabled api keys failed") || strings.Contains(lowerMessage, "enabled accounts failed") || strings.Contains(lowerMessage, "plugin account refresh timed out")) && !failure.CredentialInvalid())
 	validationOK := false
 	syncStatus := "failed"
 	if recoverable {

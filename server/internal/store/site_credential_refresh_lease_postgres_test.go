@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -122,6 +123,50 @@ func TestPostgresSiteCredentialRefreshLeaseAndColumnUpdates(t *testing.T) {
 		t.Fatalf("stored row after UpdateSecret = %#v", reloaded)
 	}
 	assertJSONEqual(t, reloaded.Meta, `{"reauth_required":true}`)
+}
+
+func TestPostgresUpdateSecretIfTypePrefix(t *testing.T) {
+	db, cfg, cleanup := openTemporaryMigrationStore(t)
+	defer cleanup()
+	ctx := context.Background()
+	if err := ensureDatabaseInitializedOnce(ctx, cfg); err != nil {
+		t.Fatalf("initialize schema: %v", err)
+	}
+	site, err := NewSiteRepository(db).Create(ctx, CreateSiteParams{
+		Name: "conditional secret", Slug: "cond-secret-" + uuid.NewString(),
+		SiteType: "grok", BaseURL: "https://example.invalid", Status: "active", Enabled: true, RoutingPriority: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewSiteCredentialRepository(db)
+	created, err := repo.Upsert(ctx, UpsertSiteCredentialParams{
+		SiteID: site.ID, CredentialType: CredentialPrefixGrok + uuid.NewString(),
+		EncryptedSecret: "bundle-v1", MaskedSecret: "gk", Meta: JSON(`{}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := repo.UpdateSecretIfTypePrefix(ctx, created.ID, "bundle-v2", CredentialPrefixGrok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.EncryptedSecret != "bundle-v2" || updated.CredentialType != created.CredentialType {
+		t.Fatalf("conditional update = %#v", updated)
+	}
+	if _, err := repo.UpdateCredentialType(ctx, created.ID, NewAccountCredentialType("acme.example/pool", created.ID)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.UpdateSecretIfTypePrefix(ctx, created.ID, "bundle-v3", CredentialPrefixGrok); !errors.Is(err, ErrCredentialTypeMismatch) {
+		t.Fatalf("mismatched type error = %v", err)
+	}
+	reloaded, err := repo.GetByID(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.EncryptedSecret != "bundle-v2" {
+		t.Fatalf("secret after rejected update = %q", reloaded.EncryptedSecret)
+	}
 }
 
 func assertJSONEqual(t *testing.T, got JSON, want string) {

@@ -314,6 +314,15 @@ func TestAccountPoolEmptyModelsObject(t *testing.T) {
 	}
 }
 
+func TestAccountPoolListModelsRequiresPerAccount(t *testing.T) {
+	section := poolSection()
+	source := poolSource("acme.example", "summarizeAccount", "startLogin", "pollLogin", "refreshTokens", "listModels")
+	_, err := NewPlugin(poolManifest(source, section), source, nil, 1)
+	if err == nil || !strings.Contains(err.Error(), "listModels") || !strings.Contains(err.Error(), "perAccount must be true") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestAccountPoolPerAccountModels(t *testing.T) {
 	section := poolSection()
 	section.Models.PerAccount = true

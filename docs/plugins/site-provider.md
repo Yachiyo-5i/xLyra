@@ -199,7 +199,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `account_pool` 描述一种多账号站点。登录、刷新、导入、选区域、选账号、把密钥放进上游请求，都由 xLyra 的 Go 代码执行。插件导出的函数只描述下一步请求和结果形状。密钥留在宿主的秘密袋里，不进 JS。
 
-这种清单可以不写 `models`。不写表示不按账号拉模型列表。要拉，只写 `models.perAccount: true`，并且必须导出 `listModels`。空对象 `{}`、`models.path`、`models.auth` 都会被拒绝。`models.path` / `models.auth` 仍只属于 `api_key`；`api_key` 写 `perAccount` 也会被拒绝。五个可选钩子的调用方式见 [钩子](#钩子)。`perAccount` 的 `listModels` 见下面的 [按账号列模型](#按账号列模型)。
+这种清单可以不写 `models`。不写表示不按账号拉模型列表。要拉，只写 `models.perAccount: true`，并且必须导出 `listModels`。账号池导出了 `listModels` 但没有 `models.perAccount: true` 时，清单加载直接拒绝。空对象 `{}`、`models.path`、`models.auth` 都会被拒绝。`models.path` / `models.auth` 仍只属于 `api_key`；`api_key` 写 `perAccount` 也会被拒绝。五个可选钩子的调用方式见 [钩子](#钩子)。`perAccount` 的 `listModels` 见下面的 [按账号列模型](#按账号列模型)。
 
 `api_key` 清单不能写下面这些账号池字段：`credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`expiresFrom`、`identity`、`display`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`quota` 和 `request` 两种模型都可以写。
 
@@ -356,9 +356,9 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 账号池不写时默认 `sum`。`none` 时刷新账号不会改站点汇总。API Key 站点不写这项时，额度探测仍走原来的「最小剩余」汇总，不改道；只有清单显式写了 `sum`、`min` 或 `none` 才按上表处理。汇总里可以带 `aggregate`。
 
-定时刷新和手动刷新站点对账号池走同一条账号刷新：逐个账号拿刷新租约，按插件规则续期，把 `summarizeAccount` 的摘要写进该账号的 state。需要重新授权的账号会停用。然后按上表做额度汇总，并更新站点上的账号数和模型数。单个账号刷新、启用、停用、删除之后也会重算这两个计数。模型同步仍由站点自己的模型列表能力决定；账号池没有模型列表时，刷新不会因为「不支持模型同步」失败，账号数和已保存的模型数照常更新。
+定时刷新和手动刷新站点对账号池走同一条账号刷新：账号最多 4 个同时跑，每个账号的网络往返有单独的时限，整站账号刷新也有上限，避免一个账号很多的站点吃掉后面站点的批次时间。每个账号拿刷新租约，按插件规则续期，把 `summarizeAccount` 的摘要写进该账号的 state。需要重新授权的账号会停用。暂时失败不会清掉该账号上次的额度明细。然后按上表做额度汇总，并更新站点上的账号数和模型数。单个账号刷新、启用、停用、删除之后也会重算这两个计数。模型同步仍由站点自己的模型列表能力决定。没写 `models.perAccount` 的账号池刷新记为 `partial`，`sync_message` 说明跳过了模型同步，账号数和已保存的模型数照常更新，不会因为「不支持模型同步」把整次刷新判失败。全部启用账号都失败时，站点同步消息按 account 计数，不叫 API Key。
 
-健康检查不走下面的单个 `check` 钩子。它对每个启用的账号做一次与手动刷新相同的摘要（令牌需要续期时会先刷新）。至少有一个启用账号可用，站点就是健康的。重新授权失败会立刻停用该账号，同步状态写成 `reauth_required`；其它失败写成 `stale`，账号保持启用。站点连续 3 次健康检查不通过才标成不健康，和内置站点用的是同一条阈值。
+健康检查不走下面的单个 `check` 钩子，也不做完整的账号刷新。它对每个启用的账号先保证令牌可用（到期才刷新），再调用一次 `summarizeAccount` 判断可用或重新授权。这次探测不回写 usage，也不重写站点额度。账号最多 4 个同时探测，并跟随调用方的取消；取消时还没探完的账号保持原状。至少有一个启用账号可用，站点就是健康的。重新授权失败会立刻停用该账号，同步状态写成 `reauth_required`；其它失败写成 `stale`，账号保持启用。站点连续 3 次健康检查不通过才标成不健康，和内置站点用的是同一条阈值。
 
 ### request
 
@@ -507,7 +507,7 @@ account:<siteType>:<uuid>
 
 钩子返回的 `models` 按现有账号模型写入：每个模型 upsert 到该账号的模型行，再把各账号的并集写进站点模型表。站点模型的展示名是上游模型名。`capabilities` 按钩子返回的对象保存。`summarizeAccount` 仍然不返回模型。
 
-没写 `models.perAccount` 的账号池站点不走这条路径。`api_key` 的 `listModels` 行为不变。
+没写 `models.perAccount` 的账号池站点不走这条路径，站点刷新记为 `partial` 并在 `sync_message` 说明跳过了模型同步。导出了 `listModels` 却没写 `perAccount` 的账号池清单不会被加载。`api_key` 的 `listModels` 行为不变。
 
 ### listModels
 

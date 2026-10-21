@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"xlyra/server/internal/store"
 )
@@ -91,7 +92,14 @@ func accountUsable(credential store.SiteCredential, state store.SiteAPIKeyState,
 }
 
 func (s *Service) accountPoolCredentialCount(ctx context.Context, siteID uuid.UUID, siteType string) (int, error) {
-	credentials, err := store.NewSiteCredentialRepository(s.db.DB()).ListBySite(ctx, siteID)
+	if s == nil || s.db == nil {
+		return 0, nil
+	}
+	return accountPoolCredentialCountDB(ctx, s.db.DB(), siteID, siteType)
+}
+
+func accountPoolCredentialCountDB(ctx context.Context, db *gorm.DB, siteID uuid.UUID, siteType string) (int, error) {
+	credentials, err := store.NewSiteCredentialRepository(db).ListBySite(ctx, siteID)
 	if err != nil {
 		return 0, err
 	}

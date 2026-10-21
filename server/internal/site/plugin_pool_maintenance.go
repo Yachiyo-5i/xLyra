@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,19 +22,26 @@ func (s *Service) upsertPluginAccountSiteState(ctx context.Context, siteID uuid.
 	if s == nil || s.db == nil || siteID == uuid.Nil {
 		return nil
 	}
-	count, err := s.accountPoolCredentialCount(ctx, siteID, siteType)
+	return s.upsertPluginAccountSiteStateOn(ctx, s.db.DB(), siteID, siteType, syncStatus, syncMessage, siteModels, now, keepStatus)
+}
+
+func (s *Service) upsertPluginAccountSiteStateOn(ctx context.Context, db *gorm.DB, siteID uuid.UUID, siteType string, syncStatus string, syncMessage any, siteModels []store.SiteModel, now time.Time, keepStatus bool) error {
+	if s == nil || db == nil || siteID == uuid.Nil {
+		return nil
+	}
+	count, err := accountPoolCredentialCountDB(ctx, db, siteID, siteType)
 	if err != nil {
 		return err
 	}
 	models := siteModels
 	if models == nil {
-		loaded, loadErr := store.NewSiteModelRepository(s.db.DB()).ListBySite(ctx, siteID)
+		loaded, loadErr := store.NewSiteModelRepository(db).ListBySite(ctx, siteID)
 		if loadErr != nil {
 			return loadErr
 		}
 		models = loaded
 	}
-	repo := store.NewSiteStateRepository(s.db.DB())
+	repo := store.NewSiteStateRepository(db)
 	existing, err := repo.GetBySite(ctx, siteID)
 	if err != nil && !errorsIsNotFound(err) {
 		return err
@@ -98,7 +106,7 @@ func (s *Service) finishPluginAccountPoolRefresh(ctx context.Context, site store
 	}
 	enabled, failed, sample := pluginAccountRefreshStats(ctx, s, site.ID, api.siteType, results)
 	if enabled > 0 && failed == enabled {
-		message := fmt.Sprintf("all %d enabled api keys failed", enabled)
+		message := fmt.Sprintf("all %d enabled accounts failed", enabled)
 		if sample != "" {
 			message = message + ": " + sample
 		}
@@ -112,7 +120,7 @@ func (s *Service) finishPluginAccountPoolRefresh(ctx context.Context, site store
 	var syncMessage any
 	if failed > 0 {
 		syncStatus = "partial"
-		syncMessage = fmt.Sprintf("%d of %d api keys failed", failed, enabled)
+		syncMessage = fmt.Sprintf("%d of %d accounts failed", failed, enabled)
 	}
 
 	modelCount := 0
@@ -126,6 +134,10 @@ func (s *Service) finishPluginAccountPoolRefresh(ctx context.Context, site store
 		if syncErr != nil && !pluginModelSyncSkippable(syncErr) {
 			syncStatus = "partial"
 			syncMessage = appendSyncMessage(syncMessage, syncErr.Error())
+		}
+		if syncErr != nil && pluginModelSyncSkippable(syncErr) && (api.pool == nil || !api.pool.ModelsPerAccount) {
+			syncStatus = "partial"
+			syncMessage = appendSyncMessage(syncMessage, "model sync skipped: models.perAccount is not enabled")
 		}
 		stored, loadErr := store.NewSiteModelRepository(s.db.DB()).ListBySite(ctx, site.ID)
 		if loadErr != nil {
@@ -269,51 +281,100 @@ func (s *Service) runPluginAccountHealth(ctx context.Context, item store.Site, a
 		byID[state.SiteCredentialID] = state
 	}
 
-	accountCreds := make([]store.SiteCredential, 0, len(credentials))
-	for _, credential := range credentials {
-		if store.IsAccountCredentialTypeOf(credential.CredentialType, item.SiteType) {
-			accountCreds = append(accountCreds, credential)
-		}
+	type healthAccount struct {
+		credential store.SiteCredential
+		enabled    bool
 	}
-	total := 0
-	passed := 0
-	results := make([]map[string]any, 0, len(accountCreds))
-	for _, credential := range accountCreds {
+	accountCreds := make([]healthAccount, 0, len(credentials))
+	for _, credential := range credentials {
+		if !store.IsAccountCredentialTypeOf(credential.CredentialType, item.SiteType) {
+			continue
+		}
 		meta := accountMetaMap(credential.Meta)
 		enabled := boolFromMeta(meta, "enabled", true)
 		if state, ok := byID[credential.ID]; ok && state.SiteCredentialID == credential.ID {
 			enabled = state.Enabled
 		}
-		wrapped := APIKeyCredential{Credential: credential, Name: pluginHealthAccountName(credential)}
-		if !enabled {
-			results = append(results, healthProbeCredentialResult(wrapped, "disabled", ""))
-			continue
-		}
-		total++
-		account, probeErr := api.refreshOne(ctx, item.ID, credential.ID, false)
-		state := accountCredentialState(ctx, s.db.DB(), credential.ID)
-		if probeErr != nil || accountUnavailable(account, state) {
-			status := strings.TrimSpace(state.SyncStatus)
-			if status == "" || status == "synced" {
-				status = "stale"
-			}
-			message := ""
-			if probeErr != nil {
-				message = probeErr.Error()
-			} else if state.SyncMessage.Valid {
-				message = state.SyncMessage.String
-			} else {
-				message = account.Remark
-			}
-			results = append(results, healthProbeCredentialResult(wrapped, status, message))
-			continue
-		}
-		passed++
-		results = append(results, healthProbeCredentialResult(wrapped, "ok", ""))
+		accountCreds = append(accountCreds, healthAccount{credential: credential, enabled: enabled})
 	}
-	check.metadata["accounts"] = results
+	results := make([]map[string]any, len(accountCreds))
+	probed := make([]bool, len(accountCreds))
+	enabledIndexes := make([]int, 0, len(accountCreds))
+	for index, account := range accountCreds {
+		wrapped := APIKeyCredential{Credential: account.credential, Name: pluginHealthAccountName(account.credential)}
+		if !account.enabled {
+			results[index] = healthProbeCredentialResult(wrapped, "disabled", "")
+			probed[index] = true
+			continue
+		}
+		enabledIndexes = append(enabledIndexes, index)
+	}
+	workers := pluginAccountWorkers
+	if workers > len(enabledIndexes) {
+		workers = len(enabledIndexes)
+	}
+	if workers > 0 {
+		jobs := make(chan int)
+		var wg sync.WaitGroup
+		for worker := 0; worker < workers; worker++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for index := range jobs {
+					if ctx.Err() != nil {
+						continue
+					}
+					credential := accountCreds[index].credential
+					wrapped := APIKeyCredential{Credential: credential, Name: pluginHealthAccountName(credential)}
+					status, message, probeErr := api.probeAccountHealth(ctx, credential)
+					if probeErr != nil || contextCanceled(ctx, probeErr) {
+						continue
+					}
+					results[index] = healthProbeCredentialResult(wrapped, status, message)
+					probed[index] = true
+				}
+			}()
+		}
+		for _, index := range enabledIndexes {
+			if ctx.Err() != nil {
+				break
+			}
+			jobs <- index
+		}
+		close(jobs)
+		wg.Wait()
+	}
+	total := 0
+	passed := 0
+	enabledCount := len(enabledIndexes)
+	finished := 0
+	visible := make([]map[string]any, 0, len(accountCreds))
+	for index, account := range accountCreds {
+		if !account.enabled {
+			visible = append(visible, results[index])
+			continue
+		}
+		if !probed[index] {
+			continue
+		}
+		finished++
+		total++
+		status, _ := results[index]["status"].(string)
+		if status == "ok" {
+			passed++
+		}
+		visible = append(visible, results[index])
+	}
+	check.metadata["accounts"] = visible
 	check.metadata["accounts_total"] = total
 	check.metadata["accounts_passed"] = passed
+	if ctx.Err() != nil && finished < enabledCount {
+		check.success = false
+		check.errorType = "timeout"
+		check.message = ctx.Err().Error()
+		check.latency = time.Since(start)
+		return check
+	}
 	check.success, check.errorType, check.message = grokHealthOutcome(len(accountCreds), total, passed)
 	check.message = accountPoolHealthMessage(item.SiteType, check.message)
 	check.latency = time.Since(start)
@@ -326,16 +387,4 @@ func pluginHealthAccountName(credential store.SiteCredential) string {
 		return name
 	}
 	return strings.TrimSpace(credential.MaskedSecret)
-}
-
-func accountUnavailable(account PluginAccount, state store.SiteAPIKeyState) bool {
-	if account.Status == "unavailable" {
-		return true
-	}
-	switch strings.ToLower(strings.TrimSpace(state.SyncStatus)) {
-	case "reauth_required", "stale", "failed":
-		return true
-	default:
-		return false
-	}
 }

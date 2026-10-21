@@ -159,6 +159,9 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 	if err := program.requireHooks(accountPoolRequiredExports(manifest.SiteProvider)); err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
+	if err := rejectListModelsWithoutPerAccount(manifest, program); err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
 	if _, signs := program.hooks[HookSignRequest]; signs && manifest.Protocol.Auth != "none" {
 		return nil, fmt.Errorf("%s: signRequest needs protocol.auth \"none\", so the credential is only used for signing", manifest.ID)
 	}
