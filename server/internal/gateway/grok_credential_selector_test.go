@@ -68,15 +68,18 @@ func TestShouldMarkAccountCredentialSyncFailed(t *testing.T) {
 }
 
 func TestMarkAccountCredentialSyncFailedDisablesCredentialAndStateAtomically(t *testing.T) {
-	t.Run("grok", func(t *testing.T) {
-		for _, status := range []int{http.StatusUnauthorized} {
-			status := status
-			t.Run(http.StatusText(status), func(t *testing.T) {
-				t.Parallel()
-				assertAccountCredentialMarkedReauth(t, "grok", status)
-			})
-		}
-	})
+	for _, provider := range []string{"grok"} {
+		provider := provider
+		t.Run(provider, func(t *testing.T) {
+			for _, status := range []int{http.StatusUnauthorized} {
+				status := status
+				t.Run(http.StatusText(status), func(t *testing.T) {
+					t.Parallel()
+					assertAccountCredentialMarkedReauth(t, provider, status)
+				})
+			}
+		})
+	}
 }
 
 func assertAccountCredentialMarkedReauth(t *testing.T, provider string, status int) {

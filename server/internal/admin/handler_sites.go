@@ -1800,7 +1800,7 @@ func (h Handler) sitePayloadWithCapabilities(item store.Site) map[string]any {
 }
 
 // withAccountCounts adds account_count / valid_account_count to the payload of
-// an account-login site. They come from the stored accounts, so a failed site
+// account-login sites. They come from the stored accounts, so a failed site
 // refresh that zeroes the cached site state cannot hide accounts.
 func (h Handler) withAccountCounts(ctx context.Context, payload map[string]any, site store.Site) map[string]any {
 	if h.sites == nil || !sitepkg.IsAccountLoginSite(site.SiteType) {

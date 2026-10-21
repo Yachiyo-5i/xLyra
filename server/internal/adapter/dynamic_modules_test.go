@@ -35,8 +35,8 @@ func TestSetDynamicModulesReplacesSnapshot(t *testing.T) {
 	}
 
 	modules := registry.Modules()
-	if len(modules) != 15 {
-		t.Fatalf("module count = %d, want 15", len(modules))
+	if len(modules) != 14 {
+		t.Fatalf("module count = %d, want 14", len(modules))
 	}
 	if modules[len(modules)-1].(taggedModule).id != "dyn" {
 		t.Fatalf("last module = %#v", modules[len(modules)-1])
@@ -52,8 +52,8 @@ func TestSetDynamicModulesReplacesSnapshot(t *testing.T) {
 	if _, ok := registry.ModuleForSiteType("acme.example/chat"); ok {
 		t.Fatal("empty snapshot should remove dynamic modules")
 	}
-	if len(registry.Modules()) != 14 {
-		t.Fatalf("module count after empty snapshot = %d, want 14", len(registry.Modules()))
+	if len(registry.Modules()) != 13 {
+		t.Fatalf("module count after empty snapshot = %d, want 13", len(registry.Modules()))
 	}
 }
 

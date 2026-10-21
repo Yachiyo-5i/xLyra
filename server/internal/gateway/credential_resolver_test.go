@@ -169,7 +169,7 @@ func TestCredentialResolverFailure(t *testing.T) {
 	credentialID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	plain := errors.New("refresh unavailable")
 	grokReauth := fmt.Errorf("refresh grok token: %w", oauthsvc.ErrGrokReauthorizationRequired)
-	otherSentinel := errors.New("other provider sentinel")
+	otherSentinel := errors.New("other reauthorization sentinel")
 
 	tests := []struct {
 		name     string

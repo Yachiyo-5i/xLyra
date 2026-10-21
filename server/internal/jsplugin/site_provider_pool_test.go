@@ -59,12 +59,12 @@ func TestAccountPoolManifestAccepts(t *testing.T) {
 	if !plugin.HasHook("summarizeAccount") || plugin.HasHook("startLogin") || plugin.HasHook("refreshTokens") {
 		t.Fatalf("hooks summarize=%v start=%v refresh=%v", plugin.HasHook("summarizeAccount"), plugin.HasHook("startLogin"), plugin.HasHook("refreshTokens"))
 	}
-	accountPlugin, err := NewPlugin(poolManifest(accountSource, poolSection()), accountSource, nil, 1)
+	accountPoolPlugin, err := NewPlugin(poolManifest(accountSource, poolSection()), accountSource, nil, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"summarizeAccount", "startLogin", "pollLogin", "refreshTokens"} {
-		if !accountPlugin.HasHook(name) {
+		if !accountPoolPlugin.HasHook(name) {
 			t.Fatalf("missing hook %s", name)
 		}
 	}

@@ -268,8 +268,8 @@ func (h Handler) forwardGatewayRequest(
 			return result
 		}
 		accountID := gatewayCredentialMetaString(selectedCredential.Credential, "account_id")
-		// upstreamBaseURL starts as the site address. A resolver may override it
-		// when the selected account talks to a different host.
+		// upstreamBaseURL is the site's base URL. A credential resolver may
+		// override it with the account's own upstream address.
 		upstreamBaseURL := candidate.Site.BaseURL
 		var headerVars map[string]string
 		if resolver := credentialResolverFor(candidate.Site.SiteType, selectedCredential.Credential.CredentialType); resolver != nil {

@@ -255,8 +255,8 @@ func pluginAccountRefreshStats(ctx context.Context, s *Service, siteID uuid.UUID
 	return enabled, failed, sample
 }
 
-// runPluginAccountHealth probes each enabled plugin account.
-// Reauthorization disables the account.
+// runPluginAccountHealth probes each enabled plugin account. Reauthorization
+// disables the account.
 // Any other failure records sync status stale and leaves the account enabled.
 // The site stays healthy while at least one enabled account answers.
 func (s *Service) runPluginAccountHealth(ctx context.Context, item store.Site, api pluginAccountAPI, start time.Time, check siteHealthCheck) siteHealthCheck {

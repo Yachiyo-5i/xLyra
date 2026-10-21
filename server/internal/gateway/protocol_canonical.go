@@ -1209,8 +1209,7 @@ func encodeCanonicalMessagesAsChatMessages(messages []canonicalMessage) []any {
 	// function_call item. Parallel tool calls arrive as consecutive Responses
 	// items, but chat completions require one assistant message carrying every
 	// tool_call that is answered by the tool messages that follow it; separate
-	// assistant messages are rejected by upstreams that require parallel tool
-	// calls to stay in one assistant message.
+	// assistant messages are rejected by some chat upstreams.
 	var callBatch map[string]any
 	for _, message := range messages {
 		if message.Type != "function_call" {

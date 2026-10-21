@@ -420,7 +420,7 @@ func assertAccountShape(t *testing.T, siteType string, raw json.RawMessage, cred
 		t.Fatalf("%s account = %s", siteType, raw)
 	}
 	if item["region"] != nil {
-		t.Fatalf("grok account includes region: %s", raw)
+		t.Fatalf("%s account includes region: %s", siteType, raw)
 	}
 }
 

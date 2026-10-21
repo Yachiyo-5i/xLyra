@@ -8,7 +8,9 @@ import (
 	"testing"
 )
 
-// headSiteTypeInfos is the ListSiteTypes payload from before the registry.
+// headSiteTypeInfos is the ListSiteTypes payload from HEAD
+// server/internal/admin/handler_site_types.go. Official base URLs are the
+// resolved gateway.OfficialBaseURLForProvider values.
 var headSiteTypeInfos = []siteTypeInfo{
 	{SiteType: "openai", DisplayName: "OpenAI", Subtitle: "OpenAI 平台 API Key 接入", CredentialKey: "openai", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://api.openai.com", ShowInCreateDialog: true, IconURL: "/brand-icons/openai.png"},
 	{SiteType: "anthropic", DisplayName: "Anthropic Claude", Subtitle: "Anthropic Messages API Key 接入", CredentialKey: "anthropic", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://api.anthropic.com", ShowInCreateDialog: true, IconURL: "/brand-icons/anthropic.png"},
@@ -99,10 +101,8 @@ func TestListSiteTypesExposeAccountCapabilities(t *testing.T) {
 			}
 			fields := mapFromRawObject(t, accounts)
 			assertExactJSONKeys(t, fields, siteType+" accounts", "login_kind", "supports_import", "supports_regions")
-			if siteType == "grok" {
-				if string(fields["login_kind"]) != `"oauth2_device_code"` || string(fields["supports_import"]) != "false" || string(fields["supports_regions"]) != "false" {
-					t.Fatalf("grok accounts = %s", accounts)
-				}
+			if string(fields["login_kind"]) != `"oauth2_device_code"` || string(fields["supports_import"]) != "false" || string(fields["supports_regions"]) != "false" {
+				t.Fatalf("grok accounts = %s", accounts)
 			}
 		default:
 			if ok {

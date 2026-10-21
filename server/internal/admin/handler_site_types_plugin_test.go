@@ -102,8 +102,8 @@ func TestListSiteTypesAppendsEnabledPluginSiteTypes(t *testing.T) {
 	if err := json.Unmarshal(envelope["meta"], &meta); err != nil {
 		t.Fatalf("decode meta: %v", err)
 	}
-	if string(meta["count"]) != "20" {
-		t.Fatalf("meta.count = %s, want 20", meta["count"])
+	if string(meta["count"]) != "19" {
+		t.Fatalf("meta.count = %s, want 19", meta["count"])
 	}
 	var items []json.RawMessage
 	if err := json.Unmarshal(envelope["items"], &items); err != nil {

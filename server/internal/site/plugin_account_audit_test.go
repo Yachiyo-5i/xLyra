@@ -413,19 +413,6 @@ func siteQuotaRemaining(t *testing.T, st *store.Store, siteID uuid.UUID) float64
 	return value
 }
 
-func mustPluginFields(t *testing.T, svc *Service, id uuid.UUID) map[string]string {
-	t.Helper()
-	plain, err := svc.credentials.Decrypt(mustCredential(t, svc.db, id).EncryptedSecret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fields, err := decodePluginCredential(plain)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return fields
-}
-
 func waitAudit(t *testing.T, ch <-chan struct{}, what string) {
 	t.Helper()
 	select {
@@ -444,77 +431,4 @@ func waitAuditErr(t *testing.T, ch <-chan error, what string) error {
 		t.Fatalf("timed out waiting for %s", what)
 		return nil
 	}
-}
-
-func createTypedSite(t *testing.T, st *store.Store, siteType string) store.Site {
-	t.Helper()
-	created, err := store.NewSiteRepository(st.DB()).Create(context.Background(), store.CreateSiteParams{
-		Name:            "Pool",
-		Slug:            "cv-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12],
-		SiteType:        siteType,
-		BaseURL:         "https://api.example.cn",
-		Status:          "active",
-		Enabled:         true,
-		RoutingPriority: 1,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return created
-}
-
-func insertPluginAccount(t *testing.T, svc *Service, siteID uuid.UUID, access, subject string) store.SiteCredential {
-	t.Helper()
-	encoded, err := encodePluginCredential(map[string]string{
-		"access_token": access, "refresh_token": "refresh-" + subject, "subject": subject, "realm": "intl",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	encrypted, masked, err := svc.credentials.Encrypt(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
-	meta, err := json.Marshal(map[string]any{"enabled": true, "subject": subject, "realm": "intl"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cred, err := store.NewSiteCredentialRepository(svc.db.DB()).Upsert(context.Background(), store.UpsertSiteCredentialParams{
-		SiteID:          siteID,
-		CredentialType:  store.NewAccountCredentialType(pluginAccountTestType, uuid.New()),
-		EncryptedSecret: encrypted,
-		MaskedSecret:    masked,
-		Meta:            meta,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.NewSiteAPIKeyStateRepository(svc.db.DB()).Upsert(context.Background(), store.UpsertSiteAPIKeyStateParams{
-		SiteCredentialID: cred.ID,
-		SiteID:           siteID,
-		Name:             subject,
-		Enabled:          true,
-		SyncStatus:       "synced",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	return cred
-}
-
-func mustSite(t *testing.T, st *store.Store, id uuid.UUID) store.Site {
-	t.Helper()
-	site, err := store.NewSiteRepository(st.DB()).GetByID(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return site
-}
-
-func mustCredential(t *testing.T, st *store.Store, id uuid.UUID) store.SiteCredential {
-	t.Helper()
-	cred, err := store.NewSiteCredentialRepository(st.DB()).GetByID(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return cred
 }
