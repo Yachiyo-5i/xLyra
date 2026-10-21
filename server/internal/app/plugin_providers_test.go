@@ -340,6 +340,26 @@ func TestConvertSiteProviderCopiesRequestHeaders(t *testing.T) {
 	}
 }
 
+func TestConvertAPIKeyQuotaAggregate(t *testing.T) {
+	plugin := testProviderPlugin("good.example", "good.example/chat", []string{"api.example.com"}, "https://api.example.com", nil, jsplugin.LocalizedText{"en": "Example"}, nil)
+	plugin.Manifest.SiteProvider.Quota = &jsplugin.SiteProviderQuota{Aggregate: " min "}
+	prepared, err := convertSiteProvider(plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.item.Pool != nil || prepared.item.QuotaAggregate != "min" {
+		t.Fatalf("aggregate = %q pool %#v", prepared.item.QuotaAggregate, prepared.item.Pool)
+	}
+	omitted := testProviderPlugin("good.example", "good.example/chat", []string{"api.example.com"}, "https://api.example.com", nil, jsplugin.LocalizedText{"en": "Example"}, nil)
+	prepared, err = convertSiteProvider(omitted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.item.QuotaAggregate != "" {
+		t.Fatalf("omitted aggregate = %q", prepared.item.QuotaAggregate)
+	}
+}
+
 func testProviderPlugin(id, siteType string, hosts []string, official string, params json.RawMessage, name, subtitle jsplugin.LocalizedText) *jsplugin.Plugin {
 	return &jsplugin.Plugin{Manifest: jsplugin.Manifest{
 		ID:   id,

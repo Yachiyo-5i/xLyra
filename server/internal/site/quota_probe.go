@@ -78,6 +78,8 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	var summaryEntries []QuotaProbeEntry
 	plan := ""
 	var expiresAt *string
+	aggregateMode := explicitPluginQuotaAggregate(item.SiteType)
+	var aggregateItems []QuotaProbeEntry
 
 	for _, credential := range credentials {
 		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
@@ -116,6 +118,9 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 				summaryEntries = result.Entries
 			}
 			if entry, ok := quotaProbeSummaryEntry(probeType, result); ok {
+				if aggregateMode == "sum" || aggregateMode == "min" {
+					aggregateItems = append(aggregateItems, entry)
+				}
 				if minEntry == nil || *entry.Remaining < *minEntry.Remaining {
 					copied := entry
 					minEntry = &copied
@@ -143,6 +148,9 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	if probed == 0 {
 		return item
 	}
+	if aggregateMode == "none" {
+		return s.removeQuotaProbeSummary(ctx, item)
+	}
 	summary["credential_count"] = probed
 	summary["ok_count"] = okCount
 	if okCount == 0 {
@@ -151,7 +159,27 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	} else {
 		summary["status"] = "ok"
 	}
-	if minEntry != nil {
+	// manifest 显式写了 sum/min 才改道；没写则走下面的历史最小剩余。
+	if aggregateMode == "sum" || aggregateMode == "min" {
+		summary["aggregate"] = aggregateMode
+		if rollup, ok := AggregateQuota(aggregateMode, aggregateItems); ok {
+			if rollup.Remaining != nil {
+				summary["remaining_min"] = *rollup.Remaining
+			}
+			if rollup.Unit != "" {
+				summary["unit"] = rollup.Unit
+			}
+			if rollup.Limit != nil {
+				summary["limit"] = *rollup.Limit
+			}
+			if rollup.Used != nil {
+				summary["used"] = *rollup.Used
+			}
+			if rollup.ResetAt != nil {
+				summary["reset_at"] = *rollup.ResetAt
+			}
+		}
+	} else if minEntry != nil {
 		summary["remaining_min"] = *minEntry.Remaining
 		summary["unit"] = minEntry.Unit
 		if minEntry.Limit != nil {
@@ -179,6 +207,20 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 
 	meta := siteMetaMap(item)
 	meta[siteMetaQuotaProbeSummary] = summary
+	updated, err := store.NewSiteRepository(s.db.DB()).UpdateMeta(ctx, item.ID, store.JSON(jsonBytes(meta)))
+	if err != nil {
+		return item
+	}
+	return updated
+}
+
+// removeQuotaProbeSummary drops a site rollup. aggregate none does not write one.
+func (s *Service) removeQuotaProbeSummary(ctx context.Context, item store.Site) store.Site {
+	meta := siteMetaMap(item)
+	if _, ok := meta[siteMetaQuotaProbeSummary]; !ok {
+		return item
+	}
+	delete(meta, siteMetaQuotaProbeSummary)
 	updated, err := store.NewSiteRepository(s.db.DB()).UpdateMeta(ctx, item.ID, store.JSON(jsonBytes(meta)))
 	if err != nil {
 		return item

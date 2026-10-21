@@ -87,6 +87,9 @@ func TestSiteProviderProbeRefreshWritesSummary(t *testing.T) {
 	if summary["probe_type"] != "quota.example/chat" || summary["status"] != "ok" || summary["plan"] != "plugin-plan" || summary["unit"] != "credits" || summary["remaining_min"] != 15.0 || summary["limit"] != 20.0 || summary["used"] != 5.0 {
 		t.Fatalf("summary = %#v", summary)
 	}
+	if _, ok := summary["aggregate"]; ok {
+		t.Fatalf("summary = %#v", summary)
+	}
 	entries := quotaSummaryEntries(t, summary)
 	if len(entries) != 2 || entries[0].Label != "pack" || entries[0].Kind != "package" || entries[1].Name != "Bonus" {
 		t.Fatalf("summary entries = %+v", entries)
@@ -347,7 +350,90 @@ func pluginProbeCredential(t *testing.T) store.SiteCredential {
 		siteJSONMeta(t, map[string]any{QuotaProbeCredentialMetaKey: previous}))
 }
 
+func TestSiteProviderProbeQuotaAggregate(t *testing.T) {
+	const aggregateProbeBody = `
+export function probe(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "GET", path: "/v1/quota" } };
+  const body = steps[0].response.json;
+  return { result: { kind: "balance", entries: [{
+    label: "balance", unit: "credits",
+    remaining: body.remaining, limit: body.limit, used: body.used, resetAt: body.resetAt
+  }] } };
+}
+`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Header.Get("Authorization") {
+		case "Bearer sk-tight":
+			_, _ = w.Write([]byte(`{"remaining":10,"limit":40,"used":30,"resetAt":"2099-06-01T00:00:00Z"}`))
+		case "Bearer sk-wide":
+			_, _ = w.Write([]byte(`{"remaining":25,"limit":80,"used":55,"resetAt":"2099-01-15T00:00:00Z"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	for _, tc := range []struct {
+		mode      string
+		remaining float64
+		limit     float64
+		used      float64
+		resetAt   string
+	}{
+		{mode: "min", remaining: 10, limit: 40, used: 30, resetAt: "2099-06-01T00:00:00Z"},
+		{mode: "sum", remaining: 35, limit: 120, used: 85, resetAt: "2099-01-15T00:00:00Z"},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			plugin := providerHookPlugin(t, "quota.example", aggregateProbeBody)
+			useCatalog(t, plugin)
+			installProviderSiteMode(t, plugin, true, []string{probeServerHost(t, server.URL)}, tc.mode)
+			item := store.Site{
+				ID: uuid.New(), Name: "quota", SiteType: "quota.example/chat", BaseURL: server.URL, Enabled: true,
+			}
+			credentials := []store.SiteCredential{
+				siteEncryptedCredential(t, uuid.New(), item.ID, "api_key", "sk-tight", nil),
+				siteEncryptedCredential(t, uuid.New(), item.ID, "api_key", "sk-wide", nil),
+			}
+			savedSite, _, _ := refreshPluginQuotas(t, item, credentials)
+			summary := quotaSummaryFromMeta(t, savedSite.Meta)
+			if summary["aggregate"] != tc.mode || summary["status"] != "ok" || summary["unit"] != "credits" || summary["remaining_min"] != tc.remaining || summary["limit"] != tc.limit || summary["used"] != tc.used || summary["reset_at"] != tc.resetAt {
+				t.Fatalf("summary = %#v", summary)
+			}
+			if summary["credential_count"] != 2.0 || summary["ok_count"] != 2.0 {
+				t.Fatalf("counts = %#v", summary)
+			}
+		})
+	}
+
+	t.Run("none", func(t *testing.T) {
+		plugin := providerHookPlugin(t, "quota.example", `
+export function probe() {
+  return { result: { kind: "balance", entries: [{ label: "balance", unit: "credits", remaining: 3, limit: 4, used: 1 }] } };
+}
+`)
+		useCatalog(t, plugin)
+		installProviderSiteMode(t, plugin, true, []string{"api.example.com"}, "none")
+		savedSite, stored, cooldown := refreshPluginQuota(t, pluginProbeSite(t, "https://api.example.com", nil), pluginProbeCredential(t))
+		if cooldown {
+			t.Fatal("none started a cooldown")
+		}
+		if stored.Status != "ok" || len(stored.Entries) != 1 || stored.Entries[0].Remaining == nil || *stored.Entries[0].Remaining != 3 {
+			t.Fatalf("stored = %+v", stored)
+		}
+		meta := siteMustJSONMap(t, savedSite.Meta)
+		if _, ok := meta[siteMetaQuotaProbeSummary]; ok {
+			t.Fatalf("summary = %#v", meta[siteMetaQuotaProbeSummary])
+		}
+	})
+}
+
 func refreshPluginQuota(t *testing.T, item store.Site, credential store.SiteCredential) (store.Site, QuotaProbeResult, bool) {
+	t.Helper()
+	return refreshPluginQuotas(t, item, []store.SiteCredential{credential})
+}
+
+func refreshPluginQuotas(t *testing.T, item store.Site, credentials []store.SiteCredential) (store.Site, QuotaProbeResult, bool) {
 	t.Helper()
 	var savedSite store.Site
 	var savedCredential store.SiteCredential
@@ -359,10 +445,12 @@ func refreshPluginQuota(t *testing.T, item store.Site, credential store.SiteCred
 		}
 		switch dest := tx.Statement.Dest.(type) {
 		case *[]store.SiteCredential:
-			*dest = []store.SiteCredential{credential}
-			tx.RowsAffected = 1
+			*dest = append([]store.SiteCredential(nil), credentials...)
+			tx.RowsAffected = int64(len(credentials))
 		case *store.SiteCredential:
-			*dest = credential
+			if len(credentials) > 0 {
+				*dest = credentials[0]
+			}
 			tx.RowsAffected = 1
 		case *store.Site:
 			*dest = item

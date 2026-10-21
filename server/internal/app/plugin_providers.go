@@ -185,13 +185,23 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 				ShowInCreateDialog: true,
 				IconURL:            siteProviderIconURL(plugin),
 			},
-			PluginID: plugin.Manifest.ID,
-			Enabled:  true,
-			Hosts:    append([]string(nil), section.Hosts...),
-			Request:  pluginSiteRequestFromManifest(section.Request),
-			Pool:     pool,
+			PluginID:       plugin.Manifest.ID,
+			Enabled:        true,
+			Hosts:          append([]string(nil), section.Hosts...),
+			Request:        pluginSiteRequestFromManifest(section.Request),
+			QuotaAggregate: apiKeyQuotaAggregate(pool, section.Quota),
+			Pool:           pool,
 		},
 	}, nil
+}
+
+// apiKeyQuotaAggregate copies an explicit quota.aggregate onto an API-key site.
+// Account-pool sites already keep the mode on Pool.QuotaAggregate.
+func apiKeyQuotaAggregate(pool *jsplugin.AccountPoolSpec, quota *jsplugin.SiteProviderQuota) string {
+	if pool != nil || quota == nil {
+		return ""
+	}
+	return strings.TrimSpace(quota.Aggregate)
 }
 
 func pluginSiteRequestFromManifest(section jsplugin.SiteProviderRequest) site.PluginSiteRequest {

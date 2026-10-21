@@ -46,6 +46,11 @@ func providerHookPlugin(t *testing.T, id, body string) *jsplugin.Plugin {
 
 func installProviderSite(t *testing.T, plugin *jsplugin.Plugin, enabled bool, hosts []string) {
 	t.Helper()
+	installProviderSiteMode(t, plugin, enabled, hosts, "")
+}
+
+func installProviderSiteMode(t *testing.T, plugin *jsplugin.Plugin, enabled bool, hosts []string, aggregate string) {
+	t.Helper()
 	ClearPluginSiteTypes()
 	t.Cleanup(ClearPluginSiteTypes)
 	if err := SetPluginSiteTypes([]PluginSiteType{{
@@ -53,9 +58,10 @@ func installProviderSite(t *testing.T, plugin *jsplugin.Plugin, enabled bool, ho
 			SiteType:        plugin.Manifest.SiteProvider.SiteType,
 			OfficialBaseURL: plugin.Manifest.SiteProvider.Protocol.OfficialBaseURL,
 		},
-		PluginID: plugin.Manifest.ID,
-		Enabled:  enabled,
-		Hosts:    append([]string(nil), hosts...),
+		PluginID:       plugin.Manifest.ID,
+		Enabled:        enabled,
+		Hosts:          append([]string(nil), hosts...),
+		QuotaAggregate: aggregate,
 	}}); err != nil {
 		t.Fatal(err)
 	}

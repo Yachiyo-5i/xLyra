@@ -54,6 +54,9 @@ func TestConvertAccountPoolSiteProvider(t *testing.T) {
 	if prepared.item.Pool == nil || prepared.item.Pool.DefaultBaseURL() != "https://api.example.cn/v1" || prepared.item.Pool.Login.Kind != "custom_poll" {
 		t.Fatalf("pool = %#v", prepared.item.Pool)
 	}
+	if prepared.item.QuotaAggregate != "" || prepared.item.Pool.QuotaAggregate != "sum" {
+		t.Fatalf("quota aggregate item %q pool %q", prepared.item.QuotaAggregate, prepared.item.Pool.QuotaAggregate)
+	}
 	if prepared.item.Descriptor.OfficialBaseURL != "https://api.example.cn/v1" || prepared.item.Descriptor.RequiresBaseURL {
 		t.Fatalf("descriptor = %#v", prepared.item.Descriptor)
 	}

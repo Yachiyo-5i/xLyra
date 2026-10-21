@@ -31,11 +31,12 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 				SupportsAPIKeyCostMultiplier: true,
 				Accounts:                     &AccountCapabilities{LoginKind: "oauth2_device_code"},
 			},
-			PluginID: " acme.example ",
-			Enabled:  true,
-			Hosts:    []string{"api.example.cn"},
-			Request:  PluginSiteRequest{Headers: headers, StripDownstreamHeaders: true, UpstreamStreamOnly: true, BaseURLFrom: "region"},
-			Pool:     &spec,
+			PluginID:       " acme.example ",
+			Enabled:        true,
+			Hosts:          []string{"api.example.cn"},
+			Request:        PluginSiteRequest{Headers: headers, StripDownstreamHeaders: true, UpstreamStreamOnly: true, BaseURLFrom: "region"},
+			QuotaAggregate: "min",
+			Pool:           &spec,
 		},
 		{
 			Descriptor: SiteTypeDescriptor{
@@ -45,9 +46,10 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 				CredentialCategory: "oauth",
 				Accounts:           &AccountCapabilities{LoginKind: "custom_poll", SupportsImport: true},
 			},
-			PluginID: "acme.example",
-			Enabled:  true,
-			Hosts:    []string{"api.example.com"},
+			PluginID:       "acme.example",
+			Enabled:        true,
+			Hosts:          []string{"api.example.com"},
+			QuotaAggregate: "none",
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -73,6 +75,9 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 	if item.Pool.Login.SecretPaths["data.accessToken"] != "access_token" || item.Pool.Regions[0].Label["zh"] != "中国" || item.Pool.Import.FieldMap["access_token"][0] != "accessToken" {
 		t.Fatalf("pool leaked input: %#v", item.Pool)
 	}
+	if item.QuotaAggregate != "" || item.Pool.QuotaAggregate != "sum" {
+		t.Fatalf("quota aggregate item %q pool %q", item.QuotaAggregate, item.Pool.QuotaAggregate)
+	}
 	if item.Request.Headers["Authorization"] != "Bearer {{cred.access_token}}" || !item.Request.UpstreamStreamOnly || item.Request.BaseURLFrom != "region" {
 		t.Fatalf("request = %#v", item.Request)
 	}
@@ -85,6 +90,10 @@ func TestSetPluginSiteTypesAccountPool(t *testing.T) {
 	key, ok := LookupSiteType("acme.example/chat")
 	if !ok || key.APICredentialType != "api_key" || key.CredentialCategory != "api_key" || key.Accounts != nil || key.SupportsAPIKeyCostMultiplier {
 		t.Fatalf("api_key descriptor = %#v", key)
+	}
+	keyItem, ok := LookupPluginSiteType("acme.example/chat")
+	if !ok || keyItem.QuotaAggregate != "none" || keyItem.Pool != nil {
+		t.Fatalf("api_key aggregate = %#v", keyItem)
 	}
 	if CredentialTypeForSiteType("acme.example/pool") != "account" {
 		t.Fatalf("category = %q", CredentialTypeForSiteType("acme.example/pool"))

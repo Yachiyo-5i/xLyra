@@ -52,6 +52,10 @@ type PluginSiteType struct {
 	Enabled    bool
 	Hosts      []string
 	Request    PluginSiteRequest
+	// QuotaAggregate is siteProvider.quota.aggregate for an API-key plugin.
+	// Empty keeps the historical probe summary. Account-pool sites leave this
+	// empty and use Pool.QuotaAggregate.
+	QuotaAggregate string
 	// Pool is set for account_pool plugin site types and nil for api_key.
 	Pool *jsplugin.AccountPoolSpec
 }
@@ -328,11 +332,13 @@ func normalizePluginSiteType(item PluginSiteType, id string) PluginSiteType {
 			SupportsImport:  pool.Import.Enabled,
 			SupportsRegions: len(pool.Regions) > 0,
 		}
+		item.QuotaAggregate = ""
 	} else {
 		desc.APICredentialType = "api_key"
 		desc.CredentialCategory = "api_key"
 		desc.Accounts = nil
 		item.Pool = nil
+		item.QuotaAggregate = strings.TrimSpace(item.QuotaAggregate)
 	}
 	item.Descriptor = desc
 	return item

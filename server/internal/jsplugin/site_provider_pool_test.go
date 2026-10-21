@@ -81,11 +81,13 @@ func TestAccountPoolManifestAccepts(t *testing.T) {
 		}
 	}
 
-	apiKey := siteProviderManifest(meta("acme.example", KindSiteProvider))
-	apiKey.SiteProvider.Quota = &SiteProviderQuota{Aggregate: "sum"}
-	apiKey.SiteProvider.Request.UpstreamStreamOnly = true
-	if err := validateManifest(apiKey, meta("acme.example", KindSiteProvider)); err != nil {
-		t.Fatalf("api_key quota: %v", err)
+	for _, mode := range []string{"sum", "min", "none"} {
+		apiKey := siteProviderManifest(meta("acme.example", KindSiteProvider))
+		apiKey.SiteProvider.Quota = &SiteProviderQuota{Aggregate: mode}
+		apiKey.SiteProvider.Request.UpstreamStreamOnly = true
+		if err := validateManifest(apiKey, meta("acme.example", KindSiteProvider)); err != nil {
+			t.Fatalf("api_key quota %s: %v", mode, err)
+		}
 	}
 }
 
