@@ -103,6 +103,7 @@
   },
   "form": {
     "createTitle": "新增站点",
+    "backToProviders": "返回服务商列表",
     "editTitle": "编辑站点",
     "sections": {
       "basic": "基础信息",

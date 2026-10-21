@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { BrandMark } from '@/components/common/brand-mark'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 export type ModelsDrawItem = {
@@ -77,6 +78,8 @@ export function ModelsDraw({
   dialogSize?: 'md' | 'form'
 }) {
   const { t } = useTranslation('components')
+  // 移动端以抽屉呈现：返回功能并入左上角的关闭按钮（见 DrawContent 的 onBack），标题里不再放返回图标
+  const isMobile = useMobileLayout()
   const [search, setSearch] = useState('')
   const keyword = search.trim().toLowerCase()
   const filtered = keyword ? items.filter((i) => [i.displayName, i.upstreamName ?? ''].some((v) => v.toLowerCase().includes(keyword))) : items
@@ -103,7 +106,7 @@ export function ModelsDraw({
 
   const header = (
     <div className="flex items-center gap-2">
-      {onBack ? (
+      {onBack && !isMobile ? (
         <Button
           variant="ghost"
           size="icon"
@@ -208,6 +211,8 @@ export function ModelsDraw({
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
+          onBack={onBack}
+          backLabel={backLabel}
           size={dialogSize}
           overlayClassName={nested ? 'z-[60]' : undefined}
           className={nested ? 'z-[60]' : undefined}
@@ -235,7 +240,7 @@ export function ModelsDraw({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+      <SheetContent onBack={onBack} backLabel={backLabel} onOpenAutoFocus={(event) => event.preventDefault()}>
         <SheetHeader>{header}</SheetHeader>
         <SheetBody className="space-y-4">
           {body}

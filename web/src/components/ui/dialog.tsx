@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { DRAW_HEADER_CLASS, DrawContent } from '@/components/ui/draw'
+import { DRAW_HEADER_CLASS, DrawContent, type DrawBackProps } from '@/components/ui/draw'
 import { OverlayModeContext, useOverlayMode } from '@/components/ui/overlay-mode'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
@@ -36,7 +36,7 @@ const dialogSizeClassName = {
 
 type DialogSize = keyof typeof dialogSizeClassName
 
-type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & DrawBackProps & {
   overlayClassName?: string
   container?: HTMLElement | null
   size?: DialogSize
@@ -55,7 +55,7 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', presentation, ...props }, ref) => {
+>(({ className, children, overlayClassName, container, size = 'default', surface = 'glass', presentation, onBack, backLabel, ...props }, ref) => {
   const isMobile = useMobileLayout()
   // 自绘外观的弹窗布局由调用方控制，始终居中
   const resolvedPresentation = presentation ?? (surface === 'none' ? 'center' : 'auto')
@@ -64,7 +64,7 @@ const DialogContent = React.forwardRef<
     // 移动端配置弹窗 → 底部 Draw；宽度、尺寸类只对居中弹窗有意义，这里去掉，保留 z-index 等其他类
     const drawClassName = className?.split(/\s+/).filter((token) => token && !/^(w-|max-w-|min-w-|overflow-)/.test(token)).join(' ')
     return (
-      <DrawContent ref={ref} className={drawClassName} overlayClassName={overlayClassName} {...props}>
+      <DrawContent ref={ref} className={drawClassName} overlayClassName={overlayClassName} onBack={onBack} backLabel={backLabel} {...props}>
         {children}
       </DrawContent>
     )

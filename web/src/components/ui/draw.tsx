@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
+import { ChevronLeft, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { OverlayModeContext } from '@/components/ui/overlay-mode'
@@ -29,6 +29,7 @@ DrawOverlay.displayName = DialogPrimitive.Overlay.displayName
  * - 手机：左右与底部各内缩 8，最高 88dvh；
  * - 桌面：同样贴底，但宽度收窄并居中（最宽 640）；
  * - 顶部固定有 grabber，左上角固定有关闭按钮（与主界面右上角的圆形玻璃图标按钮同款），标题让出左侧位置；
+ *   二级页面传 `onBack`：这个按钮变成返回按钮（箭头图标），不再另放标题里的返回图标；
  * - 页脚固定为全宽等分：取消在左、确认在右；只有一个关闭动作时单个全宽按钮。
  *
  * 其他两个覆盖层：居中弹窗用 Dialog，右侧滑入的面板用 Sheet。
@@ -40,10 +41,20 @@ DrawOverlay.displayName = DialogPrimitive.Overlay.displayName
  */
 export const DRAW_HEADER_CLASS = 'py-4 pl-[68px] pr-4'
 
+// top 23 = grabber(13) + 标题区上边距(16) + 单行标题半高(14) - 按钮半径(20)，与首行标题垂直居中
+const DRAW_CORNER_BUTTON_CLASS = 'absolute left-4 top-[23px] z-10 size-10 rounded-full'
+
+/** 二级页面的返回：左上角按钮改为返回按钮（关闭按钮和返回按钮不会同时出现）。 */
+export type DrawBackProps = {
+  onBack?: () => void
+  /** 返回按钮的无障碍文案与提示，例如「返回账号列表」 */
+  backLabel?: string
+}
+
 const DrawContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { overlayClassName?: string }
->(({ className, children, overlayClassName, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & DrawBackProps & { overlayClassName?: string }
+>(({ className, children, overlayClassName, onBack, backLabel, ...props }, ref) => {
   const { t } = useTranslation('common')
 
   return (
@@ -61,18 +72,25 @@ const DrawContent = React.forwardRef<
         <div className="flex shrink-0 justify-center pt-2">
           <span className="h-[5px] w-9 rounded-full bg-fill-1" />
         </div>
-        <DialogPrimitive.Close asChild>
+        {onBack ? (
           <Button
             type="button"
             variant="glass"
             size="icon"
-            // top 23 = grabber(13) + 标题区上边距(16) + 单行标题半高(14) - 按钮半径(20)，与首行标题垂直居中
-            className="absolute left-4 top-[23px] z-10 size-10 rounded-full"
-            aria-label={t('actions.close')}
+            className={DRAW_CORNER_BUTTON_CLASS}
+            title={backLabel}
+            aria-label={backLabel ?? t('actions.back')}
+            onClick={onBack}
           >
-            <X />
+            <ChevronLeft />
           </Button>
-        </DialogPrimitive.Close>
+        ) : (
+          <DialogPrimitive.Close asChild>
+            <Button type="button" variant="glass" size="icon" className={DRAW_CORNER_BUTTON_CLASS} aria-label={t('actions.close')}>
+              <X />
+            </Button>
+          </DialogPrimitive.Close>
+        )}
         <OverlayModeContext.Provider value="draw">{children}</OverlayModeContext.Provider>
       </DialogPrimitive.Content>
     </DrawPortal>

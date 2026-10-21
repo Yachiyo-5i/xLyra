@@ -103,6 +103,7 @@
   },
   "form": {
     "createTitle": "Add Site",
+    "backToProviders": "Back to providers",
     "editTitle": "Edit Site",
     "sections": {
       "basic": "Basic Info",

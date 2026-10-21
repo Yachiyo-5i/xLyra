@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { siteTypeIconPath } from '@/components/common/brand-utils'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import {
   type CreateSiteInput,
@@ -497,6 +498,7 @@ export function SiteCreateSheet({
   onSubmit,
 }: SiteCreateSheetProps) {
   const { t, i18n } = useTranslation('sites')
+  const isMobile = useMobileLayout()
   const resolver = useMemo(() => zodResolver(createSiteSchema(mode, siteTypes, t, initialSite)), [initialSite, mode, siteTypes, t])
   const lastFormResetKeyRef = useRef<string | null>(null)
 
@@ -731,18 +733,27 @@ export function SiteCreateSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+      <SheetContent
+        // 选了服务商之后的表单页：返回并入左上角按钮（抽屉里不再另放标题返回图标）
+        onBack={selectedProvider && mode === 'create' ? handleBackToProviders : undefined}
+        backLabel={t('form.backToProviders')}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <SheetHeader>
           {selectedProvider && mode === 'create' ? (
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 -ml-1"
-                onClick={handleBackToProviders}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
+              {!isMobile ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 -ml-1"
+                  title={t('form.backToProviders')}
+                  aria-label={t('form.backToProviders')}
+                  onClick={handleBackToProviders}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              ) : null}
               {selectedProviderIcon ? (
                 <img
                   src={selectedProviderIcon}
@@ -1260,20 +1271,22 @@ export function SiteCreateSheet({
           }
         }}
       >
-        <SheetContent>
+        <SheetContent onBack={() => setAPIKeyEditorOpen(false)} backLabel={t('apiKeys.back')}>
           <SheetHeader>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="-ml-1 h-7 w-7"
-                title={t('apiKeys.back')}
-                aria-label={t('apiKeys.back')}
-                onClick={() => setAPIKeyEditorOpen(false)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
+              {!isMobile ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="-ml-1 h-7 w-7"
+                  title={t('apiKeys.back')}
+                  aria-label={t('apiKeys.back')}
+                  onClick={() => setAPIKeyEditorOpen(false)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              ) : null}
               <SheetTitle>
                 {editingAPIKeyIndex == null
                   ? t('apiKeys.addTitle')

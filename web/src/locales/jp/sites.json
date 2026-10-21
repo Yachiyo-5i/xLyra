@@ -103,6 +103,7 @@
   },
   "form": {
     "createTitle": "サイトを追加",
+    "backToProviders": "プロバイダー一覧へ戻る",
     "editTitle": "サイトを編集",
     "sections": {
       "basic": "基本情報",

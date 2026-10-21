@@ -1,7 +1,7 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { DRAW_HEADER_CLASS, DrawContent, DrawFooter } from '@/components/ui/draw'
+import { DRAW_HEADER_CLASS, DrawContent, DrawFooter, type DrawBackProps } from '@/components/ui/draw'
 import { OverlayModeContext, useOverlayMode } from '@/components/ui/overlay-mode'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
@@ -53,8 +53,8 @@ const sheetVariants = cva(
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & VariantProps<typeof sheetVariants>
->(({ side, className, children, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & VariantProps<typeof sheetVariants> & DrawBackProps
+>(({ side, className, children, onBack, backLabel, ...props }, ref) => {
   const isMobile = useMobileLayout()
 
   // 右侧面板在移动端（< 1024）变成底部 Draw：有 grabber 与左上角关闭按钮；
@@ -65,7 +65,7 @@ const SheetContent = React.forwardRef<
     )
     const drawClassName = className?.split(/\s+/).filter((token) => token && !/^(w-|max-w-|min-w-|overflow-)/.test(token)).join(' ')
     return (
-      <DrawContent ref={ref} className={drawClassName} {...props}>
+      <DrawContent ref={ref} className={drawClassName} onBack={onBack} backLabel={backLabel} {...props}>
         {children}
         {hasFooter ? null : <DrawFooter />}
       </DrawContent>
