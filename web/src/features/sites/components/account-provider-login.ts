@@ -3,7 +3,8 @@ import type { AccountLoginStart, SiteAccountCapabilities } from '@/features/site
 export type AccountLoginKind = SiteAccountCapabilities['login_kind']
 export type AccountCopyPrefix = 'grokAccounts'
 
-export function accountCopyPrefix(_siteType: string | null | undefined): AccountCopyPrefix {
+export function accountCopyPrefix(siteType: string | null | undefined): AccountCopyPrefix {
+  void siteType
   return 'grokAccounts'
 }
 

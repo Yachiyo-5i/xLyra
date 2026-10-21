@@ -469,7 +469,7 @@ export function AccountProviderDraw({
                           title={t(`${prefix}.reauthorize`)}
                           aria-label={t(`${prefix}.reauthorize`)}
                           onClick={() => {
-                            const region = supportsRegions && 'region' in account ? account.region : undefined
+                            const region = supportsRegions && 'region' in account && typeof account.region === 'string' ? account.region : undefined
                             void startLogin('reauth', account.credential_id, region)
                           }}
                         >
