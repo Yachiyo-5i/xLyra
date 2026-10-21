@@ -75,6 +75,7 @@ import { formatEndpointTypeLabel, upstreamEndpointTypes } from '@/features/model
 import {
   SiteAPIKeyFormFields,
 } from '@/features/sites/components/site-api-key-form'
+import { AccountHeaderActions } from '@/features/sites/components/account-dialogs'
 import {
   DEFAULT_API_KEY_FORM_DRAFT,
   parseSiteAPIKeyForm,
@@ -472,6 +473,48 @@ export function SiteAPIKeysDraw({
       return left.id.localeCompare(right.id)
     },
   )
+  // There is no batch endpoint: refresh the enabled keys one after another. Disabled
+  // keys are skipped so a bulk refresh never re-enables a key that was turned off.
+  const refreshAllMutation = useMutation({
+    mutationFn: async () => {
+      if (!site) throw new Error('site required')
+      let failed = 0
+      let firstMessage = ''
+      for (const item of items.filter((key) => key.enabled)) {
+        try {
+          const result = await refreshSiteAPIKey(site.id, item.id)
+          if (result.api_key.message) {
+            failed += 1
+            firstMessage ||= result.api_key.message
+          }
+        } catch (error) {
+          failed += 1
+          firstMessage ||= error instanceof Error ? error.message : String(error)
+        }
+      }
+      return { failed, firstMessage }
+    },
+    onSuccess: async ({ failed, firstMessage }) => {
+      await queryClient.invalidateQueries({ queryKey })
+      if (site) {
+        await queryClient.invalidateQueries({ queryKey: sitesQueryKeys.models(site.id) })
+      }
+      await queryClient.invalidateQueries({ queryKey: [...sitesQueryKeys.all, 'canonical-models'] })
+      await queryClient.invalidateQueries({ queryKey: [...sitesQueryKeys.all, 'routes-matrix'] })
+      await queryClient.invalidateQueries({ queryKey: routeQueryKeys.all })
+      await invalidatePricingViews()
+      if (failed > 0) {
+        toast.warning(t('apiKeys.toast.refreshAllPartial'), {
+          description: t('apiKeys.toast.refreshAllPartialDesc', { count: failed, message: firstMessage }),
+        })
+      } else {
+        toast.success(t('apiKeys.toast.refreshedAll'))
+      }
+    },
+    onError: (error) =>
+      toast.error(t('apiKeys.toast.refreshAllFailed'), { description: error.message }),
+  })
+
   const protocolOptions = (() => {
     const siteModel = siteModelsQuery.data?.items.find((item) => item.id === modelProtocolTarget?.site_model_id)
     const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
@@ -542,11 +585,17 @@ export function SiteAPIKeysDraw({
     onOpenChange(next)
   }
 
-  const headerActions = canAddAPIKey ? (
-    <Button size="sm" onClick={() => setAddingAPIKey(true)}>
-      {t('apiKeys.add')}
-    </Button>
-  ) : null
+  const enabledKeys = items.filter((item) => item.enabled)
+  const headerActions = (
+    <AccountHeaderActions
+      addLabel={t('apiKeys.add')}
+      onAdd={canAddAPIKey ? () => setAddingAPIKey(true) : undefined}
+      refreshAllLabel={t('apiKeys.refreshAll')}
+      refreshingAll={refreshAllMutation.isPending}
+      refreshAllDisabled={enabledKeys.length === 0}
+      onRefreshAll={() => refreshAllMutation.mutate()}
+    />
+  )
 
   const listBody = (
     <>
@@ -555,7 +604,7 @@ export function SiteAPIKeysDraw({
           {t('apiKeys.loading')}
         </p>
       ) : items.length ? (
-        <div className={isMobile ? 'space-y-3' : 'divide-y divide-separator'}>
+        <div className="divide-y divide-separator">
           {items.map((item) => {
             const ensureSKPrefix = site ? isNewAPISite(site) : false
                   const displayKey = formatAPIKeyValue(item.key, {
@@ -608,7 +657,7 @@ export function SiteAPIKeysDraw({
             return (
               <div
                 key={item.id}
-                className={isMobile ? 'mat-regular space-y-3 rounded-card p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
+                className="space-y-3 py-4 first:pt-0 last:pb-0"
               >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -997,7 +1046,7 @@ export function SiteAPIKeysDraw({
       {isMobile ? (
         <Sheet open={open} onOpenChange={handleMainOpenChange}>
           <SheetContent>
-            <SheetHeader className="flex items-center justify-between gap-3">
+            <SheetHeader className="flex items-center justify-between gap-2">
               <SheetTitle>{t('apiKeys.title')}</SheetTitle>
               {headerActions}
             </SheetHeader>

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { DrawContent } from '@/components/ui/draw'
+import { DRAW_HEADER_CLASS, DrawContent } from '@/components/ui/draw'
 import { OverlayModeContext, useOverlayMode } from '@/components/ui/overlay-mode'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
@@ -91,11 +91,11 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  // 作为 Draw 呈现时，右上角有关闭按钮，标题区右侧要留出位置
+  // 作为 Draw 呈现时，左上角有关闭按钮，标题区左侧要留出位置
   const draw = useOverlayMode() === 'draw'
   return (
     <div
-      className={cn('border-b border-separator text-left', draw ? 'py-4 pl-6 pr-16' : 'px-6 py-5', className)}
+      className={cn('border-b border-separator text-left', draw ? DRAW_HEADER_CLASS : 'px-6 py-5', className)}
       {...props}
     />
   )

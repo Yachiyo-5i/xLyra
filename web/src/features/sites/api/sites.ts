@@ -391,6 +391,20 @@ export type SiteAPIKeyModel = {
   }
 }
 
+export type AccountModel = {
+  upstream_name: string
+  display_name: string
+  enabled: boolean
+  site_model_id?: string
+  supported_endpoint_types?: string[]
+  effective_endpoint_types?: string[]
+  available_endpoint_types?: string[]
+  endpoint_override?: {
+    mode?: 'inherit' | 'allowlist' | 'disabled'
+    endpoint_types?: string[]
+  }
+}
+
 export type GrokAccountModel = {
   upstream_name: string
   display_name: string

@@ -241,6 +241,7 @@
     "complete": "补全",
     "refresh": "刷新",
     "refreshLabel": "刷新 {{name}}",
+    "refreshAll": "全部刷新",
     "delete": "删除 Apikey",
     "deleteLabel": "删除 {{name}}",
     "save": "保存",
@@ -261,7 +262,11 @@
       "updated": "已更新",
       "modelToggleFailed": "模型开关更新失败",
       "refreshed": "Key 状态已刷新",
-      "refreshFailed": "Key 刷新失败"
+      "refreshFailed": "Key 刷新失败",
+      "refreshedAll": "全部 Key 已刷新",
+      "refreshAllPartial": "部分 Key 刷新失败",
+      "refreshAllPartialDesc": "{{count}} 把 Key 刷新失败：{{message}}",
+      "refreshAllFailed": "Key 批量刷新失败"
     },
     "deleteDialog": {
       "title": "删除 Apikey",

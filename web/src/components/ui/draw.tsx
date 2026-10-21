@@ -28,11 +28,18 @@ DrawOverlay.displayName = DialogPrimitive.Overlay.displayName
  *
  * - 手机：左右与底部各内缩 8，最高 88dvh；
  * - 桌面：同样贴底，但宽度收窄并居中（最宽 640）；
- * - 顶部固定有 grabber，右上角固定有关闭按钮；
+ * - 顶部固定有 grabber，左上角固定有关闭按钮（与主界面右上角的圆形玻璃图标按钮同款），标题让出左侧位置；
  * - 页脚固定为全宽等分：取消在左、确认在右；只有一个关闭动作时单个全宽按钮。
  *
  * 其他两个覆盖层：居中弹窗用 Dialog，右侧滑入的面板用 Sheet。
  */
+/**
+ * 抽屉标题区的内边距：左侧给关闭按钮让位（左边距 16 + 按钮 40 + 间距 12 = 68），
+ * 右侧 16 与左侧按钮的边距对称，把空间留给标题和右侧的图标按钮。
+ * Sheet / Dialog 在移动端以抽屉呈现时复用同一个值，保持标题对齐。
+ */
+export const DRAW_HEADER_CLASS = 'py-4 pl-[68px] pr-4'
+
 const DrawContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { overlayClassName?: string }
@@ -57,9 +64,10 @@ const DrawContent = React.forwardRef<
         <DialogPrimitive.Close asChild>
           <Button
             type="button"
-            variant="secondary"
-            size="icon-sm"
-            className="absolute right-4 top-4 z-10 rounded-full"
+            variant="glass"
+            size="icon"
+            // top 23 = grabber(13) + 标题区上边距(16) + 单行标题半高(14) - 按钮半径(20)，与首行标题垂直居中
+            className="absolute left-4 top-[23px] z-10 size-10 rounded-full"
             aria-label={t('actions.close')}
           >
             <X />
@@ -73,7 +81,7 @@ const DrawContent = React.forwardRef<
 DrawContent.displayName = DialogPrimitive.Content.displayName
 
 function DrawHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('border-b border-separator py-4 pl-6 pr-16', className)} {...props} />
+  return <div className={cn('border-b border-separator', DRAW_HEADER_CLASS, className)} {...props} />
 }
 
 function DrawBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

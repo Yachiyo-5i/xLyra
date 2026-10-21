@@ -250,7 +250,11 @@
       "deleted": "API キーを削除しました",
       "updateFailed": "API キー更新に失敗しました",
       "updated": "更新日時",
-      "modelToggleFailed": "モデル切り替えに失敗しました"
+      "modelToggleFailed": "モデル切り替えに失敗しました",
+      "refreshedAll": "すべてのキーを更新しました",
+      "refreshAllPartial": "一部のキーの更新に失敗しました",
+      "refreshAllPartialDesc": "{{count}} 件のキーの更新に失敗しました：{{message}}",
+      "refreshAllFailed": "キーの一括更新に失敗しました"
     },
     "deleteDialog": {
       "title": "Apikey を削除",
