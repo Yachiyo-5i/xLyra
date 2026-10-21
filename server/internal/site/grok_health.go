@@ -32,9 +32,9 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 			continue
 		}
 		total++
-		secret, probeErr := s.resolveHealthProbeCredential(ctx, item, credential)
+		secret, probeSite, probeErr := s.resolveHealthProbeCredential(ctx, item, credential, adapterSite)
 		if probeErr == nil {
-			models, healthErr := probe.ProbeHealth(ctx, adapterSite, secret)
+			models, healthErr := probe.ProbeHealth(ctx, probeSite, secret)
 			probeErr = healthErr
 			if probeErr == nil && len(models) == 0 {
 				probeErr = fmt.Errorf("health probe returned no models")
@@ -69,15 +69,18 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 	return check
 }
 
-func (s *Service) resolveHealthProbeCredential(ctx context.Context, item store.Site, credential APIKeyCredential) (string, error) {
+// resolveHealthProbeCredential returns the token to probe with and the site
+// config to probe against.
+func (s *Service) resolveHealthProbeCredential(ctx context.Context, item store.Site, credential APIKeyCredential, site adapter.SiteConfig) (string, adapter.SiteConfig, error) {
 	if CredentialTypeForSiteType(item.SiteType) == "grok_sso" {
-		return s.oauth.EnsureGrokAccessToken(ctx, credential.Credential.ID)
+		token, err := s.oauth.EnsureGrokAccessToken(ctx, credential.Credential.ID)
+		return token, site, err
 	}
 	secret := strings.TrimSpace(credential.Secret)
 	if secret == "" {
-		return "", fmt.Errorf("health probe credential is empty")
+		return "", site, fmt.Errorf("health probe credential is empty")
 	}
-	return secret, nil
+	return secret, site, nil
 }
 
 func healthProbeOutcome(credentialCount, enabledTested, passed int) (bool, string, string) {

@@ -238,6 +238,37 @@ func (s *Service) grokSiteAPIKeyCount(ctx context.Context, siteID uuid.UUID) (in
 	return count, nil
 }
 
+// applyAccountSummaryToState copies the account summary of a refresh (tier,
+// quota, raw payload) into the key-state columns so a site refresh keeps the
+// same data as an account refresh.
+func applyAccountSummaryToState(params *store.UpsertSiteAPIKeyStateParams, summary adapter.APIKeySummary, name string) {
+	tier, _, remaining, used, unlimited := accountRefreshQuotaValues(summary.Usage)
+	params.Name = name
+	params.GroupName = tier
+	params.RemainQuota = remaining
+	params.UsedQuota = used
+	params.UnlimitedQuota = unlimited
+	params.Usage = store.JSON(jsonBytes(summary.Usage))
+	params.Raw = store.JSON(jsonBytes(summary.Raw))
+}
+
+// keepAccountStateQuota carries the last known quota over a failed refresh.
+func keepAccountStateQuota(params *store.UpsertSiteAPIKeyStateParams, previous store.SiteAPIKeyState) {
+	params.Name = previous.Name
+	if previous.GroupName.Valid {
+		params.GroupName = previous.GroupName.String
+	}
+	if previous.RemainQuota.Valid {
+		params.RemainQuota = previous.RemainQuota.Int64
+	}
+	if previous.UsedQuota.Valid {
+		params.UsedQuota = previous.UsedQuota.Int64
+	}
+	params.UnlimitedQuota = previous.UnlimitedQuota
+	params.Usage = previous.Usage
+	params.Raw = previous.Raw
+}
+
 func (s *Service) recordAccountRefreshFailure(ctx context.Context, credential store.SiteCredential, refreshErr error, needsReauth func(error) bool) {
 	now := time.Now()
 	message := refreshErr.Error()
@@ -257,10 +288,10 @@ func (s *Service) recordAccountRefreshFailure(ctx context.Context, credential st
 		SyncMessage:      message,
 		LastSyncedAt:     now,
 	}
-	// Plugin account rows keep the last usage document. Built-in Grok
-	// callers of this helper pass no Usage, and UpsertSyncResult
-	// still stores {} for that empty value. Grok's model-sync failure path
-	// keeps quota through its own state upsert, not here.
+	// Plugin account rows keep the last usage document. Built-in Grok callers of
+	// this helper pass no Usage, and UpsertSyncResult still stores {} for that
+	// empty value. The model-sync failure path keeps quota through
+	// keepAccountStateQuota and Upsert, not here.
 	if _, _, pluginAccount := store.ParseAccountCredentialType(credential.CredentialType); pluginAccount {
 		previous := accountCredentialState(ctx, s.db.DB(), credential.ID)
 		if previous.SiteCredentialID == credential.ID {

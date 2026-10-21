@@ -1209,8 +1209,9 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 		return SyncResult{}, fmt.Errorf("site_type %q does not support model sync", site.SiteType)
 	}
 	isGrok := strings.EqualFold(strings.TrimSpace(site.SiteType), "grok")
+	usesAccountSummary := isGrok
 	summaryFetcher, hasSummaryFetcher := adapter.AsAPIKeySummaryFetcher(module)
-	if isGrok && !hasSummaryFetcher {
+	if usesAccountSummary && !hasSummaryFetcher {
 		return SyncResult{}, fmt.Errorf("site_type %q does not support account summary", site.SiteType)
 	}
 
@@ -1243,6 +1244,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 		}
 		enabledKeyCount++
 		secret := apiKey.Secret
+		keySite := s.toAdapterSite(ctx, site)
 		var err error
 		if isGrok {
 			secret, err = s.oauth.EnsureGrokAccessToken(ctx, apiKey.Credential.ID)
@@ -1250,15 +1252,15 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 		var models []adapter.Model
 		var accountSummary *adapter.APIKeySummary
 		if err == nil {
-			if isGrok {
+			if usesAccountSummary {
 				var summary adapter.APIKeySummary
-				summary, err = summaryFetcher.SummarizeAPIKey(ctx, s.toAdapterSite(ctx, site), secret)
+				summary, err = summaryFetcher.SummarizeAPIKey(ctx, keySite, secret)
 				models = summary.Models
 				if err == nil {
 					accountSummary = &summary
 				}
 			} else {
-				models, err = modelLister.ListModels(ctx, s.toAdapterSite(ctx, site), secret)
+				models, err = modelLister.ListModels(ctx, keySite, secret)
 			}
 		}
 		if err != nil {
@@ -1274,7 +1276,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 				apiKey.Meta["enabled"] = false
 				apiKey.Meta["reauth_required"] = true
 				if _, metaErr := updateCredentialMeta(ctx, credentialRepo, apiKey.Credential.ID, apiKey.Meta); metaErr != nil {
-					return SyncResult{}, fmt.Errorf("mark grok account for reauthorization: %w", metaErr)
+					return SyncResult{}, fmt.Errorf("mark oauth account for reauthorization: %w", metaErr)
 				}
 			} else if failure.CredentialInvalid() {
 				permanentKeyErrors++
@@ -1300,7 +1302,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 			}
 			if isGrok {
 				// A failed refresh must not wipe the last known quota.
-				keepGrokStateQuota(&failureParams, accountCredentialState(ctx, s.db.DB(), apiKey.Credential.ID))
+				keepAccountStateQuota(&failureParams, accountCredentialState(ctx, s.db.DB(), apiKey.Credential.ID))
 			}
 			if _, stateErr := apiKeyStateRepo.Upsert(ctx, failureParams); stateErr != nil {
 				return SyncResult{}, fmt.Errorf("save api key auth failure state: %w", stateErr)
@@ -1331,7 +1333,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 			LastSyncedAt:     now,
 		}
 		if isGrok && accountSummary != nil {
-			applyGrokSummaryToState(&syncedParams, *accountSummary, apiKey.MaskedSecret)
+			applyAccountSummaryToState(&syncedParams, *accountSummary, apiKey.MaskedSecret)
 		}
 		if _, stateErr := apiKeyStateRepo.Upsert(ctx, syncedParams); stateErr != nil {
 			return SyncResult{}, fmt.Errorf("save api key synced state: %w", stateErr)

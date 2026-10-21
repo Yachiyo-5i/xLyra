@@ -21,8 +21,8 @@ type GrokAccountUpdate struct {
 	Enabled *bool
 }
 
-// GrokAccountModel is one model of a Grok OAuth account. The endpoint fields
-// mirror the API key model payload so the same protocol editor works for accounts.
+// GrokAccountModel is one model of an OAuth account. The endpoint fields mirror
+// the API key model payload so the same protocol editor works for accounts.
 type GrokAccountModel struct {
 	UpstreamName           string                                `json:"upstream_name"`
 	DisplayName            string                                `json:"display_name"`
@@ -369,35 +369,4 @@ func (grokAccountProvider) onRefreshRereadMiss(cred store.SiteCredential, summar
 func (p grokAccountProvider) afterRefresh(ctx context.Context, siteID uuid.UUID, siteModels []store.SiteModel, now time.Time) error {
 	_, err := p.s.updateGrokSiteStateAfterRefresh(ctx, siteID, siteModels, now)
 	return err
-}
-
-// applyGrokSummaryToState copies the account summary of a refresh (tier,
-// quota, raw payload) into the key-state columns so a site refresh keeps the
-// same data as an account refresh.
-func applyGrokSummaryToState(params *store.UpsertSiteAPIKeyStateParams, summary adapter.APIKeySummary, name string) {
-	tier, _, remaining, used, unlimited := accountRefreshQuotaValues(summary.Usage)
-	params.Name = name
-	params.GroupName = tier
-	params.RemainQuota = remaining
-	params.UsedQuota = used
-	params.UnlimitedQuota = unlimited
-	params.Usage = store.JSON(jsonBytes(summary.Usage))
-	params.Raw = store.JSON(jsonBytes(summary.Raw))
-}
-
-// keepGrokStateQuota carries the last known quota over a failed refresh.
-func keepGrokStateQuota(params *store.UpsertSiteAPIKeyStateParams, previous store.SiteAPIKeyState) {
-	params.Name = previous.Name
-	if previous.GroupName.Valid {
-		params.GroupName = previous.GroupName.String
-	}
-	if previous.RemainQuota.Valid {
-		params.RemainQuota = previous.RemainQuota.Int64
-	}
-	if previous.UsedQuota.Valid {
-		params.UsedQuota = previous.UsedQuota.Int64
-	}
-	params.UnlimitedQuota = previous.UnlimitedQuota
-	params.Usage = previous.Usage
-	params.Raw = previous.Raw
 }

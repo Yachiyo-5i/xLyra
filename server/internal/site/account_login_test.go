@@ -134,8 +134,12 @@ func TestCompleteLoginReauthorize(t *testing.T) {
 
 			f := newLoginFixture(t, kind)
 			seeded := f.identitySpec("old-token-aaaa", "old@example.com")
-			seeded.PrincipalID = "old-principal"
-			seeded.TeamID = "old-team"
+			if kind == accountPoolGrok {
+				seeded.PrincipalID = "old-principal"
+				seeded.TeamID = "old-team"
+			} else {
+				seeded.Subject = "old-subject"
+			}
 			id := f.seedAccount(t, seeded, map[string]any{
 				"enabled":         false,
 				"reauth_required": true,
@@ -158,8 +162,12 @@ func TestCompleteLoginReauthorize(t *testing.T) {
 			originalType := f.credentials[id].CredentialType
 
 			next := f.identitySpec("new-token-bbbb", "new@example.com")
-			next.PrincipalID = "new-principal"
-			next.TeamID = "new-team"
+			if kind == accountPoolGrok {
+				next.PrincipalID = "new-principal"
+				next.TeamID = "new-team"
+			} else {
+				next.Subject = "new-subject"
+			}
 			next.Target = &id
 			view, err := f.complete(next)
 			if err != nil {
@@ -204,13 +212,22 @@ func TestCompleteLoginIdentityFallback(t *testing.T) {
 
 			f := newLoginFixture(t, kind)
 			spec := f.identitySpec("new-token-cccc", "new@example.com")
-			claims := map[string]any{"principal_id": spec.PrincipalID, "team_id": spec.TeamID}
+			var claims map[string]any
+			if kind == accountPoolGrok {
+				claims = map[string]any{"principal_id": spec.PrincipalID, "team_id": spec.TeamID}
+			} else {
+				claims = map[string]any{"uid": spec.Subject}
+			}
 			matchID := f.seedAccount(t, loginSpec{AccessToken: loginJWT(t, claims)}, map[string]any{
 				"email": "old@example.com",
 				"note":  "keep",
 			})
 			decoy := f.identitySpec("decoy-token-dddd", "decoy@example.com")
-			decoy.PrincipalID = "other-principal"
+			if kind == accountPoolGrok {
+				decoy.PrincipalID = "other-principal"
+			} else {
+				decoy.Subject = "other-subject"
+			}
 			decoyID := f.seedAccount(t, decoy, map[string]any{
 				"email":        "decoy@example.com",
 				"principal_id": decoy.PrincipalID,
@@ -494,13 +511,11 @@ func newLoginFixture(t *testing.T, kind accountPoolKind) *loginFixture {
 }
 
 func (f *loginFixture) identitySpec(access string, email string) loginSpec {
-	return loginSpec{
-		AccessToken: access,
-		Email:       email,
-		PrincipalID: "principal-1",
-		TeamID:      "team-1",
-		Tier:        "premium",
-	}
+	spec := loginSpec{AccessToken: access, Email: email}
+	spec.PrincipalID = "principal-1"
+	spec.TeamID = "team-1"
+	spec.Tier = "premium"
+	return spec
 }
 
 func (f *loginFixture) complete(spec loginSpec) (loginView, error) {
