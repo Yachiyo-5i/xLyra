@@ -210,6 +210,10 @@ func quotaResultFromJS(result QuotaProbeResult, parsed *jsplugin.ProbeResult) Qu
 			reset := entry.ResetAt
 			converted.ResetAt = &reset
 		}
+		if entry.ExpiresAt != "" {
+			expires := entry.ExpiresAt
+			converted.ExpiresAt = &expires
+		}
 		entries = append(entries, converted)
 	}
 	result.Status = "ok"

@@ -118,6 +118,21 @@ func (a Grok) SummarizeAPIKey(ctx context.Context, site SiteConfig, token string
 		usage["period_start"] = billing.periodStart
 		usage["period_end"] = billing.periodEnd
 		usage["product"] = billing.product
+		entry := map[string]any{
+			"label":     "usage",
+			"kind":      "window",
+			"unit":      "percent",
+			"limit":     usage["limit"],
+			"used":      usage["used"],
+			"remaining": usage["remaining"],
+		}
+		if name := strings.TrimSpace(billing.product); name != "" {
+			entry["name"] = name
+		}
+		if resetAt := canonicalRFC3339(billing.periodEnd); resetAt != "" {
+			entry["reset_at"] = resetAt
+		}
+		usage["entries"] = []map[string]any{entry}
 		raw["billing"] = billing.raw
 	} else if IsGrokUnauthorizedError(billingErr) {
 		return APIKeySummary{}, billingErr

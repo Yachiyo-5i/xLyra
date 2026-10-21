@@ -176,6 +176,9 @@ func TestGrokSummaryDerivesTierFromToken(t *testing.T) {
 	if usage["quota_status"] != "unknown" || usage["unlimited"] != false {
 		t.Fatalf("usage = %#v, want unknown non-unlimited quota", usage)
 	}
+	if _, ok := usage["entries"]; ok {
+		t.Fatalf("unknown quota must not write entries: %#v", usage["entries"])
+	}
 }
 
 func TestGrokSummaryReadsBilling(t *testing.T) {
@@ -205,6 +208,23 @@ func TestGrokSummaryReadsBilling(t *testing.T) {
 	}
 	if usage["period_end"] != "2026-10-19T17:04:45Z" || usage["product"] != "GrokBuild" {
 		t.Fatalf("period/product = %#v %#v", usage["period_end"], usage["product"])
+	}
+	entries, _ := usage["entries"].([]map[string]any)
+	if len(entries) != 1 {
+		t.Fatalf("entries = %#v", usage["entries"])
+	}
+	entry := entries[0]
+	if entry["label"] != "usage" || entry["kind"] != "window" || entry["name"] != "GrokBuild" || entry["unit"] != "percent" {
+		t.Fatalf("entry = %#v", entry)
+	}
+	if entry["limit"] != usage["limit"] || entry["used"] != usage["used"] || entry["remaining"] != usage["remaining"] {
+		t.Fatalf("entry numbers = %#v, usage = %#v", entry, usage)
+	}
+	if entry["reset_at"] != "2026-10-19T17:04:45Z" {
+		t.Fatalf("reset_at = %#v", entry["reset_at"])
+	}
+	if _, ok := entry["expires_at"]; ok {
+		t.Fatalf("grok entry must not set expires_at: %#v", entry)
 	}
 }
 
@@ -239,6 +259,57 @@ func TestGrokSummaryTreatsMissingUsageAsZeroPercent(t *testing.T) {
 		if usage["period_end"] == "" {
 			t.Fatalf("%s: period end was not kept: %#v", name, usage)
 		}
+		entries, _ := usage["entries"].([]map[string]any)
+		if len(entries) != 1 {
+			t.Fatalf("%s: entries = %#v", name, usage["entries"])
+		}
+		entry := entries[0]
+		if entry["label"] != "usage" || entry["kind"] != "window" || entry["unit"] != "percent" || entry["limit"] != 100.0 || entry["used"] != 0.0 || entry["remaining"] != 100.0 {
+			t.Fatalf("%s: entry = %#v", name, entry)
+		}
+		if _, ok := entry["name"]; ok {
+			t.Fatalf("%s: empty product must omit name: %#v", name, entry)
+		}
+		if entry["reset_at"] != "2026-10-26T17:04:45Z" {
+			t.Fatalf("%s: reset_at = %#v", name, entry["reset_at"])
+		}
+		if name == "period only" && usage["period_end"] != "2026-10-26T17:04:45.204017+00:00" {
+			t.Fatalf("%s: period_end was rewritten: %#v", name, usage["period_end"])
+		}
+	}
+}
+
+func TestGrokSummaryEntryOmitsUnparseablePeriodEnd(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/billing"):
+			_, _ = w.Write([]byte(`{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-10-12T17:04:45Z","end":"next week"},"creditUsagePercent":5}}`))
+		case strings.HasSuffix(r.URL.Path, "/user"):
+			_, _ = w.Write([]byte(`{"subscriptionTier":"GrokPro"}`))
+		default:
+			_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
+		}
+	}))
+	defer server.Close()
+
+	summary, err := NewGrok().SummarizeAPIKey(context.Background(), grokTestSite(t, server.URL), grokTestToken(t, "premium"))
+	if err != nil {
+		t.Fatalf("SummarizeAPIKey() error = %v", err)
+	}
+	usage, _ := summary.Usage.(map[string]any)
+	if usage["quota_status"] != "ok" || usage["period_end"] != "next week" || usage["product"] != "" {
+		t.Fatalf("usage = %#v", usage)
+	}
+	entries, _ := usage["entries"].([]map[string]any)
+	if len(entries) != 1 {
+		t.Fatalf("entries = %#v", usage["entries"])
+	}
+	if _, ok := entries[0]["reset_at"]; ok {
+		t.Fatalf("unparseable period_end must omit reset_at: %#v", entries[0])
+	}
+	if _, ok := entries[0]["name"]; ok {
+		t.Fatalf("empty product must omit name: %#v", entries[0])
 	}
 }
 
@@ -263,6 +334,9 @@ func TestGrokSummaryKeepsQuotaUnknownForEmptyBilling(t *testing.T) {
 	usage, _ := summary.Usage.(map[string]any)
 	if usage["quota_status"] != "unknown" {
 		t.Fatalf("usage = %#v, want unknown quota", usage)
+	}
+	if _, ok := usage["entries"]; ok {
+		t.Fatalf("unknown quota must not write entries: %#v", usage["entries"])
 	}
 }
 

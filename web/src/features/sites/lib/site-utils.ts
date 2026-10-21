@@ -249,6 +249,65 @@ function formatProbePercent(value: number) {
   return `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(Math.max(rounded, 0))}%`
 }
 
+/** Credit quotas are whole-number counts. */
+function formatCreditAmount(value: number) {
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(Math.max(value, 0))
+}
+
+const QUOTA_WINDOW_LABELS = new Set(['five_hour', 'weekly', 'daily', 'monthly', '5h'])
+
+export function quotaEntryKind(entry: { kind?: string; label?: string }): SiteQuotaProbeEntry['kind'] {
+  if (entry.kind === 'balance' || entry.kind === 'window' || entry.kind === 'package') return entry.kind
+  if (entry.kind) return undefined
+  const label = entry.label?.trim().toLowerCase()
+  if (label === 'balance') return 'balance'
+  if (label && QUOTA_WINDOW_LABELS.has(label)) return 'window'
+  return undefined
+}
+
+export function formatQuotaEntryAmount(
+  entry: Pick<SiteQuotaProbeEntry, 'unit' | 'remaining' | 'limit' | 'used'>,
+  field: 'remaining' | 'limit' | 'used',
+): string {
+  const value = entry[field]
+  if (typeof value !== 'number' || !Number.isFinite(value)) return ''
+  const unit = entry.unit?.trim().toLowerCase() ?? ''
+  if (unit === 'percent') return formatProbePercent(value)
+  if (unit === 'credits') return formatCreditAmount(value)
+  if (/^[a-z]{3}$/.test(unit)) return formatBalanceAmount(value, unit)
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value)
+}
+
+type GrokQuotaSource = {
+  quota_known?: boolean
+  remaining_percent?: number | null
+  used_percent?: number | null
+  quota_product?: string
+  billing_period_end?: string
+}
+
+export function legacyGrokQuotaEntries(account: GrokQuotaSource): SiteQuotaProbeEntry[] {
+  if (!account.quota_known) return []
+  const entry: SiteQuotaProbeEntry = {
+    label: 'usage',
+    kind: 'window',
+    unit: 'percent',
+    remaining: account.remaining_percent ?? 0,
+    limit: 100,
+  }
+  if (typeof account.used_percent === 'number') entry.used = account.used_percent
+  if (account.quota_product) entry.name = account.quota_product
+  if (account.billing_period_end) entry.reset_at = account.billing_period_end
+  return [entry]
+}
+
+export function accountQuotaEntries(
+  entries: SiteQuotaProbeEntry[] | null | undefined,
+  fallback: SiteQuotaProbeEntry[] = [],
+): SiteQuotaProbeEntry[] {
+  return entries && entries.length > 0 ? entries : fallback
+}
+
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
   if (probe.probe_type === 'grok') {

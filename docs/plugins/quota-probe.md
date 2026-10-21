@@ -81,6 +81,7 @@ xLyra 反复调用 `probe(ctx, steps)`，每次只能返回下面三者之一，
 | `remaining`、`limit`、`used` | 可选，数字 |
 | `unlimited` | 可选，布尔值 |
 | `resetAt` | 可选，重置时间字符串 |
+| `expiresAt` | 可选，该条额度整体的到期时间 |
 | `cashBalance`、`voucherBalance`、`grantedBalance`、`toppedUpBalance` | 可选，数字，余额拆分用 |
 
 数字字段必须是数字类型，不能是数字字符串；上游返回字符串数字时，请自己用 `Number()` 转换并检查 `Number.isFinite`。

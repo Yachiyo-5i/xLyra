@@ -49,6 +49,7 @@ export interface ProbeEntry {
   used?: number;
   unlimited?: boolean;
   resetAt?: string;
+  expiresAt?: string;
   cashBalance?: number;
   voucherBalance?: number;
   grantedBalance?: number;

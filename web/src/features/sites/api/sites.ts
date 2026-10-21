@@ -98,6 +98,7 @@ export type SiteQuotaProbeEntry = {
   used?: number
   unlimited?: boolean
   reset_at?: string
+  expires_at?: string
 }
 
 export type SiteQuotaProbeResult = {
@@ -430,6 +431,7 @@ export type GrokAccount = {
   quota_product?: string
   model_count?: number
   models?: GrokAccountModel[]
+  entries?: SiteQuotaProbeEntry[]
 }
 
 export type GrokAccountsResponse = {

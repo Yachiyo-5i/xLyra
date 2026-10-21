@@ -43,6 +43,7 @@ type GrokAccount struct {
 	QuotaProduct     string             `json:"quota_product,omitempty"`
 	ModelCount       int                `json:"model_count"`
 	Models           []GrokAccountModel `json:"models"`
+	Entries          []QuotaProbeEntry  `json:"entries,omitempty"`
 }
 
 func (s *Service) ListGrokAccounts(ctx context.Context, siteID uuid.UUID) ([]GrokAccount, error) {
@@ -413,8 +414,22 @@ func grokAccountFromStore(credential store.SiteCredential, state store.SiteAPIKe
 			account.PeriodType = usage.Period
 			account.QuotaProduct = usage.Product
 		}
+		account.Entries = entriesFromUsage(state.Usage)
 	}
 	return account, true
+}
+
+func entriesFromUsage(raw []byte) []QuotaProbeEntry {
+	if len(raw) == 0 {
+		return nil
+	}
+	var payload struct {
+		Entries []QuotaProbeEntry `json:"entries"`
+	}
+	if json.Unmarshal(raw, &payload) != nil || len(payload.Entries) == 0 {
+		return nil
+	}
+	return payload.Entries
 }
 
 func deleteGrokAccountRelations(ctx context.Context, tx store.Tx, siteID uuid.UUID, credentialID uuid.UUID) error {

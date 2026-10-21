@@ -56,6 +56,7 @@ type ProbeEntry struct {
 	Used            *float64 `ts:"used"`
 	Unlimited       bool     `ts:"unlimited,optional"`
 	ResetAt         string   `ts:"resetAt,optional"`
+	ExpiresAt       string   `ts:"expiresAt,optional"`
 	CashBalance     *float64 `ts:"cashBalance"`
 	VoucherBalance  *float64 `ts:"voucherBalance"`
 	GrantedBalance  *float64 `ts:"grantedBalance"`
@@ -277,7 +278,7 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	path := fmt.Sprintf("result.entries[%d]", index)
 	for key := range object {
 		switch key {
-		case "label", "kind", "name", "unit", "remaining", "limit", "used", "unlimited", "resetAt",
+		case "label", "kind", "name", "unit", "remaining", "limit", "used", "unlimited", "resetAt", "expiresAt",
 			"cashBalance", "voucherBalance", "grantedBalance", "toppedUpBalance":
 		default:
 			return ProbeEntry{}, shapeError("%s: unknown field %q", path, key)
@@ -303,6 +304,10 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 		return ProbeEntry{}, err
 	}
 	resetAt, err := optionalString(object["resetAt"], path+".resetAt")
+	if err != nil {
+		return ProbeEntry{}, err
+	}
+	expiresAt, err := optionalString(object["expiresAt"], path+".expiresAt")
 	if err != nil {
 		return ProbeEntry{}, err
 	}
@@ -344,7 +349,7 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	}
 	return ProbeEntry{
 		Label: label, Kind: kind, Name: name, Unit: unit, Remaining: remaining, Limit: limit, Used: used, Unlimited: unlimited,
-		ResetAt: resetAt, CashBalance: cash, VoucherBalance: voucher, GrantedBalance: granted, ToppedUpBalance: topped,
+		ResetAt: resetAt, ExpiresAt: expiresAt, CashBalance: cash, VoucherBalance: voucher, GrantedBalance: granted, ToppedUpBalance: topped,
 	}, nil
 }
 

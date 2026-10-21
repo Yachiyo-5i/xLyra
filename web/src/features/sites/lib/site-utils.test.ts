@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteQuotaProbeEntry } from '@/features/sites/api/sites'
-import { accountBalanceDetails, formatAccountBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, normalizedSiteTypeFilter, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { accountBalanceDetails, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatSiteBalance, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -264,5 +264,77 @@ describe('grok billing summary', () => {
       quota_probe: { probe_type: 'grok', status: 'ok', remaining_min: 95, limit: 100, unit: 'percent' },
     } as unknown as Parameters<typeof formatSiteBalance>[0]
     expect(formatSiteBalance(site)).toBe('95%')
+  })
+})
+
+describe('quotaEntryKind', () => {
+  it('uses an explicit kind', () => {
+    expect(quotaEntryKind({ kind: 'package', label: 'balance' })).toBe('package')
+    expect(quotaEntryKind({ kind: 'balance' })).toBe('balance')
+    expect(quotaEntryKind({ kind: 'window', label: 'usage' })).toBe('window')
+    expect(quotaEntryKind({ kind: 'other', label: 'balance' })).toBeUndefined()
+  })
+
+  it('infers kind from the label when kind is absent', () => {
+    expect(quotaEntryKind({ label: 'balance' })).toBe('balance')
+    expect(quotaEntryKind({ label: 'Balance' })).toBe('balance')
+    for (const label of ['five_hour', 'weekly', 'daily', 'monthly', '5h', 'WEEKLY']) {
+      expect(quotaEntryKind({ label })).toBe('window')
+    }
+    expect(quotaEntryKind({ label: 'usage' })).toBeUndefined()
+    expect(quotaEntryKind({ label: 'package' })).toBeUndefined()
+    expect(quotaEntryKind({})).toBeUndefined()
+  })
+})
+
+describe('formatQuotaEntryAmount', () => {
+  it('formats percent, credits, currency, and plain numbers', () => {
+    expect(formatQuotaEntryAmount({ unit: 'percent', remaining: 85.7 }, 'remaining')).toBe('85.7%')
+    expect(formatQuotaEntryAmount({ unit: 'percent', limit: 100 }, 'limit')).toBe('100%')
+    expect(formatQuotaEntryAmount({ unit: 'credits', remaining: 1999 }, 'remaining')).toBe('1,999')
+    expect(formatQuotaEntryAmount({ unit: 'credits', remaining: 499.5 }, 'remaining')).toBe('500')
+    expect(formatQuotaEntryAmount({ unit: 'usd', remaining: 12.5 }, 'remaining')).toBe('$12.50')
+    expect(formatQuotaEntryAmount({ unit: 'CNY', used: 3 }, 'used')).toBe('¥3.00')
+    expect(formatQuotaEntryAmount({ remaining: 12.5 }, 'remaining')).toBe('12.5')
+    expect(formatQuotaEntryAmount({ unit: 'tokens', remaining: 12 }, 'remaining')).toBe('12')
+    expect(formatQuotaEntryAmount({ unit: 'percent' }, 'remaining')).toBe('')
+  })
+})
+
+describe('legacy quota entries', () => {
+  it('synthesizes a Grok window from the old percent fields', () => {
+    expect(legacyGrokQuotaEntries({
+      quota_known: true,
+      remaining_percent: 95,
+      used_percent: 5,
+      quota_product: 'GrokBuild',
+      billing_period_end: '2026-10-19T17:04:45Z',
+    })).toEqual([{
+      label: 'usage',
+      kind: 'window',
+      unit: 'percent',
+      name: 'GrokBuild',
+      remaining: 95,
+      used: 5,
+      limit: 100,
+      reset_at: '2026-10-19T17:04:45Z',
+    }])
+  })
+
+  it('returns no Grok entries when the quota is unknown', () => {
+    expect(legacyGrokQuotaEntries({ quota_known: false, remaining_percent: 95, quota_product: 'GrokBuild' })).toEqual([])
+  })
+
+})
+
+describe('accountQuotaEntries', () => {
+  const fallback = [{ label: 'usage', kind: 'window' as const, unit: 'percent', remaining: 2, limit: 100 }]
+
+  it('prefers stored entries and falls back when they are missing', () => {
+    const entries = [{ label: 'usage', kind: 'window' as const, unit: 'percent', remaining: 1, limit: 100 }]
+    expect(accountQuotaEntries(entries, fallback)).toBe(entries)
+    expect(accountQuotaEntries([], fallback)).toEqual(fallback)
+    expect(accountQuotaEntries(undefined, fallback)).toEqual(fallback)
+    expect(accountQuotaEntries(null, fallback)).toEqual(fallback)
   })
 })

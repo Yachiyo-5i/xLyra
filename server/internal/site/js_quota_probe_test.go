@@ -421,6 +421,37 @@ func TestQuotaResultFromJSCopiesEntryKindAndName(t *testing.T) {
 	}
 }
 
+func TestQuotaResultFromJSCopiesEntryExpiresAt(t *testing.T) {
+	expires := "2026-01-31T23:59:59+08:00"
+	got := quotaResultFromJS(QuotaProbeResult{}, &jsplugin.ProbeResult{
+		Kind: "token_plan",
+		Entries: []jsplugin.ProbeEntry{
+			{Label: "pack", ExpiresAt: expires},
+			{Label: "balance"},
+		},
+	})
+	if got.Status != "ok" || len(got.Entries) != 2 {
+		t.Fatalf("result = %+v", got)
+	}
+	if got.Entries[0].ExpiresAt == nil || *got.Entries[0].ExpiresAt != expires {
+		t.Fatalf("entry = %+v", got.Entries[0])
+	}
+	encoded, err := json.Marshal(got.Entries[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"expires_at":"2026-01-31T23:59:59+08:00"`) {
+		t.Fatalf("json = %s", encoded)
+	}
+	plain, err := json.Marshal(got.Entries[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), `"expires_at"`) {
+		t.Fatalf("omitempty: %s", plain)
+	}
+}
+
 func mustBuiltin(t *testing.T, registry *jsplugin.Registry, probeType string) *jsplugin.Plugin {
 	t.Helper()
 	plugin, ok := registry.ByProbeType(probeType)

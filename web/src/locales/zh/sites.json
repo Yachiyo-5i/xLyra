@@ -339,10 +339,6 @@
       "authorize": "打开授权页面",
       "waiting": "等待授权中…"
     },
-    "quota": {
-      "allowance": "套餐额度",
-      "resetsOn": "{{date}} 重置"
-    },
     "sync": {
       "synced": "已同步",
       "failed": "失败",
@@ -431,6 +427,14 @@
       "deleteFailed": "模型删除失败",
       "deleteSuccess": "模型已删除"
     }
+  },
+  "quotaEntries": {
+    "allowance": "套餐额度",
+    "credits": "积分",
+    "balance": "余额",
+    "resetsOn": "{{date}} 重置",
+    "expiresOn": "{{date}} 到期",
+    "unknown": "额度未同步，点击刷新账号获取"
   },
   "utils": {
     "justNow": "刚刚"

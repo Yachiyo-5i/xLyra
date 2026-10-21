@@ -8,6 +8,8 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, Dia
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { ModelsDraw, type ModelsDrawItem } from '@/components/common/models-draw'
+import { QuotaEntries } from '@/features/sites/components/quota-entries'
+import { accountQuotaEntries, legacyGrokQuotaEntries } from '@/features/sites/lib/site-utils'
 import { toast } from '@/lib/toast'
 import {
   deleteGrokAccount,
@@ -210,6 +212,7 @@ export function GrokAccountsDraw({
                   const refreshing = refreshMutation.isPending && refreshMutation.variables?.credential_id === account.credential_id
                   const syncBadge = grokSyncBadge(account.sync_status)
                   const reauthRequired = account.sync_status?.toLowerCase() === 'reauth_required'
+                  const quotaEntries = accountQuotaEntries(account.entries, legacyGrokQuotaEntries(account))
                   return (
                     <div key={account.credential_id} className="mat-regular space-y-3 rounded-card p-4">
                       <div className="flex items-start justify-between gap-3">
@@ -228,7 +231,7 @@ export function GrokAccountsDraw({
                         />
                       </div>
 
-                      {account.quota_known ? <GrokQuota account={account} /> : null}
+                      {quotaEntries.length ? <QuotaEntries entries={quotaEntries} /> : null}
 
                       {account.sync_message ? <p className="text-footnote text-danger">{account.sync_message}</p> : null}
 
@@ -350,34 +353,6 @@ export function GrokAccountsDraw({
         onOpenChange={(next) => { if (!next) setModelsAccount(null) }}
       />
     </>
-  )
-}
-
-const grokPercent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })
-
-function GrokQuota({ account }: { account: GrokAccount }) {
-  const { t } = useTranslation('sites')
-  const remaining = account.remaining_percent ?? 0
-  const ratio = Math.min(Math.max(remaining / 100, 0), 1)
-  const low = ratio < 0.1
-  const period = account.billing_period_end ? new Date(account.billing_period_end).toLocaleDateString() : ''
-  return (
-    <div className="space-y-2">
-      <div className="space-y-1">
-        <div className="flex items-baseline justify-between text-footnote">
-          <span className="text-label-2">{account.quota_product || t('grokAccounts.quota.allowance')}</span>
-          <span className={`tabular-nums font-medium ${low ? 'text-danger' : 'text-label'}`}>
-            {grokPercent.format(remaining)}% / 100%
-          </span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-fill-1">
-          <div className={`h-full rounded-full ${low ? 'bg-danger' : 'bg-success'}`} style={{ width: `${ratio * 100}%` }} />
-        </div>
-      </div>
-      {period ? (
-        <p className="text-right text-footnote text-label-2">{t('grokAccounts.quota.resetsOn', { date: period })}</p>
-      ) : null}
-    </div>
   )
 }
 

@@ -36,6 +36,7 @@ type QuotaProbeEntry struct {
 	Used            *float64 `json:"used,omitempty"`
 	Unlimited       bool     `json:"unlimited,omitempty"`
 	ResetAt         *string  `json:"reset_at,omitempty"`
+	ExpiresAt       *string  `json:"expires_at,omitempty"`
 }
 
 type QuotaProbeResult struct {

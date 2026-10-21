@@ -336,10 +336,6 @@
       "authorize": "Open authorization page",
       "waiting": "Waiting for approval…"
     },
-    "quota": {
-      "allowance": "Plan allowance",
-      "resetsOn": "resets {{date}}"
-    },
     "sync": {
       "synced": "Synced",
       "failed": "Failed",
@@ -428,6 +424,14 @@
       "deleteFailed": "Model deletion failed",
       "deleteSuccess": "Model deleted"
     }
+  },
+  "quotaEntries": {
+    "allowance": "Plan allowance",
+    "credits": "Credits",
+    "balance": "Balance",
+    "resetsOn": "resets {{date}}",
+    "expiresOn": "expires {{date}}",
+    "unknown": "Quota not synced yet — refresh the account"
   },
   "utils": {
     "justNow": "just now"

@@ -282,11 +282,20 @@ func resultMap(result *jsplugin.ProbeResult) map[string]any {
 	entries := make([]map[string]any, 0, len(result.Entries))
 	for _, entry := range result.Entries {
 		item := map[string]any{"label": entry.Label}
+		if entry.Kind != "" {
+			item["kind"] = entry.Kind
+		}
+		if entry.Name != "" {
+			item["name"] = entry.Name
+		}
 		if entry.Unit != "" {
 			item["unit"] = entry.Unit
 		}
 		if entry.ResetAt != "" {
 			item["resetAt"] = entry.ResetAt
+		}
+		if entry.ExpiresAt != "" {
+			item["expiresAt"] = entry.ExpiresAt
 		}
 		if entry.Unlimited {
 			item["unlimited"] = true

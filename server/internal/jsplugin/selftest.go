@@ -242,6 +242,9 @@ func resultMap(result *ProbeResult) map[string]any {
 		if entry.ResetAt != "" {
 			item["resetAt"] = entry.ResetAt
 		}
+		if entry.ExpiresAt != "" {
+			item["expiresAt"] = entry.ExpiresAt
+		}
 		if entry.CashBalance != nil {
 			item["cashBalance"] = *entry.CashBalance
 		}
