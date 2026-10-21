@@ -42,6 +42,8 @@ type AccountCapabilities struct {
 type PluginSiteRequest struct {
 	Headers                map[string]string
 	StripDownstreamHeaders bool
+	UpstreamStreamOnly     bool
+	BaseURLFrom            string
 }
 
 type PluginSiteType struct {
@@ -50,6 +52,8 @@ type PluginSiteType struct {
 	Enabled    bool
 	Hosts      []string
 	Request    PluginSiteRequest
+	// Pool is set for account_pool plugin site types and nil for api_key.
+	Pool *jsplugin.AccountPoolSpec
 }
 
 var siteTypeRegistry = []SiteTypeDescriptor{
@@ -305,20 +309,53 @@ func ClearPluginSiteTypes() {
 func normalizePluginSiteType(item PluginSiteType, id string) PluginSiteType {
 	desc := item.Descriptor
 	desc.SiteType = id
-	desc.APICredentialType = "api_key"
-	desc.CredentialCategory = "api_key"
 	desc.SupportsAPIKeyCostMultiplier = false
 	desc.OfficialBaseURLProvider = ""
-	desc.Accounts = nil
-	item.Descriptor = desc
 	item.PluginID = strings.TrimSpace(item.PluginID)
 	item.Hosts = append([]string(nil), item.Hosts...)
 	item.Request = clonePluginSiteRequest(item.Request)
+	if item.Pool != nil {
+		pool := item.Pool.Clone()
+		item.Pool = &pool
+		desc.APICredentialType = "account"
+		desc.CredentialCategory = "account"
+		desc.RequiresBaseURL = false
+		if base := strings.TrimRight(strings.TrimSpace(pool.DefaultBaseURL()), "/"); base != "" {
+			desc.OfficialBaseURL = base
+		}
+		desc.Accounts = &AccountCapabilities{
+			LoginKind:       pool.Login.Kind,
+			SupportsImport:  pool.Import.Enabled,
+			SupportsRegions: len(pool.Regions) > 0,
+		}
+	} else {
+		desc.APICredentialType = "api_key"
+		desc.CredentialCategory = "api_key"
+		desc.Accounts = nil
+		item.Pool = nil
+	}
+	item.Descriptor = desc
 	return item
 }
 
+func pluginAccountPoolBaseURL(siteType string) (string, bool) {
+	item, ok := LookupPluginSiteType(siteType)
+	if !ok || item.Pool == nil {
+		return "", false
+	}
+	base := strings.TrimRight(strings.TrimSpace(item.Pool.DefaultBaseURL()), "/")
+	if base == "" {
+		return "", false
+	}
+	return base, true
+}
+
 func clonePluginSiteRequest(in PluginSiteRequest) PluginSiteRequest {
-	out := PluginSiteRequest{StripDownstreamHeaders: in.StripDownstreamHeaders}
+	out := PluginSiteRequest{
+		StripDownstreamHeaders: in.StripDownstreamHeaders,
+		UpstreamStreamOnly:     in.UpstreamStreamOnly,
+		BaseURLFrom:            in.BaseURLFrom,
+	}
 	if len(in.Headers) == 0 {
 		return out
 	}
@@ -376,6 +413,14 @@ func LookupPluginSiteType(siteType string) (PluginSiteType, bool) {
 		}
 		item.Hosts = append([]string(nil), item.Hosts...)
 		item.Request = clonePluginSiteRequest(item.Request)
+		if item.Pool != nil {
+			pool := item.Pool.Clone()
+			item.Pool = &pool
+		}
+		if item.Descriptor.Accounts != nil {
+			accounts := *item.Descriptor.Accounts
+			item.Descriptor.Accounts = &accounts
+		}
 		return item, true
 	}
 	return PluginSiteType{}, false

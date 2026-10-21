@@ -522,6 +522,9 @@ func (s *Service) Create(ctx context.Context, params CreateSiteParams) (store.Si
 	if params.SiteType == "grok" {
 		params.BaseURL = adapter.GrokChatBaseURL
 	}
+	if base, ok := pluginAccountPoolBaseURL(params.SiteType); ok {
+		params.BaseURL = base
+	}
 
 	if params.BaseURL == "" {
 		if module, ok := s.adapters.ModuleForSiteType(params.SiteType); ok {
@@ -635,6 +638,9 @@ func (s *Service) Update(ctx context.Context, params UpdateSiteParams) (store.Si
 	params.BaseURL = strings.TrimRight(strings.TrimSpace(params.BaseURL), "/")
 	if params.SiteType == "grok" {
 		params.BaseURL = adapter.GrokChatBaseURL
+	}
+	if base, ok := pluginAccountPoolBaseURL(params.SiteType); ok {
+		params.BaseURL = base
 	}
 
 	if params.ID == uuid.Nil {

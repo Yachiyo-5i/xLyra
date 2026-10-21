@@ -58,6 +58,7 @@ js_timeout: interrupted: timeout
 | `js_plugin_permissions_required` | 启用的 `automation` 版本声明了权限，但管理员没有授予。需要在启用请求里带上 `grant_permissions` |
 | `js_plugin_automation_invalid` | 新增或修改自动化绑定时，所选对象或参数不符合插件声明的输入，错误信息里会说明原因 |
 | `js_plugin_site_type_locked` | 启用的 `site_provider` 新版本改了站点类型 ID，而旧类型仍有站点在用。HTTP 409，响应带 `from`、`to`、`count` |
+| `js_plugin_account_pool_unavailable` | 账号池插件的登录、刷新与网关接入尚未完成，暂不能启用。HTTP 400 |
 
 ## 卸载时的错误
 

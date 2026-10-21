@@ -189,6 +189,13 @@ func (h Handler) EnableJSPluginVersion(w http.ResponseWriter, r *http.Request) {
 			h.writeErrorFields(w, r, status, code, err.Error(), map[string]any{"from": locked.From, "to": locked.To, "count": locked.Count})
 			return
 		}
+		var poolUnavailable *jsplugin.AccountPoolUnavailableError
+		if errors.As(err, &poolUnavailable) {
+			code = "js_plugin_account_pool_unavailable"
+			h.recordJSPluginAudit(r, "js_plugin.enable", pluginID, false, code, map[string]any{"version": version})
+			h.writeError(w, r, status, code, err.Error())
+			return
+		}
 		var notConnected *jsplugin.KindNotConnectedError
 		if errors.As(err, &notConnected) {
 			code = "js_plugin_kind_not_connected"

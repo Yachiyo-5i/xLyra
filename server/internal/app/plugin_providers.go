@@ -138,17 +138,36 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 		return preparedSiteProvider{}, err
 	}
 	displayName := siteProviderText(section.Display.Name)
-	module, err := adapter.NewGenericProvider(adapter.GenericProviderConfig{
-		SiteType:        siteType,
-		DisplayName:     displayName,
-		OfficialBaseURL: section.Protocol.OfficialBaseURL,
-		ModelsPath:      section.Models.Path,
-		Auth:            section.Models.Auth,
-		EndpointTypes:   section.Protocol.DefaultEndpointTypes,
-		AllowedHosts:    append([]string(nil), section.Hosts...),
-	})
-	if err != nil {
-		return preparedSiteProvider{}, err
+	official := section.Protocol.OfficialBaseURL
+	var module adapter.Module
+	var pool *jsplugin.AccountPoolSpec
+	if section.Credential.Model == "account_pool" {
+		built, err := jsplugin.NewAccountPoolSpec(section)
+		if err != nil {
+			return preparedSiteProvider{}, err
+		}
+		official = strings.TrimRight(built.DefaultBaseURL(), "/")
+		if official == "" {
+			return preparedSiteProvider{}, errors.New("default region base url is required")
+		}
+		module, err = adapter.NewAccountPoolModule(siteType, official)
+		if err != nil {
+			return preparedSiteProvider{}, err
+		}
+		pool = &built
+	} else {
+		module, err = adapter.NewGenericProvider(adapter.GenericProviderConfig{
+			SiteType:        siteType,
+			DisplayName:     displayName,
+			OfficialBaseURL: section.Protocol.OfficialBaseURL,
+			ModelsPath:      section.Models.Path,
+			Auth:            section.Models.Auth,
+			EndpointTypes:   section.Protocol.DefaultEndpointTypes,
+			AllowedHosts:    append([]string(nil), section.Hosts...),
+		})
+		if err != nil {
+			return preparedSiteProvider{}, err
+		}
 	}
 	return preparedSiteProvider{
 		pluginID: plugin.Manifest.ID,
@@ -162,7 +181,7 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 				Subtitle:           siteProviderText(section.Display.Subtitle),
 				CredentialKey:      siteType,
 				RequiresBaseURL:    false,
-				OfficialBaseURL:    section.Protocol.OfficialBaseURL,
+				OfficialBaseURL:    official,
 				ShowInCreateDialog: true,
 				IconURL:            siteProviderIconURL(plugin),
 			},
@@ -170,12 +189,17 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 			Enabled:  true,
 			Hosts:    append([]string(nil), section.Hosts...),
 			Request:  pluginSiteRequestFromManifest(section.Request),
+			Pool:     pool,
 		},
 	}, nil
 }
 
 func pluginSiteRequestFromManifest(section jsplugin.SiteProviderRequest) site.PluginSiteRequest {
-	out := site.PluginSiteRequest{StripDownstreamHeaders: section.StripDownstreamHeaders}
+	out := site.PluginSiteRequest{
+		StripDownstreamHeaders: section.StripDownstreamHeaders,
+		UpstreamStreamOnly:     section.UpstreamStreamOnly,
+		BaseURLFrom:            section.BaseURLFrom,
+	}
 	if len(section.Headers) == 0 {
 		return out
 	}

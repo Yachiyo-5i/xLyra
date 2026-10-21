@@ -74,8 +74,21 @@ func headerTemplateFields(model string) map[string]struct{} {
 	}
 }
 
+func siteProviderHeaderFields(section SiteProviderSection) map[string]struct{} {
+	if section.Credential.Model != "account_pool" {
+		return headerTemplateFields(section.Credential.Model)
+	}
+	allowed := make(map[string]struct{}, len(section.Credential.Fields))
+	for _, field := range section.Credential.Fields {
+		if field.Name != "" {
+			allowed[field.Name] = struct{}{}
+		}
+	}
+	return allowed
+}
+
 func siteProviderRequestPresent(section SiteProviderRequest) bool {
-	return len(section.Headers) > 0 || section.StripDownstreamHeaders
+	return len(section.Headers) > 0 || section.StripDownstreamHeaders || section.UpstreamStreamOnly || section.BaseURLFrom != ""
 }
 
 var forbiddenPluginRequestHeaders = map[string]struct{}{

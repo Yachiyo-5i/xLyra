@@ -51,15 +51,25 @@ func ValidateSiteTypeID(id string) error {
 }
 
 // SiteProviderSection is the site_provider manifest block. One package declares
-// one API-key site type.
+// one site type. Account-pool fields apply when credential.model is account_pool.
 type SiteProviderSection struct {
-	SiteType   string                 `json:"siteType"`
-	Display    SiteProviderDisplay    `json:"display"`
-	Hosts      []string               `json:"hosts"`
-	Credential SiteProviderCredential `json:"credential"`
-	Protocol   SiteProviderProtocol   `json:"protocol"`
-	Models     SiteProviderModels     `json:"models,omitempty"`
-	Request    SiteProviderRequest    `json:"request,omitempty"`
+	SiteType      string                 `json:"siteType"`
+	Display       SiteProviderDisplay    `json:"display"`
+	Hosts         []string               `json:"hosts"`
+	Credential    SiteProviderCredential `json:"credential"`
+	Protocol      SiteProviderProtocol   `json:"protocol"`
+	Models        SiteProviderModels     `json:"models,omitzero"`
+	Request       SiteProviderRequest    `json:"request,omitempty"`
+	Regions       []SiteProviderRegion   `json:"regions,omitempty"`
+	DefaultRegion string                 `json:"defaultRegion,omitempty"`
+	Login         *SiteProviderLogin     `json:"login,omitempty"`
+	Refresh       *SiteProviderRefresh   `json:"refresh,omitempty"`
+	Import        *SiteProviderImport    `json:"import,omitempty"`
+	Selection     string                 `json:"selection,omitempty"`
+	Quota         *SiteProviderQuota     `json:"quota,omitempty"`
+	UI            *SiteProviderUI        `json:"ui,omitempty"`
+	// modelsSet is true when the JSON object contained "models", including {}.
+	modelsSet bool `json:"-"`
 }
 
 // SiteProviderRequest is the optional upstream header template.
@@ -68,6 +78,8 @@ type SiteProviderSection struct {
 type SiteProviderRequest struct {
 	Headers                map[string]string `json:"headers,omitempty"`
 	StripDownstreamHeaders bool              `json:"stripDownstreamHeaders,omitempty"`
+	UpstreamStreamOnly     bool              `json:"upstreamStreamOnly,omitempty"`
+	BaseURLFrom            string            `json:"baseURLFrom,omitempty"`
 }
 
 // SiteProviderDisplay is the copy and mark shown for the site type.
@@ -79,8 +91,14 @@ type SiteProviderDisplay struct {
 }
 
 // SiteProviderCredential is how a site of this type authenticates.
+// Fields, token names, and identity apply only when Model is account_pool.
 type SiteProviderCredential struct {
-	Model string `json:"model"`
+	Model             string              `json:"model"`
+	Fields            []SiteProviderField `json:"fields,omitempty"`
+	AccessTokenField  string              `json:"accessTokenField,omitempty"`
+	RefreshTokenField string              `json:"refreshTokenField,omitempty"`
+	ExpiresAtField    string              `json:"expiresAtField,omitempty"`
+	Identity          string              `json:"identity,omitempty"`
 }
 
 // SiteProviderProtocol is the upstream protocol this site type speaks.
@@ -135,16 +153,29 @@ func validateSiteProvider(manifest Manifest, files map[string][]byte) error {
 	if err := validateSiteProviderHosts(section.Hosts); err != nil {
 		return err
 	}
-	if section.Credential.Model != "api_key" {
-		return fmt.Errorf("siteProvider.credential.model must be %q", "api_key")
+	if err := rejectCredentialModelExtras(section); err != nil {
+		return err
 	}
 	if err := validateSiteProviderProtocol(section.Protocol, section.Hosts); err != nil {
 		return err
 	}
-	if err := validateSiteProviderModels(section.Models); err != nil {
+	if section.Credential.Model == "api_key" {
+		if err := validateSiteProviderModels(section.Models); err != nil {
+			return err
+		}
+	}
+	if err := validateSiteProviderQuota(section.Quota); err != nil {
 		return err
 	}
-	if err := ValidateSiteProviderRequest(section.Request, headerTemplateFields(section.Credential.Model)); err != nil {
+	if section.Credential.Model == "account_pool" {
+		if err := validateAccountPool(section); err != nil {
+			return err
+		}
+	}
+	if err := ValidateSiteProviderRequest(section.Request, siteProviderHeaderFields(section)); err != nil {
+		return err
+	}
+	if err := validateRequestBaseURLFrom(section); err != nil {
 		return err
 	}
 	return nil
@@ -242,18 +273,22 @@ func validateSiteProviderProtocol(section SiteProviderProtocol, hosts []string) 
 }
 
 func validateOfficialBaseURL(raw string, hosts []string) error {
+	return validateHTTPSURL(raw, hosts, "siteProvider.protocol.officialBaseURL")
+}
+
+func validateHTTPSURL(raw string, hosts []string, what string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Hostname() == "" {
-		return fmt.Errorf("siteProvider.protocol.officialBaseURL %q must be an https URL with a host", raw)
+		return fmt.Errorf("%s %q must be an https URL with a host", what, raw)
 	}
 	if parsed.User != nil {
-		return fmt.Errorf("siteProvider.protocol.officialBaseURL %q must not contain userinfo", raw)
+		return fmt.Errorf("%s %q must not contain userinfo", what, raw)
 	}
 	if parsed.RawQuery != "" || parsed.ForceQuery {
-		return fmt.Errorf("siteProvider.protocol.officialBaseURL %q must not contain a query", raw)
+		return fmt.Errorf("%s %q must not contain a query", what, raw)
 	}
 	if parsed.Fragment != "" {
-		return fmt.Errorf("siteProvider.protocol.officialBaseURL %q must not contain a fragment", raw)
+		return fmt.Errorf("%s %q must not contain a fragment", what, raw)
 	}
 	host := strings.ToLower(parsed.Hostname())
 	for _, item := range hosts {
@@ -261,7 +296,7 @@ func validateOfficialBaseURL(raw string, hosts []string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("siteProvider.protocol.officialBaseURL host %q is not in hosts", host)
+	return fmt.Errorf("%s host %q is not in hosts", what, host)
 }
 
 func validateSiteProviderModels(section SiteProviderModels) error {
