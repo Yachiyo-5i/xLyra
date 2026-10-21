@@ -46,7 +46,7 @@ export function fillAccountText(template: string, vars?: Record<string, string |
   ))
 }
 
-/** Built-in Grok keeps its hint key. Plugin pools use generic copy, or `texts.login_hint`. */
+/** Built-in Grok keeps its device hint. Plugin pools use generic copy, or `texts.login_hint`. */
 export function accountCreateHint(
   siteType: string,
   info: SiteTypeInfo | null | undefined,
@@ -59,6 +59,7 @@ export function accountCreateHint(
   return { key: 'form.accountLoginHint', override }
 }
 
+/** Built-in account sites use the Grok copy. Plugin pools pass `accounts` themselves. */
 export function accountCopyPrefix(siteType: string | null | undefined): AccountCopyPrefix {
   void siteType
   return 'grokAccounts'

@@ -417,19 +417,6 @@
       "authorize": "認証ページを開く",
       "waiting": "承認を待っています…"
     },
-    "login": {
-      "title": "アカウントを追加",
-      "reauthTitle": "アカウントを再認証",
-      "starting": "ログインを準備しています…",
-      "instructions": "開いたページでログインを完了してください：",
-      "authorize": "ログインページを開く",
-      "waiting": "ログインを待っています…"
-    },
-    "regionDialog": {
-      "title": "リージョンを選択",
-      "description": "続行する前にアカウントのリージョンを選択してください。",
-      "continue": "続行"
-    },
     "sync": {
       "synced": "同期済み",
       "failed": "失敗",
@@ -439,6 +426,7 @@
       "unknown": "未同期"
     }
   },
+
   "test": {
     "title": "{{name}} モデルテスト",
     "headers": {
@@ -515,6 +503,7 @@
       "deleteSuccess": "モデルを削除しました"
     }
   },
+
   "quotaEntries": {
     "allowance": "プラン枠",
     "credits": "クレジット",

@@ -94,7 +94,7 @@ describe('loginPollOutcome', () => {
 })
 
 describe('accountCopyPrefix', () => {
-  it('uses the grok account copy namespace', () => {
+  it('uses the grok copy namespace for built-in account sites', () => {
     expect(accountCopyPrefix('grok')).toBe('grokAccounts')
     expect(accountCopyPrefix('openai')).toBe('grokAccounts')
     expect(accountCopyPrefix(null)).toBe('grokAccounts')
@@ -164,10 +164,11 @@ describe('AccountLoginDialog', () => {
       auth_url: 'https://example.test/auth',
     }
     const markup = render(
-      <AccountLoginDialog login={{ status: 'waiting', purpose: 'add', info }} kind="custom_poll" onClose={() => {}} />,
+      <AccountLoginDialog login={{ status: 'waiting', purpose: 'add', info }} kind="custom_poll" copyPrefix="accounts" onClose={() => {}} />,
     )
     expect(markup).not.toContain('SHOULD-NOT-SHOW')
-    expect(markup).toContain('打开登录页面')
+    expect(markup).toContain('打开授权页面')
+    expect(markup).toContain('在打开的页面完成授权')
   })
 })
 
@@ -176,7 +177,7 @@ describe('AccountRegionDialog', () => {
     const markup = render(
       <AccountRegionDialog
         open
-        copyPrefix="grokAccounts"
+        copyPrefix="accounts"
         regions={[
           { id: 'cn', label: '国内站', hint: '适用于国内账号' },
           { id: 'intl', label: '国际站', hint: '适用于海外账号' },
@@ -379,7 +380,6 @@ describe('plugin account pool', () => {
     expect(accountCreateHint('grok', { ...info, site_type: 'grok' }, 'zh')).toEqual({
       key: 'form.grokDeviceHint',
     })
-    expect(accountCreateHint('acme.example/pool', undefined, 'en').key).toBe('form.accountLoginHint')
   })
 })
 

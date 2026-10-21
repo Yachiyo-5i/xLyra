@@ -68,7 +68,7 @@ export type Site = {
   meta: Record<string, unknown>
   model_count?: number
   api_key_count?: number
-  // Account-login sites store one credential per signed-in account.
+  // Account-login sites (Grok and plugin account pools): stored accounts and how many of them are usable.
   account_count?: number
   valid_account_count?: number
   validation?: SiteValidationResult
@@ -430,6 +430,7 @@ export type SiteAPIKeyModel = {
   }
 }
 
+/** One model of an account (Grok or a plugin account pool). Mirrors SiteAPIKeyModel's protocol fields. */
 export type AccountModel = {
   upstream_name: string
   display_name: string
@@ -457,6 +458,10 @@ export interface AccountBase {
   entries?: SiteQuotaProbeEntry[]
   remaining_quota?: number | null
   used_quota?: number | null
+  quota_limit?: number | null
+  quota_unit?: string
+  /** Upstream region id when the account pool has regions. */
+  region?: string
   /** Non-secret account fields. Plugin row pills read this first, then a same-named primitive on the account. */
   fields?: Record<string, string | number | boolean | null>
 }

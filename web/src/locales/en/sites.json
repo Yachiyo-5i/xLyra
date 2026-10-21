@@ -426,19 +426,6 @@
       "authorize": "Open authorization page",
       "waiting": "Waiting for approval…"
     },
-    "login": {
-      "title": "Add account",
-      "reauthTitle": "Reauthorize account",
-      "starting": "Preparing login…",
-      "instructions": "Finish signing in on the page that opens:",
-      "authorize": "Open login page",
-      "waiting": "Waiting for login…"
-    },
-    "regionDialog": {
-      "title": "Choose a region",
-      "description": "Choose the account region before continuing.",
-      "continue": "Continue"
-    },
     "sync": {
       "synced": "Synced",
       "failed": "Failed",
@@ -448,6 +435,7 @@
       "unknown": "Not synced"
     }
   },
+
   "test": {
     "title": "{{name}} Model Test",
     "headers": {
@@ -528,6 +516,7 @@
       "deleteSuccess": "Model deleted"
     }
   },
+
   "quotaEntries": {
     "allowance": "Plan allowance",
     "credits": "Credits",

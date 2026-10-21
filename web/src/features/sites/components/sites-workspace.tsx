@@ -85,9 +85,9 @@ import {
 import {
   formatSiteTypeLabel,
   isSiteAbnormal,
+  isAccountLoginSiteType,
   isSiteEnableBlockedByAbnormalState,
   isOAuthSite,
-  isAccountLoginSiteType,
   normalizedSiteTypeFilter,
   readUpdatedAtMode,
   saveUpdatedAtMode,

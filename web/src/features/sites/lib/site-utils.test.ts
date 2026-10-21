@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteAccountCapabilities, SiteQuotaProbeEntry, SiteTypeInfo } from '@/features/sites/api/sites'
-import { accountBalanceDetails, accountLoginHintKey, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatQuotaProbeBalance, formatSiteBalance, formatSiteTypeLabel, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, siteTypeColor, siteTypeIcon, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { accountBalanceDetails, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatQuotaProbeBalance, formatSiteBalance, formatSiteTypeLabel, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, siteTypeColor, siteTypeIcon, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -276,8 +276,8 @@ describe('generic credits and percent quota summary', () => {
     }
   }
 
-  it('formats a credits probe as remaining over limit', () => {
-    const acme = summarySite('acme', 'credits', 1999, 2000, 1)
+  it('formats a non-builtin credits probe as remaining over limit', () => {
+    const acme = summarySite('acme.example/chat', 'credits', 1999, 2000, 1)
     expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('1,999 / 2,000')
     expect(siteBalanceDetails(acme)).toEqual([
       { label: 'accountBalance', value: '1,999 credits' },
@@ -285,7 +285,7 @@ describe('generic credits and percent quota summary', () => {
     ])
   })
 
-  it('formats a percent probe the same as grok', () => {
+  it('formats a non-builtin percent probe the same as grok', () => {
     const grok = summarySite('grok', 'percent', 95, 100, 5)
     const acme = summarySite('acme', 'percent', 95, 100, 5)
     expect(formatQuotaProbeBalance(acme.quota_probe)).toBe(formatQuotaProbeBalance(grok.quota_probe))
@@ -374,7 +374,6 @@ describe('legacy quota entries', () => {
   it('returns no Grok entries when the quota is unknown', () => {
     expect(legacyGrokQuotaEntries({ quota_known: false, remaining_percent: 95, quota_product: 'GrokBuild' })).toEqual([])
   })
-
 })
 
 function catalogEntry(siteType: string, accounts?: SiteAccountCapabilities): SiteTypeInfo {
@@ -432,14 +431,6 @@ describe('isAccountLoginSiteType', () => {
     expect(isAccountLoginSiteType('openai')).toBe(false)
     expect(isAccountLoginSiteType(null)).toBe(false)
     expect(isAccountLoginSiteType('plugin', [catalogEntry('openai')])).toBe(false)
-  })
-})
-
-describe('accountLoginHintKey', () => {
-  it('uses the Grok device hint for account login', () => {
-    expect(accountLoginHintKey(deviceAccounts)).toBe('form.grokDeviceHint')
-    expect(accountLoginHintKey(pollAccounts)).toBe('form.grokDeviceHint')
-    expect(accountLoginHintKey('grok')).toBe('form.grokDeviceHint')
   })
 })
 

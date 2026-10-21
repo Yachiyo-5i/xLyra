@@ -1,6 +1,6 @@
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { localeFromLanguage as dateTimeLocale } from '@/lib/locale'
-import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteAccountCapabilities, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
+import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
 import type { SiteUpdatedAtDisplayMode } from '@/features/sites/lib/types'
 
 const UPDATED_AT_MODE_KEY = 'xlyra:sites:updated-at-display-mode'
@@ -133,10 +133,9 @@ export function siteTypeColor(siteType: string): string | null {
 }
 
 /**
- * Sites that sign in with an account instead of an upstream API key.
- * When the catalog lists the type, follow its accounts capability.
- * A credential_type of account is an account pool too.
- * Before the catalog loads, Grok is still recognized.
+ * 通过「账号登录」接入、在站点下管理多账号的站点类型（Grok 设备授权，以及声明了 accounts 的插件）。
+ * 这类站点没有上游 API Key，资源列显示账号数，并使用账号抽屉。
+ * 目录里已有该类型时看 accounts 是否下发，credential_type 为 account 时同样算账号池；目录未加载或没有该类型时，仍按 grok 识别。
  */
 export function isAccountLoginSiteType(
   siteType: string | null | undefined,
@@ -154,15 +153,6 @@ export function isAccountLoginSiteType(
 /** Grok keeps its existing drawer. Every other account-login type is a plugin pool. */
 export function isBuiltinAccountSite(siteType: string | null | undefined) {
   return (siteType ?? '').trim().toLowerCase() === 'grok'
-}
-
-export function accountLoginHintKey(
-  source: SiteAccountCapabilities | string | null | undefined,
-): 'form.grokDeviceHint' {
-  if (source && typeof source === 'object') {
-    return 'form.grokDeviceHint'
-  }
-  return 'form.grokDeviceHint'
 }
 
 /**
@@ -310,7 +300,7 @@ function formatProbePercent(value: number) {
   return `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(Math.max(rounded, 0))}%`
 }
 
-/** Credit quotas are whole-number counts. */
+/** Credit quotas are a count; show whole numbers. */
 function formatCreditAmount(value: number) {
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(Math.max(value, 0))
 }

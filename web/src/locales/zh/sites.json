@@ -429,19 +429,6 @@
       "authorize": "打开授权页面",
       "waiting": "等待授权中…"
     },
-    "login": {
-      "title": "添加账号",
-      "reauthTitle": "重新授权账号",
-      "starting": "正在准备登录…",
-      "instructions": "在打开的页面完成登录：",
-      "authorize": "打开登录页面",
-      "waiting": "等待登录中…"
-    },
-    "regionDialog": {
-      "title": "选择区域",
-      "description": "选择账号所属区域后再继续。",
-      "continue": "继续登录"
-    },
     "sync": {
       "synced": "已同步",
       "failed": "失败",
@@ -451,6 +438,7 @@
       "unknown": "未同步"
     }
   },
+
   "test": {
     "title": "{{name}} 模型测试",
     "headers": {
@@ -531,6 +519,7 @@
       "deleteSuccess": "模型已删除"
     }
   },
+
   "quotaEntries": {
     "allowance": "套餐额度",
     "credits": "积分",

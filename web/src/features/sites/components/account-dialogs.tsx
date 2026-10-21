@@ -28,7 +28,7 @@ import { useMobileLayout } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 /**
- * Shared dialogs for OAuth account sites. They follow the
+ * Shared dialogs for account sites (Grok and plugin account pools). They follow the
  * same presentation as the API key manager of other sites: a centered dialog on
  * desktop (a sheet on mobile) for the list, a nested dialog for the models and
  * a nested dialog for the per-model protocols.

@@ -18,6 +18,7 @@ export function grokRowView(account: SiteAccount): AccountRowExtras {
     detail: quotaEntries.length ? <QuotaEntries entries={quotaEntries} /> : undefined,
   }
 }
+
 function plainFieldValue(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
@@ -38,7 +39,7 @@ function pillLabel(labels: Record<string, AccountUIText> | undefined, raw: strin
   return undefined
 }
 
-/** Plugin account row: pills from `ui.row_pills`, plus remaining/limit and the unsynced hint. */
+/** Plugin account row: pills from `ui.row_pills`, plus remaining/limit and an unsynced hint when quota is unknown. */
 export function pluginRowView(
   account: SiteAccount,
   pills: readonly AccountRowPill[] | null | undefined,
@@ -54,7 +55,7 @@ export function pluginRowView(
     return [<Badge key={`${field}-${index}`} variant="neutral">{text}</Badge>]
   })
   const quotaEntries = accountQuotaEntries(account.entries, [])
-  const summary = 'quota_limit' in account && account.quota_limit != null && account.remaining_quota != null
+  const summary = account.quota_limit != null && account.remaining_quota != null
     ? { remaining: account.remaining_quota, limit: account.quota_limit, unit: account.quota_unit || 'credits' }
     : undefined
   return {

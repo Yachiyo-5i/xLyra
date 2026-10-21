@@ -23,10 +23,10 @@ import {
 } from '@/features/sites/components/account-provider-login'
 import type { AccountCopyPrefix, AccountLoginKind } from '@/features/sites/components/account-provider-login'
 import { grokRowView, pluginRowView } from '@/features/sites/components/account-provider-rows'
-import { AccountImportDialog } from '@/features/sites/components/account-import-dialog'
 import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import { isBuiltinAccountSite } from '@/features/sites/lib/site-utils'
 import { useNestedDialogClassNames } from '@/features/sites/components/use-nested-dialog'
+import { AccountImportDialog } from '@/features/sites/components/account-import-dialog'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import {
@@ -511,9 +511,9 @@ export function AccountProviderDraw({
               const syncBadge = accountSyncBadge(prefix, account.sync_status)
               const reauthRequired = account.sync_status?.toLowerCase() === 'reauth_required'
               const name = account.masked_token || accountLabel('unnamed', 'unnamed')
-              const view = !builtin
-                ? pluginRowView(account, capabilities?.ui?.row_pills, i18n.language)
-                : grokRowView(account)
+              const view = builtin
+                ? grokRowView(account)
+                : pluginRowView(account, capabilities?.ui?.row_pills, i18n.language)
               const refreshLabel = accountLabel('refresh', 'refresh')
               const deleteLabel = accountLabel('delete', 'delete')
               const reauthorizeLabel = accountLabel('reauthorize', 'reauthorize')
@@ -646,7 +646,7 @@ export function AccountProviderDraw({
       </NestedDialog>
 
       <AccountModelsDialog
-        key={activeModelsAccount?.credential_id ?? 'grok-account-models'}
+        key={activeModelsAccount?.credential_id ?? 'account-models'}
         open={Boolean(activeModelsAccount)}
         title={activeModelsAccount ? `${activeModelsAccount.masked_token} ${t('accountModels.available')}` : t('accountModels.available')}
         models={activeModelsAccount?.models ?? []}
