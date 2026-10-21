@@ -126,6 +126,34 @@ func TestOpenCodeGoProtocolSpecsResolveIndependentPathsAndDefaults(t *testing.T)
 	}
 }
 
+// DeepSeek thinking tokens count against max_tokens, so a chat/responses
+// request without a cap must reach the upstream without one. Only Anthropic
+// Messages, which requires max_tokens, receives the default.
+func TestDeepSeekV4MaxTokensDefaultOnlyForAnthropicMessages(t *testing.T) {
+	t.Parallel()
+
+	for _, siteType := range []string{"deepseek", "newapi", "openai", "xlyra", "openai-compatible"} {
+		candidate := routeengine.Candidate{
+			Site:  routeengine.CandidateSite{SiteType: siteType},
+			Model: routeengine.CandidateModel{UpstreamName: "deepseek-v4.1-flash"},
+		}
+		for _, protocol := range []canonicalProtocol{canonicalProtocolOpenAIChat, canonicalProtocolOpenAIResponses} {
+			payload := applyRequestPolicyForCandidate(map[string]any{"model": "deepseek-v4.1-flash"}, protocol, candidate)
+			if _, ok := payload["max_tokens"]; ok {
+				t.Fatalf("%s %s received a max_tokens default: %#v", siteType, protocol, payload)
+			}
+		}
+		messages := applyRequestPolicyForCandidate(map[string]any{"model": "deepseek-v4.1-flash"}, canonicalProtocolAnthropicMessages, candidate)
+		if got, ok := intFromAny(messages["max_tokens"]); !ok || got != 32768 {
+			t.Fatalf("%s Anthropic Messages max_tokens = %#v, want 32768", siteType, messages["max_tokens"])
+		}
+		explicit := applyRequestPolicyForCandidate(map[string]any{"model": "deepseek-v4.1-flash", "max_tokens": 64}, canonicalProtocolAnthropicMessages, candidate)
+		if got, _ := intFromAny(explicit["max_tokens"]); got != 64 {
+			t.Fatalf("%s explicit max_tokens = %#v, want 64", siteType, explicit["max_tokens"])
+		}
+	}
+}
+
 func TestEffectiveProtocolSpecMergesProtocolProviderAndModel(t *testing.T) {
 	t.Parallel()
 

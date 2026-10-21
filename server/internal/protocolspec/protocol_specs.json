@@ -1017,9 +1017,13 @@
           "tools",
           "tool_choice",
           "response_format"
-        ],
-        "defaults": {
-          "max_tokens": 8192
+        ]
+      },
+      "protocol_request_params": {
+        "anthropic_messages": {
+          "defaults": {
+            "max_tokens": 32768
+          }
         }
       },
       "reasoning": {
@@ -1868,11 +1872,6 @@
     },
     "deepseek-v4*": {
       "provider": "deepseek",
-      "request_params": {
-        "defaults": {
-          "max_tokens": 8192
-        }
-      },
       "capabilities": {
         "thinking": true,
         "thinking_roundtrip": true,
