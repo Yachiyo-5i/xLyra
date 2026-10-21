@@ -18,6 +18,15 @@ type SiteTypeDescriptor struct {
 	ShowInCreateDialog           bool
 	IconURL                      string
 	SupportsAPIKeyCostMultiplier bool
+	Accounts                     *AccountCapabilities
+}
+
+// AccountCapabilities is the account-pool surface of a site type.
+// LoginKind is oauth2_device_code or custom_poll.
+type AccountCapabilities struct {
+	LoginKind       string
+	SupportsImport  bool
+	SupportsRegions bool
 }
 
 var siteTypeRegistry = []SiteTypeDescriptor{
@@ -67,6 +76,9 @@ var siteTypeRegistry = []SiteTypeDescriptor{
 		OfficialBaseURL:    "https://cli-chat-proxy.grok.com",
 		ShowInCreateDialog: true,
 		IconURL:            "/brand-icons/grok.png",
+		Accounts: &AccountCapabilities{
+			LoginKind: accountLoginDeviceCode,
+		},
 	},
 	{
 		SiteType:           "opencode_go",

@@ -1,6 +1,6 @@
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { localeFromLanguage as dateTimeLocale } from '@/lib/locale'
-import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
+import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteAccountCapabilities, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
 import type { SiteUpdatedAtDisplayMode } from '@/features/sites/lib/types'
 
 const UPDATED_AT_MODE_KEY = 'xlyra:sites:updated-at-display-mode'
@@ -130,6 +130,40 @@ export function siteTypeColor(siteType: string): string | null {
   if (type === 'newapi') return '#878ce5'
   if (type === 'xlyra') return '#5d8cc8'
   return null
+}
+
+/**
+ * Sites that sign in with an account instead of an upstream API key.
+ * When the catalog lists the type, follow its accounts capability.
+ * Before the catalog loads, Grok is still recognized.
+ */
+export function isAccountLoginSiteType(
+  siteType: string | null | undefined,
+  siteTypes?: readonly SiteTypeInfo[] | null,
+): boolean {
+  const type = (siteType ?? '').trim().toLowerCase()
+  const listed = siteTypes?.find((item) => item.site_type.trim().toLowerCase() === type)
+  if (listed) return listed.accounts !== undefined
+  return type === 'grok'
+}
+
+export function accountLoginHintKey(
+  source: SiteAccountCapabilities | string | null | undefined,
+): 'form.grokDeviceHint' {
+  if (source && typeof source === 'object') {
+    return 'form.grokDeviceHint'
+  }
+  return 'form.grokDeviceHint'
+}
+
+/**
+ * 账号登录站点的「有效 / 总数」。后端按已存账号统计；旧响应缺少该字段时，
+ * 退回站点状态里的账号数，并视为全部有效。
+ */
+export function siteAccountCounts(site: Pick<Site, 'account_count' | 'valid_account_count' | 'api_key_count'>): { valid: number; total: number } {
+  const total = Math.max(site.account_count ?? site.api_key_count ?? 0, 0)
+  const valid = Math.min(Math.max(site.valid_account_count ?? total, 0), total)
+  return { valid, total }
 }
 
 export function siteTypeIconClassName(siteType: string): string | undefined {

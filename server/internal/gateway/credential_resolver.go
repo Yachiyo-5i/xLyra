@@ -1,0 +1,89 @@
+package gateway
+
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+
+	oauthsvc "xlyra/server/internal/oauth"
+	routeengine "xlyra/server/internal/router"
+	"xlyra/server/internal/store"
+)
+
+// gatewayOAuth is the oauth surface the gateway calls. *oauthsvc.Service
+// implements it; tests supply a fake.
+type gatewayOAuth interface {
+	EnsureCodexConnectionFresh(ctx context.Context, siteID uuid.UUID) (oauthsvc.CodexConnection, error)
+	EnsureAntigravityConnectionFresh(ctx context.Context, siteID uuid.UUID) (oauthsvc.CodexConnection, error)
+	EnsureClaudeCodeConnectionFresh(ctx context.Context, siteID uuid.UUID) (oauthsvc.CodexConnection, error)
+	EnsureGrokAccessToken(ctx context.Context, credentialID uuid.UUID) (string, error)
+	MarkConnectionUnavailableBySiteID(ctx context.Context, siteID uuid.UUID, errMsg string) error
+}
+
+type resolvedUpstreamCredential struct {
+	Key       string
+	AccountID string
+	// BaseURL overrides the site address. Empty keeps the site address.
+	BaseURL string
+}
+
+type credentialResolveFailure struct {
+	ErrorType         string
+	Err               error
+	TryNextCredential bool
+	MarkReauth        bool
+}
+
+type credentialResolver interface {
+	Resolve(ctx context.Context, h Handler, candidate routeengine.Candidate, credential store.GatewayCredential, key string, accountID string) (resolvedUpstreamCredential, *credentialResolveFailure)
+}
+
+type oauthConnectionRefresher func(gatewayOAuth, context.Context, uuid.UUID) (oauthsvc.CodexConnection, error)
+
+type oauthConnectionCredentialResolver struct {
+	errorType string
+	refresh   oauthConnectionRefresher
+}
+
+func (r oauthConnectionCredentialResolver) Resolve(ctx context.Context, h Handler, candidate routeengine.Candidate, credential store.GatewayCredential, key string, accountID string) (resolvedUpstreamCredential, *credentialResolveFailure) {
+	connection, err := r.refresh(h.oauth, ctx, candidate.Site.ID)
+	if err != nil {
+		return resolvedUpstreamCredential{}, &credentialResolveFailure{
+			ErrorType:         r.errorType,
+			Err:               err,
+			TryNextCredential: false,
+		}
+	}
+	return resolvedUpstreamCredential{Key: connection.AccessToken, AccountID: connection.AccountID}, nil
+}
+
+type grokCredentialResolver struct{}
+
+func (grokCredentialResolver) Resolve(ctx context.Context, h Handler, candidate routeengine.Candidate, credential store.GatewayCredential, key string, accountID string) (resolvedUpstreamCredential, *credentialResolveFailure) {
+	accessToken, err := h.oauth.EnsureGrokAccessToken(ctx, credential.Credential.ID)
+	if err != nil {
+		return resolvedUpstreamCredential{}, &credentialResolveFailure{
+			ErrorType:         "grok_oauth_refresh_failed",
+			Err:               err,
+			TryNextCredential: true,
+			MarkReauth:        errors.Is(err, oauthsvc.ErrGrokReauthorizationRequired),
+		}
+	}
+	return resolvedUpstreamCredential{Key: accessToken, AccountID: accountID}, nil
+}
+
+func credentialResolverForSite(siteType string) credentialResolver {
+	switch {
+	case isCodexSite(siteType):
+		return oauthConnectionCredentialResolver{errorType: "codex_oauth_refresh_failed", refresh: gatewayOAuth.EnsureCodexConnectionFresh}
+	case isAntigravitySite(siteType):
+		return oauthConnectionCredentialResolver{errorType: "antigravity_oauth_refresh_failed", refresh: gatewayOAuth.EnsureAntigravityConnectionFresh}
+	case isClaudeCodeSite(siteType):
+		return oauthConnectionCredentialResolver{errorType: "claude_code_oauth_refresh_failed", refresh: gatewayOAuth.EnsureClaudeCodeConnectionFresh}
+	case isGrokSite(siteType):
+		return grokCredentialResolver{}
+	default:
+		return nil
+	}
+}

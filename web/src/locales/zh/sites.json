@@ -94,7 +94,7 @@
     "resources": {
       "models": "{{count}} 个模型",
       "keys": "{{enabled}}/{{total}} 个 Key",
-      "accounts": "{{count}} 个账号"
+      "accounts": "{{valid}}/{{total}} 个账号"
     },
     "updatedAtMode": {
       "showAbsolute": "切换为绝对时间",
@@ -338,6 +338,19 @@
       "instructions": "在 xAI 授权页面输入以下代码并批准访问：",
       "authorize": "打开授权页面",
       "waiting": "等待授权中…"
+    },
+    "login": {
+      "title": "添加账号",
+      "reauthTitle": "重新授权账号",
+      "starting": "正在准备登录…",
+      "instructions": "在打开的页面完成登录：",
+      "authorize": "打开登录页面",
+      "waiting": "等待登录中…"
+    },
+    "regionDialog": {
+      "title": "选择区域",
+      "description": "选择账号所属区域后再继续。",
+      "continue": "继续登录"
     },
     "sync": {
       "synced": "已同步",

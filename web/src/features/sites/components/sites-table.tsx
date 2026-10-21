@@ -18,10 +18,12 @@ import {
   formatRelativeDateTime,
   formatRoutingPriority,
   isOAuthSite,
+  isAccountLoginSiteType,
   isSiteEnableBlockedByAbnormalState,
   siteAccountEmail,
   siteDisplayUpdatedAt,
   siteModelsDisplayCount,
+  siteAccountCounts,
   siteTypeIcon,
   siteTypeIconClassName,
 } from '@/features/sites/lib/site-utils'
@@ -40,7 +42,7 @@ export function SitesTable({
   items, modelsMap, apiKeysMap, validationSnapshots, refreshingSiteIds, togglingSiteId, deletingSiteId,
   abnormalItems = [], abnormalCollapsed = true, onAbnormalCollapsedChange,
   updatedAtMode, now, onUpdatedAtModeChange,
-  onRefresh, onToggleEnabled, onEdit, onDelete, onOpenModels, onOpenAPIKeys, onOpenGrokAccounts, onOpenTest, onOpenUsageSplit, siteTypes,
+  onRefresh, onToggleEnabled, onEdit, onDelete, onOpenModels, onOpenAPIKeys, onOpenAccounts, onOpenTest, onOpenUsageSplit, siteTypes,
   className,
 }: {
   items: Site[]
@@ -62,7 +64,7 @@ export function SitesTable({
   onDelete: (site: Site) => void
   onOpenModels: (site: Site) => void
   onOpenAPIKeys: (site: Site) => void
-  onOpenGrokAccounts: (site: Site) => void
+  onOpenAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
   siteTypes: SiteTypeInfo[]
@@ -143,7 +145,7 @@ export function SitesTable({
         const models = modelsMap[site.id] ?? EMPTY_MODELS
         const keys = apiKeysMap[site.id] ?? EMPTY_API_KEYS
         const modelCount = siteModelsDisplayCount(site, models, keys)
-        const isGrok = site.site_type === 'grok'
+        const isGrok = isAccountLoginSiteType(site.site_type, siteTypes)
         const keyInfo = isOAuthSite(site) || isGrok ? null : { enabled: keys.filter((key) => key.enabled).length, total: keys.length || site.api_key_count || 0 }
         return (
           <div className="flex items-center justify-center gap-1 text-footnote tabular-nums whitespace-nowrap">
@@ -153,8 +155,8 @@ export function SitesTable({
             {isGrok ? (
               <>
                 <span className="text-label-2">/</span>
-                <button type="button" className="hover:text-label text-label cursor-pointer" onClick={() => onOpenGrokAccounts(site)}>
-                  {t('table.resources.accounts', { count: site.grok_account_count ?? site.api_key_count ?? 0 })}
+                <button type="button" className="hover:text-label text-label cursor-pointer" onClick={() => onOpenAccounts(site)}>
+                  {t('table.resources.accounts', siteAccountCounts(site))}
                 </button>
               </>
             ) : keyInfo ? (
@@ -310,7 +312,7 @@ export function SitesTable({
       // 操作列固定在右侧：表格横向滚动时编辑 / 删除等按钮始终可见
       meta: { align: 'left' as const, className: 'table-sticky-end', cellClassName: 'px-2', headerClassName: 'px-2' },
     },
-  ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenGrokAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
+  ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
 
   return (
     <DataTable

@@ -16,12 +16,14 @@ import {
   formatRoutingPriority,
   formatSiteBalance,
   isOAuthSite,
+  isAccountLoginSiteType,
   isSub2APIQuotaSite,
   isSiteEnableBlockedByAbnormalState,
   siteAccountEmail,
   siteBalanceDetails,
   siteDisplayUpdatedAt,
   siteModelsDisplayCount,
+  siteAccountCounts,
   siteTypeIcon,
   siteTypeIconClassName,
 } from '@/features/sites/lib/site-utils'
@@ -50,7 +52,7 @@ export function MobileSitesList({
   onDelete,
   onOpenModels,
   onOpenAPIKeys,
-  onOpenGrokAccounts,
+  onOpenAccounts,
   onOpenTest,
   onOpenUsageSplit,
   siteTypes,
@@ -75,7 +77,7 @@ export function MobileSitesList({
   onDelete: (site: Site) => void
   onOpenModels: (site: Site) => void
   onOpenAPIKeys: (site: Site) => void
-  onOpenGrokAccounts: (site: Site) => void
+  onOpenAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
   siteTypes: SiteTypeInfo[]
@@ -112,7 +114,7 @@ export function MobileSitesList({
             onDelete={onDelete}
             onOpenModels={onOpenModels}
             onOpenAPIKeys={onOpenAPIKeys}
-            onOpenGrokAccounts={onOpenGrokAccounts}
+            onOpenAccounts={onOpenAccounts}
             onOpenTest={onOpenTest}
             onOpenUsageSplit={onOpenUsageSplit}
             siteTypes={siteTypes}
@@ -148,7 +150,7 @@ function MobileSiteCard({
   onDelete,
   onOpenModels,
   onOpenAPIKeys,
-  onOpenGrokAccounts,
+  onOpenAccounts,
   onOpenTest,
   onOpenUsageSplit,
   siteTypes,
@@ -169,7 +171,7 @@ function MobileSiteCard({
   onDelete: (site: Site) => void
   onOpenModels: (site: Site) => void
   onOpenAPIKeys: (site: Site) => void
-  onOpenGrokAccounts: (site: Site) => void
+  onOpenAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
   siteTypes: SiteTypeInfo[]
@@ -178,7 +180,7 @@ function MobileSiteCard({
   const oauth = isOAuthSite(site)
   const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
   const modelCount = siteModelsDisplayCount(site, models, apiKeys)
-  const isGrok = site.site_type === 'grok'
+  const isGrok = isAccountLoginSiteType(site.site_type, siteTypes)
   const keyInfo = oauth || isGrok ? null : { enabled: apiKeys.filter((key) => key.enabled).length, total: apiKeys.length || site.api_key_count || 0 }
   const usage = site.usage
   const totalTokens = usage?.total_tokens ?? 0
@@ -240,8 +242,8 @@ function MobileSiteCard({
         {isGrok ? (
           <CardMetric
             label={t('table.headers.accounts')}
-            value={t('table.resources.accounts', { count: site.grok_account_count ?? site.api_key_count ?? 0 })}
-            onClick={() => onOpenGrokAccounts(site)}
+            value={t('table.resources.accounts', siteAccountCounts(site))}
+            onClick={() => onOpenAccounts(site)}
           />
         ) : keyInfo ? (
           <CardMetric

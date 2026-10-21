@@ -659,7 +659,7 @@ func gatewayModelCredentialBindingCounts(apiKeyModels []store.SiteAPIKeyModel) m
 
 func gatewayModelCredentialStateUsable(credential store.SiteCredential, state store.SiteAPIKeyState, hasState bool) bool {
 	if strings.HasPrefix(credential.CredentialType, store.CredentialPrefixGrok) {
-		return grokCredentialUsable(credential, state, hasState)
+		return accountCredentialUsable(credential, state, hasState)
 	}
 	return store.CredentialStateUsableForCredential(credential, state)
 }

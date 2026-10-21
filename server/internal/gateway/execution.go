@@ -20,7 +20,6 @@ import (
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/inflight"
-	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/ratelimit"
 	routeengine "xlyra/server/internal/router"
 	"xlyra/server/internal/store"
@@ -266,56 +265,23 @@ func (h Handler) forwardGatewayRequest(
 			return result
 		}
 		accountID := gatewayCredentialMetaString(selectedCredential.Credential, "account_id")
-		if isCodexSite(candidate.Site.SiteType) {
-			connection, err := h.oauth.EnsureCodexConnectionFresh(ctx, candidate.Site.ID)
-			if err != nil {
-				result.statusCode = http.StatusBadGateway
-				result.errorType = "codex_oauth_refresh_failed"
-				result.errorMessage = err.Error()
-				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result = recordCredentialAttempt(result, nil, false)
-				return result
-			}
-			upstreamKey = connection.AccessToken
-			accountID = connection.AccountID
-		}
-		if isAntigravitySite(candidate.Site.SiteType) {
-			connection, err := h.oauth.EnsureAntigravityConnectionFresh(ctx, candidate.Site.ID)
-			if err != nil {
-				result.statusCode = http.StatusBadGateway
-				result.errorType = "antigravity_oauth_refresh_failed"
-				result.errorMessage = err.Error()
-				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result = recordCredentialAttempt(result, nil, false)
-				return result
-			}
-			upstreamKey = connection.AccessToken
-			accountID = connection.AccountID
-		}
-		if isClaudeCodeSite(candidate.Site.SiteType) {
-			connection, err := h.oauth.EnsureClaudeCodeConnectionFresh(ctx, candidate.Site.ID)
-			if err != nil {
-				result.statusCode = http.StatusBadGateway
-				result.errorType = "claude_code_oauth_refresh_failed"
-				result.errorMessage = err.Error()
-				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result = recordCredentialAttempt(result, nil, false)
-				return result
-			}
-			upstreamKey = connection.AccessToken
-			accountID = connection.AccountID
-		}
-		if isGrokSite(candidate.Site.SiteType) {
-			accessToken, refreshErr := h.oauth.EnsureGrokAccessToken(ctx, selectedCredential.Credential.ID)
-			if refreshErr != nil {
-				if errors.Is(refreshErr, oauthsvc.ErrGrokReauthorizationRequired) {
-					h.markGrokCredentialReauthRequired(ctx, selectedCredential.Credential, refreshErr.Error())
+		// upstreamBaseURL starts as the site address. A resolver may override it
+		// when the selected account talks to a different host.
+		upstreamBaseURL := candidate.Site.BaseURL
+		if resolver := credentialResolverForSite(candidate.Site.SiteType); resolver != nil {
+			resolved, failure := resolver.Resolve(ctx, h, candidate, selectedCredential, upstreamKey, accountID)
+			if failure != nil {
+				if failure.MarkReauth {
+					h.markAccountCredentialReauthRequired(ctx, selectedCredential.Credential, failure.Err.Error())
 				}
 				result.statusCode = http.StatusBadGateway
-				result.errorType = "grok_oauth_refresh_failed"
-				result.errorMessage = refreshErr.Error()
+				result.errorType = failure.ErrorType
+				result.errorMessage = failure.Err.Error()
 				result.latencyMS = time.Since(startedAt).Milliseconds()
-				result = recordCredentialAttempt(result, nil, true)
+				result = recordCredentialAttempt(result, nil, failure.TryNextCredential)
+				if !failure.TryNextCredential {
+					return result
+				}
 				lastResult = result
 				if result.credentialDecision.ShouldTryNextCredential {
 					if releaseCredentialSelection != nil {
@@ -325,7 +291,11 @@ func (h Handler) forwardGatewayRequest(
 				}
 				return result
 			}
-			upstreamKey = accessToken
+			upstreamKey = resolved.Key
+			accountID = resolved.AccountID
+			if resolved.BaseURL != "" {
+				upstreamBaseURL = resolved.BaseURL
+			}
 		}
 
 		payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
@@ -382,7 +352,7 @@ func (h Handler) forwardGatewayRequest(
 			return result
 		}
 
-		endpoint := protocol.UpstreamPath(candidate.Site.BaseURL)
+		endpoint := protocol.UpstreamPath(upstreamBaseURL)
 		result.upstreamPath = endpointPath(endpoint)
 		result.upstreamURL = endpoint
 		req, err := newUpstreamHTTPRequest(ctx, protocol, endpoint, body)
@@ -504,7 +474,7 @@ func (h Handler) forwardGatewayRequest(
 		if request.Stream {
 			result = h.handleStreamResponse(ctx, w, requestID, apiKeyID, canonicalModelID, candidate, protocol, resp, result, startedAt)
 			if isGrokSite(candidate.Site.SiteType) {
-				h.markGrokCredentialSyncFailed(ctx, selectedCredential.Credential, result)
+				h.markAccountCredentialSyncFailed(ctx, selectedCredential.Credential, "grok", result)
 			}
 			if !request.Diagnostic {
 				h.markCredentialModelUnavailableAfterNotFound(ctx, candidate, selectedCredential.Credential, result)
@@ -527,7 +497,7 @@ func (h Handler) forwardGatewayRequest(
 
 		result = h.handleBufferedResponse(ctx, requestID, apiKeyID, canonicalModelID, candidate, protocol, resp, result, startedAt)
 		if isGrokSite(candidate.Site.SiteType) {
-			h.markGrokCredentialSyncFailed(ctx, selectedCredential.Credential, result)
+			h.markAccountCredentialSyncFailed(ctx, selectedCredential.Credential, "grok", result)
 		}
 		if !request.Diagnostic {
 			h.markCredentialModelUnavailableAfterNotFound(ctx, candidate, selectedCredential.Credential, result)

@@ -94,7 +94,7 @@
     "resources": {
       "models": "{{count}} Models",
       "keys": "{{enabled}}/{{total}} Keys",
-      "accounts": "{{count}} Accounts"
+      "accounts": "{{valid}}/{{total}} Accounts"
     },
     "updatedAtMode": {
       "showAbsolute": "Switch to absolute time",
@@ -335,6 +335,19 @@
       "instructions": "Enter this code on the xAI authorization page, then approve access:",
       "authorize": "Open authorization page",
       "waiting": "Waiting for approval…"
+    },
+    "login": {
+      "title": "Add account",
+      "reauthTitle": "Reauthorize account",
+      "starting": "Preparing login…",
+      "instructions": "Finish signing in on the page that opens:",
+      "authorize": "Open login page",
+      "waiting": "Waiting for login…"
+    },
+    "regionDialog": {
+      "title": "Choose a region",
+      "description": "Choose the account region before continuing.",
+      "continue": "Continue"
     },
     "sync": {
       "synced": "Synced",

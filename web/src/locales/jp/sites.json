@@ -94,7 +94,7 @@
     "resources": {
       "models": "{{count}} 個のモデル",
       "keys": "{{enabled}}/{{total}} 個のキー",
-      "accounts": "{{count}} アカウント"
+      "accounts": "{{valid}}/{{total}} アカウント"
     },
     "updatedAtMode": {
       "showAbsolute": "絶対時刻に切り替え",
@@ -326,6 +326,19 @@
       "instructions": "xAI の認証ページで以下のコードを入力し、アクセスを承認してください：",
       "authorize": "認証ページを開く",
       "waiting": "承認を待っています…"
+    },
+    "login": {
+      "title": "アカウントを追加",
+      "reauthTitle": "アカウントを再認証",
+      "starting": "ログインを準備しています…",
+      "instructions": "開いたページでログインを完了してください：",
+      "authorize": "ログインページを開く",
+      "waiting": "ログインを待っています…"
+    },
+    "regionDialog": {
+      "title": "リージョンを選択",
+      "description": "続行する前にアカウントのリージョンを選択してください。",
+      "continue": "続行"
     },
     "sync": {
       "synced": "同期済み",

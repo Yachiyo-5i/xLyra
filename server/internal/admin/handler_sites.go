@@ -78,7 +78,7 @@ func (h Handler) ListSites(w http.ResponseWriter, r *http.Request) {
 		if oauthFilter == "only" && !isOAuthSite {
 			continue
 		}
-		payload := h.sitePayloadWithState(item, states[item.ID])
+		payload := h.withAccountCounts(r.Context(), h.sitePayloadWithState(item, states[item.ID]), item)
 		if usageBySite != nil {
 			if row, ok := usageBySite[item.ID]; ok {
 				payload["usage"] = siteUsagePayload(row)
@@ -1228,7 +1228,7 @@ func (h Handler) siteSetupResponse(r *http.Request, item store.Site) map[string]
 		response["site"] = h.sitePayloadWithCapabilities(responseSite)
 	}
 	if refreshResult.State.SiteID != uuid.Nil {
-		response["site"] = h.sitePayloadWithState(responseSite, refreshResult.State)
+		response["site"] = h.withAccountCounts(r.Context(), h.sitePayloadWithState(responseSite, refreshResult.State), responseSite)
 	}
 	if refreshErr != nil {
 		response["ok"] = false
@@ -1796,13 +1796,27 @@ func (h Handler) sitePayloadWithCapabilities(item store.Site) map[string]any {
 	return payload
 }
 
+// withAccountCounts adds account_count / valid_account_count to the payload of
+// an account-login site. They come from the stored accounts, so a failed site
+// refresh that zeroes the cached site state cannot hide accounts.
+func (h Handler) withAccountCounts(ctx context.Context, payload map[string]any, site store.Site) map[string]any {
+	if h.sites == nil || !sitepkg.IsAccountLoginSite(site.SiteType) {
+		return payload
+	}
+	if counts, err := h.sites.AccountCounts(ctx, site.ID, site.SiteType); err == nil {
+		payload["account_count"] = counts.Total
+		payload["valid_account_count"] = counts.Valid
+	}
+	return payload
+}
+
 func (h Handler) sitePayloadWithStats(r *http.Request, site store.Site) map[string]any {
 	payload := h.sitePayloadWithCapabilities(site)
 	if h.sites == nil {
 		return payload
 	}
 	if state, err := h.sites.SiteState(r.Context(), site.ID); err == nil {
-		return h.sitePayloadWithState(site, state)
+		return h.withAccountCounts(r.Context(), h.sitePayloadWithState(site, state), site)
 	}
 
 	if models, err := h.sites.ListModels(r.Context(), site.ID); err == nil {
@@ -2003,7 +2017,7 @@ func healthSnapshotPayload(item store.HealthSnapshot) map[string]any {
 }
 
 func (h Handler) refreshResultPayload(ctx context.Context, result sitepkg.RefreshResult) map[string]any {
-	sitePayload := h.sitePayloadWithState(result.Site, result.State)
+	sitePayload := h.withAccountCounts(ctx, h.sitePayloadWithState(result.Site, result.State), result.Site)
 	if h.usage != nil {
 		if row, ok, err := h.usage.UsageSummaryForSite(ctx, result.Site.ID, nil); err == nil && ok {
 			sitePayload["usage"] = siteUsagePayload(row)

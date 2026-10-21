@@ -175,7 +175,7 @@ func TestGrokAccountFromStoreImageModelShowsUpstreamName(t *testing.T) {
 	}
 }
 
-func TestDeleteGrokAccountRelationsCleansDynamicState(t *testing.T) {
+func TestDeleteAccountRelationsCleansDynamicState(t *testing.T) {
 	t.Parallel()
 
 	siteID := uuid.New()
@@ -197,8 +197,8 @@ func TestDeleteGrokAccountRelationsCleansDynamicState(t *testing.T) {
 			tx.Statement.RowsAffected = 1
 		},
 	})
-	if err := deleteGrokAccountRelations(context.Background(), db, siteID, credentialID); err != nil {
-		t.Fatalf("deleteGrokAccountRelations() error = %v", err)
+	if err := deleteAccountRelations(context.Background(), db, siteID, credentialID); err != nil {
+		t.Fatalf("deleteAccountRelations() error = %v", err)
 	}
 	for _, key := range []string{"cooldown", "model", "state", "credential"} {
 		if deleted[key] != 1 {

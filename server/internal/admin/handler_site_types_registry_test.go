@@ -13,7 +13,7 @@ var headSiteTypeInfos = []siteTypeInfo{
 	{SiteType: "openai", DisplayName: "OpenAI", Subtitle: "OpenAI 平台 API Key 接入", CredentialKey: "openai", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://api.openai.com", ShowInCreateDialog: true, IconURL: "/brand-icons/openai.png"},
 	{SiteType: "anthropic", DisplayName: "Anthropic Claude", Subtitle: "Anthropic Messages API Key 接入", CredentialKey: "anthropic", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://api.anthropic.com", ShowInCreateDialog: true, IconURL: "/brand-icons/anthropic.png"},
 	{SiteType: "google_gemini", DisplayName: "Google Gemini", Subtitle: "Google AI Studio API Key 接入", CredentialKey: "google_gemini", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://generativelanguage.googleapis.com", ShowInCreateDialog: true, IconURL: "/brand-icons/google.png"},
-	{SiteType: "grok", DisplayName: "Grok", Subtitle: "通过 xAI OAuth 设备登录接入 Grok", CredentialKey: "grok", CredentialType: "grok_oauth", RequiresBaseURL: false, OfficialBaseURL: "https://cli-chat-proxy.grok.com", ShowInCreateDialog: true, IconURL: "/brand-icons/grok.png"},
+	{SiteType: "grok", DisplayName: "Grok", Subtitle: "通过 xAI OAuth 设备登录接入 Grok", CredentialKey: "grok", CredentialType: "grok_oauth", RequiresBaseURL: false, OfficialBaseURL: "https://cli-chat-proxy.grok.com", ShowInCreateDialog: true, IconURL: "/brand-icons/grok.png", Accounts: &siteTypeAccountCapabilities{LoginKind: "oauth2_device_code"}},
 	{SiteType: "opencode_go", DisplayName: "OpenCode Go", Subtitle: "OpenCode Go 套餐 API Key 接入", CredentialKey: "opencode_go", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://opencode.ai/zen/go", ShowInCreateDialog: true, IconURL: "/brand-icons/opencode.png"},
 	{SiteType: "deepseek", DisplayName: "DeepSeek", Subtitle: "DeepSeek 平台 API Key 接入", CredentialKey: "deepseek", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://api.deepseek.com", ShowInCreateDialog: true, IconURL: "/brand-icons/deepseek.png"},
 	{SiteType: "minimax", DisplayName: "MiniMax", Subtitle: "MiniMax 平台 API Key 接入", CredentialKey: "minimax", CredentialType: "api_key", RequiresBaseURL: false, OfficialBaseURL: "https://api.minimaxi.com", ShowInCreateDialog: true, IconURL: "/brand-icons/minimax.png"},
@@ -64,11 +64,67 @@ func TestListSiteTypesJSONMatchesHeadValues(t *testing.T) {
 		if err := json.Unmarshal(raw, &got); err != nil {
 			t.Fatalf("decode item %d: %v", index, err)
 		}
-		if got != want {
+		if !sameSiteTypeInfo(got, want) {
 			t.Fatalf("item %d %s = %#v, want %#v", index, want.SiteType, got, want)
 		}
 		assertExactJSONKeys(t, mapFromRawObject(t, raw), want.SiteType, siteTypeJSONKeys(want)...)
 	}
+}
+
+func TestListSiteTypesExposeAccountCapabilities(t *testing.T) {
+	t.Parallel()
+
+	rec := adminPerform((Handler{}).ListSiteTypes, adminTestRequest(http.MethodGet, "/api/v1/site-types", ""))
+	adminAssertStatus(t, rec, http.StatusOK)
+	var envelope struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	for _, raw := range envelope.Items {
+		object := mapFromRawObject(t, raw)
+		var siteType string
+		if err := json.Unmarshal(object["site_type"], &siteType); err != nil {
+			t.Fatalf("decode site_type: %v", err)
+		}
+		accounts, ok := object["accounts"]
+		switch siteType {
+		case "grok":
+			if !ok {
+				t.Fatalf("%s is missing accounts", siteType)
+			}
+			if strings.Index(string(raw), `"icon_url"`) > strings.Index(string(raw), `"accounts"`) {
+				t.Fatalf("%s accounts field is not after the existing fields: %s", siteType, raw)
+			}
+			fields := mapFromRawObject(t, accounts)
+			assertExactJSONKeys(t, fields, siteType+" accounts", "login_kind", "supports_import", "supports_regions")
+			if siteType == "grok" {
+				if string(fields["login_kind"]) != `"oauth2_device_code"` || string(fields["supports_import"]) != "false" || string(fields["supports_regions"]) != "false" {
+					t.Fatalf("grok accounts = %s", accounts)
+				}
+			}
+		default:
+			if ok {
+				t.Fatalf("%s should not expose accounts: %s", siteType, accounts)
+			}
+		}
+	}
+}
+
+func sameSiteTypeInfo(got, want siteTypeInfo) bool {
+	gotAccounts, wantAccounts := got.Accounts, want.Accounts
+	got.Accounts, want.Accounts = nil, nil
+	if got != want {
+		return false
+	}
+	if (gotAccounts == nil) != (wantAccounts == nil) {
+		return false
+	}
+	if gotAccounts == nil {
+		return true
+	}
+	return *gotAccounts == *wantAccounts
 }
 
 func TestSiteTypeIconURLReadsRegistry(t *testing.T) {
@@ -101,6 +157,9 @@ func siteTypeJSONKeys(item siteTypeInfo) []string {
 	}
 	if item.OfficialBaseURL != "" {
 		keys = append(keys, "official_base_url")
+	}
+	if item.Accounts != nil {
+		keys = append(keys, "accounts")
 	}
 	return keys
 }

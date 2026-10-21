@@ -27,9 +27,9 @@ import (
 	"xlyra/server/internal/downloads"
 	"xlyra/server/internal/gateway"
 	"xlyra/server/internal/health"
-	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/httpx"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/newapi"
 	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/observability"
@@ -412,14 +412,16 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Put("/sites/{siteID}/api-keys/{apiKeyID}/secret", adminHandler.UpdateSiteAPIKeySecret)
 				protected.Put("/sites/{siteID}/api-keys/{apiKeyID}/models", adminHandler.UpdateSiteAPIKeyModel)
 				protected.Post("/sites/{siteID}/api-keys/{apiKeyID}/refresh", adminHandler.RefreshSiteAPIKey)
-				protected.Get("/sites/{siteID}/grok/accounts", adminHandler.ListGrokAccounts)
-				protected.Post("/sites/{siteID}/grok/device/start", adminHandler.StartGrokDeviceLogin)
-				protected.Post("/sites/{siteID}/grok/device/poll", adminHandler.PollGrokDeviceLogin)
-				protected.Post("/sites/{siteID}/grok/accounts/refresh", adminHandler.RefreshGrokAccounts)
-				protected.Put("/sites/{siteID}/grok/accounts/{credentialID}", adminHandler.UpdateGrokAccount)
-				protected.Put("/sites/{siteID}/grok/accounts/{credentialID}/models", adminHandler.UpdateGrokAccountModel)
-				protected.Delete("/sites/{siteID}/grok/accounts/{credentialID}", adminHandler.DeleteGrokAccount)
-				protected.Post("/sites/{siteID}/grok/accounts/{credentialID}/refresh", adminHandler.RefreshGrokAccount)
+				protected.Get("/sites/{siteID}/accounts", adminHandler.ListAccounts)
+				protected.Get("/sites/{siteID}/accounts/regions", adminHandler.ListAccountRegions)
+				protected.Post("/sites/{siteID}/accounts/import", adminHandler.ImportAccounts)
+				protected.Post("/sites/{siteID}/accounts/login/start", adminHandler.StartAccountLogin)
+				protected.Post("/sites/{siteID}/accounts/login/poll", adminHandler.PollAccountLogin)
+				protected.Post("/sites/{siteID}/accounts/refresh", adminHandler.RefreshAccounts)
+				protected.Put("/sites/{siteID}/accounts/{credentialID}", adminHandler.UpdateAccount)
+				protected.Put("/sites/{siteID}/accounts/{credentialID}/models", adminHandler.UpdateAccountModel)
+				protected.Delete("/sites/{siteID}/accounts/{credentialID}", adminHandler.DeleteAccount)
+				protected.Post("/sites/{siteID}/accounts/{credentialID}/refresh", adminHandler.RefreshAccount)
 				protected.Get("/sites/{siteID}/models", adminHandler.ListSiteModels)
 				protected.Post("/sites/{siteID}/models", adminHandler.CreateSiteModel)
 				protected.Get("/sites/{siteID}/pricing", adminHandler.ListSitePricing)

@@ -24,64 +24,7 @@ type GrokRefreshBatchItem struct {
 }
 
 func (s *Service) RefreshGrokAccount(ctx context.Context, siteID uuid.UUID, credentialID uuid.UUID) (GrokAccount, error) {
-	defer s.siteLocks.lock(siteID)()
-	if err := s.requireGrokSite(ctx, siteID); err != nil {
-		return GrokAccount{}, err
-	}
-	site, err := s.Get(ctx, siteID)
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	credentialRepo := store.NewSiteCredentialRepository(s.db.DB())
-	credential, err := credentialRepo.GetByID(ctx, credentialID)
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	if credential.SiteID != siteID || !isGrokCredentialType(credential.CredentialType) {
-		return GrokAccount{}, fmt.Errorf("grok account was not found")
-	}
-	module, ok := s.adapters.ModuleForSiteType("grok")
-	if !ok {
-		return GrokAccount{}, fmt.Errorf("grok adapter is not registered")
-	}
-	fetcher, ok := adapter.AsAPIKeySummaryFetcher(module)
-	if !ok {
-		return GrokAccount{}, fmt.Errorf("grok adapter does not support account refresh")
-	}
-	token, err := s.oauth.EnsureGrokAccessToken(ctx, credential.ID)
-	if err != nil {
-		wrapped := fmt.Errorf("grok account token: %w", err)
-		s.recordGrokRefreshFailure(ctx, credential, wrapped)
-		return GrokAccount{}, wrapped
-	}
-	summary, err := fetcher.SummarizeAPIKey(ctx, s.toAdapterSite(ctx, site), token)
-	if err != nil {
-		s.recordGrokRefreshFailure(ctx, credential, err)
-		return GrokAccount{}, err
-	}
-	now := time.Now()
-	state, models, err := persistGrokRefresh(ctx, s.db, credential, summary, now)
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	siteModels, err := s.syncSiteModelsFromAPIKeyState(ctx, siteID, site.SiteType, site.BaseURL)
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	if _, err := s.updateGrokSiteStateAfterRefresh(ctx, siteID, siteModels, now); err != nil {
-		return GrokAccount{}, err
-	}
-	updated, err := credentialRepo.GetByID(ctx, credentialID)
-	if err != nil {
-		updated = credential
-		meta := grokMetaMap(updated.Meta)
-		tier, _, _, _, _ := grokRefreshQuotaValues(summary.Usage)
-		meta["tier"] = tier
-		updated.Meta = store.JSON(jsonBytes(meta))
-	}
-	account, _ := grokAccountFromStore(updated, state, models)
-	s.syncGrokQuotaSummary(ctx, siteID, store.Site{})
-	return account, nil
+	return s.grokAccountPool().refresh(ctx, siteID, credentialID)
 }
 
 // syncGrokQuotaSummary writes the sites-table quota from the account billing
@@ -180,27 +123,24 @@ func (s *Service) syncGrokQuotaSummary(ctx context.Context, siteID uuid.UUID, cu
 }
 
 func (s *Service) RefreshGrokAccounts(ctx context.Context, siteID uuid.UUID) ([]GrokRefreshBatchItem, error) {
-	accounts, err := s.ListGrokAccounts(ctx, siteID)
+	items, err := s.grokAccountPool().refreshAll(ctx, siteID)
 	if err != nil {
 		return nil, err
 	}
-	results := make([]GrokRefreshBatchItem, 0, len(accounts))
-	for _, account := range accounts {
-		refreshed, refreshErr := s.RefreshGrokAccount(ctx, siteID, account.CredentialID)
-		item := GrokRefreshBatchItem{CredentialID: account.CredentialID}
-		if refreshErr != nil {
-			item.Error = refreshErr.Error()
-		} else {
-			item.Account = &refreshed
-		}
-		results = append(results, item)
+	results := make([]GrokRefreshBatchItem, 0, len(items))
+	for _, item := range items {
+		results = append(results, GrokRefreshBatchItem{
+			CredentialID: item.CredentialID,
+			Account:      item.Account,
+			Error:        item.Error,
+		})
 	}
 	return results, nil
 }
 
-func persistGrokRefresh(ctx context.Context, db *store.Store, credential store.SiteCredential, summary adapter.APIKeySummary, now time.Time) (store.SiteAPIKeyState, []store.SiteAPIKeyModel, error) {
-	tier, _, remaining, used, unlimited := grokRefreshQuotaValues(summary.Usage)
-	meta := grokMetaMap(credential.Meta)
+func persistAccountRefresh(ctx context.Context, db *store.Store, credential store.SiteCredential, summary adapter.APIKeySummary, now time.Time) (store.SiteAPIKeyState, []store.SiteAPIKeyModel, error) {
+	tier, _, remaining, used, unlimited := accountRefreshQuotaValues(summary.Usage)
+	meta := accountMetaMap(credential.Meta)
 	meta["tier"] = tier
 	if values, ok := summary.Usage.(map[string]any); ok {
 		if email := strings.TrimSpace(anyString(values["email"])); email != "" {
@@ -298,12 +238,12 @@ func (s *Service) grokSiteAPIKeyCount(ctx context.Context, siteID uuid.UUID) (in
 	return count, nil
 }
 
-func (s *Service) recordGrokRefreshFailure(ctx context.Context, credential store.SiteCredential, refreshErr error) {
+func (s *Service) recordAccountRefreshFailure(ctx context.Context, credential store.SiteCredential, refreshErr error, needsReauth func(error) bool) {
 	now := time.Now()
 	message := refreshErr.Error()
-	meta := grokMetaMap(credential.Meta)
+	meta := accountMetaMap(credential.Meta)
 	enabled := boolFromMeta(meta, "enabled", true)
-	if shouldReauthorizeGrokCredential(refreshErr) {
+	if needsReauth(refreshErr) {
 		enabled = false
 		meta["enabled"] = false
 		meta["reauth_required"] = true
@@ -313,7 +253,7 @@ func (s *Service) recordGrokRefreshFailure(ctx context.Context, credential store
 		SiteCredentialID: credential.ID,
 		SiteID:           credential.SiteID,
 		Enabled:          enabled,
-		SyncStatus:       grokRefreshFailureStatus(refreshErr),
+		SyncStatus:       accountRefreshFailureStatus(refreshErr, needsReauth),
 		SyncMessage:      message,
 		LastSyncedAt:     now,
 	})
@@ -322,8 +262,8 @@ func (s *Service) recordGrokRefreshFailure(ctx context.Context, credential store
 	}
 }
 
-func grokRefreshFailureStatus(err error) string {
-	if shouldReauthorizeGrokCredential(err) {
+func accountRefreshFailureStatus(err error, needsReauth func(error) bool) string {
+	if needsReauth(err) {
 		return "reauth_required"
 	}
 	return "stale"
@@ -333,17 +273,17 @@ func shouldReauthorizeGrokCredential(err error) bool {
 	return adapter.IsGrokUnauthorizedError(err) || errors.Is(err, oauthsvc.ErrGrokReauthorizationRequired)
 }
 
-func grokRefreshQuotaValues(usage any) (string, any, any, any, bool) {
+func accountRefreshQuotaValues(usage any) (string, any, any, any, bool) {
 	values, _ := usage.(map[string]any)
 	tier := strings.TrimSpace(anyString(values["tier"]))
 	if tier == "" {
 		tier = "free"
 	}
 	unlimited, _ := values["unlimited"].(bool)
-	return tier, grokRefreshOptionalInt64(values["limit"]), grokRefreshOptionalInt64(values["remaining"]), grokRefreshOptionalInt64(values["used"]), unlimited
+	return tier, accountRefreshOptionalInt64(values["limit"]), accountRefreshOptionalInt64(values["remaining"]), accountRefreshOptionalInt64(values["used"]), unlimited
 }
 
-func grokRefreshOptionalInt64(value any) any {
+func accountRefreshOptionalInt64(value any) any {
 	switch typed := value.(type) {
 	case json.Number:
 		result, err := typed.Int64()

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Site, SiteQuotaProbeEntry } from '@/features/sites/api/sites'
-import { accountBalanceDetails, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatSiteBalance, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import type { Site, SiteAccountCapabilities, SiteQuotaProbeEntry, SiteTypeInfo } from '@/features/sites/api/sites'
+import { accountBalanceDetails, accountLoginHintKey, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatSiteBalance, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -267,6 +267,22 @@ describe('grok billing summary', () => {
   })
 })
 
+describe('siteAccountCounts', () => {
+  it('shows valid accounts out of the stored total even when site state counts reset to zero', () => {
+    expect(siteAccountCounts({ account_count: 1, valid_account_count: 0, api_key_count: 0 })).toEqual({ valid: 0, total: 1 })
+    expect(siteAccountCounts({ account_count: 3, valid_account_count: 2 })).toEqual({ valid: 2, total: 3 })
+  })
+
+  it('falls back to the cached count and treats those accounts as valid', () => {
+    expect(siteAccountCounts({ api_key_count: 2 })).toEqual({ valid: 2, total: 2 })
+    expect(siteAccountCounts({})).toEqual({ valid: 0, total: 0 })
+  })
+
+  it('never reports more valid accounts than total', () => {
+    expect(siteAccountCounts({ account_count: 1, valid_account_count: 5 })).toEqual({ valid: 1, total: 1 })
+  })
+})
+
 describe('quotaEntryKind', () => {
   it('uses an explicit kind', () => {
     expect(quotaEntryKind({ kind: 'package', label: 'balance' })).toBe('package')
@@ -325,6 +341,67 @@ describe('legacy quota entries', () => {
     expect(legacyGrokQuotaEntries({ quota_known: false, remaining_percent: 95, quota_product: 'GrokBuild' })).toEqual([])
   })
 
+})
+
+function catalogEntry(siteType: string, accounts?: SiteAccountCapabilities): SiteTypeInfo {
+  return {
+    site_type: siteType,
+    display_name: siteType,
+    subtitle: '',
+    credential_key: 'key',
+    credential_type: 'api_key',
+    requires_base_url: false,
+    show_in_create_dialog: true,
+    accounts,
+  }
+}
+
+const deviceAccounts: SiteAccountCapabilities = {
+  login_kind: 'oauth2_device_code',
+  supports_import: false,
+  supports_regions: false,
+}
+
+const pollAccounts: SiteAccountCapabilities = {
+  login_kind: 'custom_poll',
+  supports_import: true,
+  supports_regions: true,
+}
+
+describe('isAccountLoginSiteType', () => {
+  it('is true when the catalog lists accounts for the type', () => {
+    const catalog = [catalogEntry('grok', deviceAccounts), catalogEntry('plugin', pollAccounts)]
+    expect(isAccountLoginSiteType('grok', catalog)).toBe(true)
+    expect(isAccountLoginSiteType('plugin', catalog)).toBe(true)
+  })
+
+  it('is false when the catalog lists the type without accounts', () => {
+    const catalog = [catalogEntry('openai'), catalogEntry('grok')]
+    expect(isAccountLoginSiteType('openai', catalog)).toBe(false)
+    expect(isAccountLoginSiteType('grok', catalog)).toBe(false)
+  })
+
+  it('falls back to grok when the catalog is missing or does not list the type', () => {
+    expect(isAccountLoginSiteType('grok')).toBe(true)
+    expect(isAccountLoginSiteType('grok', null)).toBe(true)
+    expect(isAccountLoginSiteType('grok', [])).toBe(true)
+    expect(isAccountLoginSiteType('grok', [catalogEntry('openai')])).toBe(true)
+  })
+
+  it('is false for an unknown type', () => {
+    expect(isAccountLoginSiteType('plugin')).toBe(false)
+    expect(isAccountLoginSiteType('openai')).toBe(false)
+    expect(isAccountLoginSiteType(null)).toBe(false)
+    expect(isAccountLoginSiteType('plugin', [catalogEntry('openai')])).toBe(false)
+  })
+})
+
+describe('accountLoginHintKey', () => {
+  it('uses the Grok device hint for account login', () => {
+    expect(accountLoginHintKey(deviceAccounts)).toBe('form.grokDeviceHint')
+    expect(accountLoginHintKey(pollAccounts)).toBe('form.grokDeviceHint')
+    expect(accountLoginHintKey('grok')).toBe('form.grokDeviceHint')
+  })
 })
 
 describe('accountQuotaEntries', () => {

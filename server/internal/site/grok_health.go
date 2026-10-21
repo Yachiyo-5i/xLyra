@@ -43,8 +43,8 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 		if probeErr != nil {
 			status := "failed"
 			if isGrok {
-				s.recordGrokRefreshFailure(ctx, credential.Credential, probeErr)
-				status = grokRefreshFailureStatus(probeErr)
+				s.recordAccountRefreshFailure(ctx, credential.Credential, probeErr, shouldReauthorizeGrokCredential)
+				status = accountRefreshFailureStatus(probeErr, shouldReauthorizeGrokCredential)
 			}
 			results = append(results, healthProbeCredentialResult(credential, status, probeErr.Error()))
 			continue

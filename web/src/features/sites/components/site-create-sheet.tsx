@@ -34,7 +34,7 @@ import {
 } from '@/features/sites/api/sites'
 import type { SiteGroup } from '@/features/settings/api/site-groups'
 import { type ProxyConfig } from '@/features/settings/api/settings'
-import { siteTypeIconClassName } from '@/features/sites/lib/site-utils'
+import { accountLoginHintKey, isAccountLoginSiteType, siteTypeIconClassName } from '@/features/sites/lib/site-utils'
 import { editSiteFormResetKey } from '@/features/sites/lib/site-cache'
 import {
   SiteAPIKeyFormFields,
@@ -97,7 +97,7 @@ function createSiteSchema(mode: SiteSheetMode, siteTypes: SiteTypeInfo[] | undef
         try { new URL(value.baseUrl) } catch {
           ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: t('form.validation.urlInvalid') })
         }
-      } else if (value.siteType !== 'grok' && requiresBaseURL(value.siteType, siteTypes)) {
+      } else if (!isAccountLoginSiteType(value.siteType, siteTypes) && requiresBaseURL(value.siteType, siteTypes)) {
         ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: t('form.validation.urlRequired') })
       }
 
@@ -146,7 +146,7 @@ function createSiteSchema(mode: SiteSheetMode, siteTypes: SiteTypeInfo[] | undef
         }
       }
 
-      if (value.siteType !== 'grok' && credType !== 'system_token' && credType !== 'oauth' && credType !== 'xlyra' && mode === 'create' && value.apiKeys.length === 0) {
+      if (!isAccountLoginSiteType(value.siteType, siteTypes) && credType !== 'system_token' && credType !== 'oauth' && credType !== 'xlyra' && mode === 'create' && value.apiKeys.length === 0) {
         ctx.addIssue({
           code: 'custom',
           path: ['apiKeys'],
@@ -154,7 +154,7 @@ function createSiteSchema(mode: SiteSheetMode, siteTypes: SiteTypeInfo[] | undef
         })
       }
 
-      if (value.siteType !== 'grok' && value.responsesToolPolicy === 'compatibility' && !value.disableResponsesImageGenerationTool) {
+      if (!isAccountLoginSiteType(value.siteType, siteTypes) && value.responsesToolPolicy === 'compatibility' && !value.disableResponsesImageGenerationTool) {
         ctx.addIssue({
           code: 'custom',
           path: ['disableResponsesImageGenerationTool'],
@@ -466,7 +466,7 @@ function providerSubtitle(siteType: SiteTypeInfo, language: string, t: (key: str
 }
 
 function providerGroups(providers: SiteTypeInfo[], t: (key: string) => string) {
-  const official = providers.filter((st) => st.credential_type === 'api_key' || st.site_type === 'grok')
+  const official = providers.filter((st) => st.credential_type === 'api_key' || isAccountLoginSiteType(st.site_type, providers))
   const relay = providers
     .filter((st) => st.site_type === 'xlyra' || st.site_type === 'newapi' || st.credential_type === 'system_token')
     .sort((a, b) => relayProviderRank(a.site_type) - relayProviderRank(b.site_type))
@@ -552,7 +552,7 @@ export function SiteCreateSheet({
   const showSystemTokenFields = currentCredType === 'system_token'
   const showXLyraFields = currentCredType === 'xlyra'
   const xlyraAuthMode = useWatch({ control, name: 'xlyraAuthMode' })
-  const isGrok = siteType === 'grok'
+  const isGrok = isAccountLoginSiteType(siteType, siteTypes)
   const canConfigureQuotaProbe = siteType === 'openai' || siteType === 'anthropic'
   const showAPIKeyField = !isGrok && currentCredType !== 'system_token' && currentCredType !== 'oauth' && currentCredType !== 'xlyra' && !!siteType && mode === 'create'
   const supportsAPIKeyCostMultiplier = siteType === 'openai' || siteType === 'anthropic' || siteType === 'google_gemini'
@@ -615,7 +615,7 @@ export function SiteCreateSheet({
   function handleSelectProvider(siteType: string) {
     setValue('siteType', siteType, { shouldDirty: true })
     setValue('apiKeys', [], { shouldDirty: false })
-    if (siteType === 'grok' || !requiresBaseURL(siteType, siteTypes)) {
+    if (isAccountLoginSiteType(siteType, siteTypes) || !requiresBaseURL(siteType, siteTypes)) {
       setValue('baseUrl', '')
     }
   }
@@ -711,7 +711,7 @@ export function SiteCreateSheet({
             }
           : undefined,
       requestHeaders: values.requestHeaders.filter((h) => h.key.trim()),
-      gateway: values.siteType === 'grok'
+      gateway: isAccountLoginSiteType(values.siteType, siteTypes)
         ? undefined
         : {
             responsesToolPolicy: values.responsesToolPolicy,
@@ -819,7 +819,7 @@ export function SiteCreateSheet({
 
               {isGrok && mode === 'create' ? (
                 <FormSection title={t('form.sections.grokAccounts')} divided>
-                  <p className="text-body text-label-2">{t('form.grokDeviceHint')}</p>
+                  <p className="text-body text-label-2">{t(accountLoginHintKey(siteTypes?.find((item) => item.site_type === siteType)?.accounts ?? siteType))}</p>
                 </FormSection>
               ) : null}
 

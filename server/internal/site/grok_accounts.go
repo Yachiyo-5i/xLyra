@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -20,10 +21,20 @@ type GrokAccountUpdate struct {
 	Enabled *bool
 }
 
+// GrokAccountModel is one model of a Grok OAuth account. The endpoint fields
+// mirror the API key model payload so the same protocol editor works for accounts.
 type GrokAccountModel struct {
-	UpstreamName string `json:"upstream_name"`
-	DisplayName  string `json:"display_name"`
-	Enabled      bool   `json:"enabled"`
+	UpstreamName           string                                `json:"upstream_name"`
+	DisplayName            string                                `json:"display_name"`
+	Enabled                bool                                  `json:"enabled"`
+	SiteModelID            string                                `json:"site_model_id,omitempty"`
+	SupportedEndpointTypes []string                              `json:"supported_endpoint_types"`
+	EffectiveEndpointTypes []string                              `json:"effective_endpoint_types"`
+	AvailableEndpointTypes []string                              `json:"available_endpoint_types"`
+	EndpointOverride       store.SiteAPIKeyModelEndpointOverride `json:"endpoint_override"`
+
+	// record is the stored row, used to resolve the effective protocols.
+	record store.SiteAPIKeyModel
 }
 
 type GrokAccount struct {
@@ -47,286 +58,116 @@ type GrokAccount struct {
 }
 
 func (s *Service) ListGrokAccounts(ctx context.Context, siteID uuid.UUID) ([]GrokAccount, error) {
-	if err := s.requireGrokSite(ctx, siteID); err != nil {
-		return nil, err
-	}
-	credentials, err := store.NewSiteCredentialRepository(s.db.DB()).ListBySite(ctx, siteID)
-	if err != nil {
-		return nil, err
-	}
-	states, err := store.NewSiteAPIKeyStateRepository(s.db.DB()).ListBySite(ctx, siteID)
-	if err != nil {
-		return nil, err
-	}
-	models, err := store.NewSiteAPIKeyModelRepository(s.db.DB()).ListBySite(ctx, siteID)
-	if err != nil {
-		return nil, err
-	}
-	statesByCredential := make(map[uuid.UUID]store.SiteAPIKeyState, len(states))
-	for _, state := range states {
-		statesByCredential[state.SiteCredentialID] = state
-	}
-	modelsByCredential := map[uuid.UUID][]store.SiteAPIKeyModel{}
-	for _, model := range models {
-		modelsByCredential[model.SiteCredentialID] = append(modelsByCredential[model.SiteCredentialID], model)
-	}
-	accounts := make([]GrokAccount, 0, len(credentials))
-	for _, credential := range credentials {
-		account, ok := grokAccountFromStore(credential, statesByCredential[credential.ID], modelsByCredential[credential.ID])
-		if ok {
-			accounts = append(accounts, account)
-		}
-	}
-	return accounts, nil
+	return s.grokAccountPool().list(ctx, siteID)
 }
 
 func (s *Service) UpdateGrokAccount(ctx context.Context, siteID uuid.UUID, credentialID uuid.UUID, input GrokAccountUpdate) (GrokAccount, error) {
-	if err := s.requireGrokSite(ctx, siteID); err != nil {
-		return GrokAccount{}, err
-	}
-	var updated store.SiteCredential
-	err := s.db.WithinTx(ctx, func(tx store.Tx) error {
-		credentialRepo := store.NewSiteCredentialRepository(tx)
-		stateRepo := store.NewSiteAPIKeyStateRepository(tx)
-		credential, err := credentialRepo.GetByID(ctx, credentialID)
-		if err != nil {
-			return err
-		}
-		if credential.SiteID != siteID || !isGrokCredentialType(credential.CredentialType) {
-			return fmt.Errorf("grok account was not found")
-		}
-		meta := grokMetaMap(credential.Meta)
-		enable := input.Enabled != nil && *input.Enabled
-		disable := input.Enabled != nil && !*input.Enabled
-		if input.Enabled != nil {
-			if enable && boolFromMeta(meta, "reauth_required", false) {
-				return fmt.Errorf("grok account requires reauthorization")
-			}
-			meta["enabled"] = *input.Enabled
-		}
-		encoded, err := json.Marshal(meta)
-		if err != nil {
-			return fmt.Errorf("marshal grok account meta: %w", err)
-		}
-		updated, err = credentialRepo.UpdateMeta(ctx, credential.ID, encoded)
-		if err != nil {
-			return err
-		}
-		if enable {
-			if err := store.NewRouteCooldownRepository(tx).DeleteBySiteCredential(ctx, siteID, credentialID); err != nil {
-				return err
-			}
-		}
-		if enable || disable {
-			states, err := stateRepo.ListBySite(ctx, siteID)
-			if err != nil {
-				return err
-			}
-			for _, state := range states {
-				if state.SiteCredentialID == credentialID {
-					if enable {
-						_, err = stateRepo.RecoverPending(ctx, credentialID)
-					} else {
-						_, err = stateRepo.UpdateEnabled(ctx, credentialID, false)
-					}
-					return err
-				}
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	state := grokAccountState(ctx, s.db.DB(), credentialID)
-	models, _ := store.NewSiteAPIKeyModelRepository(s.db.DB()).ListByCredential(ctx, credentialID)
-	account, _ := grokAccountFromStore(updated, state, models)
-	return account, nil
+	return s.grokAccountPool().update(ctx, siteID, credentialID, input.Enabled)
 }
 
 func (s *Service) SetGrokAccountModelEnabled(ctx context.Context, siteID uuid.UUID, credentialID uuid.UUID, modelName string, enabled bool) (GrokAccount, error) {
-	modelName = strings.TrimSpace(modelName)
-	if modelName == "" {
-		return GrokAccount{}, fmt.Errorf("model name is required")
-	}
-	if err := s.requireGrokSite(ctx, siteID); err != nil {
-		return GrokAccount{}, err
-	}
-	defer s.siteLocks.lock(siteID)()
-	credentialRepo := store.NewSiteCredentialRepository(s.db.DB())
-	credential, err := credentialRepo.GetByID(ctx, credentialID)
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	if credential.SiteID != siteID || !isGrokCredentialType(credential.CredentialType) {
-		return GrokAccount{}, fmt.Errorf("grok account was not found")
-	}
-	meta := grokMetaMap(credential.Meta)
-	disabledModels := stringSetFromAny(meta["disabled_models"])
-	if enabled {
-		delete(disabledModels, modelName)
-	} else {
-		disabledModels[modelName] = struct{}{}
-	}
-	meta["disabled_models"] = sortedStringSet(disabledModels)
-	updatedAPIKeyModel, _ := store.NewSiteAPIKeyModelRepository(s.db.DB()).UpdateEnabled(ctx, credential.ID, modelName, enabled)
-	_ = s.syncSiteModelStatusFromAPIKeyModels(ctx, siteID, modelName, updatedAPIKeyModel)
-	updated, err := updateCredentialMeta(ctx, credentialRepo, credential.ID, meta)
-	if err != nil {
-		return GrokAccount{}, err
-	}
-	state := grokAccountState(ctx, s.db.DB(), credentialID)
-	models, _ := store.NewSiteAPIKeyModelRepository(s.db.DB()).ListByCredential(ctx, credentialID)
-	account, _ := grokAccountFromStore(updated, state, models)
-	return account, nil
+	return s.grokAccountPool().setModelEnabled(ctx, siteID, credentialID, modelName, enabled)
+}
+
+// SetGrokAccountModelEndpoint adjusts the protocols one account may use for a
+// model (the same override the API key model dialog edits).
+func (s *Service) SetGrokAccountModelEndpoint(ctx context.Context, siteID uuid.UUID, credentialID uuid.UUID, siteModelID uuid.UUID, mode string, endpointTypes []string) (GrokAccount, error) {
+	return s.grokAccountPool().setModelEndpoint(ctx, siteID, credentialID, siteModelID, mode, endpointTypes)
 }
 
 func (s *Service) DeleteGrokAccount(ctx context.Context, siteID uuid.UUID, credentialID uuid.UUID) error {
-	if err := s.requireGrokSite(ctx, siteID); err != nil {
-		return err
-	}
-	return s.db.WithinTx(ctx, func(tx store.Tx) error {
-		credential, err := store.NewSiteCredentialRepository(tx).GetByID(ctx, credentialID)
-		if err != nil {
-			return err
-		}
-		if credential.SiteID != siteID || !isGrokCredentialType(credential.CredentialType) {
-			return fmt.Errorf("grok account was not found")
-		}
-		return deleteGrokAccountRelations(ctx, tx, siteID, credentialID)
-	})
+	return s.grokAccountPool().delete(ctx, siteID, credentialID)
 }
 
 func (s *Service) CompleteGrokDeviceLogin(ctx context.Context, siteID uuid.UUID, tokens oauthsvc.GrokTokens, targetCredentialID *uuid.UUID) (GrokAccount, error) {
-	if err := s.requireGrokSite(ctx, siteID); err != nil {
-		return GrokAccount{}, err
-	}
+	return s.grokLogin().complete(ctx, siteID, tokens, targetCredentialID)
+}
+
+func (s *Service) grokLogin() accountLogin[oauthsvc.GrokTokens, GrokAccount] {
+	return accountLogin[oauthsvc.GrokTokens, GrokAccount]{s: s, p: grokLoginProvider{s: s}}
+}
+
+func (s *Service) resolveGrokCredentialForLogin(credentials []store.SiteCredential, tokens oauthsvc.GrokTokens, siteID uuid.UUID, targetCredentialID *uuid.UUID) (store.SiteCredential, bool, error) {
+	return s.grokLogin().matchExisting(credentials, siteID, targetCredentialID, tokens)
+}
+
+func (s *Service) matchGrokCredentialIdentity(credentials []store.SiteCredential, tokens oauthsvc.GrokTokens) (store.SiteCredential, bool) {
+	credential, found, _ := s.grokLogin().matchExisting(credentials, uuid.Nil, nil, tokens)
+	return credential, found
+}
+
+type grokLoginProvider struct {
+	s *Service
+}
+
+func (grokLoginProvider) name() string { return "grok" }
+
+func (grokLoginProvider) isCredential(credentialType string) bool {
+	return isGrokCredentialType(credentialType)
+}
+
+func (grokLoginProvider) credentialPrefix() string { return grokCredentialPrefix }
+
+func (p grokLoginProvider) requireSite(ctx context.Context, siteID uuid.UUID) error {
+	return p.s.requireGrokSite(ctx, siteID)
+}
+
+func (grokLoginProvider) normalize(tokens oauthsvc.GrokTokens) (oauthsvc.GrokTokens, error) {
 	if strings.TrimSpace(tokens.AccessToken) == "" {
-		return GrokAccount{}, fmt.Errorf("grok tokens are missing an access token")
+		return tokens, fmt.Errorf("grok tokens are missing an access token")
 	}
 	if strings.TrimSpace(tokens.PrincipalID) == "" {
 		tokens.PrincipalID, tokens.TeamID = oauthsvc.GrokTokenIdentity(tokens.AccessToken)
 	}
-	defer s.siteLocks.lock(siteID)()
-	secret, err := oauthsvc.EncodeGrokBundle(oauthsvc.GrokBundleFromTokens(tokens))
+	return tokens, nil
+}
+
+func (grokLoginProvider) encodeSecret(tokens oauthsvc.GrokTokens) (string, error) {
+	return oauthsvc.EncodeGrokBundle(oauthsvc.GrokBundleFromTokens(tokens))
+}
+
+func (grokLoginProvider) identity(tokens oauthsvc.GrokTokens) string {
+	return grokIdentityKey(tokens.PrincipalID, tokens.TeamID)
+}
+
+func (grokLoginProvider) metaIdentity(meta map[string]any) string {
+	return grokIdentityKey(anyString(meta["principal_id"]), anyString(meta["team_id"]))
+}
+
+func (grokLoginProvider) secretIdentity(secret string) string {
+	bundle, err := oauthsvc.DecodeGrokBundle(secret)
 	if err != nil {
-		return GrokAccount{}, err
+		return ""
 	}
-	encrypted, _, err := s.credentials.Encrypt(secret)
-	if err != nil {
-		return GrokAccount{}, err
+	principalID, teamID := oauthsvc.GrokTokenIdentity(bundle.AccessToken)
+	return grokIdentityKey(principalID, teamID)
+}
+
+func (grokLoginProvider) applyMeta(meta map[string]any, tokens oauthsvc.GrokTokens) {
+	if value := strings.TrimSpace(tokens.Tier); value != "" {
+		meta["tier"] = value
 	}
-	var credential store.SiteCredential
-	err = s.db.WithinTx(ctx, func(tx store.Tx) error {
-		credentialRepo := store.NewSiteCredentialRepository(tx)
-		credentials, err := credentialRepo.ListBySite(ctx, siteID)
-		if err != nil {
-			return err
-		}
-		existing, found, err := s.resolveGrokCredentialForLogin(credentials, tokens, siteID, targetCredentialID)
-		if err != nil {
-			return err
-		}
-		meta := map[string]any{}
-		credentialType := grokCredentialPrefix + uuid.NewString()
-		if found {
-			meta = grokMetaMap(existing.Meta)
-			credentialType = existing.CredentialType
-		}
-		meta["enabled"] = true
-		delete(meta, "reauth_required")
-		if value := strings.TrimSpace(tokens.Tier); value != "" {
-			meta["tier"] = value
-		}
-		if value := strings.TrimSpace(tokens.Email); value != "" {
-			meta["email"] = value
-		}
-		if value := strings.TrimSpace(tokens.PrincipalID); value != "" {
-			meta["principal_id"] = value
-		}
-		if value := strings.TrimSpace(tokens.TeamID); value != "" {
-			meta["team_id"] = value
-		}
-		encodedMeta, err := json.Marshal(meta)
-		if err != nil {
-			return fmt.Errorf("marshal grok account meta: %w", err)
-		}
-		credential, err = credentialRepo.Upsert(ctx, store.UpsertSiteCredentialParams{
-			SiteID:          siteID,
-			CredentialType:  credentialType,
-			EncryptedSecret: encrypted,
-			MaskedSecret:    grokAccountMaskedLabel(tokens),
-			Meta:            encodedMeta,
-		})
-		if err != nil {
-			return err
-		}
-		if !found {
-			return nil
-		}
-		if err := store.NewRouteCooldownRepository(tx).DeleteBySiteCredential(ctx, siteID, credential.ID); err != nil {
-			return err
-		}
-		states, err := store.NewSiteAPIKeyStateRepository(tx).ListBySite(ctx, siteID)
-		if err != nil {
-			return err
-		}
-		for _, state := range states {
-			if state.SiteCredentialID == credential.ID {
-				_, err = store.NewSiteAPIKeyStateRepository(tx).RecoverPending(ctx, credential.ID)
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return GrokAccount{}, err
+	if value := strings.TrimSpace(tokens.Email); value != "" {
+		meta["email"] = value
 	}
-	state := grokAccountState(ctx, s.db.DB(), credential.ID)
-	models, _ := store.NewSiteAPIKeyModelRepository(s.db.DB()).ListByCredential(ctx, credential.ID)
+	if value := strings.TrimSpace(tokens.PrincipalID); value != "" {
+		meta["principal_id"] = value
+	}
+	if value := strings.TrimSpace(tokens.TeamID); value != "" {
+		meta["team_id"] = value
+	}
+}
+
+func (grokLoginProvider) maskedLabel(tokens oauthsvc.GrokTokens) string {
+	return accountMaskedLabel(tokens.Email, tokens.AccessToken)
+}
+
+func (p grokLoginProvider) snapshot(ctx context.Context, credential store.SiteCredential) GrokAccount {
+	state := accountCredentialState(ctx, p.s.db.DB(), credential.ID)
+	models, _ := store.NewSiteAPIKeyModelRepository(p.s.db.DB()).ListByCredential(ctx, credential.ID)
 	account, _ := grokAccountFromStore(credential, state, models)
-	return account, nil
-}
-
-func (s *Service) resolveGrokCredentialForLogin(credentials []store.SiteCredential, tokens oauthsvc.GrokTokens, siteID uuid.UUID, targetCredentialID *uuid.UUID) (store.SiteCredential, bool, error) {
-	if targetCredentialID == nil || *targetCredentialID == uuid.Nil {
-		credential, found := s.matchGrokCredentialIdentity(credentials, tokens)
-		return credential, found, nil
-	}
-	for _, credential := range credentials {
-		if credential.ID == *targetCredentialID && credential.SiteID == siteID && isGrokCredentialType(credential.CredentialType) {
-			return credential, true, nil
-		}
-	}
-	return store.SiteCredential{}, false, fmt.Errorf("grok account was not found")
-}
-
-func (s *Service) matchGrokCredentialIdentity(credentials []store.SiteCredential, tokens oauthsvc.GrokTokens) (store.SiteCredential, bool) {
-	wanted := grokIdentityKey(tokens.PrincipalID, tokens.TeamID)
-	if wanted == "" {
-		return store.SiteCredential{}, false
-	}
-	for _, credential := range credentials {
-		if !isGrokCredentialType(credential.CredentialType) {
-			continue
-		}
-		meta := grokMetaMap(credential.Meta)
-		identity := grokIdentityKey(anyString(meta["principal_id"]), anyString(meta["team_id"]))
-		if identity == "" {
-			decrypted, err := s.credentials.Decrypt(credential.EncryptedSecret)
-			if err == nil {
-				bundle, decodeErr := oauthsvc.DecodeGrokBundle(decrypted)
-				if decodeErr == nil {
-					principalID, teamID := oauthsvc.GrokTokenIdentity(bundle.AccessToken)
-					identity = grokIdentityKey(principalID, teamID)
-				}
-			}
-		}
-		if identity == wanted {
-			return credential, true
-		}
-	}
-	return store.SiteCredential{}, false
+	account.Models = p.s.resolveAccountModelEndpoints(ctx, account.Models)
+	return account
 }
 
 func grokIdentityKey(principalID string, teamID string) string {
@@ -337,22 +178,11 @@ func grokIdentityKey(principalID string, teamID string) string {
 	return strings.TrimSpace(teamID) + ":" + principalID
 }
 
-func grokAccountMaskedLabel(tokens oauthsvc.GrokTokens) string {
-	if email := strings.TrimSpace(tokens.Email); email != "" {
-		return email
-	}
-	token := strings.TrimSpace(tokens.AccessToken)
-	if len(token) <= 8 {
-		return "****"
-	}
-	return token[:4] + "…" + token[len(token)-4:]
-}
-
 func grokAccountFromStore(credential store.SiteCredential, state store.SiteAPIKeyState, models []store.SiteAPIKeyModel) (GrokAccount, bool) {
 	if !isGrokCredentialType(credential.CredentialType) {
 		return GrokAccount{}, false
 	}
-	meta := grokMetaMap(credential.Meta)
+	meta := accountMetaMap(credential.Meta)
 	enabled := boolFromMeta(meta, "enabled", true)
 	if state.SiteCredentialID != uuid.Nil && state.SiteCredentialID == credential.ID {
 		enabled = state.Enabled
@@ -372,11 +202,7 @@ func grokAccountFromStore(credential store.SiteCredential, state store.SiteAPIKe
 		if display == "" || adapter.IsGrokImageModel(model.UpstreamModelName) {
 			display = model.UpstreamModelName
 		}
-		accountModels = append(accountModels, GrokAccountModel{
-			UpstreamName: model.UpstreamModelName,
-			DisplayName:  display,
-			Enabled:      model.Enabled,
-		})
+		accountModels = append(accountModels, newAccountModel(model, display))
 	}
 	account := GrokAccount{
 		CredentialID: credential.ID,
@@ -432,7 +258,7 @@ func entriesFromUsage(raw []byte) []QuotaProbeEntry {
 	return payload.Entries
 }
 
-func deleteGrokAccountRelations(ctx context.Context, tx store.Tx, siteID uuid.UUID, credentialID uuid.UUID) error {
+func deleteAccountRelations(ctx context.Context, tx store.Tx, siteID uuid.UUID, credentialID uuid.UUID) error {
 	if err := store.NewRouteCooldownRepository(tx).DeleteBySiteCredential(ctx, siteID, credentialID); err != nil {
 		return err
 	}
@@ -467,7 +293,7 @@ func (s *Service) requireGrokSite(ctx context.Context, siteID uuid.UUID) error {
 	return nil
 }
 
-func grokMetaMap(raw []byte) map[string]any {
+func accountMetaMap(raw []byte) map[string]any {
 	meta := map[string]any{}
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &meta)
@@ -475,17 +301,81 @@ func grokMetaMap(raw []byte) map[string]any {
 	return meta
 }
 
-func grokAccountState(ctx context.Context, db *gorm.DB, credentialID uuid.UUID) store.SiteAPIKeyState {
+func accountCredentialState(ctx context.Context, db *gorm.DB, credentialID uuid.UUID) store.SiteAPIKeyState {
 	var state store.SiteAPIKeyState
 	_ = db.WithContext(ctx).Where(&store.SiteAPIKeyState{SiteCredentialID: credentialID}).First(&state).Error
 	return state
+}
+
+func (s *Service) grokAccountPool() accountPool[GrokAccount] {
+	return accountPool[GrokAccount]{s: s, p: grokAccountProvider{s: s}}
+}
+
+type grokAccountProvider struct {
+	s *Service
+}
+
+func (grokAccountProvider) name() string { return "grok" }
+
+func (grokAccountProvider) isCredential(credentialType string) bool {
+	return isGrokCredentialType(credentialType)
+}
+
+func (p grokAccountProvider) requireSite(ctx context.Context, siteID uuid.UUID) error {
+	return p.s.requireGrokSite(ctx, siteID)
+}
+
+func (p grokAccountProvider) ensureAccess(ctx context.Context, site store.Site, cred store.SiteCredential) (string, adapter.SiteConfig, error) {
+	token, err := p.s.oauth.EnsureGrokAccessToken(ctx, cred.ID)
+	if err != nil {
+		return "", adapter.SiteConfig{}, err
+	}
+	return token, p.s.toAdapterSite(ctx, site), nil
+}
+
+func (grokAccountProvider) shouldReauth(err error) bool {
+	return shouldReauthorizeGrokCredential(err)
+}
+
+func (grokAccountProvider) fromStore(cred store.SiteCredential, state store.SiteAPIKeyState, models []store.SiteAPIKeyModel) (GrokAccount, bool) {
+	return grokAccountFromStore(cred, state, models)
+}
+
+func (p grokAccountProvider) decorate(ctx context.Context, account GrokAccount) GrokAccount {
+	account.Models = p.s.resolveAccountModelEndpoints(ctx, account.Models)
+	return account
+}
+
+func (grokAccountProvider) credentialID(account GrokAccount) uuid.UUID {
+	return account.CredentialID
+}
+
+func (p grokAccountProvider) syncQuota(ctx context.Context, siteID uuid.UUID, current store.Site) store.Site {
+	return p.s.syncGrokQuotaSummary(ctx, siteID, current)
+}
+
+func (grokAccountProvider) resyncQuotaOnUpdateDelete() bool { return false }
+
+func (grokAccountProvider) syncQuotaBeforeRefreshReread() bool { return false }
+
+func (grokAccountProvider) onRefreshRereadMiss(cred store.SiteCredential, summary adapter.APIKeySummary) store.SiteCredential {
+	meta := accountMetaMap(cred.Meta)
+	tier, _, _, _, _ := accountRefreshQuotaValues(summary.Usage)
+	meta["tier"] = tier
+	cred.Meta = store.JSON(jsonBytes(meta))
+	return cred
+}
+
+func (p grokAccountProvider) afterRefresh(ctx context.Context, siteID uuid.UUID, siteModels []store.SiteModel, now time.Time) error {
+	_, err := p.s.updateGrokSiteStateAfterRefresh(ctx, siteID, siteModels, now)
+	return err
 }
 
 // applyGrokSummaryToState copies the account summary of a refresh (tier,
 // quota, raw payload) into the key-state columns so a site refresh keeps the
 // same data as an account refresh.
 func applyGrokSummaryToState(params *store.UpsertSiteAPIKeyStateParams, summary adapter.APIKeySummary, name string) {
-	tier, _, remaining, used, unlimited := grokRefreshQuotaValues(summary.Usage)
+	tier, _, remaining, used, unlimited := accountRefreshQuotaValues(summary.Usage)
 	params.Name = name
 	params.GroupName = tier
 	params.RemainQuota = remaining

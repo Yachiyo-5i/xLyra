@@ -66,6 +66,23 @@ func TestCredentialHelpersMatchPreRegistryBehavior(t *testing.T) {
 	}
 }
 
+func TestSiteTypeAccountCapabilities(t *testing.T) {
+	t.Parallel()
+
+	for _, desc := range SiteTypeDescriptors() {
+		switch desc.SiteType {
+		case "grok":
+			if desc.Accounts == nil || desc.Accounts.LoginKind != accountLoginDeviceCode || desc.Accounts.SupportsImport || desc.Accounts.SupportsRegions {
+				t.Fatalf("grok accounts = %#v", desc.Accounts)
+			}
+		default:
+			if desc.Accounts != nil {
+				t.Fatalf("%s accounts = %#v, want nil", desc.SiteType, desc.Accounts)
+			}
+		}
+	}
+}
+
 func siteTypeInputVariants(siteType string) []string {
 	return []string{
 		siteType,

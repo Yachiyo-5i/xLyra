@@ -28,7 +28,7 @@ type Handler struct {
 	clients             *httpclient.Manager
 	limits              *upstreamConcurrencyCache
 	recorder            Recorder
-	oauth               *oauthsvc.Service
+	oauth               gatewayOAuth
 	rateLimits          *ratelimit.Service
 	modelsCache         *modelsCache
 	noRoutes            *noRouteSuppressionCache

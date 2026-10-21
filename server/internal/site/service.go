@@ -1242,8 +1242,8 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 			} else {
 				recoverableKeyError = err
 			}
-			if strings.EqualFold(strings.TrimSpace(site.SiteType), "grok") {
-				keySyncStatus = grokRefreshFailureStatus(err)
+			if isGrok {
+				keySyncStatus = accountRefreshFailureStatus(err, shouldReauthorizeGrokCredential)
 			}
 			failureParams := store.UpsertSiteAPIKeyStateParams{
 				SiteCredentialID: apiKey.Credential.ID,
@@ -1255,7 +1255,7 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 			}
 			if isGrok {
 				// A failed refresh must not wipe the last known quota.
-				keepGrokStateQuota(&failureParams, grokAccountState(ctx, s.db.DB(), apiKey.Credential.ID))
+				keepGrokStateQuota(&failureParams, accountCredentialState(ctx, s.db.DB(), apiKey.Credential.ID))
 			}
 			if _, stateErr := apiKeyStateRepo.Upsert(ctx, failureParams); stateErr != nil {
 				return SyncResult{}, fmt.Errorf("save api key auth failure state: %w", stateErr)

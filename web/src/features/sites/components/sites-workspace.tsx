@@ -43,6 +43,7 @@ import {
   updateSiteEnabled,
   type Site,
   type SiteAPIKey,
+  type SiteAccountCapabilities,
   type SiteModel,
   type SiteTypeInfo,
 } from '@/features/sites/api/sites'
@@ -63,7 +64,7 @@ import { fetchSystemProxyConfig } from '@/features/settings/api/settings'
 import { ChannelSplitDialog } from '@/features/usage/components/channel-split-dialog'
 import type { ChannelSplitTarget } from '@/features/usage/api/channel-split'
 import { SiteAPIKeysDraw } from '@/features/sites/components/site-api-keys-draw'
-import { GrokAccountsDraw } from '@/features/sites/components/grok-accounts-draw'
+import { AccountProviderDraw } from '@/features/sites/components/account-provider-draw'
 import {
   SiteCreateDialog,
   type SiteCreateSubmitInput,
@@ -86,6 +87,7 @@ import {
   isSiteAbnormal,
   isSiteEnableBlockedByAbnormalState,
   isOAuthSite,
+  isAccountLoginSiteType,
   normalizedSiteTypeFilter,
   readUpdatedAtMode,
   saveUpdatedAtMode,
@@ -120,6 +122,23 @@ function siteURLTarget(params: URLSearchParams) {
   }
 }
 
+function accountCapabilities(site: Site | null, siteTypes: readonly SiteTypeInfo[]): SiteAccountCapabilities | null {
+  if (!site) return null
+  const listed = siteTypes.find((item) => item.site_type.trim().toLowerCase() === site.site_type.trim().toLowerCase())
+  if (listed) return listed.accounts ?? null
+  if (site.site_type === 'grok') {
+    return { login_kind: 'oauth2_device_code', supports_import: false, supports_regions: false }
+  }
+  return null
+}
+
+function opensAccountDrawer(site: Site, panel: string, siteTypes: readonly SiteTypeInfo[]) {
+  if (!isAccountLoginSiteType(site.site_type, siteTypes)) return false
+  if (panel === 'accounts' || panel === 'api_keys') return true
+  if (panel === 'grok_accounts') return site.site_type === 'grok'
+  return false
+}
+
 export function SitesWorkspace({
   initialSearch = '',
 }: {
@@ -141,7 +160,7 @@ export function SitesWorkspace({
   const [modelsSite, setModelsSite] = useState<Site | null>(null)
   const [testSite, setTestSite] = useState<Site | null>(null)
   const [apiKeysSite, setAPIKeysSite] = useState<Site | null>(null)
-  const [grokAccountsSite, setGrokAccountsSite] = useState<Site | null>(null)
+  const [accountsSite, setAccountsSite] = useState<Site | null>(null)
   const [usageSplitTarget, setUsageSplitTarget] =
     useState<ChannelSplitTarget | null>(null)
   const [urlAPIKeysOpen, setURLAPIKeysOpen] = useState(true)
@@ -231,8 +250,8 @@ export function SitesWorkspace({
     })),
   })
   const sitesWithAPIKeys = useMemo(
-    () => sites.filter((site) => !isOAuthSite(site) && site.site_type !== 'grok'),
-    [sites],
+    () => sites.filter((site) => !isOAuthSite(site) && !isAccountLoginSiteType(site.site_type, siteTypesQuery.data?.items)),
+    [sites, siteTypesQuery.data?.items],
   )
   const siteAPIKeyQueries = useQueries({
     queries: sitesWithAPIKeys.map((site) => ({
@@ -580,7 +599,7 @@ export function SitesWorkspace({
         queryKey: [...sitesQueryKeys.detail(result.site.id), 'api-keys'],
       })
       await queryClient.invalidateQueries({
-        queryKey: [...sitesQueryKeys.detail(result.site.id), 'grok-accounts'],
+        queryKey: sitesQueryKeys.accounts(result.site.id),
       })
       await queryClient.invalidateQueries({
         queryKey: sitesQueryKeys.models(result.site.id),
@@ -820,7 +839,7 @@ export function SitesWorkspace({
     onDelete: (site: Site) => setDeleteTargetSite(site),
     onOpenModels: setModelsSite,
     onOpenAPIKeys: setAPIKeysSite,
-    onOpenGrokAccounts: setGrokAccountsSite,
+    onOpenAccounts: setAccountsSite,
     onOpenTest: setTestSite,
     onOpenUsageSplit: (site: Site) =>
       setUsageSplitTarget({ type: 'site', id: site.id }),
@@ -1057,6 +1076,11 @@ export function SitesWorkspace({
     },
   }
 
+  const urlAccountsSite = urlAPIKeysOpen && urlTargetSite && opensAccountDrawer(urlTargetSite, initialURLTarget.panel, siteTypes)
+    ? urlTargetSite
+    : null
+  const activeAccountsSite = accountsSite ?? urlAccountsSite
+
   return (
     <div className={isMobile ? 'min-h-full' : 'h-full min-h-0 overflow-hidden'}>
       {layout}
@@ -1100,7 +1124,7 @@ export function SitesWorkspace({
           apiKeysSite ??
           (urlAPIKeysOpen &&
           initialURLTarget.panel === 'api_keys' &&
-          urlTargetSite?.site_type !== 'grok'
+          !isAccountLoginSiteType(urlTargetSite?.site_type, siteTypes)
             ? urlTargetSite
             : null)
         }
@@ -1112,18 +1136,13 @@ export function SitesWorkspace({
         }}
       />
 
-      <GrokAccountsDraw
-        site={
-          grokAccountsSite ??
-          (urlAPIKeysOpen &&
-          urlTargetSite?.site_type === 'grok' &&
-          ['api_keys', 'grok_accounts'].includes(initialURLTarget.panel)
-            ? urlTargetSite
-            : null)
-        }
+      <AccountProviderDraw
+        key={activeAccountsSite?.id ?? 'accounts'}
+        site={activeAccountsSite}
+        capabilities={accountCapabilities(activeAccountsSite, siteTypes)}
         onOpenChange={(open) => {
           if (!open) {
-            setGrokAccountsSite(null)
+            setAccountsSite(null)
             setURLAPIKeysOpen(false)
           }
         }}
