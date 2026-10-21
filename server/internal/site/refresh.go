@@ -95,18 +95,25 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 		}
 	}
 
+	// Probes already stopped when the caller canceled. The timeout still has
+	// to be stored; a canceled context cannot reach the database.
+	followCtx := ctx
+	if pool && ctx.Err() != nil {
+		followCtx = context.WithoutCancel(ctx)
+	}
+
 	defer s.siteLocks.lock(siteID)()
 
-	site, err := s.Get(ctx, siteID)
+	site, err := s.Get(followCtx, siteID)
 	if err != nil {
 		return RefreshResult{}, err
 	}
 
 	stateRepo := store.NewSiteStateRepository(s.db.DB())
-	_, _ = stateRepo.MarkSyncStarted(ctx, siteID)
+	_, _ = stateRepo.MarkSyncStarted(followCtx, siteID)
 
 	if pool && strings.EqualFold(strings.TrimSpace(site.SiteType), poolAPI.siteType) {
-		return s.finishPluginAccountPoolRefresh(ctx, site, poolAPI, accountResults, accountErr)
+		return s.finishPluginAccountPoolRefresh(followCtx, site, poolAPI, accountResults, accountErr)
 	}
 
 	module, ok := s.adapters.ModuleForSiteType(site.SiteType)

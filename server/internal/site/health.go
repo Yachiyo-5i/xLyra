@@ -47,12 +47,19 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 	}
 
 	check := s.runSiteHealthCheck(ctx, item)
+	// A timeout already classified by the probe must still be stored. The
+	// caller's context is done, so the write uses a context that can reach
+	// the database. Account rows are left untouched.
+	persistCtx := ctx
+	if ctx.Err() != nil && check.errorType == "timeout" {
+		persistCtx = context.WithoutCancel(ctx)
+	}
 	now := time.Now()
 	latencyMS := int64(check.latency / time.Millisecond)
 	metadata, _ := json.Marshal(check.metadata)
 
 	repo := store.NewHealthRepository(s.db.DB())
-	snapshot, err := repo.CreateSnapshot(ctx, store.CreateHealthSnapshotParams{
+	snapshot, err := repo.CreateSnapshot(persistCtx, store.CreateHealthSnapshotParams{
 		SiteID:       item.ID,
 		SiteModelID:  nil,
 		Scope:        "site",
@@ -71,18 +78,18 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 		return HealthResult{}, err
 	}
 
-	recent, err := repo.ListSiteSnapshots(ctx, item.ID, siteHealthRecentLimit)
+	recent, err := repo.ListSiteSnapshots(persistCtx, item.ID, siteHealthRecentLimit)
 	if err != nil {
 		return HealthResult{}, err
 	}
 
 	stateRecent := s.siteHealthSnapshotsForState(item, recent)
-	state, err := repo.UpsertSiteState(ctx, buildSiteHealthStateParams(item.ID, snapshot, stateRecent))
+	state, err := repo.UpsertSiteState(persistCtx, buildSiteHealthStateParams(item.ID, snapshot, stateRecent))
 	if err != nil {
 		return HealthResult{}, err
 	}
 
-	if err := s.syncSiteHealthCooldown(ctx, item.ID, state, snapshot.CheckedAt, source); err != nil {
+	if err := s.syncSiteHealthCooldown(persistCtx, item.ID, state, snapshot.CheckedAt, source); err != nil {
 		return HealthResult{}, err
 	}
 
