@@ -10,6 +10,8 @@ export interface ProbeContext {
   credentialType: string;
   /** Unix time in milliseconds. */
   now: number;
+  /** Non-secret account fields for per-account model sync. Includes the resolved region id when the credential does not store region. Omitted for API-key calls. */
+  account?: Record<string, string>;
 }
 
 export type ProbeMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";

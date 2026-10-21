@@ -41,6 +41,7 @@ type PluginAccountRuntime interface {
 	PollLogin(ctx context.Context, sessionID string) (PluginLoginPoll, error)
 	Refresh(ctx context.Context, fields map[string]string) (map[string]string, error)
 	Summarize(ctx context.Context, baseURL string, fields map[string]string) (PluginAccountSummary, error)
+	ListModels(ctx context.Context, fields map[string]string) ([]adapter.Model, error)
 	ParseImport(raw []byte) ([]PluginImportedAccount, error)
 }
 
@@ -186,6 +187,115 @@ func (s *Service) pluginAccountRuntime(siteType string) (PluginAccountRuntime, b
 	}
 	runtime, ok := snapshot.byType[strings.ToLower(strings.TrimSpace(siteType))]
 	return runtime, ok && runtime != nil
+}
+
+func (s *Service) pluginModelsPerAccount(siteType string) bool {
+	item, ok := LookupPluginSiteType(siteType)
+	return ok && item.Enabled && item.Pool != nil && item.Pool.ModelsPerAccount
+}
+
+// syncPluginAccountModelsLocked lists models for each enabled account that does
+// not need reauthorization. Accounts run one at a time under the site lock,
+// the same way API-key model sync walks keys. Each listModels call keeps the
+// stepped-hook limits: 6 calls, 200ms each, 20s per HTTP request. One account
+// failing leaves the others. HTTP 401 marks that account for reauthorization.
+func (s *Service) syncPluginAccountModelsLocked(ctx context.Context, site store.Site) (SyncResult, error) {
+	provider, ok := s.pluginAccountProvider(site.SiteType)
+	if !ok {
+		return SyncResult{}, errors.New("plugin account pool is not configured")
+	}
+	api, ok := provider.(pluginAccountAPI)
+	if !ok {
+		return SyncResult{}, errors.New("plugin account pool is not configured")
+	}
+	return api.syncModels(ctx, site)
+}
+
+func (p pluginAccountAPI) syncModels(ctx context.Context, site store.Site) (SyncResult, error) {
+	credentials, err := store.NewSiteCredentialRepository(p.s.db.DB()).ListBySite(ctx, site.ID)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	eligible := make([]store.SiteCredential, 0, len(credentials))
+	for _, credential := range credentials {
+		if !store.IsAccountCredentialTypeOf(credential.CredentialType, p.siteType) {
+			continue
+		}
+		if !pluginAccountSyncEligible(accountMetaMap(credential.Meta)) {
+			continue
+		}
+		eligible = append(eligible, credential)
+	}
+	if len(eligible) == 0 {
+		return SyncResult{SiteID: site.ID}, nil
+	}
+	keyErrors := 0
+	var lastErr error
+	apiKeyModels := make([]store.SiteAPIKeyModel, 0)
+	for _, credential := range eligible {
+		fields, readErr := p.readCredentialFields(credential)
+		if readErr != nil {
+			keyErrors++
+			lastErr = readErr
+			p.s.recordAccountRefreshFailure(ctx, credential, readErr, func(error) bool { return false })
+			continue
+		}
+		models, listErr := p.runtime.ListModels(ctx, cloneStringMap(fields))
+		if listErr != nil {
+			keyErrors++
+			lastErr = listErr
+			reauth := errors.Is(listErr, accountauth.ErrReauthorizationRequired)
+			p.s.recordAccountRefreshFailure(ctx, credential, redactCredentialError(listErr, fields, p.secretNames()), func(error) bool { return reauth })
+			continue
+		}
+		stored, writeErr := p.writeAccountModelsRows(ctx, credential, models)
+		if writeErr != nil {
+			return SyncResult{}, writeErr
+		}
+		apiKeyModels = append(apiKeyModels, stored...)
+	}
+	if keyErrors == len(eligible) {
+		if lastErr != nil {
+			return SyncResult{}, fmt.Errorf("all %d enabled api keys failed: %w", keyErrors, lastErr)
+		}
+		return SyncResult{}, fmt.Errorf("all %d enabled api keys failed", keyErrors)
+	}
+	siteModels, err := p.syncSiteModelUnion(ctx, site.ID)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	if len(siteModels) == 0 {
+		return SyncResult{}, fmt.Errorf("no usable models available for model sync")
+	}
+	return SyncResult{
+		SiteID:        site.ID,
+		ModelCount:    len(siteModels),
+		Models:        siteModels,
+		APIKeyModels:  apiKeyModels,
+		KeyErrors:     keyErrors,
+		KeyErrorTotal: len(eligible),
+	}, nil
+}
+
+func pluginAccountSyncEligible(meta map[string]any) bool {
+	if !boolFromMeta(meta, "enabled", true) {
+		return false
+	}
+	return !boolFromMeta(meta, "reauth_required", false)
+}
+
+func (p pluginAccountAPI) writeAccountModelsRows(ctx context.Context, credential store.SiteCredential, models []adapter.Model) ([]store.SiteAPIKeyModel, error) {
+	now := time.Now()
+	var stored []store.SiteAPIKeyModel
+	err := p.s.db.WithinTx(ctx, func(tx store.Tx) error {
+		rows, err := upsertCredentialAPIKeyModels(ctx, store.NewSiteAPIKeyModelRepository(tx), credential.SiteID, credential.ID, models, now)
+		if err != nil {
+			return err
+		}
+		stored = rows
+		return nil
+	})
+	return stored, err
 }
 
 func (s *Service) pluginAccountProvider(siteType string) (AccountProvider, bool) {
@@ -597,6 +707,18 @@ func (p pluginAccountAPI) refreshAccount(ctx context.Context, siteID, credential
 			return p.failRefresh(ctx, current, sumErr, fields)
 		}
 		summary = p.scrubSummary(summary, fields)
+		if p.pool != nil && p.pool.ModelsPerAccount {
+			models, listErr := p.runtime.ListModels(ctx, cloneStringMap(fields))
+			if listErr != nil {
+				return p.failRefresh(ctx, current, listErr, fields)
+			}
+			if err := p.writeAccountModels(ctx, current, models); err != nil {
+				return err
+			}
+			if _, err := p.syncSiteModelUnion(ctx, siteID); err != nil {
+				return err
+			}
+		}
 		if err := p.persistSummary(ctx, current, summary); err != nil {
 			return err
 		}
@@ -753,6 +875,19 @@ func (p pluginAccountAPI) applyPublicMeta(meta map[string]any, fields map[string
 		}
 		meta[field.Name] = value
 	}
+}
+
+func (p pluginAccountAPI) writeAccountModels(ctx context.Context, credential store.SiteCredential, models []adapter.Model) error {
+	_, err := p.writeAccountModelsRows(ctx, credential, models)
+	return err
+}
+
+func (p pluginAccountAPI) syncSiteModelUnion(ctx context.Context, siteID uuid.UUID) ([]store.SiteModel, error) {
+	item, err := p.s.Get(ctx, siteID)
+	if err != nil {
+		return nil, err
+	}
+	return p.s.syncSiteModelsFromAPIKeyState(ctx, siteID, item.SiteType, item.BaseURL)
 }
 
 func (p pluginAccountAPI) persistSummary(ctx context.Context, credential store.SiteCredential, summary PluginAccountSummary) error {

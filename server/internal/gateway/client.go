@@ -108,6 +108,9 @@ func (h Handler) upstreamClientForSite(ctx context.Context, siteID uuid.UUID, re
 	if err != nil {
 		return h.httpClient, nil, nil, err
 	}
+	if h.forcedUpstreamClient != nil {
+		return h.forcedUpstreamClient, cfg, requestHeaders, nil
+	}
 	if cfg == nil && proxyID == "" && !request.Stream && !request.ClaudeCode && !request.DisableCompression {
 		return h.httpClient, nil, requestHeaders, nil
 	}

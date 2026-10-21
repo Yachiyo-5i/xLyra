@@ -1310,6 +1310,8 @@ func (s *Service) syncSiteModelsFromAPIKeyState(ctx context.Context, siteID uuid
 			capabilities = codexSiteModelCapabilities(rawCapabilitiesByModel[name], name)
 		} else if strings.EqualFold(strings.TrimSpace(siteType), "grok") {
 			capabilities = grokSiteModelCapabilities(rawCapabilitiesByModel[name], name)
+		} else if s.pluginModelsPerAccount(siteType) {
+			capabilities = pluginAccountSiteModelCapabilities(rawCapabilitiesByModel[name])
 		} else if strings.EqualFold(strings.TrimSpace(siteType), "opencode_go") {
 			var capabilityErr error
 			capabilities, capabilityErr = openCodeGoSiteModelCapabilities(rawCapabilitiesByModel[name], name)
@@ -1425,6 +1427,17 @@ func grokSiteModelCapabilities(raw store.JSON, modelName string) []byte {
 		return []byte(`{"source":"grok"}`)
 	}
 	return encoded
+}
+
+func pluginAccountSiteModelCapabilities(raw store.JSON) []byte {
+	capabilities := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &capabilities)
+	}
+	if capabilities == nil {
+		capabilities = map[string]any{}
+	}
+	return jsonBytes(capabilities)
 }
 
 func openCodeGoSiteModelCapabilities(raw store.JSON, modelName string) ([]byte, error) {

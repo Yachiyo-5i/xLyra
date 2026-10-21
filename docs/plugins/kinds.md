@@ -21,7 +21,7 @@ xlyra-plugin kinds
 | [`model_metadata`](./model-metadata.md) | 上游模型名对应的名称与能力 xLyra 不认识 | `describeModels` | 无 | 全局：启用即对所有站点生效 |
 | [`pricing_parse`](./pricing-parse.md) | 站点公布的价格表格式特殊 | `parsePricing` | 站点 API Key（由 xLyra 取价格表） | 站点：启用后预览核对，再绑定到站点 |
 | [`automation`](./automation.md) | xLyra 里发生某件事时自动做点什么，比如额度重置后清零密钥用量 | `handle` | 无 | 对象：启用时授予权限，再按插件声明的表单绑定到 OAuth 账号、API 密钥或站点 |
-| [`site_provider`](./site-provider.md) | 声明一个新的站点类型：API Key，或账号池 | 可选 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。账号池另有 `summarizeAccount`，以及按清单必填的 `startLogin`、`pollLogin`、`refreshTokens` | `api_key` 用站点 API Key。`account_pool` 用 `account:<siteType>:<uuid>`，密钥不进 JS | 站点类型：启用需要受信签名并确认主机；按站点类型自动生效 |
+| [`site_provider`](./site-provider.md) | 声明一个新的站点类型：API Key，或账号池 | 可选 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。账号池另有 `summarizeAccount`，以及按清单必填的 `startLogin`、`pollLogin`、`refreshTokens`。`models.perAccount` 时 `listModels` 按账号调用 | `api_key` 用站点 API Key。`account_pool` 用 `account:<siteType>:<uuid>`，密钥不进 JS | 站点类型：启用需要受信签名并确认主机；按站点类型自动生效 |
 
 ### 作用域是什么意思
 
@@ -81,7 +81,7 @@ xLyra 在某件事发生后把事件放进队列，后台依次交给插件，�
 
 ### 站点类型：`site_provider`
 
-声明一个新的站点类型。`credential.model` 为 `api_key` 时用一把站点 Key；为 `account_pool` 时由 xLyra 执行多账号的登录、刷新、导入和选路，插件只描述，密钥不进 JS。可选导出 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。账号池必定导出 `summarizeAccount`；`custom_poll` 再导出 `startLogin` 和 `pollLogin`；`custom_steps` 再导出 `refreshTokens`。这些账号钩子的返回 kind 是 `account_login`、`account_refresh`、`account_summary`，不是新的插件 kind。启用需要受信签名，并且每次启用都要确认主机列表。钩子按站点类型自动生效，不能逐站点绑定。停用后该类型站点保留数据但不参与路由。详见[站点类型](./site-provider.md)。
+声明一个新的站点类型。`credential.model` 为 `api_key` 时用一把站点 Key；为 `account_pool` 时由 xLyra 执行多账号的登录、刷新、导入和选路，插件只描述，密钥不进 JS。可选导出 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。账号池必定导出 `summarizeAccount`；`custom_poll` 再导出 `startLogin` 和 `pollLogin`；`custom_steps` 再导出 `refreshTokens`。`models.perAccount` 为 true 时必须导出 `listModels`，宿主按账号调用它并写入模型，令牌用 `{{secret.access_token}}`，不进 JS。这些账号钩子的返回 kind 是 `account_login`、`account_refresh`、`account_summary`，`listModels` 仍是 `model_list`，不是新的插件 kind。启用需要受信签名，并且每次启用都要确认主机列表。钩子按站点类型自动生效，不能逐站点绑定。停用后该类型站点保留数据但不参与路由。详见[站点类型](./site-provider.md)。
 
 所有类型共用同一个原则：**插件只"描述"想做什么，真正的执行永远在 xLyra 里**。`request` 是描述，`actions` 是描述，`classify` 的结果也是描述。
 

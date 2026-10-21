@@ -155,7 +155,7 @@ func pluginAccountBaseURL(item site.PluginSiteType, fields map[string]string) (s
 	if item.Pool == nil {
 		return "", errors.New("account region is not configured")
 	}
-	id := strings.TrimSpace(fields["region"])
+	id := jsplugin.AccountRegionID(item.Pool.Regions, fields)
 	if id == "" {
 		id = item.Pool.DefaultRegion
 	}

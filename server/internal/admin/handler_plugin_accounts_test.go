@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"xlyra/server/internal/accountauth"
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/jsplugin"
 	sitepkg "xlyra/server/internal/site"
 	"xlyra/server/internal/store"
@@ -217,6 +218,10 @@ func (f *fakePluginAccountHTTPRuntime) Summarize(context.Context, string, map[st
 			Unit:      "credits",
 		}},
 	}, nil
+}
+
+func (f *fakePluginAccountHTTPRuntime) ListModels(context.Context, map[string]string) ([]adapter.Model, error) {
+	return nil, nil
 }
 
 func (f *fakePluginAccountHTTPRuntime) ParseImport(raw []byte) ([]sitepkg.PluginImportedAccount, error) {

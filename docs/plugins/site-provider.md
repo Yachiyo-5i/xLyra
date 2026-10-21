@@ -191,7 +191,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `account_pool` 描述一种多账号站点。登录、刷新、导入、选区域、选账号、把密钥放进上游请求，都由 xLyra 的 Go 代码执行。插件导出的函数只描述下一步请求和结果形状。密钥留在宿主的秘密袋里，不进 JS。
 
-这种清单不能写 `models`（包括空对象 `{}`）。`api_key` 才有的 `models.path` / `models.auth` 在这里不出现。五个可选钩子（`probe`、`listModels`、`check`、`classify`、`rewritePayload`）仍然可以导出，调用方式和 [钩子](#钩子) 相同；`listModels` 的 `ctx` 没有账号字段。
+这种清单可以不写 `models`。不写表示不按账号拉模型列表。要拉，只写 `models.perAccount: true`，并且必须导出 `listModels`。空对象 `{}`、`models.path`、`models.auth` 都会被拒绝。`models.path` / `models.auth` 仍只属于 `api_key`；`api_key` 写 `perAccount` 也会被拒绝。五个可选钩子的调用方式见 [钩子](#钩子)。`perAccount` 的 `listModels` 见下面的 [按账号列模型](#按账号列模型)。
 
 `api_key` 清单不能写下面这些账号池字段：`credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`identity`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`quota` 和 `request` 两种模型都可以写。
 
@@ -435,7 +435,7 @@ account:<siteType>:<uuid>
 
 ### 出站
 
-登录、刷新、摘要发出的请求，与这次的 `baseURL` 同源（协议、主机、端口；重定向也是，最多 10 次），并且主机在启用时确认的 `hosts` 里。区域 `baseURL`、设备码地址、`verificationURL` 同样要在 `hosts` 里。不通过则不把地址交给浏览器，也不把原文交给 JS。
+登录、刷新、摘要，以及 `models.perAccount` 的 `listModels`，发出的请求与这次的 `baseURL` 同源（协议、主机、端口；重定向也是，最多 10 次），并且主机在启用时确认的 `hosts` 里。`listModels` 这次的 `baseURL` 是账号区域的基址，区域解析和网关相同。区域 `baseURL`、设备码地址、`verificationURL` 同样要在 `hosts` 里。不通过则不把地址交给浏览器，也不把原文交给 JS。
 
 网关转发仍用[出站限制](#出站限制)。账号凭据解析失败时换下一把，见[排错](#排错)。
 
@@ -446,8 +446,7 @@ account:<siteType>:<uuid>
 - 聊天转发的请求头模板不能按区域或按条件变化。登录、刷新、摘要、列模型的钩子可以在自己的 `request.headers` 里写 `Origin` / `Referer`；网关转发这条路径不行。模板也不能按 `domain` 是否为空在 `X-Domain` 和别的头之间切换。
 - `identity` 只有一条 `claims.…` 或 `field.…`。不能把 JWT 里的 email 另行写进 meta。
 - 导入的别名是账号对象的顶层键。realm 别名留在字段里，不收成区域 id。毫秒阈值是 1e12。
-- `summarizeAccount` 不能把账号标成需要重新授权。
-- `listModels` 的 `ctx` 没有账号字段，看不到 `domain`。登录完成时不会按这个账号去调用 `listModels` 填充账号上的模型列表。
+- `summarizeAccount` 不能把账号标成需要重新授权。`listModels` 看到的是上游 HTTP 401，由宿主把这个账号标成需要重新授权，响应体不交给钩子。
 - 声明了 `secretPaths` 时，非 JSON 响应整步失败，不会当成 `pending`。
 - 短于 4 个 Unicode 码位的密钥值，出现在声明路径之外时不会被擦掉。
 
@@ -473,15 +472,27 @@ account:<siteType>:<uuid>
 | `classify`、`rewritePayload` | 50 ms | 在请求路径上。等待运行时的上限是 250 ms，钩子本身仍是 50 ms |
 | 所有钩子 | 内存 16 MiB，返回值 1 MiB | 日志每次调用最多 20 条，每条 1024 字节 |
 
-分步钩子的 `ctx` 是 `siteType`、`baseURL`、`credentialType`、`now`（毫秒）。没有密钥。`site_provider` 没有 `baseURLMode`，地址按 `as_is` 整理（去掉尾部 `/`）；没传地址时用 `officialBaseURL`。
+分步钩子的 `ctx` 是 `siteType`、`baseURL`、`credentialType`、`now`（毫秒）。没有密钥。`models.perAccount` 的 `listModels` 另外带 `account`，见 [按账号列模型](#按账号列模型)。`site_provider` 没有 `baseURLMode`，地址按 `as_is` 整理（去掉尾部 `/`）；没传地址时用 `officialBaseURL`。API Key 站点的 `listModels` 仍不带 `account`。
 
 `listModels`、`check`、`classify` 的优先级：手工绑定的同类插件 > 站点类型自带钩子 > 通用适配器或默认分类。`probe` 不走这套绑定。站点上已经保存、并且能识别的 `quota_probe` 配置优先；没有配置，或者值是 `none`，又导出了 `probe` 时，自动用站点类型自己的钩子。
 
 `listModels`、`check`、`probe` 失败（抛错、超时、返回 `{ error }`、主机不允许）时，这一次操作失败，不会悄悄改走通用适配器。
 
+### 按账号列模型
+
+`account_pool` 写了 `models.perAccount: true` 之后，宿主在这些时候为每个启用、且不需要重新授权的账号调用 `listModels`：登录完成、导入之后的刷新、账号 Refresh，以及站点的模型同步和 RefreshState。账号一个一个跑，沿用分步钩子的次数和超时（最多 6 次调用、单次 HTTP 20 秒）。一个账号失败不影响其它账号。全部这样的账号都失败时，这次站点同步失败。没有符合条件的账号时，同步返回空结果，不报错。
+
+`ctx.account` 只有非密钥字段，再加上解析出的 `region`（凭据里已经有 `region` 时保留原值）。`ctx.baseURL` 是这个区域的基址，解析顺序和网关相同：显式 `region`，否则 `realm` 等于区域 id 或 `regions[].realms`，否则 `domain` 落在 `regions[].domains`，否则 `defaultRegion`。`ctx.credentialType` 是 `account`。
+
+请求里用 `{{secret.access_token}}`，也可以用其它已声明的 `{{secret.<字段>}}`。宿主在主机检查通过之后、请求发出之前替换。JS 看不到令牌，出站只到 `hosts`。上游 HTTP 401 不把响应体交给钩子，这个账号被标成需要重新授权。
+
+钩子返回的 `models` 按现有账号模型写入：每个模型 upsert 到该账号的模型行，再把各账号的并集写进站点模型表。站点模型的展示名是上游模型名。`capabilities` 按钩子返回的对象保存。`summarizeAccount` 仍然不返回模型。
+
+没写 `models.perAccount` 的账号池站点不走这条路径。`api_key` 的 `listModels` 行为不变。
+
 ### listModels
 
-拉模型列表时调用。先看站点有没有绑定 `model_list`，没有再看本钩子，再没有就用通用适配器的 `GET models.path`，解析 OpenAI 形的 `data[].id`。
+拉模型列表时调用。API Key 站点先看有没有绑定 `model_list`，没有再看本钩子，再没有就用通用适配器的 `GET models.path`，解析 OpenAI 形的 `data[].id`。账号池站点只在 `models.perAccount` 为 true 时调用本钩子，见 [按账号列模型](#按账号列模型)。
 
 返回 `{ request }`、`{ result }` 或 `{ error }` 之一。`result` 的形状与[模型列表插件](./model-list.md)相同：`models` 最多 2000 项，每项 `name` 必填。
 
@@ -633,7 +644,7 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 - 创建和更新站点时，`base_url` 的主机必须在列表里，否则拒绝保存。`base_url` 本身还要是带主机的 `http` 或 `https`。
 - 通用适配器在列模型、验 Key、健康检查之前检查 `base_url` 的主机，不在列表里就不发请求。它的客户端拒绝离开列表的重定向：最多 5 次，不能从 `https` 降到 `http`，目标协议必须是 `https` 或与第一次请求相同。
 - 网关在发出上游请求之前，用最终 URL 再查一次主机。站点模型测试走同一条限制。不通过则不发请求，HTTP 502，错误类型 `upstream_host_not_allowed`，不换密钥重试。上游客户端的重定向规则与通用适配器相同。
-- `probe`、`listModels`、`check` 发出的请求要同时满足两件事：与站点 `base_url` 同源（协议、主机、端口相同；重定向也是，最多 10 次），以及解析后的 URL 通过上面的主机名检查。路径规则与[资源上限](./limits-and-security.md)里的插件 URL 相同，越界是 `js_url_rejected`。
+- `probe`、`listModels`、`check` 发出的请求要同时满足两件事：与站点 `base_url` 同源（协议、主机、端口相同；重定向也是，最多 10 次），以及解析后的 URL 通过上面的主机名检查。路径规则与[资源上限](./limits-and-security.md)里的插件 URL 相同，越界是 `js_url_rejected`。账号池 `models.perAccount` 的 `listModels` 改为与该账号的区域基址同源，主机仍必须在 `hosts` 里。令牌写在 `{{secret.access_token}}` 里，由宿主替换。
 
 站点类型已停用或不在启用快照里时，没有白名单。类型名含 `/` 的出站会被拒绝。内置站点类型不查这张表。
 
@@ -653,7 +664,7 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 
 插件拿不到密钥明文，也不能自己发请求。分步钩子只描述 `request`，鉴权头由 xLyra 加上。`rewritePayload` 的 `ctx` 里没有密钥、请求头或账号字段；密钥是在正文改写之后才放进请求头的。账号池钩子只能看到 `{{redacted}}` 和 `{{secret.<field>}}`，见[密钥不进 JS](#密钥不进-js)。
 
-宿主写出 `probe`、`listModels`、`check`、`rewritePayload` 的日志时不脱敏，这些日志会进服务日志。`classify` 这次调用收集到的日志会被丢掉。账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 在写日志之前先按秘密袋替换；短于 4 个 Unicode 码位的值替换不到。`rewritePayload` 能看到用户消息正文，请不要把用户消息打进日志。
+宿主写出 `probe`、`listModels`、`check`、`rewritePayload` 的日志时不脱敏，这些日志会进服务日志。`classify` 这次调用收集到的日志会被丢掉。账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount`，以及 `models.perAccount` 的 `listModels`，在写日志之前先按秘密袋替换；短于 4 个 Unicode 码位的值替换不到。`rewritePayload` 能看到用户消息正文，请不要把用户消息打进日志。
 
 请只启用可信来源的插件。未受信的 `site_provider` 不能靠二次确认启用。
 

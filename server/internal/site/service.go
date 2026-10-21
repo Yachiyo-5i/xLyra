@@ -1196,6 +1196,9 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 	if err != nil {
 		return SyncResult{}, err
 	}
+	if s.pluginModelsPerAccount(site.SiteType) {
+		return s.syncPluginAccountModelsLocked(ctx, site)
+	}
 
 	module, ok := s.adapters.ModuleForSiteType(site.SiteType)
 	if !ok {

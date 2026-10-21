@@ -93,7 +93,7 @@
 
 插件被停用或卸载之后没有可用的白名单。类型名里带 `/` 的出站会被拒绝。
 
-`site_provider` 的 `probe`、`listModels`、`check`，以及账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount`，在发请求前除了与站点 `base_url` 同源，还会再做一次上面的主机名检查。站点类型名里带 `/` 时，手工绑定的分步插件也做这一次检查。内置站点类型（类型名不含 `/`）的额度探测仍只受同源限制。详见[站点类型](./site-provider.md#出站限制)。
+`site_provider` 的 `probe`、`listModels`、`check`，以及账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 和 `models.perAccount` 的 `listModels`，在发请求前除了与这次的 `baseURL` 同源，还会再做一次上面的主机名检查。按账号的 `listModels` 用账号区域的基址，不是站点行上的 `base_url`。站点类型名里带 `/` 时，手工绑定的分步插件也做这一次检查。内置站点类型（类型名不含 `/`）的额度探测仍只受同源限制。详见[站点类型](./site-provider.md#出站限制)。
 
 ## 账号池的密钥
 

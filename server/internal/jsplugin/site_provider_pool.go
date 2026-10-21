@@ -120,16 +120,53 @@ type SiteProviderUI struct {
 // AccountPoolSpec is an immutable copy of the account-pool manifest sections.
 // API-key site types leave Plugin site Pool nil.
 type AccountPoolSpec struct {
-	Credential     SiteProviderCredential
-	Regions        []SiteProviderRegion
-	DefaultRegion  string
-	Login          SiteProviderLogin
-	Refresh        SiteProviderRefresh
-	Import         SiteProviderImport
-	Selection      string
-	QuotaAggregate string
-	Request        SiteProviderRequest
-	UI             SiteProviderUI
+	Credential       SiteProviderCredential
+	Regions          []SiteProviderRegion
+	DefaultRegion    string
+	Login            SiteProviderLogin
+	Refresh          SiteProviderRefresh
+	Import           SiteProviderImport
+	Selection        string
+	QuotaAggregate   string
+	ModelsPerAccount bool
+	Request          SiteProviderRequest
+	UI               SiteProviderUI
+}
+
+// AccountRegionID picks the region id for an account bag.
+// An explicit region field wins, including an id this pool does not define.
+// Otherwise a realm that equals a region id or one of its realms wins.
+// Otherwise a domain listed on a region wins.
+// An empty result means the caller should use its default region.
+func AccountRegionID(regions []SiteProviderRegion, fields map[string]string) string {
+	if fields == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(fields["region"]); id != "" {
+		return id
+	}
+	if realm := strings.TrimSpace(fields["realm"]); realm != "" {
+		for _, region := range regions {
+			if strings.EqualFold(region.ID, realm) {
+				return region.ID
+			}
+			for _, alias := range region.Realms {
+				if strings.EqualFold(strings.TrimSpace(alias), realm) {
+					return region.ID
+				}
+			}
+		}
+	}
+	if domain := strings.TrimSpace(fields["domain"]); domain != "" {
+		for _, region := range regions {
+			for _, item := range region.Domains {
+				if strings.EqualFold(strings.TrimSpace(item), domain) {
+					return region.ID
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // DefaultBaseURL is the base URL of DefaultRegion.
@@ -145,16 +182,17 @@ func (s AccountPoolSpec) DefaultBaseURL() string {
 // Clone returns a deep copy.
 func (s AccountPoolSpec) Clone() AccountPoolSpec {
 	return AccountPoolSpec{
-		Credential:     cloneCredential(s.Credential),
-		Regions:        cloneRegions(s.Regions),
-		DefaultRegion:  s.DefaultRegion,
-		Login:          cloneLogin(s.Login),
-		Refresh:        cloneRefresh(s.Refresh),
-		Import:         cloneImport(s.Import),
-		Selection:      s.Selection,
-		QuotaAggregate: s.QuotaAggregate,
-		Request:        cloneSiteProviderRequest(s.Request),
-		UI:             cloneUI(s.UI),
+		Credential:       cloneCredential(s.Credential),
+		Regions:          cloneRegions(s.Regions),
+		DefaultRegion:    s.DefaultRegion,
+		Login:            cloneLogin(s.Login),
+		Refresh:          cloneRefresh(s.Refresh),
+		Import:           cloneImport(s.Import),
+		Selection:        s.Selection,
+		QuotaAggregate:   s.QuotaAggregate,
+		ModelsPerAccount: s.ModelsPerAccount,
+		Request:          cloneSiteProviderRequest(s.Request),
+		UI:               cloneUI(s.UI),
 	}
 }
 
@@ -171,13 +209,14 @@ func NewAccountPoolSpec(section SiteProviderSection) (AccountPoolSpec, error) {
 		return AccountPoolSpec{}, fmt.Errorf("siteProvider.refresh is required")
 	}
 	spec := AccountPoolSpec{
-		Credential:    cloneCredential(section.Credential),
-		Regions:       cloneRegions(section.Regions),
-		DefaultRegion: section.DefaultRegion,
-		Login:         cloneLogin(*section.Login),
-		Refresh:       cloneRefresh(*section.Refresh),
-		Selection:     section.Selection,
-		Request:       cloneSiteProviderRequest(section.Request),
+		Credential:       cloneCredential(section.Credential),
+		Regions:          cloneRegions(section.Regions),
+		DefaultRegion:    section.DefaultRegion,
+		Login:            cloneLogin(*section.Login),
+		Refresh:          cloneRefresh(*section.Refresh),
+		Selection:        section.Selection,
+		ModelsPerAccount: section.Models.PerAccount,
+		Request:          cloneSiteProviderRequest(section.Request),
 	}
 	if section.Import != nil {
 		spec.Import = cloneImport(*section.Import)
@@ -236,10 +275,7 @@ func rejectCredentialModelExtras(section SiteProviderSection) error {
 	case "api_key":
 		return rejectAccountPoolSections(section)
 	case "account_pool":
-		if section.modelsSet || section.Models != (SiteProviderModels{}) {
-			return fmt.Errorf("siteProvider.models is not allowed for credential.model %q", "account_pool")
-		}
-		return nil
+		return validateAccountPoolModels(section)
 	default:
 		return fmt.Errorf("siteProvider.credential.model must be %q or %q", "api_key", "account_pool")
 	}
@@ -267,6 +303,22 @@ func rejectAccountPoolSections(section SiteProviderSection) error {
 		if check.present {
 			return fmt.Errorf("%s is not allowed for credential.model %q", check.path, "api_key")
 		}
+	}
+	return nil
+}
+
+func validateAccountPoolModels(section SiteProviderSection) error {
+	if !section.modelsSet && section.Models == (SiteProviderModels{}) {
+		return nil
+	}
+	if section.Models.Path != "" {
+		return fmt.Errorf("siteProvider.models.path is not allowed for credential.model %q", "account_pool")
+	}
+	if section.Models.Auth != "" {
+		return fmt.Errorf("siteProvider.models.auth is not allowed for credential.model %q", "account_pool")
+	}
+	if !section.Models.PerAccount {
+		return fmt.Errorf("siteProvider.models.perAccount must be true")
 	}
 	return nil
 }
@@ -894,6 +946,9 @@ func accountPoolRequiredExports(section SiteProviderSection) []string {
 	}
 	if section.Refresh != nil && section.Refresh.Kind == "custom_steps" {
 		names = append(names, "refreshTokens")
+	}
+	if section.Models.PerAccount {
+		names = append(names, "listModels")
 	}
 	return names
 }

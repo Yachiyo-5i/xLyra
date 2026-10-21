@@ -11,11 +11,13 @@ var probeMethods = map[string]struct{}{
 }
 
 // ProbeContext is the credential-free object passed to a quota probe hook.
+// Account is set only for an account-pool per-account listModels call.
 type ProbeContext struct {
-	SiteType       string `ts:"siteType"`
-	BaseURL        string `ts:"baseURL"`
-	CredentialType string `ts:"credentialType"`
-	Now            int64  `ts:"now,doc=Unix time in milliseconds."`
+	SiteType       string            `ts:"siteType"`
+	BaseURL        string            `ts:"baseURL"`
+	CredentialType string            `ts:"credentialType"`
+	Now            int64             `ts:"now,doc=Unix time in milliseconds."`
+	Account        map[string]string `ts:"account,optional,doc=Non-secret account fields for per-account model sync. Includes the resolved region id when the credential does not store region. Omitted for API-key calls."`
 }
 
 // ProbeStep is one finished HTTP exchange, shown back to the plugin.
@@ -82,12 +84,16 @@ type Decision struct {
 }
 
 func (pc ProbeContext) asMap() map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"siteType":       pc.SiteType,
 		"baseURL":        pc.BaseURL,
 		"credentialType": pc.CredentialType,
 		"now":            pc.Now,
 	}
+	if len(pc.Account) > 0 {
+		out["account"] = pc.Account
+	}
+	return out
 }
 
 func stepsAsValue(steps []ProbeStep) []any {

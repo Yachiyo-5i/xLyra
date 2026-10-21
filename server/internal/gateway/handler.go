@@ -19,27 +19,28 @@ import (
 const RouteSiteHeader = "X-Xlyra-Route-Site"
 
 type Handler struct {
-	logger              *slog.Logger
-	auth                *auth.Service
-	router              *routeengine.Service
-	db                  *store.Store
-	credentials         credential.Service
-	httpClient          *http.Client
-	clients             *httpclient.Manager
-	limits              *upstreamConcurrencyCache
-	recorder            Recorder
-	oauth               gatewayOAuth
-	pluginAccounts      PluginAccountRefresher
-	rateLimits          *ratelimit.Service
-	modelsCache         *modelsCache
-	noRoutes            *noRouteSuppressionCache
-	userBalanceThrottle *userBalanceThrottle
-	credentialSelector  *credentialWindowSelector
-	confFile            *config.ConfigFile
-	usage               *usage.Service
-	timeZone            config.TimeZone
-	exposeRouteSite     bool
-	cacheObservationKey []byte
+	logger               *slog.Logger
+	auth                 *auth.Service
+	router               *routeengine.Service
+	db                   *store.Store
+	credentials          credential.Service
+	httpClient           *http.Client
+	forcedUpstreamClient *http.Client
+	clients              *httpclient.Manager
+	limits               *upstreamConcurrencyCache
+	recorder             Recorder
+	oauth                gatewayOAuth
+	pluginAccounts       PluginAccountRefresher
+	rateLimits           *ratelimit.Service
+	modelsCache          *modelsCache
+	noRoutes             *noRouteSuppressionCache
+	userBalanceThrottle  *userBalanceThrottle
+	credentialSelector   *credentialWindowSelector
+	confFile             *config.ConfigFile
+	usage                *usage.Service
+	timeZone             config.TimeZone
+	exposeRouteSite      bool
+	cacheObservationKey  []byte
 }
 
 func (h Handler) WithRouteSiteHeader() Handler {
@@ -59,6 +60,16 @@ func (h Handler) WithPluginAccountRefresher(refresher PluginAccountRefresher) Ha
 func (h Handler) WithHTTPClient(client *http.Client) Handler {
 	if client != nil {
 		h.httpClient = client
+	}
+	return h
+}
+
+// WithForcedUpstreamClient makes every upstream call use client, including
+// streaming profiles that otherwise build their own client. Tests use it to
+// pin an upstream at httptest. A nil client is ignored.
+func (h Handler) WithForcedUpstreamClient(client *http.Client) Handler {
+	if client != nil {
+		h.forcedUpstreamClient = client
 	}
 	return h
 }

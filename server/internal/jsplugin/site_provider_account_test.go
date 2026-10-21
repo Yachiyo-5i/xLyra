@@ -696,3 +696,166 @@ func unsignedJWT(payload string) string {
 	enc := base64.RawURLEncoding.EncodeToString
 	return enc([]byte(`{"alg":"none"}`)) + "." + enc([]byte(payload)) + ".sig"
 }
+
+func TestCustomPollPendingThenComplete(t *testing.T) {
+	polls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/start":
+			fmt.Fprint(w, `{"ok":true}`)
+		case "/poll":
+			polls++
+			if polls == 1 {
+				fmt.Fprint(w, `{"code":11217}`)
+				return
+			}
+			fmt.Fprintf(w, `{"data":{"accessToken":%q,"refreshToken":%q}}`, "tok-a", "tok-r")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	source := meta("acme.example", KindSiteProvider) + `
+export function startLogin(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "POST", path: "/start", body: {} } };
+  return { result: { kind: "account_login", status: "pending", verificationURL: ctx.baseURL + "/activate", interval: 3 } };
+}
+export function pollLogin(ctx, steps) {
+  let token = null;
+  for (const step of steps) {
+    if (step.request && step.request.path === "/poll") token = step;
+  }
+  if (!token) return { request: { method: "GET", path: "/poll" } };
+  const code = token.response && token.response.json && token.response.json.code;
+  if (code === 11217) return { result: { kind: "account_login", status: "pending", interval: 3 } };
+  return { result: { kind: "account_login", status: "complete", credential: { access_token: "{{secret.access_token}}", refresh_token: "{{secret.refresh_token}}", domain: "x.cn", realm: "cn", expires_at: "1700000000" } } };
+}
+export function refreshTokens() { return { error: "no" }; }
+export function summarizeAccount() { return { result: { kind: "account_summary", status: "ok", entries: [] } }; }
+`
+	rt := customRuntime(t, srv, source)
+	started, err := rt.StartLogin(context.Background(), map[string]string{"region": "cn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, err := rt.PollLogin(context.Background(), started)
+	if err != nil || pending.Status != "pending" || polls != 1 {
+		t.Fatalf("pending = %s polls=%d err=%v", pending.Status, polls, err)
+	}
+	done, err := rt.PollLogin(context.Background(), started)
+	if err != nil || done.Status != "complete" || polls != 2 || done.Credential["access_token"] != "tok-a" {
+		t.Fatalf("complete = %s polls=%d err=%v", done.Status, polls, err)
+	}
+}
+
+func TestRefreshCustomFollowsRealm(t *testing.T) {
+	saw := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/refresh" {
+			http.NotFound(w, r)
+			return
+		}
+		saw = true
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":{"accessToken":"next-token"}}`)
+	}))
+	defer srv.Close()
+	rt := customRuntime(t, srv, "")
+	rt.spec.Regions = []SiteProviderRegion{
+		{ID: "cn", BaseURL: "https://api.example.cn"},
+		{ID: "intl", BaseURL: srv.URL, Realms: []string{"international"}},
+	}
+	rt.spec.DefaultRegion = "cn"
+	fields := map[string]string{
+		"access_token": unsignedJWT(`{"sub":"user-1"}`), "refresh_token": "r-1",
+		"domain": "x.cn", "realm": "international",
+	}
+	if _, err := rt.Refresh(context.Background(), fields); err != nil {
+		t.Fatal(err)
+	}
+	if !saw {
+		t.Fatal("refresh did not use the realm region")
+	}
+}
+
+func TestAccountListModelsKeepsTokenOutOfJS(t *testing.T) {
+	logs := captureLogs(t)
+	const domain = "tenant.example"
+	const marker = "BODY_MARKER_9f3c"
+	mode := "ok"
+	hits := 0
+	var auth, gotDomain string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		auth = r.Header.Get("Authorization")
+		gotDomain = r.Header.Get("X-Domain")
+		if mode == "unauth" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprintf(w, `{"error":"%s"}`, marker)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"models":["m1"]}`)
+	}))
+	defer srv.Close()
+
+	section := poolSection()
+	section.Models.PerAccount = true
+	source := poolSource("acme.example", "summarizeAccount", "startLogin", "pollLogin", "refreshTokens") + `
+export function listModels(ctx, steps) {
+  const account = (ctx && ctx.account) || {};
+  log.info("account-domain=" + (account.domain || "") + " region=" + (account.region || ""));
+  if (steps.length === 0) {
+    if (account.domain === "evil") return { request: { method: "GET", path: "https://evil.example/models" } };
+    const headers = { Authorization: "Bearer {{secret.access_token}}" };
+    if (account.domain) headers["X-Domain"] = account.domain;
+    return { request: { method: "GET", path: "/models", headers: headers } };
+  }
+  const body = steps[0] && steps[0].response ? String(steps[0].response.body) : "";
+  if (body.indexOf("BODY_MARKER_9f3c") >= 0) return { error: "saw-body" };
+  return { result: { models: [{ name: "m1", displayName: "M1" }] } };
+}
+`
+	rt := testRuntime(t, mustPlugin(t, source, section), srv)
+	seen := &hookSeen{}
+	rt.observe = seen.add
+	fields := map[string]string{
+		"access_token": leakAccess, "refresh_token": leakRefresh,
+		"domain": domain, "realm": "cn",
+	}
+	entries, err := rt.ListModels(context.Background(), fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name != "m1" || entries[0].DisplayName != "M1" {
+		t.Fatalf("models = %+v", entries)
+	}
+	if auth != "Bearer "+leakAccess || gotDomain != domain || hits != 1 {
+		t.Fatalf("auth=%q domain=%q hits=%d", auth, gotDomain, hits)
+	}
+	if !strings.Contains(seen.joined(), domain) || !strings.Contains(seen.joined(), `"region":"cn"`) {
+		t.Fatalf("account context = %s", seen.joined())
+	}
+	assertNoLeak(t, []string{logs.String(), seen.joined(), fmt.Sprint(err)}, leakAccess, leakRefresh)
+
+	before := hits
+	_, err = rt.ListModels(context.Background(), map[string]string{
+		"access_token": leakAccess, "domain": "evil", "realm": "cn",
+	})
+	if err == nil || hits != before {
+		t.Fatalf("evil url err=%v hits=%d before=%d", err, hits, before)
+	}
+	assertNoLeak(t, []string{logs.String(), seen.joined(), err.Error()}, leakAccess, leakRefresh)
+
+	mode = "unauth"
+	_, err = rt.ListModels(context.Background(), fields)
+	if !errors.Is(err, accountauth.ErrReauthorizationRequired) {
+		t.Fatalf("401 = %v", err)
+	}
+	if strings.Contains(seen.joined(), marker) || strings.Contains(logs.String(), marker) || strings.Contains(err.Error(), marker) {
+		t.Fatal("401 body was shown to JS or the error")
+	}
+	assertNoLeak(t, []string{logs.String(), seen.joined(), err.Error()}, leakAccess, leakRefresh)
+}

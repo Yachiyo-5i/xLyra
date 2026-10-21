@@ -129,14 +129,15 @@
 | `display.icon` | 否 | 包内相对路径，扩展名只能是 `.png` 或 `.webp`。文件必须存在，文件头要符合格式，不超过 64 KiB。声明之后，管理端用 `GET /api/v1/plugin-icons/{插件 id}` 取这张图，需要管理端会话。站点类型的 `icon_url` 带 `?v=`，值是包 SHA256 的前 16 位，换包后变化，用来让浏览器重新取图 |
 | `display.brandColor` | 否 | `#RRGGBB` |
 | `hosts` | 是 | 1–16 个小写 DNS 主机名，不能重复。不能带协议、端口、路径，至少含一个 `.`，不能是 IP，不能以 `.` 或 `-` 开头或结尾 |
-| `credential.model` | 是 | `api_key` 或 `account_pool`。`api_key` 不能再写 `credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`identity`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`account_pool` 不能写 `models`（空对象也算写了） |
+| `credential.model` | 是 | `api_key` 或 `account_pool`。`api_key` 不能再写 `credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`identity`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`account_pool` 的 `models` 只能是 `perAccount: true`，或者整段省略 |
 | `protocol.kind` | 是 | `openai_chat`、`openai_responses`、`anthropic_messages`、`google_gemini` 之一 |
 | `protocol.path` | 是 | 以单个 `/` 开头的路径，不能含 `..` 或编码后的 `..` |
 | `protocol.officialBaseURL` | 是 | `https` URL，必须有主机，不能有用户信息、查询或片段。主机（忽略大小写，端口不算）必须在 `hosts` 里 |
 | `protocol.defaultEndpointTypes` | 是 | 至少一项，每项是 `openai`、`openai-response`、`anthropic-messages`、`google-gemini` 之一。只检查取值，不和 `protocol.kind` 做对应推断。通用适配器列模型时把它写进每个模型的 `supported_endpoint_types`；导出了 `listModels` 时以钩子返回的 `capabilities` 为准 |
 | `protocol.requestParams` | 否 | 可选。允许的键是 `unsupported`、`allowed_values`、`defaults`、`fixed`、`forced`、`validation`、`supported`。`supported` 只被合并，不过滤参数。不认识的键会让这份规格校验失败，插件被跳过。各键是否改正文见[站点类型](./site-provider.md#requestparams) |
-| `models.path` | 否 | 只用于 `api_key`。拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则。没有 `listModels` 钩子时，通用适配器用它。`account_pool` 写了 `models` 会被拒绝 |
-| `models.auth` | 否 | 只用于 `api_key`。不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名。只用于通用适配器的列模型、验 Key 和健康检查，不决定网关转发的头 |
+| `models.path` | 否 | 只用于 `api_key`。拉模型列表的路径，不写等于 `/v1/models`。写了就要符合 `protocol.path` 的路径规则。没有 `listModels` 钩子时，通用适配器用它。`account_pool` 写 `path` 会被拒绝 |
+| `models.auth` | 否 | 只用于 `api_key`。不写或 `bearer` 表示 Bearer；也可以是 `header:<Name>`，`Name` 是非空的 HTTP 头字段名。只用于通用适配器的列模型、验 Key 和健康检查，不决定网关转发的头。`account_pool` 写 `auth` 会被拒绝 |
+| `models.perAccount` | 否 | 只用于 `account_pool`。为 true 时必须导出 `listModels`，宿主按账号调用它并写入模型。不能和 `path`、`auth` 一起写。`api_key` 写了会被拒绝。省略 `models` 表示不做按账号同步。空对象 `{}` 会被拒绝 |
 | `request.headers` | 否 | 最多 16 项，头名到模板字符串。头名是 HTTP token，忽略大小写后不能重复。不能是 `Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`、`Content-Type`、`Accept`，也不能是 `X-Forwarded-*`。`Authorization` 可以写。模板只允许 `{{cred.<field>}}` 和 `{{site.baseURL}}`，花括号内不能有空格。`api_key` 的 `<field>` 只有 `api_key`。`account_pool` 的 `<field>` 是已声明的凭据字段名；网关运行时只填入非密钥字段和 access token 字段。字面量不能含 CR、LF 或其它控制字符。这里声明 `Authorization` 不会和 `models.auth` 冲突。规则见 [请求头模板](./site-provider.md#请求头模板) |
 | `request.stripDownstreamHeaders` | 否 | 默认 `false`。为 `true` 时，转发前只保留模板声明的头，外加 `Content-Type` 和 `Accept` |
 | `request.upstreamStreamOnly` | 否 | 默认 false。为 true 时强制上游 `stream: true`；下游没要流且上游是 chat SSE 时聚合响应 |
@@ -155,7 +156,7 @@
 | `selection` | 否 | `ordered`（默认）或 `quota_weighted` |
 | `ui` | 否 | `rowPills` 最多 4，字段必须非密钥。`operations` 为 `add`、`reauth`、`refresh`、`delete`、`toggle`、`models`、`import`。`texts` 的键见[账号池站点](./site-provider.md#ui) |
 
-`probe`、`listModels`、`check`、`classify`、`rewritePayload` 都是可选导出。账号池还要导出 `summarizeAccount`；`login.kind` 为 `custom_poll` 时再导出 `startLogin`、`pollLogin`；`refresh.kind` 为 `custom_steps` 时再导出 `refreshTokens`。调用时机和返回值见[站点类型](./site-provider.md)。
+`probe`、`listModels`、`check`、`classify`、`rewritePayload` 都是可选导出。账号池还要导出 `summarizeAccount`；`login.kind` 为 `custom_poll` 时再导出 `startLogin`、`pollLogin`；`refresh.kind` 为 `custom_steps` 时再导出 `refreshTokens`；`models.perAccount` 为 true 时再导出 `listModels`。调用时机和返回值见[站点类型](./site-provider.md)。
 
 启用这个类型时，包必须由受信密钥签名，并且每次启用都要再次确认完整的 `hosts`。确认结果记成 `host:<主机名>`。确认之后，站点 `base_url`、通用适配器发出的请求和网关转发的上游地址，主机都必须在这份列表里：按主机名精确匹配（不含端口，不做子域通配），重定向也不得离开列表。分步钩子在同源限制之外再做一次同样的主机检查。
 

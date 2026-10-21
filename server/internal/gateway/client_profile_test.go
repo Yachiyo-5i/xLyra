@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -110,6 +111,20 @@ func TestUpstreamClientForSiteWithoutStoreUsesDefaultClient(t *testing.T) {
 	}
 	if cfg != nil || headers != nil {
 		t.Fatalf("cfg=%#v headers=%#v, want nil nil", cfg, headers)
+	}
+}
+
+func TestForcedUpstreamClientOverridesStreamingProfile(t *testing.T) {
+	t.Parallel()
+
+	forced := &http.Client{Timeout: time.Second}
+	handler := NewHandler(nil, nil, nil, nil, "test-master-key").WithForcedUpstreamClient(forced)
+	client, _, _, err := handler.upstreamClientForSite(context.Background(), uuid.New(), upstreamClientProfileRequest{Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client != forced {
+		t.Fatal("streaming request did not use the forced upstream client")
 	}
 }
 

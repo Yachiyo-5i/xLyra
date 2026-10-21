@@ -253,7 +253,17 @@ func TestAccountPoolManifestRejects(t *testing.T) {
 		}, want: "quota.aggregate"},
 		{name: "account pool models", base: "pool", mutate: func(m *Manifest) {
 			m.SiteProvider.Models.Path = "/v1/models"
-		}, want: "models is not allowed"},
+		}, want: "models.path"},
+		{name: "account pool models auth", base: "pool", mutate: func(m *Manifest) {
+			m.SiteProvider.Models.Auth = "bearer"
+		}, want: "models.auth"},
+		{name: "account pool perAccount and path", base: "pool", mutate: func(m *Manifest) {
+			m.SiteProvider.Models.PerAccount = true
+			m.SiteProvider.Models.Path = "/v1/models"
+		}, want: "models.path"},
+		{name: "api key perAccount", base: "api_key", mutate: func(m *Manifest) {
+			m.SiteProvider.Models.PerAccount = true
+		}, want: "perAccount is not allowed"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -299,8 +309,31 @@ func TestAccountPoolEmptyModelsObject(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = validateManifest(manifest, source)
-	if err == nil || !strings.Contains(err.Error(), "models is not allowed") {
+	if err == nil || !strings.Contains(err.Error(), "perAccount must be true") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestAccountPoolPerAccountModels(t *testing.T) {
+	section := poolSection()
+	section.Models.PerAccount = true
+	source := poolSource("acme.example", "summarizeAccount", "startLogin", "pollLogin", "refreshTokens", "listModels")
+	if err := validateManifest(poolManifest(source, section), source); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := NewAccountPoolSpec(section)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !spec.ModelsPerAccount || !spec.Clone().ModelsPerAccount {
+		t.Fatal("perAccount was not copied onto the spec")
+	}
+	plugin, err := NewPlugin(poolManifest(source, section), source, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plugin.HasHook("listModels") {
+		t.Fatal("listModels was not loaded")
 	}
 }
 
@@ -316,6 +349,11 @@ func TestAccountPoolExports(t *testing.T) {
 		{name: "startLogin", section: section, source: poolSource("acme.example", "summarizeAccount", "pollLogin", "refreshTokens"), want: "startLogin"},
 		{name: "pollLogin", section: section, source: poolSource("acme.example", "summarizeAccount", "startLogin", "refreshTokens"), want: "pollLogin"},
 		{name: "refreshTokens", section: section, source: poolSource("acme.example", "summarizeAccount", "startLogin", "pollLogin"), want: "refreshTokens"},
+		{name: "listModels", section: func() SiteProviderSection {
+			next := poolSection()
+			next.Models.PerAccount = true
+			return next
+		}(), source: poolSource("acme.example", "summarizeAccount", "startLogin", "pollLogin", "refreshTokens"), want: "listModels"},
 		{name: "not a function", section: section, source: poolSource("acme.example", "startLogin", "pollLogin", "refreshTokens") + "export const summarizeAccount = 1;\n", want: "summarizeAccount"},
 		{name: "meta", section: grokSection(), source: "export const meta = { apiVersion: 1, id: \"acme.example\", kind: \"quota_probe\" };\nexport function summarizeAccount() { return {}; }\n", want: "meta.kind"},
 	}
@@ -461,5 +499,30 @@ func grokSection() SiteProviderSection {
 			BaseURLFrom:        "region",
 		},
 		UI: &SiteProviderUI{Operations: []string{"add", "reauth", "refresh", "delete", "toggle", "models"}},
+	}
+}
+
+func TestAccountRegionID(t *testing.T) {
+	regions := []SiteProviderRegion{
+		{ID: "cn", BaseURL: "https://api.example.cn", Realms: []string{"cn", "china"}, Domains: []string{"www.example.cn"}},
+		{ID: "intl", BaseURL: "https://api.example.com", Realms: []string{"intl", "international"}, Domains: []string{"www.example.com"}},
+	}
+	if got := AccountRegionID(regions, map[string]string{"region": "intl", "realm": "cn"}); got != "intl" {
+		t.Fatalf("explicit region = %q", got)
+	}
+	if got := AccountRegionID(regions, map[string]string{"region": "eu"}); got != "eu" {
+		t.Fatalf("unknown explicit region = %q", got)
+	}
+	if got := AccountRegionID(regions, map[string]string{"realm": "International"}); got != "intl" {
+		t.Fatalf("realm alias = %q", got)
+	}
+	if got := AccountRegionID(regions, map[string]string{"domain": "www.example.cn"}); got != "cn" {
+		t.Fatalf("domain = %q", got)
+	}
+	if got := AccountRegionID(regions, map[string]string{"realm": "mars", "domain": "nope.example"}); got != "" {
+		t.Fatalf("unknown = %q", got)
+	}
+	if got := AccountRegionID(regions, nil); got != "" {
+		t.Fatalf("nil fields = %q", got)
 	}
 }

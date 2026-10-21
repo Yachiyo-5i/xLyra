@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"xlyra/server/internal/accountauth"
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/config"
 	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/store"
@@ -305,6 +306,10 @@ func (f *fakePluginAccountRuntime) Summarize(_ context.Context, baseURL string, 
 			Unit:      "credits",
 		}},
 	}, nil
+}
+
+func (f *fakePluginAccountRuntime) ListModels(context.Context, map[string]string) ([]adapter.Model, error) {
+	return nil, nil
 }
 
 func (f *fakePluginAccountRuntime) ParseImport(raw []byte) ([]PluginImportedAccount, error) {

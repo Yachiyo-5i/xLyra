@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/site"
 )
@@ -74,6 +75,30 @@ func (a accountPoolRuntimeAdapter) Summarize(ctx context.Context, baseURL string
 		Remark:  summary.Remark,
 		Entries: quotaEntriesFromProbe(summary.Entries),
 	}, nil
+}
+
+func (a accountPoolRuntimeAdapter) ListModels(ctx context.Context, fields map[string]string) ([]adapter.Model, error) {
+	entries, err := a.runtime.ListModels(ctx, fields)
+	if err != nil {
+		return nil, err
+	}
+	models := make([]adapter.Model, 0, len(entries))
+	for _, entry := range entries {
+		name := strings.TrimSpace(entry.Name)
+		if name == "" {
+			continue
+		}
+		display := strings.TrimSpace(entry.DisplayName)
+		if display == "" {
+			display = name
+		}
+		capabilities := map[string]any{}
+		for key, value := range entry.Capabilities {
+			capabilities[key] = value
+		}
+		models = append(models, adapter.Model{UpstreamName: name, DisplayName: display, Capabilities: capabilities})
+	}
+	return models, nil
 }
 
 func (a accountPoolRuntimeAdapter) ParseImport(raw []byte) ([]site.PluginImportedAccount, error) {

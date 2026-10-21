@@ -143,6 +143,9 @@ type loginSession struct {
 	closed                  bool
 	params                  map[string]string
 	call                    accountCall
+	// baseline is the step list after startLogin. Each poll restores it so a
+	// pending response does not stay in the list and block the next poll.
+	baseline []ProbeStep
 }
 
 // accountCall is one stepped exchange. The bag is not safe for concurrent use;
@@ -234,8 +237,9 @@ func (r *AccountProviderRuntime) PollLogin(ctx context.Context, session LoginSes
 // oauth2_refresh keeps the previous refresh token when the provider omits a
 // new one. A dead grant matches accountauth.ErrReauthorizationRequired.
 // Custom transport failures match ErrAccountTransient; oauth2 HTTP 5xx matches
-// accountauth.IsTransient. The default region base URL is used for custom
-// refresh. leadSeconds is not applied here.
+// accountauth.IsTransient. Custom refresh uses the account region (an explicit
+// region field, then realm, then domain) and otherwise the default region.
+// leadSeconds is not applied here.
 func (r *AccountProviderRuntime) Refresh(ctx context.Context, credentialFields map[string]string) (fields map[string]string, err error) {
 	defer func() { r.record(err) }()
 	if err = ctx.Err(); err != nil {
@@ -279,6 +283,44 @@ func (r *AccountProviderRuntime) Summarize(ctx context.Context, snapshot Account
 		return AccountSummary{}, errors.New("unexpected summarize result")
 	}
 	return scrubSummary(bag, *parsed), nil
+}
+
+// ListModels calls listModels for one account.
+// fields may contain secrets. The hook receives only non-secret fields, plus
+// the resolved region id when the bag does not already store region. The base
+// URL is the account region, using the same order as the gateway. Requests
+// substitute {{secret.<field>}} from the bag. A secret never enters JS. An
+// HTTP 401 is reauthorization and is not shown to the hook.
+func (r *AccountProviderRuntime) ListModels(ctx context.Context, fields map[string]string) (entries []ModelListEntry, err error) {
+	defer func() { r.record(err) }()
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !r.plugin.HasHook("listModels") {
+		return nil, fmt.Errorf("%s hook is missing", "listModels")
+	}
+	base, err := r.accountBase(fields)
+	if err != nil {
+		return nil, err
+	}
+	bag := r.seedBag(fields)
+	call := &accountCall{bag: bag, base: base}
+	probe := ProbeContext{
+		SiteType:       r.plugin.Manifest.SiteProvider.SiteType,
+		BaseURL:        base,
+		CredentialType: "account",
+		Now:            time.Now().UnixMilli(),
+		Account:        r.accountContextFields(fields, bag),
+	}
+	result, err := r.driveModelList(ctx, call, probe)
+	if err != nil {
+		return nil, bag.ScrubError(err)
+	}
+	list, ok := result.(*ModelListResult)
+	if !ok || list == nil {
+		return nil, errors.New("unexpected model list result")
+	}
+	return append([]ModelListEntry(nil), list.Models...), nil
 }
 
 func (r *AccountProviderRuntime) startOAuth(ctx context.Context) (LoginSession, error) {
@@ -437,11 +479,15 @@ func (r *AccountProviderRuntime) startCustom(ctx context.Context, params map[str
 		state.wipe()
 		return LoginSession{}, bag.ScrubError(err)
 	}
+	state.baseline = cloneSteps(state.call.steps)
 	r.store(state)
 	return state.public("pending"), nil
 }
 
 func (r *AccountProviderRuntime) pollCustom(ctx context.Context, state *loginSession) (LoginPoll, error) {
+	if len(state.baseline) > 0 {
+		state.call.steps = cloneSteps(state.baseline)
+	}
 	result, err := r.drive(ctx, &state.call, hookPollLogin, KindAccountLogin, r.loginContext(state.call.base, state.params), r.spec.Login.SecretPaths)
 	if err != nil {
 		return LoginPoll{}, state.call.bag.ScrubError(err)
@@ -475,7 +521,11 @@ func (r *AccountProviderRuntime) finishCustom(state *loginSession, parsed *Accou
 }
 
 func (r *AccountProviderRuntime) refreshCustom(ctx context.Context, credentialFields map[string]string) (map[string]string, error) {
-	base, err := r.baseFor(nil)
+	params := map[string]string{}
+	if id := AccountRegionID(r.spec.Regions, credentialFields); id != "" {
+		params["region"] = id
+	}
+	base, err := r.baseFor(params)
 	if err != nil {
 		return nil, err
 	}
@@ -558,6 +608,57 @@ func (r *AccountProviderRuntime) drive(ctx context.Context, call *accountCall, h
 		response, err := r.doAccountHTTP(ctx, client, call, allowed, rules, template)
 		if err != nil {
 			return nil, err
+		}
+		call.steps = append(call.steps, ProbeStep{
+			Request:  scrubProbeRequest(call.bag, template),
+			Response: response,
+		})
+	}
+	return nil, fmt.Errorf("plugin %s exceeded %d steps", r.plugin.Manifest.ID, MaxProbeSteps)
+}
+
+// driveModelList is drive for listModels. It uses the stepped model_list
+// contract and the account secret bag. HTTP 401 stops the hook and asks the
+// caller to mark the account for reauthorization.
+func (r *AccountProviderRuntime) driveModelList(ctx context.Context, call *accountCall, probe ProbeContext) (any, error) {
+	if call.bag == nil {
+		call.bag = NewSecretBag()
+	}
+	allowed := r.allowedSecrets()
+	client := r.hookedClient(call.jar, call.base)
+	ctxValue := probe.asMap()
+	for step := 0; step < MaxProbeSteps; step++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if r.observe != nil {
+			r.observe("listModels", []any{ctxValue, stepsAsValue(call.steps)})
+		}
+		decision, err := r.plugin.CallSteppedHook(ctx, "listModels", KindModelList, probe, call.steps)
+		logs, dropped := decision.Logs, decision.DroppedLogs
+		if callErr, ok := err.(*CallError); ok && len(logs) == 0 {
+			logs, dropped = callErr.Logs, callErr.DroppedLogs
+		}
+		r.emit(ctx, "listModels", step, call.bag, logs, dropped, err)
+		if err != nil {
+			return nil, call.bag.ScrubError(err)
+		}
+		if decision.Error != "" {
+			return nil, fmt.Errorf("plugin %s: %s", r.plugin.Manifest.ID, call.bag.Scrub(decision.Error))
+		}
+		if decision.Result != nil {
+			return decision.Result, nil
+		}
+		if decision.Request == nil || step == MaxProbeSteps-1 {
+			return nil, fmt.Errorf("plugin %s exceeded %d steps", r.plugin.Manifest.ID, MaxProbeSteps)
+		}
+		template := *decision.Request
+		response, err := r.doAccountHTTP(ctx, client, call, allowed, nil, template)
+		if err != nil {
+			return nil, err
+		}
+		if response.Status == http.StatusUnauthorized {
+			return nil, accountauth.ErrReauthorizationRequired
 		}
 		call.steps = append(call.steps, ProbeStep{
 			Request:  scrubProbeRequest(call.bag, template),
@@ -709,6 +810,15 @@ func (r *AccountProviderRuntime) hostAllowed(host string) bool {
 	return false
 }
 
+func cloneSteps(in []ProbeStep) []ProbeStep {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ProbeStep, len(in))
+	copy(out, in)
+	return out
+}
+
 func (r *AccountProviderRuntime) baseFor(params map[string]string) (string, error) {
 	id := ""
 	if params != nil {
@@ -797,6 +907,31 @@ func (r *AccountProviderRuntime) seedBag(fields map[string]string) *SecretBag {
 		}
 	}
 	return bag
+}
+
+func (r *AccountProviderRuntime) accountBase(fields map[string]string) (string, error) {
+	id := AccountRegionID(r.spec.Regions, fields)
+	if id == "" {
+		id = r.spec.DefaultRegion
+	}
+	return r.baseFor(map[string]string{"region": id})
+}
+
+// accountContextFields is the non-secret bag plus the resolved region id.
+// An explicit region field is left as stored.
+func (r *AccountProviderRuntime) accountContextFields(fields map[string]string, bag *SecretBag) map[string]string {
+	out := r.publicFields(fields, bag)
+	if strings.TrimSpace(out["region"]) != "" {
+		return out
+	}
+	id := AccountRegionID(r.spec.Regions, fields)
+	if id == "" {
+		id = r.spec.DefaultRegion
+	}
+	if id != "" {
+		out["region"] = id
+	}
+	return out
 }
 
 // publicFields returns declared non-secret fields. A value that still contains

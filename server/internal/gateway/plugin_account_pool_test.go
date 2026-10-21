@@ -90,6 +90,24 @@ func TestPluginAccountResolveRefreshAndReauth(t *testing.T) {
 		t.Fatalf("default region base = %q failure=%v", resolved.BaseURL, failure)
 	}
 
+	resolved, failure = resolvePluginAccount(t, handler, map[string]any{
+		"access_token": "token-live",
+		"expires_at":   int64(4102444800),
+		"realm":        "cn",
+		"domain":       "tenant.example",
+	})
+	if failure != nil || resolved.BaseURL != "http://127.0.0.1/cn" {
+		t.Fatalf("realm cn base = %q failure=%v", resolved.BaseURL, failure)
+	}
+	resolved, failure = resolvePluginAccount(t, handler, map[string]any{
+		"access_token": "token-live",
+		"expires_at":   int64(4102444800),
+		"realm":        "mars",
+	})
+	if failure != nil || resolved.BaseURL != "http://127.0.0.1/intl" {
+		t.Fatalf("unknown realm base = %q failure=%v", resolved.BaseURL, failure)
+	}
+
 	refresher := &fakePluginRefresher{fields: map[string]string{
 		"access_token": "token-new",
 		"region":       "intl",

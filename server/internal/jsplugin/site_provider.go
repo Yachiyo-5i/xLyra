@@ -111,11 +111,13 @@ type SiteProviderProtocol struct {
 	RequestParams        json.RawMessage `json:"requestParams,omitempty"`
 }
 
-// SiteProviderModels is the model-list request. An empty path means /v1/models
-// and an empty auth means bearer.
+// SiteProviderModels is the model-list request.
+// API-key sites use Path and Auth. An empty path means /v1/models and an empty
+// auth means bearer. Account-pool sites may set PerAccount and nothing else.
 type SiteProviderModels struct {
-	Path string `json:"path,omitempty"`
-	Auth string `json:"auth,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Auth       string `json:"auth,omitempty"`
+	PerAccount bool   `json:"perAccount,omitempty"`
 }
 
 // siteProviderOptionalHooks are exports a site_provider module may include.
@@ -300,6 +302,9 @@ func validateHTTPSURL(raw string, hosts []string, what string) error {
 }
 
 func validateSiteProviderModels(section SiteProviderModels) error {
+	if section.PerAccount {
+		return fmt.Errorf("siteProvider.models.perAccount is not allowed for credential.model %q", "api_key")
+	}
 	if section.Path != "" {
 		if err := validatePluginPath(section.Path); err != nil {
 			return fmt.Errorf("siteProvider.models.path: %w", err)

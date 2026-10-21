@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"xlyra/server/internal/accountauth"
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/store"
 )
@@ -269,6 +270,10 @@ func (g *gatewayRefreshRuntime) Summarize(context.Context, string, map[string]st
 		Status: "ok", Remark: "pro",
 		Entries: []QuotaProbeEntry{{Label: "credits", Remaining: &remaining, Limit: &limit, Unit: "credits"}},
 	}, nil
+}
+
+func (g *gatewayRefreshRuntime) ListModels(context.Context, map[string]string) ([]adapter.Model, error) {
+	return nil, nil
 }
 
 func (g *gatewayRefreshRuntime) ParseImport([]byte) ([]PluginImportedAccount, error) {
