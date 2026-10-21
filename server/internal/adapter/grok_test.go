@@ -178,6 +178,36 @@ func TestGrokSummaryDerivesTierFromToken(t *testing.T) {
 	}
 }
 
+func TestGrokSummaryReadsBilling(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/billing"):
+			if r.URL.Query().Get("format") != "credits" {
+				t.Errorf("billing format = %q", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-10-12T17:04:45Z","end":"2026-10-19T17:04:45Z"},"creditUsagePercent":5,"productUsage":[{"product":"GrokBuild","usagePercent":5}],"billingPeriodEnd":"2026-10-19T17:04:45Z"}}`))
+		case strings.HasSuffix(r.URL.Path, "/user"):
+			_, _ = w.Write([]byte(`{"subscriptionTier":"GrokPro","email":"user@example.com"}`))
+		default:
+			_, _ = w.Write([]byte(`{"data":[{"id":"grok-4.5"}]}`))
+		}
+	}))
+	defer server.Close()
+
+	summary, err := NewGrok().SummarizeAPIKey(context.Background(), grokTestSite(t, server.URL), grokTestToken(t, "premium"))
+	if err != nil {
+		t.Fatalf("SummarizeAPIKey() error = %v", err)
+	}
+	usage, _ := summary.Usage.(map[string]any)
+	if usage["quota_status"] != "ok" || usage["unit"] != "percent" || usage["limit"] != 100.0 || usage["used"] != 5.0 || usage["remaining"] != 95.0 {
+		t.Fatalf("usage = %#v", usage)
+	}
+	if usage["period_end"] != "2026-10-19T17:04:45Z" || usage["product"] != "GrokBuild" {
+		t.Fatalf("period/product = %#v %#v", usage["period_end"], usage["product"])
+	}
+}
+
 func TestGrokSummaryOmitsImageModelForFreeTier(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

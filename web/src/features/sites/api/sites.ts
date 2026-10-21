@@ -406,6 +406,12 @@ export type GrokAccount = {
   sync_message?: string | null
   remaining_quota?: number | null
   used_quota?: number | null
+  quota_known?: boolean
+  used_percent?: number | null
+  remaining_percent?: number | null
+  period_type?: string
+  billing_period_end?: string
+  quota_product?: string
   model_count?: number
   models?: GrokAccountModel[]
 }

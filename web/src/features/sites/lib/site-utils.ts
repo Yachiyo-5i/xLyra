@@ -251,6 +251,10 @@ function formatProbePercent(value: number) {
 
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
+  if (probe.probe_type === 'grok') {
+    if (typeof probe.remaining_min !== 'number') return undefined
+    return formatProbePercent(probe.remaining_min)
+  }
   if (probe.probe_type === 'deepseek' || probe.probe_type === 'moonshot') {
     return formatAccountBalance(probe.entries)
   }
@@ -361,6 +365,10 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
     if (probeType === 'deepseek' || probeType === 'moonshot') return accountBalanceDetails(probe.entries)
     if (probeType === 'kimi' || probeType === 'glm') {
       return fiveHourWeeklyQuotaDetails(probe, language)
+    }
+    if (probeType === 'grok') {
+      if (typeof probe.remaining_min !== 'number') return []
+      return [{ label: 'accountBalance', value: formatProbePercent(Math.max(probe.remaining_min, 0)) }]
     }
     const { prefix, suffix } = quotaProbeCurrency(probe.unit)
     const amount = (value: number) => `${prefix}${formatProbeAmount(value)}${suffix}`

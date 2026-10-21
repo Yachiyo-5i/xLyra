@@ -322,6 +322,10 @@
       "authorize": "認証ページを開く",
       "waiting": "承認を待っています…"
     },
+    "quota": {
+      "allowance": "プラン枠",
+      "resetsOn": "{{date}} にリセット"
+    },
     "sync": {
       "synced": "同期済み",
       "failed": "失敗",

@@ -123,6 +123,9 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 
 	if fresh, err := s.Get(ctx, siteID); err == nil {
 		probed := s.runQuotaProbes(ctx, fresh)
+		if strings.EqualFold(strings.TrimSpace(fresh.SiteType), "grok") {
+			probed = s.syncGrokQuotaSummary(ctx, fresh.ID, probed)
+		}
 		if refreshErr == nil {
 			result.Site = probed
 		}

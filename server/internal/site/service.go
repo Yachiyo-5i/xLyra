@@ -1203,11 +1203,15 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 			secret, err = s.oauth.EnsureGrokAccessToken(ctx, apiKey.Credential.ID)
 		}
 		var models []adapter.Model
+		var accountSummary *adapter.APIKeySummary
 		if err == nil {
 			if isGrok {
 				var summary adapter.APIKeySummary
 				summary, err = summaryFetcher.SummarizeAPIKey(ctx, s.toAdapterSite(ctx, site), secret)
 				models = summary.Models
+				if err == nil {
+					accountSummary = &summary
+				}
 			} else {
 				models, err = modelLister.ListModels(ctx, s.toAdapterSite(ctx, site), secret)
 			}
@@ -1241,14 +1245,19 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 			if strings.EqualFold(strings.TrimSpace(site.SiteType), "grok") {
 				keySyncStatus = grokRefreshFailureStatus(err)
 			}
-			if _, stateErr := apiKeyStateRepo.Upsert(ctx, store.UpsertSiteAPIKeyStateParams{
+			failureParams := store.UpsertSiteAPIKeyStateParams{
 				SiteCredentialID: apiKey.Credential.ID,
 				SiteID:           siteID,
 				Enabled:          keyEnabled,
 				SyncStatus:       keySyncStatus,
 				SyncMessage:      err.Error(),
 				LastSyncedAt:     now,
-			}); stateErr != nil {
+			}
+			if isGrok {
+				// A failed refresh must not wipe the last known quota.
+				keepGrokStateQuota(&failureParams, grokAccountState(ctx, s.db.DB(), apiKey.Credential.ID))
+			}
+			if _, stateErr := apiKeyStateRepo.Upsert(ctx, failureParams); stateErr != nil {
 				return SyncResult{}, fmt.Errorf("save api key auth failure state: %w", stateErr)
 			}
 			if !keyEnabled {
@@ -1269,13 +1278,17 @@ func (s *Service) syncModelsLocked(ctx context.Context, siteID uuid.UUID) (SyncR
 		s.recoverCredentialCooldownAfterRefresh(ctx, site.ID, apiKey.Credential.ID)
 		syncedCredentialIDs = append(syncedCredentialIDs, apiKey.Credential.ID)
 		now := time.Now()
-		if _, stateErr := apiKeyStateRepo.Upsert(ctx, store.UpsertSiteAPIKeyStateParams{
+		syncedParams := store.UpsertSiteAPIKeyStateParams{
 			SiteCredentialID: apiKey.Credential.ID,
 			SiteID:           siteID,
 			Enabled:          apiKey.Enabled,
 			SyncStatus:       "synced",
 			LastSyncedAt:     now,
-		}); stateErr != nil {
+		}
+		if isGrok && accountSummary != nil {
+			applyGrokSummaryToState(&syncedParams, *accountSummary, apiKey.MaskedSecret)
+		}
+		if _, stateErr := apiKeyStateRepo.Upsert(ctx, syncedParams); stateErr != nil {
 			return SyncResult{}, fmt.Errorf("save api key synced state: %w", stateErr)
 		}
 		if autoDisabledCredential {

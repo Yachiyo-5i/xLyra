@@ -27,16 +27,22 @@ type GrokAccountModel struct {
 }
 
 type GrokAccount struct {
-	CredentialID   uuid.UUID          `json:"credential_id"`
-	MaskedToken    string             `json:"masked_token"`
-	Enabled        bool               `json:"enabled"`
-	Tier           string             `json:"tier,omitempty"`
-	SyncStatus     string             `json:"sync_status,omitempty"`
-	SyncMessage    string             `json:"sync_message,omitempty"`
-	RemainingQuota int64              `json:"remaining_quota"`
-	UsedQuota      int64              `json:"used_quota"`
-	ModelCount     int                `json:"model_count"`
-	Models         []GrokAccountModel `json:"models"`
+	CredentialID     uuid.UUID          `json:"credential_id"`
+	MaskedToken      string             `json:"masked_token"`
+	Enabled          bool               `json:"enabled"`
+	Tier             string             `json:"tier,omitempty"`
+	SyncStatus       string             `json:"sync_status,omitempty"`
+	SyncMessage      string             `json:"sync_message,omitempty"`
+	RemainingQuota   int64              `json:"remaining_quota"`
+	UsedQuota        int64              `json:"used_quota"`
+	QuotaKnown       bool               `json:"quota_known"`
+	UsedPercent      *float64           `json:"used_percent,omitempty"`
+	RemainingPercent *float64           `json:"remaining_percent,omitempty"`
+	PeriodType       string             `json:"period_type,omitempty"`
+	PeriodEnd        string             `json:"billing_period_end,omitempty"`
+	QuotaProduct     string             `json:"quota_product,omitempty"`
+	ModelCount       int                `json:"model_count"`
+	Models           []GrokAccountModel `json:"models"`
 }
 
 func (s *Service) ListGrokAccounts(ctx context.Context, siteID uuid.UUID) ([]GrokAccount, error) {
@@ -389,6 +395,25 @@ func grokAccountFromStore(credential store.SiteCredential, state store.SiteAPIKe
 	if state.UsedQuota.Valid {
 		account.UsedQuota = state.UsedQuota.Int64
 	}
+	if len(state.Usage) > 0 {
+		var usage struct {
+			Status    string   `json:"quota_status"`
+			Unit      string   `json:"unit"`
+			Used      *float64 `json:"used"`
+			Remaining *float64 `json:"remaining"`
+			PeriodEnd string   `json:"period_end"`
+			Period    string   `json:"period_type"`
+			Product   string   `json:"product"`
+		}
+		if json.Unmarshal(state.Usage, &usage) == nil && usage.Status == "ok" && usage.Unit == "percent" {
+			account.QuotaKnown = true
+			account.UsedPercent = usage.Used
+			account.RemainingPercent = usage.Remaining
+			account.PeriodEnd = usage.PeriodEnd
+			account.PeriodType = usage.Period
+			account.QuotaProduct = usage.Product
+		}
+	}
 	return account, true
 }
 
@@ -439,4 +464,35 @@ func grokAccountState(ctx context.Context, db *gorm.DB, credentialID uuid.UUID) 
 	var state store.SiteAPIKeyState
 	_ = db.WithContext(ctx).Where(&store.SiteAPIKeyState{SiteCredentialID: credentialID}).First(&state).Error
 	return state
+}
+
+// applyGrokSummaryToState copies the account summary of a refresh (tier,
+// quota, raw payload) into the key-state columns so a site refresh keeps the
+// same data as an account refresh.
+func applyGrokSummaryToState(params *store.UpsertSiteAPIKeyStateParams, summary adapter.APIKeySummary, name string) {
+	tier, _, remaining, used, unlimited := grokRefreshQuotaValues(summary.Usage)
+	params.Name = name
+	params.GroupName = tier
+	params.RemainQuota = remaining
+	params.UsedQuota = used
+	params.UnlimitedQuota = unlimited
+	params.Usage = store.JSON(jsonBytes(summary.Usage))
+	params.Raw = store.JSON(jsonBytes(summary.Raw))
+}
+
+// keepGrokStateQuota carries the last known quota over a failed refresh.
+func keepGrokStateQuota(params *store.UpsertSiteAPIKeyStateParams, previous store.SiteAPIKeyState) {
+	params.Name = previous.Name
+	if previous.GroupName.Valid {
+		params.GroupName = previous.GroupName.String
+	}
+	if previous.RemainQuota.Valid {
+		params.RemainQuota = previous.RemainQuota.Int64
+	}
+	if previous.UsedQuota.Valid {
+		params.UsedQuota = previous.UsedQuota.Int64
+	}
+	params.UnlimitedQuota = previous.UnlimitedQuota
+	params.Usage = previous.Usage
+	params.Raw = previous.Raw
 }

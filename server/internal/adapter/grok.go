@@ -17,7 +17,7 @@ import (
 const (
 	GrokChatBaseURL     = "https://cli-chat-proxy.grok.com"
 	GrokAPIBaseURL      = "https://api.x.ai"
-	GrokClientVersion   = "0.2.93"
+	GrokClientVersion   = "1.0.62"
 	GrokClientSurface   = "grok-build"
 	GrokTokenAuthHeader = "xai-grok-cli"
 	GrokModelHeader     = "x-grok-model-override"
@@ -103,11 +103,119 @@ func (a Grok) SummarizeAPIKey(ctx context.Context, site SiteConfig, token string
 		"quota_status": "unknown",
 		"unlimited":    false,
 	}
+	raw := map[string]any{"tier": tier, "email": email, "model_count": len(models), "user": profile}
+	// /v1/billing?format=credits is the plan allowance (percent used this
+	// period), not the dollar spend cap. A billing failure must not fail the
+	// account refresh; an auth failure still means the token is rejected.
+	if billing, billingErr := a.fetchBilling(ctx, site, token); billingErr == nil {
+		usage["quota_status"] = "ok"
+		usage["unlimited"] = false
+		usage["unit"] = "percent"
+		usage["limit"] = 100.0
+		usage["used"] = billing.usedPercent
+		usage["remaining"] = billing.remainingPercent
+		usage["period_type"] = billing.periodType
+		usage["period_start"] = billing.periodStart
+		usage["period_end"] = billing.periodEnd
+		usage["product"] = billing.product
+		raw["billing"] = billing.raw
+	} else if IsGrokUnauthorizedError(billingErr) {
+		return APIKeySummary{}, billingErr
+	} else {
+		raw["billing_error"] = billingErr.Error()
+	}
 	return APIKeySummary{
 		Usage:  usage,
 		Models: models,
-		Raw:    map[string]any{"tier": tier, "email": email, "model_count": len(models), "user": profile},
+		Raw:    raw,
 	}, nil
+}
+
+type grokBilling struct {
+	usedPercent      float64
+	remainingPercent float64
+	periodType       string
+	periodStart      string
+	periodEnd        string
+	product          string
+	raw              map[string]any
+}
+
+// fetchBilling reads GET /v1/billing?format=credits. creditUsagePercent is how
+// much of the included plan allowance is already used (0–100).
+func (a Grok) fetchBilling(ctx context.Context, site SiteConfig, token string) (grokBilling, error) {
+	endpoint, err := grokChatEndpoint(site.BaseURL, "/v1/billing")
+	if err != nil {
+		return grokBilling{}, err
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return grokBilling{}, err
+	}
+	parsed.RawQuery = "format=credits"
+	endpoint = parsed.String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return grokBilling{}, err
+	}
+	ApplyGrokUpstreamHeaders(req, token)
+	req.Header.Set("Accept", "application/json")
+	resp, err := httpClientForSite(site, a.client).Do(req)
+	if err != nil {
+		return grokBilling{}, fmt.Errorf("grok billing request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, grokResponseLimit))
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return grokBilling{}, fmt.Errorf("%w: billing status %d", ErrGrokUnauthorized, resp.StatusCode)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return grokBilling{}, fmt.Errorf("grok billing endpoint returned status %d", resp.StatusCode)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	payload := map[string]any{}
+	if err := decoder.Decode(&payload); err != nil {
+		return grokBilling{}, fmt.Errorf("decode grok billing: %w", err)
+	}
+	config, _ := payload["config"].(map[string]any)
+	usedPercent, ok := grokBillingFloat(config["creditUsagePercent"])
+	if !ok {
+		return grokBilling{}, fmt.Errorf("grok billing response has no credit usage percent")
+	}
+	if usedPercent < 0 {
+		usedPercent = 0
+	}
+	if usedPercent > 100 {
+		usedPercent = 100
+	}
+	period, _ := config["currentPeriod"].(map[string]any)
+	product := ""
+	if items, _ := config["productUsage"].([]any); len(items) > 0 {
+		first, _ := items[0].(map[string]any)
+		product = anyString(first["product"])
+	}
+	return grokBilling{
+		usedPercent:      usedPercent,
+		remainingPercent: 100 - usedPercent,
+		periodType:       anyString(period["type"]),
+		periodStart:      firstNonEmptyString(anyString(period["start"]), anyString(config["billingPeriodStart"])),
+		periodEnd:        firstNonEmptyString(anyString(period["end"]), anyString(config["billingPeriodEnd"])),
+		product:          product,
+		raw:              payload,
+	}, nil
+}
+
+func grokBillingFloat(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case json.Number:
+		parsed, err := typed.Float64()
+		return parsed, err == nil
+	case float64:
+		return typed, true
+	default:
+		return 0, false
+	}
 }
 
 func (a Grok) fetchUser(ctx context.Context, site SiteConfig, token string) (map[string]any, error) {

@@ -80,7 +80,103 @@ func (s *Service) RefreshGrokAccount(ctx context.Context, siteID uuid.UUID, cred
 		updated.Meta = store.JSON(jsonBytes(meta))
 	}
 	account, _ := grokAccountFromStore(updated, state, models)
+	s.syncGrokQuotaSummary(ctx, siteID, store.Site{})
 	return account, nil
+}
+
+// syncGrokQuotaSummary writes the sites-table quota from the account billing
+// snapshots. A zero monthly limit is an uncapped subscription. current may be
+// the zero value to load the site.
+func (s *Service) syncGrokQuotaSummary(ctx context.Context, siteID uuid.UUID, current store.Site) store.Site {
+	siteRepo := store.NewSiteRepository(s.db.DB())
+	item := current
+	if item.ID == uuid.Nil {
+		loaded, err := siteRepo.GetByID(ctx, siteID)
+		if err != nil {
+			return current
+		}
+		item = loaded
+	}
+	credentials, err := store.NewSiteCredentialRepository(s.db.DB()).ListBySite(ctx, siteID)
+	if err != nil {
+		return item
+	}
+	states, err := store.NewSiteAPIKeyStateRepository(s.db.DB()).ListBySite(ctx, siteID)
+	if err != nil {
+		return item
+	}
+	statesByCredential := make(map[uuid.UUID]store.SiteAPIKeyState, len(states))
+	for _, state := range states {
+		statesByCredential[state.SiteCredentialID] = state
+	}
+	var accounts, known, capped int
+	var used, remaining, limit float64
+	uncapped := false
+	for _, credential := range credentials {
+		if !isGrokCredentialType(credential.CredentialType) {
+			continue
+		}
+		accounts++
+		state := statesByCredential[credential.ID]
+		if !state.Enabled || len(state.Usage) == 0 {
+			continue
+		}
+		var usage struct {
+			Status    string   `json:"quota_status"`
+			Unlimited bool     `json:"unlimited"`
+			Limit     *float64 `json:"limit"`
+			Used      *float64 `json:"used"`
+			Remaining *float64 `json:"remaining"`
+		}
+		if json.Unmarshal(state.Usage, &usage) != nil || usage.Status != "ok" {
+			continue
+		}
+		known++
+		if usage.Used != nil {
+			used += *usage.Used
+		}
+		if usage.Unlimited {
+			uncapped = true
+			continue
+		}
+		capped++
+		if usage.Remaining != nil {
+			remaining += *usage.Remaining
+		}
+		if usage.Limit != nil {
+			limit += *usage.Limit
+		}
+	}
+	meta := siteMetaMap(item)
+	if accounts == 0 || known == 0 {
+		if _, ok := meta[siteMetaQuotaProbeSummary]; !ok {
+			return item
+		}
+		delete(meta, siteMetaQuotaProbeSummary)
+	} else {
+		summary := map[string]any{
+			"probe_type":       "grok",
+			"status":           "ok",
+			"unit":             "percent",
+			"credential_count": accounts,
+			"ok_count":         known,
+			"fetched_at":       time.Now().UTC().Format(time.RFC3339),
+		}
+		if uncapped {
+			summary["unlimited"] = true
+			summary["used_total"] = used
+		} else if capped > 0 {
+			summary["remaining_min"] = remaining
+			summary["limit"] = limit
+			summary["used"] = used
+		}
+		meta[siteMetaQuotaProbeSummary] = summary
+	}
+	updated, err := siteRepo.UpdateMeta(ctx, item.ID, store.JSON(jsonBytes(meta)))
+	if err != nil {
+		return item
+	}
+	return updated
 }
 
 func (s *Service) RefreshGrokAccounts(ctx context.Context, siteID uuid.UUID) ([]GrokRefreshBatchItem, error) {

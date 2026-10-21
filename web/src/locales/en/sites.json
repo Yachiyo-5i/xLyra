@@ -331,6 +331,10 @@
       "authorize": "Open authorization page",
       "waiting": "Waiting for approval…"
     },
+    "quota": {
+      "allowance": "Plan allowance",
+      "resetsOn": "resets {{date}}"
+    },
     "sync": {
       "synced": "Synced",
       "failed": "Failed",
