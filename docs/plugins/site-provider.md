@@ -356,6 +356,10 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 账号池不写时默认 `sum`。`none` 时刷新账号不会改站点汇总。API Key 站点不写这项时，额度探测仍走原来的「最小剩余」汇总，不改道；只有清单显式写了 `sum`、`min` 或 `none` 才按上表处理。汇总里可以带 `aggregate`。
 
+定时刷新和手动刷新站点对账号池走同一条账号刷新：逐个账号拿刷新租约，按插件规则续期，把 `summarizeAccount` 的摘要写进该账号的 state。需要重新授权的账号会停用。然后按上表做额度汇总，并更新站点上的账号数和模型数。单个账号刷新、启用、停用、删除之后也会重算这两个计数。模型同步仍由站点自己的模型列表能力决定；账号池没有模型列表时，刷新不会因为「不支持模型同步」失败，账号数和已保存的模型数照常更新。
+
+健康检查不走下面的单个 `check` 钩子。它对每个启用的账号做一次与手动刷新相同的摘要（令牌需要续期时会先刷新）。至少有一个启用账号可用，站点就是健康的。重新授权失败会立刻停用该账号，同步状态写成 `reauth_required`；其它失败写成 `stale`，账号保持启用。站点连续 3 次健康检查不通过才标成不健康，和内置站点用的是同一条阈值。
+
 ### request
 
 `request` 与 [请求头模板](#请求头模板) 共用同一套语法和剥离规则。账号池额外有两项：
@@ -546,7 +550,7 @@ export function listModels(_ctx: ProbeContext, steps: ProbeStep[]): ModelListDec
 
 ### check
 
-验 Key 和健康检查共用这个钩子。先看站点有没有绑定 `credential_check`，没有再看本钩子，再没有就用通用适配器去请求模型列表（2xx 当成功）。
+验 Key 和健康检查共用这个钩子，但账号池站点的健康检查不走这里：账号池按账号做摘要，见上文 quota.aggregate 后面的刷新与健康说明。API Key 站点先看有没有绑定 `credential_check`，没有再看本钩子，再没有就用通用适配器去请求模型列表（2xx 当成功）。
 
 `result.status` 只能是 `ok`、`invalid`、`unavailable`，含义与[密钥校验插件](./credential-check.md)相同。`invalid` 会被当成密钥无效；`unavailable` 会被当成暂时失败，不会当成坏密钥。健康检查把 `ok` 当成通过，把 `invalid` 记为校验失败，把 `unavailable` 记为上游不可达。钩子还没给出结果、这次调用的错误本身被分类成限流时，健康检查仍算通过。
 

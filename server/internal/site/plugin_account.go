@@ -300,6 +300,15 @@ func (p pluginAccountAPI) writeAccountModelsRows(ctx context.Context, credential
 	return stored, err
 }
 
+func (s *Service) pluginAccountAPI(siteType string) (pluginAccountAPI, bool) {
+	provider, ok := s.pluginAccountProvider(siteType)
+	if !ok {
+		return pluginAccountAPI{}, false
+	}
+	api, ok := provider.(pluginAccountAPI)
+	return api, ok
+}
+
 func (s *Service) pluginAccountProvider(siteType string) (AccountProvider, bool) {
 	item, ok := LookupPluginSiteType(siteType)
 	if !ok || !item.Enabled || item.Pool == nil {
@@ -410,6 +419,7 @@ func (p pluginAccountAPI) Update(ctx context.Context, siteID, credentialID uuid.
 	if err != nil {
 		return nil, err
 	}
+	_ = p.s.upsertPluginAccountSiteState(ctx, siteID, p.siteType, "", nil, nil, time.Now(), true)
 	return account, nil
 }
 
@@ -430,7 +440,11 @@ func (p pluginAccountAPI) SetModelEndpoint(ctx context.Context, siteID, credenti
 }
 
 func (p pluginAccountAPI) Delete(ctx context.Context, siteID, credentialID uuid.UUID) error {
-	return p.poolAPI().delete(ctx, siteID, credentialID)
+	if err := p.poolAPI().delete(ctx, siteID, credentialID); err != nil {
+		return err
+	}
+	_ = p.s.upsertPluginAccountSiteState(ctx, siteID, p.siteType, "", nil, nil, time.Now(), true)
+	return nil
 }
 
 func (p pluginAccountAPI) Refresh(ctx context.Context, siteID, credentialID uuid.UUID) (any, error) {
@@ -667,6 +681,10 @@ func (p pluginAccountAPI) loginStart(started PluginLoginStart, region string) Ac
 }
 
 func (p pluginAccountAPI) refreshAccount(ctx context.Context, siteID, credentialID uuid.UUID) (PluginAccount, error) {
+	return p.refreshOne(ctx, siteID, credentialID, true)
+}
+
+func (p pluginAccountAPI) refreshOne(ctx context.Context, siteID, credentialID uuid.UUID, publishSite bool) (PluginAccount, error) {
 	var account PluginAccount
 	if err := p.requireSite(ctx, siteID); err != nil {
 		return account, err
@@ -724,7 +742,10 @@ func (p pluginAccountAPI) refreshAccount(ctx context.Context, siteID, credential
 		if err := p.persistSummary(ctx, current, summary); err != nil {
 			return err
 		}
-		p.syncQuota(ctx, siteID, store.Site{})
+		if publishSite {
+			p.syncQuota(ctx, siteID, store.Site{})
+			_ = p.s.upsertPluginAccountSiteState(ctx, siteID, p.siteType, "synced", nil, nil, time.Now(), false)
+		}
 		updated, err := repo.GetByID(ctx, credentialID)
 		if err != nil {
 			updated = current
@@ -1215,8 +1236,8 @@ func (pluginAccountProvider) onRefreshRereadMiss(credential store.SiteCredential
 	return credential
 }
 
-func (pluginAccountProvider) afterRefresh(context.Context, uuid.UUID, []store.SiteModel, time.Time) error {
-	return nil
+func (p pluginAccountProvider) afterRefresh(ctx context.Context, siteID uuid.UUID, siteModels []store.SiteModel, now time.Time) error {
+	return p.api.s.upsertPluginAccountSiteState(ctx, siteID, p.api.siteType, "synced", nil, siteModels, now, false)
 }
 
 type pluginLoginProvider struct {

@@ -260,6 +260,10 @@ func (s *Service) runSiteHealthCheck(ctx context.Context, item store.Site) siteH
 		},
 	}
 
+	if api, ok := s.pluginAccountAPI(item.SiteType); ok {
+		return s.runPluginAccountHealth(ctx, item, api, start, check)
+	}
+
 	module, ok := s.adapters.ModuleForSiteType(item.SiteType)
 	if !ok {
 		check.latency = time.Since(start)

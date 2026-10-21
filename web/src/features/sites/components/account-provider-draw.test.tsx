@@ -228,7 +228,16 @@ describe('plugin account pool', () => {
       'zh',
     )
     expect(render(labeled.pills)).toContain('国内')
-    expect(labeled.detail).toBeUndefined()
+    expect(render(labeled.detail)).toContain('额度未同步，点击刷新账号获取')
+
+    const summary = pluginRowView(account({
+      remaining_quota: 1999,
+      quota_limit: 2000,
+      quota_unit: 'credits',
+    }), pluginSiteType().accounts?.ui?.row_pills, 'zh')
+    const summaryMarkup = render(summary.detail)
+    expect(summaryMarkup).toContain('1,999 / 2,000')
+    expect(summaryMarkup).not.toContain('额度未同步')
 
     const raw = pluginRowView(account({ fields: { realm: 'cn' } }), [{ field: 'realm' }], 'en')
     expect(render(raw.pills)).toContain('cn')

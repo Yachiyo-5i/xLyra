@@ -38,7 +38,7 @@ function pillLabel(labels: Record<string, AccountUIText> | undefined, raw: strin
   return undefined
 }
 
-/** Plugin account row: pills from `ui.row_pills`, quota only when `entries` are present. */
+/** Plugin account row: pills from `ui.row_pills`, plus remaining/limit and the unsynced hint. */
 export function pluginRowView(
   account: SiteAccount,
   pills: readonly AccountRowPill[] | null | undefined,
@@ -54,8 +54,11 @@ export function pluginRowView(
     return [<Badge key={`${field}-${index}`} variant="neutral">{text}</Badge>]
   })
   const quotaEntries = accountQuotaEntries(account.entries, [])
+  const summary = 'quota_limit' in account && account.quota_limit != null && account.remaining_quota != null
+    ? { remaining: account.remaining_quota, limit: account.quota_limit, unit: account.quota_unit || 'credits' }
+    : undefined
   return {
     pills: rendered.length ? <>{rendered}</> : undefined,
-    detail: quotaEntries.length ? <QuotaEntries entries={quotaEntries} /> : undefined,
+    detail: <QuotaEntries entries={quotaEntries} summary={summary} showUnknown />,
   }
 }

@@ -74,6 +74,22 @@ const siteMetaAutoDisabledByRefresh = "auto_disabled_by_refresh"
 const credentialMetaAutoDisabledByRefresh = "auto_disabled_by_refresh"
 
 func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshResult, error) {
+	var (
+		poolAPI        pluginAccountAPI
+		pool           bool
+		accountResults []AccountRefreshResult
+		accountErr     error
+	)
+	if preview, previewErr := s.Get(ctx, siteID); previewErr == nil {
+		if api, ok := s.pluginAccountAPI(preview.SiteType); ok {
+			poolAPI = api
+			pool = true
+			// RefreshAll takes the per-site lock itself. Call it before this
+			// method locks, or the non-reentrant mutex deadlocks.
+			accountResults, accountErr = poolAPI.RefreshAll(ctx, siteID)
+		}
+	}
+
 	defer s.siteLocks.lock(siteID)()
 
 	site, err := s.Get(ctx, siteID)
@@ -83,6 +99,10 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 
 	stateRepo := store.NewSiteStateRepository(s.db.DB())
 	_, _ = stateRepo.MarkSyncStarted(ctx, siteID)
+
+	if pool && strings.EqualFold(strings.TrimSpace(site.SiteType), poolAPI.siteType) {
+		return s.finishPluginAccountPoolRefresh(ctx, site, poolAPI, accountResults, accountErr)
+	}
 
 	module, ok := s.adapters.ModuleForSiteType(site.SiteType)
 	if !ok {
