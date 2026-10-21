@@ -65,6 +65,7 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 		if err := json.Unmarshal(rawFixture, &fixture); err != nil {
 			return Package{}, fmt.Errorf("%s: %w", name, err)
 		}
+		fixture.File = name
 		fixtures = append(fixtures, fixture)
 	}
 	manifest, err := ParseManifest(manifestRaw)

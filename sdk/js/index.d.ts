@@ -324,6 +324,17 @@ export interface AutomationResult {
   state?: JsonObject;
 }
 
+// ---- site_provider ----
+
+export interface RewritePayloadContext {
+  siteType: string;
+  /** Upstream model name. */
+  model: string;
+  stream: boolean;
+  /** Canonical protocol name, such as openai_chat. */
+  protocol: string;
+}
+
 export type PluginKind = "quota_probe" | "protocol" | "model_list" | "credential_check" | "site_detect" | "error_classifier" | "model_metadata" | "pricing_parse" | "automation" | "site_provider";
 
 export interface PluginMeta {
@@ -396,4 +407,20 @@ declare global {
     info(message: string, fields?: Record<string, any>): void;
     warn(message: string, fields?: Record<string, any>): void;
   };
+}
+
+// ---- site_provider hooks ----
+
+export type SiteProviderProbe = (ctx: ProbeContext, steps: ProbeStep[]) => ProbeDecision;
+export type SiteProviderListModels = (ctx: ProbeContext, steps: ProbeStep[]) => ModelListDecision;
+export type SiteProviderCheck = (ctx: ProbeContext, steps: ProbeStep[]) => CredentialCheckDecision;
+export type SiteProviderClassify = (ctx: ErrorClassifyContext, input: ErrorClassifyInput) => ErrorClassifyResult;
+export type SiteProviderRewritePayload = (ctx: RewritePayloadContext, payload: Record<string, unknown>) => Record<string, unknown>;
+
+export interface SiteProviderHooks {
+  probe?: SiteProviderProbe;
+  listModels?: SiteProviderListModels;
+  check?: SiteProviderCheck;
+  classify?: SiteProviderClassify;
+  rewritePayload?: SiteProviderRewritePayload;
 }

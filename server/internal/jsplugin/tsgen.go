@@ -67,6 +67,7 @@ var tsTypes = []tsType{
 	{value: AutomationEvent{}, name: "AutomationEvent", enum: &tsEnum{"AutomationResetScope", AutomationResetScopes}},
 	{value: AutomationAction{}, name: "AutomationAction", enum: &tsEnum{"AutomationNoticeLevel", []string{"info", "warn"}}},
 	{value: AutomationResult{}, name: "AutomationResult"},
+	{value: RewritePayloadContext{}, name: "RewritePayloadContext", section: "site_provider"},
 }
 
 // TypeDeclarations renders the plugin SDK .d.ts: interfaces generated from the
@@ -114,8 +115,31 @@ func TypeDeclarations() (string, error) {
 	fmt.Fprintf(&out, "export type PluginKind = %s;\n\n", strings.Join(quoted, " | "))
 	out.WriteString("export interface PluginMeta {\n  apiVersion: number;\n  id: string;\n  kind: PluginKind;\n}\n\n")
 	out.WriteString(strings.TrimLeft(tsStatic, "\n"))
+	if !strings.HasSuffix(out.String(), "\n") {
+		out.WriteByte('\n')
+	}
+	out.WriteString("\n")
+	out.WriteString(siteProviderHookTypes)
 	return out.String(), nil
 }
+
+// siteProviderHookTypes is appended after the shared hook aliases it names.
+const siteProviderHookTypes = `// ---- site_provider hooks ----
+
+export type SiteProviderProbe = (ctx: ProbeContext, steps: ProbeStep[]) => ProbeDecision;
+export type SiteProviderListModels = (ctx: ProbeContext, steps: ProbeStep[]) => ModelListDecision;
+export type SiteProviderCheck = (ctx: ProbeContext, steps: ProbeStep[]) => CredentialCheckDecision;
+export type SiteProviderClassify = (ctx: ErrorClassifyContext, input: ErrorClassifyInput) => ErrorClassifyResult;
+export type SiteProviderRewritePayload = (ctx: RewritePayloadContext, payload: Record<string, unknown>) => Record<string, unknown>;
+
+export interface SiteProviderHooks {
+  probe?: SiteProviderProbe;
+  listModels?: SiteProviderListModels;
+  check?: SiteProviderCheck;
+  classify?: SiteProviderClassify;
+  rewritePayload?: SiteProviderRewritePayload;
+}
+`
 
 func renderInterface(item tsType, names map[reflect.Type]string) (string, error) {
 	typ := reflect.TypeOf(item.value)

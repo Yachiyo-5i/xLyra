@@ -300,6 +300,12 @@ func (p *Plugin) runOneShotFixture(ctx context.Context, fixture Fixture) error {
 	default:
 		return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
 	}
+	return compareOneShot(result, err, fixture)
+}
+
+// compareOneShot applies the one-shot fixture rule: expect.error is a substring
+// of the call error; expect.result is compared field by field, recursively.
+func compareOneShot(result any, err error, fixture Fixture) error {
 	if err != nil {
 		if fixture.Expect.Error != "" && strings.Contains(err.Error(), fixture.Expect.Error) {
 			return nil
@@ -322,6 +328,10 @@ func decodeFixtureInput(input any, out any) error {
 }
 
 func (p *Plugin) runSteppedFixture(ctx context.Context, fixture Fixture) error {
+	return p.runSteppedFixtureHook(ctx, fixture, "", "")
+}
+
+func (p *Plugin) runSteppedFixtureHook(ctx context.Context, fixture Fixture, hook, resultKind string) error {
 	probeCtx := ProbeContext{
 		SiteType:       fixture.Ctx.SiteType,
 		BaseURL:        fixture.Ctx.BaseURL,
@@ -332,7 +342,13 @@ func (p *Plugin) runSteppedFixture(ctx context.Context, fixture Fixture) error {
 	var requests []ProbeRequest
 	used := make([]bool, len(fixture.Responses))
 	for step := 0; step < MaxProbeSteps; step++ {
-		decision, err := p.CallStepped(ctx, probeCtx, steps)
+		var decision SteppedDecision
+		var err error
+		if hook == "" {
+			decision, err = p.CallStepped(ctx, probeCtx, steps)
+		} else {
+			decision, err = p.CallSteppedHook(ctx, hook, resultKind, probeCtx, steps)
+		}
 		if err != nil {
 			return err
 		}

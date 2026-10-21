@@ -71,6 +71,7 @@ func buildProject(dir string) (*builtProject, error) {
 		if err := json.Unmarshal(raw, &fixture); err != nil {
 			return nil, fmt.Errorf("fixtures/%s: %w", name, err)
 		}
+		fixture.File = "fixtures/" + name
 		built.Files["fixtures/"+name] = raw
 		built.Fixtures = append(built.Fixtures, namedFixture{File: name, Fixture: fixture})
 	}
@@ -176,6 +177,9 @@ func runFixtures(plugin *jsplugin.Plugin, fixtures []namedFixture, out *bytes.Bu
 		label := item.File
 		if item.Fixture.Name != "" {
 			label += " (" + item.Fixture.Name + ")"
+		}
+		if item.Fixture.Hook != "" {
+			label += " hook=" + item.Fixture.Hook
 		}
 		if err != nil {
 			failed++
