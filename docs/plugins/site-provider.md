@@ -1,12 +1,17 @@
-# API Key 站点类型（site_provider）
+# 站点类型（site_provider）
 
-`site_provider` 用来声明一种新的 **API Key 站点类型**。管理员启用之后，创建站点时可以选它，用 API Key 接上游：列模型、校验密钥、健康检查、经网关转发。
+`site_provider` 用来声明一种新的站点类型。管理员启用之后，创建站点时可以选它，经网关转发。凭据模型是 `credential.model`：
 
-它只支持 API Key。不支持账号池，也不支持 OAuth。协议只有清单里声明的那一种，不能再挂替代协议。
+| `credential.model` | 站点怎么接上游 |
+| --- | --- |
+| `api_key` | 一把站点 API Key。列模型、校验密钥、健康检查、转发都用这把 Key |
+| `account_pool` | 多账号。登录、刷新、导入、按账号区域选地址、按账号额度选路，由 xLyra 执行。插件只描述流程 |
 
-可选钩子用来处理这个类型和内置站点不一样的地方：额度查询、模型列表、密钥校验、错误分类、请求正文改写。五个都可以不导出。没导出的那一项走通用适配器或 xLyra 的默认行为。
+两种模型的协议都只有清单里声明的那一种，不能再挂替代协议。没有独立的 OAuth 连接类型（没有 `connection`，也没有 `oauth2_pkce`）。账号池里的设备码登录是 `login.kind = oauth2_device_code`，由宿主的 OAuth 引擎执行，不经过 JS。
 
-仓库里的最小示例是 [`examples/site-provider-minimal/`](./examples/site-provider-minimal/)。下文的清单和钩子都引用这个目录里的文件，不另写一套。
+`api_key` 的可选钩子用来处理这个类型和内置站点不一样的地方：额度查询、模型列表、密钥校验、错误分类、请求正文改写。五个都可以不导出。没导出的那一项走通用适配器或 xLyra 的默认行为。`account_pool` 在这五个之外还有登录、刷新、摘要钩子，哪些必填见[账号池站点](#账号池站点credentialmodelaccount_pool)。
+
+仓库里的最小 API Key 示例是 [`examples/site-provider-minimal/`](./examples/site-provider-minimal/)。下文 API Key 的清单和钩子引用 minimal 目录里的文件。
 
 ## 和其他 kind 的区别
 
@@ -15,7 +20,7 @@
 | 作用 | 新增一种站点类型 | 挂到已有站点或全局上 |
 | 一个包 | 只声明一个站点类型 | 一个包一种 kind，不声明站点类型 |
 | 生效 | 启用后按站点类型自动生效，不能逐站点绑定 | 多数要管理员绑定到站点 |
-| 凭据 | 站点 API Key，由 xLyra 放进请求头 | 取决于 kind |
+| 凭据 | `api_key`：站点 API Key，由 xLyra 放进请求头。`account_pool`：`account:<siteType>:<uuid>`，密钥留在宿主 | 取决于 kind |
 
 站点类型 ID 是 `<插件 id>/<名字>`，例如示例的 `example.minimal/chat`。斜线左侧必须等于清单的 `id`。一个包不能再写 `quotaProbe`、`site`、`protocol`、`automation`。
 
@@ -148,10 +153,10 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 | 占位符 | 值 |
 | --- | --- |
-| `{{cred.<field>}}` | 凭据字段。`<field>` 必须属于当前 `credential.model` 允许的集合。`api_key` 只有 `api_key`，值是整串站点 Key |
+| `{{cred.<field>}}` | 凭据字段。`<field>` 必须属于当前 `credential.model` 允许的集合。`api_key` 只有 `api_key`，值是整串站点 Key。`account_pool` 的集合是 `credential.fields` 里声明的每一个字段名 |
 | `{{site.baseURL}}` | 这次实际使用的上游基址，去掉尾部 `/` |
 
-`{{ cred.api_key }}`、`{{cred.api_key`、`{{secret.x}}`、`{{site.baseurl}}` 都会在校验清单时拒绝。`api_key` 模型写 `{{cred.domain}}` 也会拒绝，因为 `domain` 不在允许的字段里。校验按调用方传入的字段集合判断，不把字段名写死；当前模型只有 `api_key`，集合里就是 `api_key`。同一个模板可以多次使用同一个占位符。占位符以外的字面量不能含 CR、LF 或其它控制字符。
+`{{ cred.api_key }}`、`{{cred.api_key`、`{{secret.x}}`、`{{site.baseurl}}` 都会在校验清单时拒绝。`{{secret.<field>}}` 不是头模板占位符，只用在账号池钩子描述的请求里，见[密钥不进 JS](#密钥不进-js)。`api_key` 写 `{{cred.domain}}` 会拒绝，因为 `domain` 不在允许的字段里。校验按调用方传入的字段集合判断，不把字段名写死。同一个模板可以多次使用同一个占位符。占位符以外的字面量不能含 CR、LF 或其它控制字符。
 
 `headers` 最多 16 项。头名必须是合法的 HTTP token。忽略大小写后相同的头名算重复。下面这些不能由模板写：`Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-Authorization`、`Proxy-Connection`、`Cookie`、`Set-Cookie`，以及任何 `X-Forwarded-*`。`Content-Type` 和 `Accept` 由协议适配器决定，模板也不能写。`Authorization` 可以写，而且只有模板里声明了，才会按模板的值发送。
 
@@ -176,9 +181,275 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 `api_key` 插件站点没有单独的凭据解析器。网关把解密后的站点 Key 放进 `cred.api_key`，把这次使用的上游基址放进 `site.baseURL`。
 
+`account_pool` 的变量表只放两类值：非密钥字段，以及 access token 字段（默认 `access_token`，清单用 `accessTokenField` 改名时用那个名字）。`refresh_token` 和其它 `secret: true` 的字段不会放进变量表。模板里写了 `{{cred.refresh_token}}` 能通过清单校验（字段已声明），转发时变量不存在，这次请求失败，错误类型 `plugin_header_template_failed`，不换下一把凭据。`site.baseURL` 在 `request.baseURLFrom` 为 `region` 时是该账号解析出的区域基址。
+
 ### 安全
 
 模板在主机检查之前渲染。渲染失败，或主机不在启用时确认的列表里，请求都不会发出。密钥只会随实际发出的请求到达已确认的主机。变量值里的 CR、LF 或其它控制字符会使这次请求失败，避免把换行写进头里。插件代码看不到这些值。
+
+## 账号池站点（credential.model=account_pool）
+
+`account_pool` 描述一种多账号站点。登录、刷新、导入、选区域、选账号、把密钥放进上游请求，都由 xLyra 的 Go 代码执行。插件导出的函数只描述下一步请求和结果形状。密钥留在宿主的秘密袋里，不进 JS。
+
+这种清单不能写 `models`（包括空对象 `{}`）。`api_key` 才有的 `models.path` / `models.auth` 在这里不出现。五个可选钩子（`probe`、`listModels`、`check`、`classify`、`rewritePayload`）仍然可以导出，调用方式和 [钩子](#钩子) 相同；`listModels` 的 `ctx` 没有账号字段。
+
+`api_key` 清单不能写下面这些账号池字段：`credential.fields`、`accessTokenField`、`refreshTokenField`、`expiresAtField`、`identity`、`regions`、`defaultRegion`、`login`、`refresh`、`import`、`selection`、`ui`。`quota` 和 `request` 两种模型都可以写。
+
+字段以本节为准。
+
+### 凭据字段
+
+`credential.fields` 是账号凭据包里的字段，1–16 项，不能重复。
+
+| 字段 | 说明 |
+| --- | --- |
+| `name` | `^[a-z][a-z0-9_]{0,31}$` |
+| `secret` | 可选。为真时，值是密钥：不进 JS，不进管理端明文，不进头模板变量（access token 字段除外） |
+| `type` | 可选，`string`（默认）或 `unix`。`unix` 在钩子回写时必须是非负十进制整数字符串 |
+
+至少要有一个 `secret: true` 的字段。
+
+| 名字 | 默认 | 约束 |
+| --- | --- | --- |
+| `accessTokenField` | `access_token` | 必须是已声明的 secret 字段。网关把它的值当作上游密钥 |
+| `refreshTokenField` | 不设 | 设了就必须是已声明的 secret 字段。`refresh.kind` 为 `oauth2_refresh` 时必填 |
+| `expiresAtField` | 不设 | 设了就必须是已声明字段，且 `type` 为 `unix`。网关用它和 `leadSeconds` 决定要不要刷新。不设则网关不按到期时间自动刷新 |
+| `identity` | 必填 | 见下 |
+
+### identity
+
+两种写法，只能一条：
+
+| 写法 | 含义 |
+| --- | --- |
+| `claims.<路径>` | 从 access token 的 JWT payload 读字符串。`claims.sub` 读 payload 的 `sub`。路径可以再点一层，例如 `claims.profile.email`。`oauth2_device_code` 在 access token 读不到时再试 id token |
+| `field.<name>` | 读凭据包里这个非密钥字段。字段必须已声明，且不能是 secret |
+
+没有 email、uid、user_id 的回退。JWT 里没写进这条路径的 claim 不会自动进 meta。`oauth2` 的 `expires_in` 为 0 时，宿主不改去读 JWT 的 `exp`。
+
+同一站点上，身份相同的再次登录沿用原来的 `credential_type`，不另建一把凭据。显式重新授权（带目标凭据 id）更新那一把。
+
+### regions 与 defaultRegion
+
+`regions` 必填，1–8 项。`defaultRegion` 必填，必须是其中某个 `id`。因此合法的账号池站点，创建页的 `supports_regions` 为真。
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | `^[a-z][a-z0-9_-]{0,15}$`，不能重复 |
+| `label` | 可选。字符串，或按语言分的对象（最多 8 种语言，每种不超过 400 字节） |
+| `baseURL` | `https` URL，主机必须在 `hosts` 里。站点类型的官方基址取 `defaultRegion` 这一项，去掉尾部 `/` |
+| `realms` | 可选，最多 8 项。每一项是小写的 `[a-z0-9_.-]`，不能空 |
+| `domains` | 可选，最多 8 项。每一项是和 `hosts` 同样规则的小写主机名 |
+
+账号用哪一个区域，按这个顺序，命中即停：
+
+1. 凭据字段 `region` 非空：原样当作区域 id，即使这份清单里没有这个 id。
+2. 凭据字段 `realm` 与某个区域的 `id` 相同，或出现在该区域的 `realms` 里（忽略大小写）。
+3. 凭据字段 `domain` 出现在某个区域的 `domains` 里（忽略大小写）。
+4. 都没有：用 `defaultRegion`。
+
+`request.baseURLFrom` 为 `region` 时，网关用上面选出的区域的 `baseURL`。选中的 id 在清单里不存在，这次凭据失败。
+
+### login
+
+`login` 必填。`kind` 只能是：
+
+| `kind` | 谁执行 | 必须导出 |
+| --- | --- | --- |
+| `oauth2_device_code` | 宿主的设备码引擎。JS 不参与 start / poll | 不导出 `startLogin` / `pollLogin` |
+| `custom_poll` | 钩子 `startLogin`、`pollLogin` | 这两个都要导出 |
+
+`params` 可选。每一项的 `name` 必填，`type` 只能是 `select`，`source` 只能是 `regions`（因此必须有 `regions`）。管理端把选中的区域 id 放进 `params.region` 传给开始登录。钩子看到的 `ctx.params` 就是这些值，不是凭据。
+
+`oauth2_device_code` 还要：
+
+| 字段 | 说明 |
+| --- | --- |
+| `deviceCodeURL` | 必填。`https`，主机在 `hosts` 里 |
+| `tokenURL` | 必填。同上 |
+| `clientID` | 必填。不能含控制字符 |
+| `scope` | 可选。不能含控制字符 |
+| `grantType` | 可选。设备码轮询用的 `grant_type`。空着等于 `urn:ietf:params:oauth:grant-type:device_code`。刷新固定用 `refresh_token`，不受这项影响 |
+| `extraHeaders` | 可选。静态头，不能含 `{{`。头名是 HTTP token，忽略大小写后不能重复。不能是 `Authorization`、`Cookie`、`Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Proxy-Authorization`，也不能是 `X-Forwarded-*`。值不能空，不能含控制字符。引擎会改写 `Content-Type` 和 `Accept` |
+
+`custom_poll` 不能写 `deviceCodeURL`、`tokenURL`、`clientID`、`scope`、`grantType`、`extraHeaders`。
+
+`secretPaths` 见[密钥不进 JS](#密钥不进-js)。`custom_poll` 的 `secretPaths` 必须有一条路径映射到 access token 字段。`oauth2_device_code` 的令牌由引擎从令牌响应读取，不靠 `secretPaths`。
+
+设备码引擎：`interval` 缺省或小于 1 时按 5 秒，大于 60 秒时按 60 秒；`slow_down` 在当前间隔上加 5 秒，不超过 60 秒。`expires_in` 缺省按 600 秒，大于 1800 秒时按 1800 秒。`verification_uri` 的主机不在 `hosts` 里，这次 start 失败，不下发地址。
+
+### refresh
+
+`refresh` 必填。`kind` 只能是：
+
+| `kind` | 行为 | 必须导出 |
+| --- | --- | --- |
+| `oauth2_refresh` | 宿主用 refresh token 调令牌端点。响应里没有新的 refresh token 时，保留原来的 | 不导出 `refreshTokens`。`refreshTokenField` 必填 |
+| `custom_steps` | 钩子 `refreshTokens` | 要导出 `refreshTokens` |
+| `none` | 不刷新。调用刷新接口会失败 | 不导出 `refreshTokens` |
+
+`leadSeconds` 可选，30–3600。不写时，`oauth2_refresh` 和 `custom_steps` 用 300。`none` 不能写 `leadSeconds`、`secretPaths`、`tokenURL`。
+
+网关在选路时看到期时间：`expiresAtField` 缺了、空了或解析不了，就刷新；到期时刻早于「现在 + leadSeconds」就刷新；刚好等于这个提前量则不刷新。`Refresh` 钩子本身不看 `leadSeconds`。管理端的「刷新账号」、登录完成后的那一次刷新、导入成功后的那一次刷新，都会立刻换令牌，不等到提前量。
+
+`oauth2_refresh` 的 `tokenURL` 可选。不写就用 `login.tokenURL`；两边都空则校验失败。写了就必须是 `hosts` 里的 `https`。
+
+自定义刷新的基址：先按[区域顺序](#regions-与-defaultregion)选区域，否则用默认区域。
+
+### import
+
+`import` 可选。不写等于不能导入。`enabled: true` 时创建页 `supports_import` 为真，并且 `ui.operations` 才可以包含 `import`。
+
+导入不进 JS。宿主按清单把 JSON 文件映射成凭据字段。
+
+| 字段 | 说明 |
+| --- | --- |
+| `containers` | 可选，最多 8 项。每一项匹配 `^[A-Za-z0-9_.-]+$`，可以是点分路径（`data.accounts`）。用来从包装对象里取出账号数组或单个账号对象 |
+| `fieldMap` | 键必须是已声明的字段名。每个键 1–8 个别名，别名同样匹配上面的正则，不能重复。别名是**每个账号对象的顶层键**，按数组顺序用第一个非空的字符串或数字。其它 JSON 类型跳过 |
+
+`enabled` 为真时，`fieldMap` 必须覆盖每一个 secret 字段；`identity` 若是 `field.<name>`，这个字段也必须在 `fieldMap` 里。
+
+文件形状：一个 JSON 值。UTF-8 BOM 会去掉。可以是对象数组、单个对象，或对象里第一条能落到对象 / 数组上的 `containers` 路径。路径缺失或落到标量上就试下一条；都没有则把根对象本身当作一个账号。空数组、不是对象也不是数组、超过上限，整份文件拒绝。
+
+到期时间（`expiresAtField`）：大于等于 `1000000000000`（1e12）的数字当作 Unix 毫秒，更小的正数当作 Unix 秒。数字字符串和 RFC3339 字符串也可以。解析成功后存成 Unix 秒的十进制字符串。字段缺失时，非密钥的到期字段可以省略；secret 的到期字段缺失则拒绝。解析失败整份文件拒绝。错误里有从 1 开始的账号序号和字段名，没有字段值。字段完全相同的重复账号只留第一条。
+
+单文件最大 4 MiB，最多 500 个账号对象。管理端一次导入最多 50 个文件、合计 200 个账号。
+
+导入不会把 realm 别名收成区域 id，也不会把文件里的 nickname 收成 email。区域仍按上面的 realm / domain 规则在运行时匹配。
+
+### selection
+
+`selection` 可选。不写等于 `ordered`。
+
+| 值 | 行为 |
+| --- | --- |
+| `ordered` | 保持候选原来的顺序 |
+| `quota_weighted` | 在去掉额度耗尽的账号之后，按剩余额度从高到低稳定排序。权重是各 entry 的 `remaining` 之和。全部 unlimited 的权重视为 +∞，排在有数字的前面。有 entry 但没有可用数字的权重是 0。没有 entry 的排在已知权重之后 |
+
+某一条 entry 的 `remaining` ≤ 0、不是 unlimited、并且 `resetAt` 在未来：这把凭据进入冷却，直到这些 `resetAt` 里最晚的一个，最长 7 天，原因 `quota_exhausted`。全部账号都在冷却中时，这次没有可用凭据。内置 Grok 的选择循环不走这套规则。
+
+### quota.aggregate
+
+`quota.aggregate` 可选，两种模型都可以写。取值 `sum`、`min`、`none`。
+
+| 值 | 行为 |
+| --- | --- |
+| `sum` | 把有限、非负的 `remaining` / `limit` / `used` 分别相加。`resetAt` 取最早的未来时间 |
+| `min` | 取最小的有限非负 `remaining`，并带上那一条的 `limit`、`used`。相同剩余时偏好更早的未来 `resetAt` |
+| `none` | 不写站点级汇总 |
+
+账号池不写时默认 `sum`。`none` 时刷新账号不会改站点汇总。API Key 站点不写这项时，额度探测仍走原来的「最小剩余」汇总，不改道；只有清单显式写了 `sum`、`min` 或 `none` 才按上表处理。汇总里可以带 `aggregate`。
+
+### request
+
+`request` 与 [请求头模板](#请求头模板) 共用同一套语法和剥离规则。账号池额外有两项：
+
+| 字段 | 说明 |
+| --- | --- |
+| `upstreamStreamOnly` | 可选，默认 false。为真时，协议覆盖强制 `stream: true`。下游没有要流、上游又是 chat SSE 时，用现成的 SSE 聚合把响应收成非流式。内置 Grok 不读这项 |
+| `baseURLFrom` | 可选。不写或空：不按账号改基址。`region`：用[区域](#regions-与-defaultregion)解析出的 `baseURL`，并且必须已经声明 `regions`。其它值拒绝 |
+
+`api_key` 也可以写 `upstreamStreamOnly` 和 `baseURLFrom`。`baseURLFrom: "region"` 在没有 `regions` 时拒绝，所以实际上只有账号池能用 `region`。
+
+头模板在账号池上的变量见[变量从哪来](#变量从哪来)。`Content-Type` 和 `Accept` 仍然不能写进模板。模板是静态字符串加占位符，不能按区域或按字段是否为空切换头。
+
+### ui
+
+`ui` 可选。管理端站点类型的 `accounts.ui` 用蛇形名：`row_pills`、`operations`、`texts`。三项都空则响应里不带 `ui`。
+
+`rowPills` 最多 4 项。`field` 必须是已声明的非密钥字段。`labels` 可选，把字段值映射成文案，最多 8 项；键不能空、不超过 64 字节、不能含控制字符；值是本地化文案。
+
+`operations` 不能重复。允许的值：
+
+`add`、`reauth`、`refresh`、`delete`、`toggle`、`models`、`import`
+
+`import` 要求 `import.enabled` 为真。
+
+`texts` 的值是一个字符串（各语言共用），或 `{"zh","en",...}`（最多 8 种语言，每种不超过 400 字节）。键只能是：
+
+`title`、`login_reauth_title`、`login_title`、`login_starting`、`login_instructions`、`login_authorize`、`login_waiting`、`cancel`、`region_title`、`region_description`、`region_continue`、`loading`、`add`、`import`、`refresh_all`、`unnamed`、`refresh`、`delete`、`reauthorize`、`toggle_label`、`empty`、`delete_title`、`delete_confirm`、`delete_delete`、`login_hint`
+
+### 钩子
+
+账号池钩子和 `probe` 一样是分步的：返回 `{ request }`、`{ result }` 或 `{ error }` 之一，三者只能有一个。时限 200 ms，最多调用 6 次（最多 5 个 HTTP 请求）。单个请求体 64 KiB，交给插件的响应体 1 MiB，单次 HTTP 20 秒。内存 16 MiB，返回值 1 MiB。日志每次调用最多 20 条，每条 1024 字节。
+
+`result.kind` 不是插件 kind，是这次返回值的种类：
+
+| 钩子 | `ctx` | `result.kind` | `status` |
+| --- | --- | --- | --- |
+| `startLogin`、`pollLogin` | `siteType`、`baseURL`、`params`（登录表单，不是凭据）、`now`（毫秒） | `account_login` | `pending`、`complete` |
+| `refreshTokens` | `siteType`、`baseURL`、`fields`（只有非密钥字段）、`now` | `account_refresh` | `ok`、`reauth` |
+| `summarizeAccount` | 与 `refreshTokens` 相同 | `account_summary` | `ok`、`unavailable` |
+
+`account_login` 的结果还可以有 `verificationURL`、`userCode`、`interval`、`credential`。`pending` 时，`verificationURL` 的主机必须在 `hosts` 里，否则这次登录失败，地址不下发。`interval` 缺省或小于 1 按 5 秒，大于 60 按 60 秒。`complete` 必须带 `credential`。
+
+`account_refresh` 的 `ok` 必须带 `credential`。`reauth` 表示授权已失效，宿主把它当成需要重新授权，不把传输失败当成这个状态。`credential` 最多 16 个键，键必须是已声明的字段。
+
+`credential` 里，secret 字段的值必须正好是 `{{secret.<同一字段名>}}`，由宿主从秘密袋取出。写成原始令牌会拒绝。非密钥字段是普通字符串，不能含 `{{secret.`，也不能含秘密袋里的值；`unix` 字段必须是非负十进制整数字符串。access token 字段必须出现并且非空。没写到的字段，刷新时保留上一份凭据里的值。
+
+`account_summary` 的 `entries` 与[额度探测](./quota-probe.md)的 entry 相同。`remark` 可选。宿主仍会按秘密袋擦 `remark` 和 entry 的文案字段。`status` 没有「需要重新授权」。网关看到上游 401 时，仍可以按账号凭据把这把标成需要重新授权。
+
+`summarizeAccount` 对每个账号池包都必填。`startLogin` 与 `pollLogin` 只在 `login.kind` 为 `custom_poll` 时必填。`refreshTokens` 只在 `refresh.kind` 为 `custom_steps` 时必填。
+
+`pollLogin` 每次从 `startLogin` 结束时的步骤基线重放。上一次轮询的响应不会留在 `steps` 里。Cookie 罐和秘密袋保留。
+
+这些钩子不进 `xlyra-plugin test` 的样本，也不进 `xlyra-plugin run`。样本的 `hook` 仍然只能是 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。
+
+### 密钥不进 JS
+
+秘密袋在宿主进程里，属于这一次登录、刷新或摘要，不在 goroutine 之间共享。
+
+`login.secretPaths` 和 `refresh.secretPaths` 是对象：键是响应 JSON 的路径，值是 secret 字段名。路径是点分键加数字下标，例如 `data.accessToken`、`items[0].token`。键由 `[A-Za-z0-9_-]` 组成，下标是非负整数。不支持通配符。空段、`*`、`?`、空白会在校验清单时拒绝。值必须是已声明的 secret 字段。
+
+响应交给 JS 之前，宿主按路径把字符串摘进秘密袋，`Body` 和解析后的 `JSON` 里该位置都换成固定占位 `{{redacted}}`。同一字段有多条路径时，按路径字典序，第一条非空字符串留在袋里，其余命中仍从文档里删掉。路径不存在不算错误，也不写袋。路径在但值不是非空字符串，这一步失败。声明了 `secretPaths` 时，响应必须是 JSON 对象；非 JSON（包括 HTML 错误页）、根是数组或标量，这一步失败，原文不交给 JS。响应头仍会去掉 `Set-Cookie`。
+
+钩子在 `request` 里用 `{{secret.<field>}}` 引用袋中的值。`<field>` 是小写开头的 `[a-z][a-z0-9_]*`，必须是这次允许的 secret 字段，并且袋里已经有值。可以出现在：
+
+- 请求体里的字符串
+- query 的值
+- 头的值
+
+不能出现在 path、HTTP 方法、头名、query 的键、JSON 对象的键。头值代入后若含 CR 或 LF，这一步失败。其它 `{{...}}` 原样留下。替换前，URL 已经过 `hosts` 检查；替换后主机不得变化，path 里也不得出现密钥。日志记的是替换前的模板。
+
+错误和日志会用秘密袋做替换，替换标记是 `[redacted]`。短于 4 个 Unicode 码位的值不参与这层擦除（一个 emoji 按一个码位计，不按字节）。声明路径上的值不论长短都会换成 `{{redacted}}`；同一个短值如果还出现在路径之外的日志或错误字符串里，擦不掉。请不要用短于 4 个字符的口令当 secret 字段。
+
+登录 Cookie 存在宿主的 Cookie 罐里，按会话 id 放，不进 JS。
+
+### 凭据类型
+
+账号池凭据的 `credential_type` 是：
+
+```text
+account:<siteType>:<uuid>
+```
+
+`<siteType>` 是站点类型 ID（含一个 `/`，不含 `:`），写入前去掉首尾空白并改成小写。`<uuid>` 是标准 8-4-4-4-12 的十六进制 UUID。解析时，去掉 `account:` 前缀后，最后一个 `:` 之后是 uuid，其余是站点类型。解析失败的 `account:` 字符串不算账号凭据。内置的 `grok_sso:` 保持原样，不走这个前缀。
+
+同一站点上 `UNIQUE(site_id, credential_type)` 靠 uuid 区分多账号。
+
+### 登录会话
+
+登录状态在进程内存里：自定义登录的 Cookie 罐、设备码、秘密袋都在发起 `startLogin` 的那一个进程。另一个实例上的轮询、进程重启、或者目录重载换掉了 runtime，会话都没了，轮询得到「会话不在这个进程」。
+
+`custom_poll` 的会话从开始起 10 分钟后过期。设备码会话的过期时间来自提供方的 `expires_in`（缺省 600 秒，最长 1800 秒）。登录已经完成时，管理端在同一进程里还可以再取到结果，这份结果也保留 10 分钟。
+
+### 出站
+
+登录、刷新、摘要发出的请求，与这次的 `baseURL` 同源（协议、主机、端口；重定向也是，最多 10 次），并且主机在启用时确认的 `hosts` 里。区域 `baseURL`、设备码地址、`verificationURL` 同样要在 `hosts` 里。不通过则不把地址交给浏览器，也不把原文交给 JS。
+
+网关转发仍用[出站限制](#出站限制)。账号凭据解析失败时换下一把，见[排错](#排错)。
+
+### 当前限制
+
+这些是框架现在做不到的事，对插件作者有影响的几条：
+
+- 聊天转发的请求头模板不能按区域或按条件变化。登录、刷新、摘要、列模型的钩子可以在自己的 `request.headers` 里写 `Origin` / `Referer`；网关转发这条路径不行。模板也不能按 `domain` 是否为空在 `X-Domain` 和别的头之间切换。
+- `identity` 只有一条 `claims.…` 或 `field.…`。不能把 JWT 里的 email 另行写进 meta。
+- 导入的别名是账号对象的顶层键。realm 别名留在字段里，不收成区域 id。毫秒阈值是 1e12。
+- `summarizeAccount` 不能把账号标成需要重新授权。
+- `listModels` 的 `ctx` 没有账号字段，看不到 `domain`。登录完成时不会按这个账号去调用 `listModels` 填充账号上的模型列表。
+- 声明了 `secretPaths` 时，非 JSON 响应整步失败，不会当成 `pending`。
+- 短于 4 个 Unicode 码位的密钥值，出现在声明路径之外时不会被擦掉。
 
 ## 启用与信任
 
@@ -192,7 +463,7 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 
 ## 钩子
 
-五个都是可选导出。没导出就当没有这个钩子。`meta.id`、`meta.kind`、`meta.apiVersion` 必须和清单一致。
+下面五个是 `api_key` 和 `account_pool` 都可以导出的可选钩子。没导出就当没有这个钩子。账号池另外的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 见[账号池站点](#账号池站点credentialmodelaccount_pool)，按 `login.kind` / `refresh.kind` 决定哪些必填。`meta.id`、`meta.kind`、`meta.apiVersion` 必须和清单一致。
 
 时限和大小与同类钩子相同：
 
@@ -380,13 +651,15 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 
 ## 安全注意
 
-插件拿不到密钥，也不能自己发请求。分步钩子只描述 `request`，鉴权头由 xLyra 加上。`rewritePayload` 的 `ctx` 里没有密钥、请求头或账号字段；密钥是在正文改写之后才放进请求头的。
+插件拿不到密钥明文，也不能自己发请求。分步钩子只描述 `request`，鉴权头由 xLyra 加上。`rewritePayload` 的 `ctx` 里没有密钥、请求头或账号字段；密钥是在正文改写之后才放进请求头的。账号池钩子只能看到 `{{redacted}}` 和 `{{secret.<field>}}`，见[密钥不进 JS](#密钥不进-js)。
 
-宿主写出插件日志时不脱敏。`probe`、`listModels`、`check`、`rewritePayload` 的日志会进服务日志。`classify` 这次调用收集到的日志会被丢掉。`rewritePayload` 能看到用户消息正文，请不要把用户消息打进日志。
+宿主写出 `probe`、`listModels`、`check`、`rewritePayload` 的日志时不脱敏，这些日志会进服务日志。`classify` 这次调用收集到的日志会被丢掉。账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 在写日志之前先按秘密袋替换；短于 4 个 Unicode 码位的值替换不到。`rewritePayload` 能看到用户消息正文，请不要把用户消息打进日志。
 
 请只启用可信来源的插件。未受信的 `site_provider` 不能靠二次确认启用。
 
 ## 已知限制
+
+账号池做不到的事见[当前限制](#当前限制)。下面这些对两种凭据模型都成立：
 
 - 插件图标：`display.icon` 声明的 PNG 或 WebP 由 `GET /api/v1/plugin-icons/{pluginID}` 提供。这个接口在管理端会话路由组里，浏览器要带 Cookie `xlyra_admin_session`；停用后仍可访问，插件删除后返回 404。站点类型的 `icon_url` 是 `/api/v1/plugin-icons/<pluginID>?v=<包 SHA256 的前 16 位>`，换包后 `v` 会变。没有声明图标时 `icon_url` 仍为空，创建页用显示名的首字符做占位。创建页先查内置图标映射，插件类型没有映射，于是用 `icon_url`。
 - `display.brandColor` 只校验 `#RRGGBB`，不会送到创建页。
@@ -409,5 +682,9 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 | `upstream_host_not_allowed` | 502 | 上游主机不在确认过的列表里，请求未发出 |
 | `plugin_header_template_failed` | 502 | 请求头模板渲染失败，请求未发出，不换密钥。错误信息有头名，不含密钥的值 |
 | `request_param_validation_failed` | 400 | `requestParams.validation` 没通过。这是改写成功之后的参数校验 |
+| `plugin_account_credential_invalid` | — | 账号凭据包解不开、缺少 access token、区域基址不可用，或账号池未配置。换下一把凭据，不标重新授权 |
+| `plugin_account_refresh_failed` | — | 网关选路时刷新失败，或刷新器没配上。换下一把凭据。只有错误是需要重新授权时才标重新授权 |
+
+管理端账号接口对插件账号池和内置账号池用同一组错误码：`account_login_start_failed`（502）、`account_login_failed`（400）、`account_refresh_failed`（400）、`account_import_failed`（400）、`account_import_unsupported`（404，这种站点类型没有打开导入）。
 
 钩子运行失败仍使用 `js_timeout`、`js_shape_error`、`js_exception`、`js_url_rejected`、`js_plugin_response_too_large` 等类型，格式见[错误码](./errors.md)。

@@ -4,8 +4,8 @@
 
 插件运行在沙箱里，只做纯计算。
 
-- 钩子的参数里没有任何密钥，`ctx` 只有站点类型、地址和凭据**类型**。
-- 插件只能"描述"请求（`request` / `buildRequest` 的返回值），真正发请求的是 xLyra 的 Go 代码，由它把鉴权头加上。
+- 钩子的参数里没有密钥明文。普通分步钩子的 `ctx` 只有站点类型、地址和凭据**类型**。账号池的 `refreshTokens` / `summarizeAccount` 另外带非密钥字段；`startLogin` / `pollLogin` 带的是登录表单参数。
+- 插件只能"描述"请求（`request` / `buildRequest` 的返回值），真正发请求的是 xLyra 的 Go 代码，由它把鉴权头加上。账号池用 `{{secret.<field>}}` 引用宿主秘密袋，见下文。
 - 插件设置的 `Authorization`、`Cookie`、`Proxy-Authorization`、`Host` 等头会被丢弃。
 - 响应里的 `Set-Cookie` 不会交给插件。
 
@@ -46,6 +46,17 @@
 | 请求头 | 32 个，共 8 KiB |
 | 插件包 | 2 MiB，64 个文件 |
 | `site_provider` 的 `display.icon` | 64 KiB，只能是 PNG 或 WebP |
+| 账号池 `credential.fields` | 1–16 项 |
+| 账号池 `regions` | 1–8 项；每项 `realms`、`domains` 各最多 8 |
+| 账号池 `refresh.leadSeconds` | 30–3600，不写时为 300（`refresh.kind` 为 `none` 时不能写） |
+| 账号池自定义登录会话 | 进程内，10 分钟。设备码会话按提供方 `expires_in`，缺省 600 秒，最长 1800 秒 |
+| 账号池登录轮询间隔 | 缺省或小于 1 按 5 秒，大于 60 按 60 秒 |
+| 账号池导入，单个文件 | 4 MiB，最多 500 个账号对象 |
+| 账号池导入，一次请求 | 最多 50 个文件，合计 200 个账号 |
+| 账号池 `import.containers` | 最多 8 项；每个 `fieldMap` 键 1–8 个别名 |
+| 账号池 `ui.rowPills` | 最多 4 项；每项 `labels` 最多 8，键最长 64 字节 |
+| 账号池额度耗尽冷却 | 到 `resetAt`，最长 7 天，原因 `quota_exhausted` |
+| 秘密擦除 | 短于 4 个 Unicode 码位的值不从日志和错误字符串里擦掉 |
 
 超时或内存超限时，运行时会被**立即中断**并丢弃，不会影响其他请求。
 
@@ -82,7 +93,17 @@
 
 插件被停用或卸载之后没有可用的白名单。类型名里带 `/` 的出站会被拒绝。
 
-`site_provider` 的 `probe`、`listModels`、`check` 在发请求前，除了与站点 `base_url` 同源，还会再做一次上面的主机名检查。站点类型名里带 `/` 时，手工绑定的分步插件也做这一次检查。内置站点类型（类型名不含 `/`）的额度探测仍只受同源限制。详见 [API Key 站点类型](./site-provider.md#出站限制)。
+`site_provider` 的 `probe`、`listModels`、`check`，以及账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount`，在发请求前除了与站点 `base_url` 同源，还会再做一次上面的主机名检查。站点类型名里带 `/` 时，手工绑定的分步插件也做这一次检查。内置站点类型（类型名不含 `/`）的额度探测仍只受同源限制。详见[站点类型](./site-provider.md#出站限制)。
+
+## 账号池的密钥
+
+账号池的 access token、refresh token 和其它 `secret: true` 字段留在宿主的秘密袋里。JS 看到的响应里，`secretPaths` 指到的位置是 `{{redacted}}`，`Body` 和解析后的 JSON 一起改写。钩子要用这个值时，在请求体字符串、query 值或头值里写 `{{secret.<field>}}`。path、方法、头名、query 键、JSON 对象键里出现这个占位符，请求不会发出。替换前 URL 已经过 `hosts`；替换后主机不得变化。
+
+声明了 `secretPaths` 时，非 JSON 响应整步失败，原文不交给 JS。路径不存在不算错误。路径在但值不是非空字符串，这一步失败。
+
+日志和错误字符串会把袋里的值换成 `[redacted]`。短于 4 个 Unicode 码位的值不参与这层替换。登录 Cookie 罐在进程内存里，按会话存放，不进 JS，也不跨实例。目录重载换掉 runtime 后，进行中的会话同样丢掉。
+
+头模板 `{{cred.<field>}}` 和上面的 `{{secret.<field>}}` 不是一回事。网关转发只把非密钥字段和 access token 放进 `cred.*`。
 
 ## 插件图标
 

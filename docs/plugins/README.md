@@ -19,7 +19,7 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 | [模型元数据](./model-metadata.md) | `model_metadata` |
 | [价格解析](./pricing-parse.md) | `pricing_parse` |
 | [自动化](./automation.md) | `automation`：响应 xLyra 事件，返回由 xLyra 执行的动作；绑定表单由 manifest 声明 |
-| [API Key 站点类型](./site-provider.md) | `site_provider`：声明一个新的 API Key 站点类型 |
+| [站点类型](./site-provider.md) | `site_provider`：声明 API Key 或账号池站点类型 |
 | [清单 manifest.json](./manifest.md) | 字段、校验规则 |
 | [fixtures 测试样本](./fixtures.md) | 样本格式与比对规则 |
 | [宿主 API](./host-api.md) | 插件里可以调用的全局函数 |
@@ -34,7 +34,8 @@ xLyra 的 JS 插件只做**纯计算**：把上游的响应翻译成 xLyra 能�
 仓库里的内置插件就是官方示例，写法覆盖单请求、多步回退、金额换算和协议透传：
 
 - 额度探测：`server/internal/jsplugin/builtin/xlyra.quota.*`（`src/plugin.js` 是源码，`fixtures/` 是样本）
-- API Key 站点类型：[`examples/site-provider-minimal/`](./examples/site-provider-minimal/)（其余类型暂无内置示例，请用 `xlyra-plugin init --kind <类型>` 生成的模板）
+- API Key 站点类型：[`examples/site-provider-minimal/`](./examples/site-provider-minimal/)
+- 账号池站点类型暂无仓库内示例。其余类型暂无内置示例，请用 `xlyra-plugin init --kind <类型>` 生成的模板
 - 协议：`server/internal/jsplugin/builtin/xlyra.protocol.typesafe-systemone`
 
 内置插件用到的辅助函数在 `builtin/_shared/helpers.js`，由构建脚本拼进 `plugin.js`。你自己的插件需要的话，直接写在自己的源码里。

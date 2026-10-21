@@ -21,7 +21,7 @@ xlyra-plugin kinds
 | [`model_metadata`](./model-metadata.md) | 上游模型名对应的名称与能力 xLyra 不认识 | `describeModels` | 无 | 全局：启用即对所有站点生效 |
 | [`pricing_parse`](./pricing-parse.md) | 站点公布的价格表格式特殊 | `parsePricing` | 站点 API Key（由 xLyra 取价格表） | 站点：启用后预览核对，再绑定到站点 |
 | [`automation`](./automation.md) | xLyra 里发生某件事时自动做点什么，比如额度重置后清零密钥用量 | `handle` | 无 | 对象：启用时授予权限，再按插件声明的表单绑定到 OAuth 账号、API 密钥或站点 |
-| [`site_provider`](./site-provider.md) | 声明一个新的 API Key 站点类型 | 可选 `probe`、`listModels`、`check`、`classify`、`rewritePayload` | 站点 API Key | 站点类型：启用需要受信签名并确认主机；按站点类型自动生效 |
+| [`site_provider`](./site-provider.md) | 声明一个新的站点类型：API Key，或账号池 | 可选 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。账号池另有 `summarizeAccount`，以及按清单必填的 `startLogin`、`pollLogin`、`refreshTokens` | `api_key` 用站点 API Key。`account_pool` 用 `account:<siteType>:<uuid>`，密钥不进 JS | 站点类型：启用需要受信签名并确认主机；按站点类型自动生效 |
 
 ### 作用域是什么意思
 
@@ -48,7 +48,7 @@ xlyra-plugin kinds
 | 站点公布的价格表是特殊格式 | `pricing_parse` |
 | 上游需要特殊请求头、请求签名、请求改写 | 暂时没有对应类型，计划作为 `protocol` 的可选钩子 |
 | 账号额度重置后自动清零密钥用量、站点余额不足时推送通知（Bark、Webhook 等，由插件自己发请求） | `automation` |
-| 我要声明一种新的 API Key 站点类型 | `site_provider` |
+| 我要声明一种新的 API Key 站点类型，或一种带登录、刷新、多账号的站点类型 | `site_provider`（`credential.model` 为 `api_key` 或 `account_pool`） |
 | 我想加新功能、计费规则、选路策略 | 插件做不到，请向 xLyra 提需求 |
 
 一个站点可能需要多个插件，比如一个 `protocol` 加一个 `quota_probe`，它们各自打包、各自上传。
@@ -81,7 +81,7 @@ xLyra 在某件事发生后把事件放进队列，后台依次交给插件，�
 
 ### 站点类型：`site_provider`
 
-声明一个新的 API Key 站点类型。可选导出 `probe`、`listModels`、`check`、`classify`、`rewritePayload`，都不是必填。启用需要受信签名，并且每次启用都要确认主机列表。钩子按站点类型自动生效，不能逐站点绑定。停用后该类型站点保留数据但不参与路由。详见 [API Key 站点类型](./site-provider.md)。
+声明一个新的站点类型。`credential.model` 为 `api_key` 时用一把站点 Key；为 `account_pool` 时由 xLyra 执行多账号的登录、刷新、导入和选路，插件只描述，密钥不进 JS。可选导出 `probe`、`listModels`、`check`、`classify`、`rewritePayload`。账号池必定导出 `summarizeAccount`；`custom_poll` 再导出 `startLogin` 和 `pollLogin`；`custom_steps` 再导出 `refreshTokens`。这些账号钩子的返回 kind 是 `account_login`、`account_refresh`、`account_summary`，不是新的插件 kind。启用需要受信签名，并且每次启用都要确认主机列表。钩子按站点类型自动生效，不能逐站点绑定。停用后该类型站点保留数据但不参与路由。详见[站点类型](./site-provider.md)。
 
 所有类型共用同一个原则：**插件只"描述"想做什么，真正的执行永远在 xLyra 里**。`request` 是描述，`actions` 是描述，`classify` 的结果也是描述。
 

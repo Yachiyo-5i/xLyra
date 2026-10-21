@@ -56,7 +56,7 @@ xLyra **不签发开发者证书**，信任关系完全由管理员决定：只�
 | `model_list`、`credential_check`、`error_classifier` | 同上：在下拉框里选择要使用它的站点（可多选），点"应用"；从下拉框里取消某个站点再应用，就解除它的绑定、回到默认行为 |
 | `pricing_parse` | 选择站点后，对每个新选的站点先点"预览价格"，核对结果并勾选确认，再点"应用" |
 | `site_detect`、`model_metadata` | 不需要绑定，启用即对所有站点生效 |
-| `site_provider` | 不需要绑定，也不能绑定到单个站点。受信签名并确认主机后，按声明的站点类型出现在创建页。详见 [API Key 站点类型](./site-provider.md) |
+| `site_provider` | 不需要绑定，也不能绑定到单个站点。受信签名并确认主机后，按声明的站点类型出现在创建页。`api_key` 与 `account_pool` 都是这样。详见[站点类型](./site-provider.md) |
 
 `site_provider` 没有这一档：启用并确认主机之后就按站点类型生效，不能再绑定到单个站点。
 

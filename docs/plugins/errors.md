@@ -74,3 +74,24 @@ js_timeout: interrupted: timeout
 | `plugin_rewrite_failed` | 站点类型的 `rewritePayload` 失败（抛错、超时、形状不对、改了 `model` 或 `stream`、正文超过 1 MiB）。错误信息里带插件 id |
 | `upstream_host_not_allowed` | 插件站点类型的上游主机不在启用时确认的列表里，或该类型已停用 |
 | `plugin_header_template_failed` | 插件站点的请求头模板渲染失败（变量不存在，或结果含 CR、LF、其它控制字符）。错误信息里有头名，不含密钥的值 |
+
+## 账号池凭据
+
+这些错误出现在网关为插件账号池解析凭据时。这一次凭据失败，并尝试下一把。全部失败时请求失败。
+
+| 错误码 | 含义 |
+| --- | --- |
+| `plugin_account_credential_invalid` | 凭据包解不开、缺少 access token、区域基址不可用，或该站点类型的账号池没配上。不标重新授权 |
+| `plugin_account_refresh_failed` | 距到期不足 `leadSeconds` 时刷新失败，刷新没有返回字段，或刷新器没配上。只有刷新错误表示需要重新授权时，才把这把凭据标成要重新授权 |
+
+上游 401 和传输失败是否换凭据，按凭据类型是不是账号凭据判断（含 `account:<siteType>:<uuid>`，以及内置的 `grok_sso:`）。API Key 不走这条。
+
+管理端账号接口（插件账号池与内置账号池共用）：
+
+| 错误码 | HTTP | 含义 |
+| --- | --- | --- |
+| `account_login_start_failed` | 502 | 开始登录失败 |
+| `account_login_failed` | 400 | 轮询登录失败 |
+| `account_refresh_failed` | 400 | 刷新账号失败 |
+| `account_import_failed` | 400 | 导入文件被拒绝 |
+| `account_import_unsupported` | 404 | 这种站点类型没有打开导入 |

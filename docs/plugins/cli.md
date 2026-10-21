@@ -62,7 +62,7 @@ xlyra-plugin run --key-env VAR [--base-url URL] [--site-type T] [--credential-ty
 - `--base-url`：站点地址，会按清单的 `baseURLMode` 整理；省略则使用 `defaultBaseURL`。`site_provider` 没有 `baseURLMode`，按 `as_is` 整理，省略时用 `officialBaseURL`。
 - `--site-type`：传给插件的 `ctx.siteType`，默认 `custom`。
 - `--credential-type`：传给插件的 `ctx.credentialType`，默认 `api_key`。
-- `--hook`：只用于 `site_provider`，必填，取值 `probe`、`listModels` 或 `check`。`classify` 和 `rewritePayload` 不支持 `run`，用 `test`。其它 kind 写了 `--hook` 会报错。
+- `--hook`：只用于 `site_provider`，必填，取值 `probe`、`listModels` 或 `check`。`classify` 和 `rewritePayload` 不支持 `run`，用 `test`。账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 既不能 `run`，也不能放进样本。其它 kind 写了 `--hook` 会报错。
 - 实际发出的每个请求会打印到标准错误，插件的日志也会打印，最终结果以 JSON 输出到标准输出。
 
 支持会向站点取数据的类型：`quota_probe`、`model_list`、`credential_check`、`site_detect`，以及 `site_provider` 的三个分步钩子。`site_detect` 不带凭据，不需要 `--key-env`，请求也不会有 `Authorization` 头。`protocol`、一次性函数，以及 `site_provider` 的 `classify` / `rewritePayload` 请用 `test` 验证。本地 `run` 只做同源限制，不套用 `site_provider` 的主机白名单。
