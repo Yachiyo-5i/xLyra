@@ -17,6 +17,14 @@ import (
 	"xlyra/server/internal/site"
 )
 
+// Account-pool plugins can be enabled. Login cookie jars and device-code
+// sessions stay in this process: a poll that hits another instance, or a
+// restart, loses the session. Catalog reload replaces the runtime snapshot
+// and drops those sessions with it. The gateway refresher is P3-7.
+func init() {
+	jsplugin.AccountPoolEnabled = true
+}
+
 // siteProviderCurrent, when set by the router, drops an apply whose registry
 // is no longer the manager's current one so a newer reload wins.
 var (
@@ -26,9 +34,10 @@ var (
 )
 
 type siteProviderApplyState struct {
-	specs   map[string]json.RawMessage
-	modules []adapter.Module
-	types   []site.PluginSiteType
+	specs    map[string]json.RawMessage
+	modules  []adapter.Module
+	types    []site.PluginSiteType
+	runtimes map[string]site.PluginAccountRuntime
 }
 
 type preparedSiteProvider struct {
@@ -58,7 +67,7 @@ func applySiteProviders(registry *jsplugin.Registry, siteSvc *site.Service, logg
 		logger.Error("site provider snapshot was not updated", "error", errors.New("site service is nil"))
 		return
 	}
-	specs, modules, items := collectSiteProviders(registry, logger)
+	specs, modules, items, runtimes := collectSiteProviders(registry, logger)
 	if err := gateway.SetRuntimeProviderSpecs(specs); err != nil {
 		logger.Error("site provider snapshot was not updated", "error", err)
 		return
@@ -68,12 +77,17 @@ func applySiteProviders(registry *jsplugin.Registry, siteSvc *site.Service, logg
 		restoreSiteProviders(siteSvc, logger)
 		return
 	}
+	if err := siteSvc.SetPluginAccountRuntimes(runtimes); err != nil {
+		logger.Error("site provider snapshot was not updated", "error", err)
+		restoreSiteProviders(siteSvc, logger)
+		return
+	}
 	if err := site.SetPluginSiteTypes(items); err != nil {
 		logger.Error("site provider snapshot was not updated", "error", err)
 		restoreSiteProviders(siteSvc, logger)
 		return
 	}
-	siteProviderLast = siteProviderApplyState{specs: specs, modules: modules, types: items}
+	siteProviderLast = siteProviderApplyState{specs: specs, modules: modules, types: items, runtimes: runtimes}
 }
 
 func restoreSiteProviders(siteSvc *site.Service, logger *slog.Logger) {
@@ -83,12 +97,15 @@ func restoreSiteProviders(siteSvc *site.Service, logger *slog.Logger) {
 	if err := siteSvc.SetPluginAdapterModules(siteProviderLast.modules); err != nil {
 		logger.Error("site provider snapshot restore failed", "error", err)
 	}
+	if err := siteSvc.SetPluginAccountRuntimes(siteProviderLast.runtimes); err != nil {
+		logger.Error("site provider snapshot restore failed", "error", err)
+	}
 	if err := site.SetPluginSiteTypes(siteProviderLast.types); err != nil {
 		logger.Error("site provider snapshot restore failed", "error", err)
 	}
 }
 
-func collectSiteProviders(registry *jsplugin.Registry, logger *slog.Logger) (map[string]json.RawMessage, []adapter.Module, []site.PluginSiteType) {
+func collectSiteProviders(registry *jsplugin.Registry, logger *slog.Logger) (map[string]json.RawMessage, []adapter.Module, []site.PluginSiteType, map[string]site.PluginAccountRuntime) {
 	var plugins []*jsplugin.Plugin
 	if registry != nil {
 		plugins = registry.ByKind(jsplugin.KindSiteProvider)
@@ -96,12 +113,21 @@ func collectSiteProviders(registry *jsplugin.Registry, logger *slog.Logger) (map
 	specs := map[string]json.RawMessage{}
 	var modules []adapter.Module
 	var items []site.PluginSiteType
+	runtimes := map[string]site.PluginAccountRuntime{}
 	seen := make(map[string]string)
 	for _, plugin := range plugins {
 		prepared, err := convertSiteProvider(plugin)
 		if err != nil {
 			logger.Warn("site provider plugin skipped", "plugin_id", siteProviderPluginID(plugin), "error", err)
 			continue
+		}
+		var runtime site.PluginAccountRuntime
+		if prepared.item.Pool != nil {
+			runtime, err = newAccountPoolRuntime(plugin, prepared.item.Pool)
+			if err != nil {
+				logger.Warn("site provider plugin skipped", "plugin_id", prepared.pluginID, "error", err)
+				continue
+			}
 		}
 		if previous, ok := seen[prepared.siteType]; ok {
 			logger.Warn("site provider plugin skipped", "plugin_id", prepared.pluginID, "error", fmt.Errorf("site type %q is already declared by %s", prepared.siteType, previous))
@@ -111,8 +137,11 @@ func collectSiteProviders(registry *jsplugin.Registry, logger *slog.Logger) (map
 		specs[prepared.siteType] = prepared.spec
 		modules = append(modules, prepared.module)
 		items = append(items, prepared.item)
+		if runtime != nil {
+			runtimes[prepared.siteType] = runtime
+		}
 	}
-	return specs, modules, items
+	return specs, modules, items, runtimes
 }
 
 func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) {

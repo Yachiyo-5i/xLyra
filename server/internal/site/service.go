@@ -37,16 +37,18 @@ const (
 )
 
 type Service struct {
-	db          *store.Store
-	credentials credential.Service
-	adapters    adapter.Registry
-	modelCaps   *modelcapabilities.Service
-	oauth       *oauthsvc.Service
-	httpClients *httpclient.Manager
-	confFile    *config.ConfigFile
-	timeZone    config.TimeZone
-	siteLocks   *siteRefreshLocks
-	jsPlugins   *jsplugin.Registry
+	db              *store.Store
+	credentials     credential.Service
+	adapters        adapter.Registry
+	modelCaps       *modelcapabilities.Service
+	oauth           *oauthsvc.Service
+	httpClients     *httpclient.Manager
+	confFile        *config.ConfigFile
+	timeZone        config.TimeZone
+	siteLocks       *siteRefreshLocks
+	jsPlugins       *jsplugin.Registry
+	accountRuntimes pluginAccountRuntimeSlot
+	pluginLogins    *pluginLoginResults
 }
 
 type CreateSiteParams struct {
@@ -150,16 +152,17 @@ func newServiceWithTimeZone(db *store.Store, masterKey string, timeZone config.T
 		slog.Warn("builtin js plugins unavailable", "error", err)
 	}
 	return &Service{
-		db:          db,
-		credentials: credential.NewService(masterKey),
-		adapters:    adapter.NewRegistry(),
-		modelCaps:   catalog.NewCapabilityService(db),
-		oauth:       oauthService,
-		httpClients: httpClients,
-		confFile:    confFile,
-		timeZone:    timeZone,
-		siteLocks:   newSiteRefreshLocks(),
-		jsPlugins:   plugins,
+		db:           db,
+		credentials:  credential.NewService(masterKey),
+		adapters:     adapter.NewRegistry(),
+		modelCaps:    catalog.NewCapabilityService(db),
+		oauth:        oauthService,
+		httpClients:  httpClients,
+		confFile:     confFile,
+		timeZone:     timeZone,
+		siteLocks:    newSiteRefreshLocks(),
+		jsPlugins:    plugins,
+		pluginLogins: newPluginLoginResults(),
 	}
 }
 

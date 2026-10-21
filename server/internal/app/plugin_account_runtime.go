@@ -1,0 +1,126 @@
+package app
+
+import (
+	"context"
+	"strings"
+
+	"xlyra/server/internal/jsplugin"
+	"xlyra/server/internal/site"
+)
+
+// accountPoolRuntimeAdapter wraps one jsplugin.AccountProviderRuntime.
+// Login sessions are process-local. A poll on another instance, or after a
+// restart or catalog reload, returns the runtime's not-found error.
+type accountPoolRuntimeAdapter struct {
+	runtime *jsplugin.AccountProviderRuntime
+	spec    jsplugin.AccountPoolSpec
+}
+
+func newAccountPoolRuntime(plugin *jsplugin.Plugin, pool *jsplugin.AccountPoolSpec) (site.PluginAccountRuntime, error) {
+	runtime, err := jsplugin.NewAccountProviderRuntime(plugin, nil)
+	if err != nil {
+		return nil, err
+	}
+	spec := jsplugin.AccountPoolSpec{}
+	if pool != nil {
+		spec = pool.Clone()
+	}
+	return accountPoolRuntimeAdapter{runtime: runtime, spec: spec}, nil
+}
+
+func (a accountPoolRuntimeAdapter) StartLogin(ctx context.Context, params map[string]string) (site.PluginLoginStart, error) {
+	session, err := a.runtime.StartLogin(ctx, params)
+	if err != nil {
+		return site.PluginLoginStart{}, err
+	}
+	return site.PluginLoginStart{
+		ID:                      session.ID,
+		Kind:                    session.Kind,
+		Status:                  session.Status,
+		UserCode:                session.UserCode,
+		VerificationURL:         session.VerificationURL,
+		VerificationURLComplete: session.VerificationURLComplete,
+		Interval:                session.Interval,
+		ExpiresAt:               session.ExpiresAt,
+		Identity:                session.Identity,
+		Credential:              session.Credential,
+	}, nil
+}
+
+func (a accountPoolRuntimeAdapter) PollLogin(ctx context.Context, sessionID string) (site.PluginLoginPoll, error) {
+	poll, err := a.runtime.PollLogin(ctx, jsplugin.LoginSession{ID: sessionID})
+	if err != nil {
+		return site.PluginLoginPoll{}, err
+	}
+	return site.PluginLoginPoll{
+		Status:     poll.Status,
+		Interval:   poll.Interval,
+		Identity:   poll.Identity,
+		Credential: poll.Credential,
+	}, nil
+}
+
+func (a accountPoolRuntimeAdapter) Refresh(ctx context.Context, fields map[string]string) (map[string]string, error) {
+	return a.runtime.Refresh(ctx, fields)
+}
+
+func (a accountPoolRuntimeAdapter) Summarize(ctx context.Context, baseURL string, fields map[string]string) (site.PluginAccountSummary, error) {
+	summary, err := a.runtime.Summarize(ctx, jsplugin.AccountSnapshot{BaseURL: baseURL, Fields: fields})
+	if err != nil {
+		return site.PluginAccountSummary{}, err
+	}
+	return site.PluginAccountSummary{
+		Status:  summary.Status,
+		Remark:  summary.Remark,
+		Entries: quotaEntriesFromProbe(summary.Entries),
+	}, nil
+}
+
+func (a accountPoolRuntimeAdapter) ParseImport(raw []byte) ([]site.PluginImportedAccount, error) {
+	if !a.spec.Import.Enabled {
+		return nil, site.ErrAccountImportUnsupported
+	}
+	cfg := a.spec.Import
+	imported, err := jsplugin.ParseAccountImport(raw, &cfg, a.spec.Credential.Fields, a.spec.Credential.ExpiresAtField)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]site.PluginImportedAccount, 0, len(imported))
+	for _, account := range imported {
+		out = append(out, site.PluginImportedAccount{Fields: account.Fields})
+	}
+	return out, nil
+}
+
+func quotaEntriesFromProbe(entries []jsplugin.ProbeEntry) []site.QuotaProbeEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]site.QuotaProbeEntry, 0, len(entries))
+	for _, entry := range entries {
+		item := site.QuotaProbeEntry{
+			Label:           entry.Label,
+			Kind:            entry.Kind,
+			Name:            entry.Name,
+			Unit:            entry.Unit,
+			Remaining:       entry.Remaining,
+			Limit:           entry.Limit,
+			Used:            entry.Used,
+			Unlimited:       entry.Unlimited,
+			CashBalance:     entry.CashBalance,
+			VoucherBalance:  entry.VoucherBalance,
+			GrantedBalance:  entry.GrantedBalance,
+			ToppedUpBalance: entry.ToppedUpBalance,
+		}
+		if strings.TrimSpace(entry.ResetAt) != "" {
+			raw := entry.ResetAt
+			item.ResetAt = &raw
+		}
+		if strings.TrimSpace(entry.ExpiresAt) != "" {
+			raw := entry.ExpiresAt
+			item.ExpiresAt = &raw
+		}
+		out = append(out, item)
+	}
+	return out
+}

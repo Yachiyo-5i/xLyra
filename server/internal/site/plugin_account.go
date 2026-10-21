@@ -1,0 +1,1323 @@
+package site
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
+
+	"xlyra/server/internal/accountauth"
+	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/jsplugin"
+	"xlyra/server/internal/store"
+)
+
+const (
+	pluginAccountRefreshLeaseTTL  = 2 * time.Minute
+	pluginAccountRefreshLeaseWait = 250 * time.Millisecond
+	pluginLoginResultTTL          = 10 * time.Minute
+	pluginImportMaxFiles          = 50
+	pluginImportMaxAccounts       = 200
+)
+
+// PluginAccountRuntime is the process-local engine for one account-pool plugin.
+// Login sessions live in the process that called StartLogin. A poll that lands
+// on another instance, or a restart, loses the session. Replacing the runtime
+// snapshot (catalog reload) drops in-flight sessions the same way.
+//
+// P3-7 may add a gateway refresher. Align it with Refresh:
+//
+//	Refresh(ctx context.Context, fields map[string]string) (map[string]string, error)
+//
+// Credential maps and PluginLoginStart.Credential / PluginLoginPoll.Credential
+// hold secrets. Do not log them or put them on an API response.
+type PluginAccountRuntime interface {
+	StartLogin(ctx context.Context, params map[string]string) (PluginLoginStart, error)
+	PollLogin(ctx context.Context, sessionID string) (PluginLoginPoll, error)
+	Refresh(ctx context.Context, fields map[string]string) (map[string]string, error)
+	Summarize(ctx context.Context, baseURL string, fields map[string]string) (PluginAccountSummary, error)
+	ParseImport(raw []byte) ([]PluginImportedAccount, error)
+}
+
+// PluginLoginStart is one login attempt. Credential is set only when Status
+// is complete, and only for the host. It is not an API field.
+type PluginLoginStart struct {
+	ID                      string
+	Kind                    string
+	Status                  string
+	UserCode                string
+	VerificationURL         string
+	VerificationURLComplete string
+	Interval                int
+	ExpiresAt               time.Time
+	Identity                string
+	Credential              map[string]string
+}
+
+// PluginLoginPoll is one poll. Credential is set only when Status is complete.
+type PluginLoginPoll struct {
+	Status     string
+	Interval   int
+	Identity   string
+	Credential map[string]string
+}
+
+// PluginAccountSummary is the host view of summarizeAccount.
+// Entries, Remark, and Status are stored on the account state. They must not
+// contain credential secrets.
+type PluginAccountSummary struct {
+	Status  string
+	Remark  string
+	Entries []QuotaProbeEntry
+}
+
+// PluginImportedAccount is one account from a declarative import file.
+// Fields may contain secrets.
+type PluginImportedAccount struct {
+	Fields map[string]string
+}
+
+// PluginAccount is one plugin account as the admin API returns it.
+// Fields are the manifest's non-secret credential fields. Tokens stay in the
+// encrypted credential package.
+type PluginAccount struct {
+	CredentialID   uuid.UUID          `json:"credential_id"`
+	MaskedToken    string             `json:"masked_token"`
+	Enabled        bool               `json:"enabled"`
+	Region         string             `json:"region,omitempty"`
+	Identity       string             `json:"identity,omitempty"`
+	Remark         string             `json:"remark,omitempty"`
+	Status         string             `json:"status,omitempty"`
+	ReauthRequired bool               `json:"reauth_required,omitempty"`
+	SyncStatus     string             `json:"sync_status,omitempty"`
+	SyncMessage    string             `json:"sync_message,omitempty"`
+	Fields         map[string]string  `json:"fields,omitempty"`
+	ModelCount     int                `json:"model_count"`
+	Models         []GrokAccountModel `json:"models"`
+	Entries        []QuotaProbeEntry  `json:"entries,omitempty"`
+	RemainingQuota *int64             `json:"remaining_quota,omitempty"`
+	UsedQuota      *int64             `json:"used_quota,omitempty"`
+	QuotaLimit     *int64             `json:"quota_limit,omitempty"`
+	QuotaUnit      string             `json:"quota_unit,omitempty"`
+}
+
+// PluginAccountImportItem is the outcome for one imported account.
+type PluginAccountImportItem struct {
+	Source       string `json:"source"`
+	Label        string `json:"label,omitempty"`
+	Region       string `json:"region,omitempty"`
+	Status       string `json:"status"`
+	Error        string `json:"error,omitempty"`
+	Warning      string `json:"warning,omitempty"`
+	CredentialID string `json:"credential_id,omitempty"`
+}
+
+type pluginCredential struct {
+	Fields   map[string]string
+	Identity string
+	Region   string
+}
+
+type pluginAccountRuntimeSnapshot struct {
+	byType map[string]PluginAccountRuntime
+}
+
+type pluginAccountRuntimeSlot struct {
+	current atomic.Pointer[pluginAccountRuntimeSnapshot]
+}
+
+type pluginCompletedLogin struct {
+	account   PluginAccount
+	expiresAt time.Time
+}
+
+type pluginPendingLogin struct {
+	region    string
+	expiresAt time.Time
+}
+
+type pluginLoginResults struct {
+	mu      sync.Mutex
+	items   map[string]pluginCompletedLogin
+	pending map[string]pluginPendingLogin
+}
+
+func newPluginLoginResults() *pluginLoginResults {
+	return &pluginLoginResults{
+		items:   map[string]pluginCompletedLogin{},
+		pending: map[string]pluginPendingLogin{},
+	}
+}
+
+// SetPluginAccountRuntimes replaces the account-pool runtime snapshot.
+// The next catalog reload passes the whole map again; nil clears it.
+// Login sessions belong to the previous runtime and are dropped here.
+func (s *Service) SetPluginAccountRuntimes(runtimes map[string]PluginAccountRuntime) error {
+	if s == nil {
+		return fmt.Errorf("site service is nil")
+	}
+	next := make(map[string]PluginAccountRuntime, len(runtimes))
+	for key, runtime := range runtimes {
+		id := strings.ToLower(strings.TrimSpace(key))
+		if id == "" || runtime == nil {
+			continue
+		}
+		next[id] = runtime
+	}
+	s.accountRuntimes.current.Store(&pluginAccountRuntimeSnapshot{byType: next})
+	if s.pluginLogins != nil {
+		s.pluginLogins.clear()
+	}
+	return nil
+}
+
+func (s *Service) pluginAccountRuntime(siteType string) (PluginAccountRuntime, bool) {
+	if s == nil {
+		return nil, false
+	}
+	snapshot := s.accountRuntimes.current.Load()
+	if snapshot == nil {
+		return nil, false
+	}
+	runtime, ok := snapshot.byType[strings.ToLower(strings.TrimSpace(siteType))]
+	return runtime, ok && runtime != nil
+}
+
+func (s *Service) pluginAccountProvider(siteType string) (AccountProvider, bool) {
+	item, ok := LookupPluginSiteType(siteType)
+	if !ok || !item.Enabled || item.Pool == nil {
+		return nil, false
+	}
+	runtime, ok := s.pluginAccountRuntime(item.Descriptor.SiteType)
+	if !ok {
+		return nil, false
+	}
+	return pluginAccountAPI{
+		s:        s,
+		siteType: item.Descriptor.SiteType,
+		pool:     item.Pool,
+		runtime:  runtime,
+	}, true
+}
+
+func (r *pluginLoginResults) remember(session string, account PluginAccount) {
+	session = strings.TrimSpace(session)
+	if r == nil || session == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for id, item := range r.items {
+		if now.After(item.expiresAt) {
+			delete(r.items, id)
+		}
+	}
+	r.items[session] = pluginCompletedLogin{account: account, expiresAt: now.Add(pluginLoginResultTTL)}
+	delete(r.pending, session)
+}
+
+func (r *pluginLoginResults) rememberRegion(session, region string) {
+	session = strings.TrimSpace(session)
+	if r == nil || session == "" || strings.TrimSpace(region) == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pending[session] = pluginPendingLogin{region: region, expiresAt: time.Now().Add(pluginLoginResultTTL)}
+}
+
+func (r *pluginLoginResults) region(session string) string {
+	session = strings.TrimSpace(session)
+	if r == nil || session == "" {
+		return ""
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item, ok := r.pending[session]
+	if !ok || time.Now().After(item.expiresAt) {
+		delete(r.pending, session)
+		return ""
+	}
+	return item.region
+}
+
+func (r *pluginLoginResults) take(session string) (PluginAccount, bool) {
+	session = strings.TrimSpace(session)
+	if r == nil || session == "" {
+		return PluginAccount{}, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item, ok := r.items[session]
+	if !ok {
+		return PluginAccount{}, false
+	}
+	delete(r.items, session)
+	if time.Now().After(item.expiresAt) {
+		return PluginAccount{}, false
+	}
+	return item.account, true
+}
+
+func (r *pluginLoginResults) clear() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items = map[string]pluginCompletedLogin{}
+	r.pending = map[string]pluginPendingLogin{}
+}
+
+type pluginAccountAPI struct {
+	s        *Service
+	siteType string
+	pool     *jsplugin.AccountPoolSpec
+	runtime  PluginAccountRuntime
+}
+
+func (p pluginAccountAPI) List(ctx context.Context, siteID uuid.UUID) (any, int, error) {
+	accounts, err := p.poolAPI().list(ctx, siteID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if accounts == nil {
+		accounts = []PluginAccount{}
+	}
+	return accounts, len(accounts), nil
+}
+
+func (p pluginAccountAPI) Update(ctx context.Context, siteID, credentialID uuid.UUID, enabled *bool) (any, error) {
+	account, err := p.poolAPI().update(ctx, siteID, credentialID, enabled)
+	if err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (p pluginAccountAPI) SetModelEnabled(ctx context.Context, siteID, credentialID uuid.UUID, model string, enabled bool) (any, error) {
+	account, err := p.poolAPI().setModelEnabled(ctx, siteID, credentialID, model, enabled)
+	if err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (p pluginAccountAPI) SetModelEndpoint(ctx context.Context, siteID, credentialID, siteModelID uuid.UUID, mode string, endpointTypes []string) (any, error) {
+	account, err := p.poolAPI().setModelEndpoint(ctx, siteID, credentialID, siteModelID, mode, endpointTypes)
+	if err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (p pluginAccountAPI) Delete(ctx context.Context, siteID, credentialID uuid.UUID) error {
+	return p.poolAPI().delete(ctx, siteID, credentialID)
+}
+
+func (p pluginAccountAPI) Refresh(ctx context.Context, siteID, credentialID uuid.UUID) (any, error) {
+	account, err := p.refreshAccount(ctx, siteID, credentialID)
+	if err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (p pluginAccountAPI) RefreshAll(ctx context.Context, siteID uuid.UUID) ([]AccountRefreshResult, error) {
+	accounts, err := p.poolAPI().list(ctx, siteID)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]AccountRefreshResult, 0, len(accounts))
+	for _, account := range accounts {
+		refreshed, refreshErr := p.refreshAccount(ctx, siteID, account.CredentialID)
+		item := AccountRefreshResult{CredentialID: account.CredentialID}
+		if refreshErr != nil {
+			item.Error = refreshErr.Error()
+		} else {
+			item.Account = refreshed
+		}
+		results = append(results, item)
+	}
+	return results, nil
+}
+
+func (p pluginAccountAPI) StartLogin(ctx context.Context, siteID uuid.UUID, params AccountLoginParams) (AccountLoginStart, error) {
+	if err := p.requireSite(ctx, siteID); err != nil {
+		return AccountLoginStart{}, err
+	}
+	region, err := p.resolveRegion(params.Region)
+	if err != nil {
+		return AccountLoginStart{}, err
+	}
+	loginParams := map[string]string{}
+	if region != "" {
+		loginParams["region"] = region
+	}
+	started, err := p.runtime.StartLogin(ctx, loginParams)
+	if err != nil {
+		return AccountLoginStart{}, err
+	}
+	p.s.pluginLogins.rememberRegion(started.ID, region)
+	if started.Status == "complete" {
+		account, finishErr := p.finishLogin(ctx, siteID, started.Identity, started.Credential, region, nil)
+		if finishErr != nil {
+			return AccountLoginStart{}, finishErr
+		}
+		p.s.pluginLogins.remember(started.ID, account)
+	}
+	return p.loginStart(started, region), nil
+}
+
+func (p pluginAccountAPI) PollLogin(ctx context.Context, siteID uuid.UUID, session string, targetCredentialID *uuid.UUID) (AccountLoginPoll, error) {
+	if err := p.requireSite(ctx, siteID); err != nil {
+		return AccountLoginPoll{}, err
+	}
+	session = strings.TrimSpace(session)
+	if session == "" {
+		return AccountLoginPoll{}, fmt.Errorf("session is required")
+	}
+	if account, ok := p.s.pluginLogins.take(session); ok {
+		return AccountLoginPoll{Status: "complete", Account: account}, nil
+	}
+	poll, err := p.runtime.PollLogin(ctx, session)
+	if err != nil {
+		return AccountLoginPoll{}, err
+	}
+	switch poll.Status {
+	case "pending", "slow_down":
+		return AccountLoginPoll{Status: poll.Status, Interval: poll.Interval}, nil
+	case "complete":
+		region := p.s.pluginLogins.region(session)
+		if region == "" {
+			region, err = p.resolveRegion("")
+			if err != nil {
+				return AccountLoginPoll{}, err
+			}
+		}
+		if fromFields := p.regionFromFields(poll.Credential); fromFields != "" {
+			region = fromFields
+		}
+		account, finishErr := p.finishLogin(ctx, siteID, poll.Identity, poll.Credential, region, targetCredentialID)
+		if finishErr != nil {
+			return AccountLoginPoll{}, finishErr
+		}
+		return AccountLoginPoll{Status: "complete", Account: account}, nil
+	default:
+		return AccountLoginPoll{}, fmt.Errorf("login status %q is not supported", poll.Status)
+	}
+}
+
+func (p pluginAccountAPI) Regions(ctx context.Context, siteID uuid.UUID) (any, string, error) {
+	if err := p.requireSite(ctx, siteID); err != nil {
+		return nil, "", err
+	}
+	items := make([]AccountRegion, 0, len(p.pool.Regions))
+	for _, region := range p.pool.Regions {
+		items = append(items, AccountRegion{
+			ID:      region.ID,
+			Label:   pluginRegionLabel(region.Label, "zh", "en"),
+			LabelEN: pluginRegionLabel(region.Label, "en", "zh"),
+		})
+	}
+	return items, p.pool.DefaultRegion, nil
+}
+
+func (p pluginAccountAPI) Import(ctx context.Context, siteID uuid.UUID, files []AccountImportFile) (any, error) {
+	if p.pool == nil || !p.pool.Import.Enabled {
+		return nil, ErrAccountImportUnsupported
+	}
+	if err := p.requireSite(ctx, siteID); err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no account files were provided")
+	}
+	if len(files) > pluginImportMaxFiles {
+		return nil, fmt.Errorf("at most %d files can be imported at once", pluginImportMaxFiles)
+	}
+	items := make([]PluginAccountImportItem, 0, len(files))
+	total := 0
+	for index, file := range files {
+		source := strings.TrimSpace(file.Name)
+		if source == "" {
+			source = fmt.Sprintf("file-%d", index+1)
+		}
+		imported, err := p.runtime.ParseImport([]byte(file.Content))
+		if err != nil {
+			items = append(items, PluginAccountImportItem{Source: source, Status: "failed", Error: redactText(err.Error(), map[string]string{"file": file.Content}, map[string]struct{}{"file": {}})})
+			continue
+		}
+		for _, account := range imported {
+			total++
+			if total > pluginImportMaxAccounts {
+				items = append(items, PluginAccountImportItem{Source: source, Status: "failed", Error: fmt.Sprintf("at most %d accounts can be imported at once", pluginImportMaxAccounts)})
+				return items, nil
+			}
+			items = append(items, p.importOne(ctx, siteID, source, account))
+		}
+	}
+	return items, nil
+}
+
+func (p pluginAccountAPI) importOne(ctx context.Context, siteID uuid.UUID, source string, imported PluginImportedAccount) PluginAccountImportItem {
+	item := PluginAccountImportItem{Source: source}
+	identity, err := p.identityOf(imported.Fields)
+	if err != nil {
+		item.Status = "failed"
+		item.Error = redactCredentialError(err, imported.Fields, p.secretNames()).Error()
+		return item
+	}
+	region := p.regionFromFields(imported.Fields)
+	if region == "" {
+		region = p.pool.DefaultRegion
+	}
+	account, err := p.login().complete(ctx, siteID, pluginCredential{
+		Fields:   cloneStringMap(imported.Fields),
+		Identity: identity,
+		Region:   region,
+	}, nil)
+	if err != nil {
+		item.Status = "failed"
+		item.Error = redactCredentialError(err, imported.Fields, p.secretNames()).Error()
+		return item
+	}
+	item.Status = "imported"
+	item.CredentialID = account.CredentialID.String()
+	item.Label = account.MaskedToken
+	item.Region = account.Region
+	refreshed, refreshErr := p.refreshAccount(ctx, siteID, account.CredentialID)
+	if refreshErr != nil {
+		item.Warning = refreshErr.Error()
+		return item
+	}
+	if refreshed.MaskedToken != "" {
+		item.Label = refreshed.MaskedToken
+	}
+	item.Region = refreshed.Region
+	return item
+}
+
+func (p pluginAccountAPI) finishLogin(ctx context.Context, siteID uuid.UUID, identity string, fields map[string]string, region string, target *uuid.UUID) (PluginAccount, error) {
+	if strings.TrimSpace(identity) == "" {
+		var err error
+		identity, err = p.identityOf(fields)
+		if err != nil {
+			return PluginAccount{}, redactCredentialError(err, fields, p.secretNames())
+		}
+	}
+	account, err := p.login().complete(ctx, siteID, pluginCredential{
+		Fields:   cloneStringMap(fields),
+		Identity: identity,
+		Region:   region,
+	}, target)
+	if err != nil {
+		return PluginAccount{}, redactCredentialError(err, fields, p.secretNames())
+	}
+	refreshed, refreshErr := p.refreshAccount(ctx, siteID, account.CredentialID)
+	if refreshErr != nil {
+		return account, nil
+	}
+	return refreshed, nil
+}
+
+func (p pluginAccountAPI) loginStart(started PluginLoginStart, region string) AccountLoginStart {
+	kind := started.Kind
+	if kind == "" && p.pool != nil {
+		kind = p.pool.Login.Kind
+	}
+	expires := started.ExpiresAt
+	if expires.IsZero() {
+		expires = time.Now().Add(pluginLoginResultTTL)
+	}
+	out := AccountLoginStart{
+		Kind:      kind,
+		Session:   started.ID,
+		Interval:  pluginLoginInterval(kind, started.Interval),
+		ExpiresAt: expires,
+		Region:    region,
+	}
+	if kind == accountLoginCustomPoll {
+		out.AuthURL = started.VerificationURL
+		out.UserCode = started.UserCode
+		return out
+	}
+	out.UserCode = started.UserCode
+	out.VerificationURI = started.VerificationURL
+	out.VerificationURIComplete = started.VerificationURLComplete
+	return out
+}
+
+func (p pluginAccountAPI) refreshAccount(ctx context.Context, siteID, credentialID uuid.UUID) (PluginAccount, error) {
+	var account PluginAccount
+	if err := p.requireSite(ctx, siteID); err != nil {
+		return account, err
+	}
+	defer p.s.siteLocks.lock(siteID)()
+	repo := store.NewSiteCredentialRepository(p.s.db.DB())
+	credential, err := repo.GetByID(ctx, credentialID)
+	if err != nil {
+		return account, err
+	}
+	if credential.SiteID != siteID || !store.IsAccountCredentialTypeOf(credential.CredentialType, p.siteType) {
+		return account, fmt.Errorf("%s account was not found", p.siteType)
+	}
+	err = p.s.withPluginRefreshLease(ctx, credential.ID, func() error {
+		current, err := repo.GetByID(ctx, credentialID)
+		if err != nil {
+			return err
+		}
+		fields, err := p.readCredentialFields(current)
+		if err != nil {
+			return err
+		}
+		if p.refreshesTokens() {
+			refreshed, refreshErr := p.runtime.Refresh(ctx, cloneStringMap(fields))
+			if refreshErr != nil {
+				return p.failRefresh(ctx, current, refreshErr, fields)
+			}
+			if strings.TrimSpace(refreshed[p.accessField()]) == "" {
+				return fmt.Errorf("refreshed account is missing %s", p.accessField())
+			}
+			current, err = p.saveCredentialFields(ctx, current, refreshed)
+			if err != nil {
+				return err
+			}
+			fields = refreshed
+		}
+		base := p.baseURL(anyString(accountMetaMap(current.Meta)["region"]))
+		summary, sumErr := p.runtime.Summarize(ctx, base, cloneStringMap(fields))
+		if sumErr != nil {
+			return p.failRefresh(ctx, current, sumErr, fields)
+		}
+		summary = p.scrubSummary(summary, fields)
+		if err := p.persistSummary(ctx, current, summary); err != nil {
+			return err
+		}
+		p.syncQuota(ctx, siteID, store.Site{})
+		updated, err := repo.GetByID(ctx, credentialID)
+		if err != nil {
+			updated = current
+		}
+		account = p.snapshot(ctx, updated)
+		return nil
+	})
+	if err != nil {
+		return PluginAccount{}, err
+	}
+	return account, nil
+}
+
+func (p pluginAccountAPI) refreshesTokens() bool {
+	if p.pool == nil {
+		return false
+	}
+	switch p.pool.Refresh.Kind {
+	case "", "none":
+		return false
+	default:
+		return true
+	}
+}
+
+func (p pluginAccountAPI) failRefresh(ctx context.Context, credential store.SiteCredential, cause error, fields map[string]string) error {
+	reauth := errors.Is(cause, accountauth.ErrReauthorizationRequired)
+	scrubbed := redactCredentialError(cause, fields, p.secretNames())
+	p.s.recordAccountRefreshFailure(ctx, credential, scrubbed, func(error) bool { return reauth })
+	return scrubbed
+}
+
+func (p pluginAccountAPI) readCredentialFields(credential store.SiteCredential) (map[string]string, error) {
+	plain, err := p.s.credentials.Decrypt(credential.EncryptedSecret)
+	if err != nil {
+		return nil, errors.New("account credential package cannot be read")
+	}
+	return decodePluginCredential(plain)
+}
+
+func (p pluginAccountAPI) saveCredentialFields(ctx context.Context, credential store.SiteCredential, fields map[string]string) (store.SiteCredential, error) {
+	encoded, err := encodePluginCredential(fields)
+	if err != nil {
+		return store.SiteCredential{}, err
+	}
+	encrypted, _, err := p.s.credentials.Encrypt(encoded)
+	if err != nil {
+		return store.SiteCredential{}, err
+	}
+	meta := accountMetaMap(credential.Meta)
+	if boolFromMeta(meta, "reauth_required", false) {
+		delete(meta, "reauth_required")
+		meta["enabled"] = true
+	}
+	p.applyPublicMeta(meta, fields)
+	if identity, idErr := p.identityOf(fields); idErr == nil {
+		meta["identity"] = identity
+	}
+	updated, err := store.NewSiteCredentialRepository(p.s.db.DB()).UpdateSecret(ctx, credential.ID, encrypted)
+	if err != nil {
+		return store.SiteCredential{}, err
+	}
+	return updateCredentialMeta(ctx, store.NewSiteCredentialRepository(p.s.db.DB()), updated.ID, meta)
+}
+
+func (p pluginAccountAPI) applyPublicMeta(meta map[string]any, fields map[string]string) {
+	for _, field := range p.pool.Credential.Fields {
+		if field.Secret {
+			delete(meta, field.Name)
+			continue
+		}
+		value := strings.TrimSpace(fields[field.Name])
+		if value == "" {
+			continue
+		}
+		meta[field.Name] = value
+	}
+}
+
+func (p pluginAccountAPI) persistSummary(ctx context.Context, credential store.SiteCredential, summary PluginAccountSummary) error {
+	meta := accountMetaMap(credential.Meta)
+	enabled := boolFromMeta(meta, "enabled", true)
+	payload := map[string]any{
+		"status":  summary.Status,
+		"remark":  summary.Remark,
+		"entries": summary.Entries,
+	}
+	remain, used, limit, unit := pluginQuotaTotals(summary.Entries)
+	if limit != nil {
+		payload["limit"] = limit
+	}
+	if unit != "" {
+		payload["unit"] = unit
+	}
+	usage, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal account summary: %w", err)
+	}
+	syncStatus := "synced"
+	if summary.Status == "unavailable" {
+		syncStatus = "stale"
+	}
+	var message any
+	if summary.Remark != "" {
+		message = summary.Remark
+	}
+	repo := store.NewSiteAPIKeyStateRepository(p.s.db.DB())
+	if _, err := repo.Upsert(ctx, store.UpsertSiteAPIKeyStateParams{
+		SiteCredentialID: credential.ID,
+		SiteID:           credential.SiteID,
+		Name:             credential.MaskedSecret,
+		Enabled:          enabled,
+		RemainQuota:      remain,
+		UsedQuota:        used,
+		Usage:            usage,
+		Raw:              usage,
+		SyncStatus:       syncStatus,
+		SyncMessage:      message,
+		LastSyncedAt:     time.Now(),
+	}); err != nil {
+		return err
+	}
+	_, err = repo.UpdateEnabled(ctx, credential.ID, enabled)
+	return err
+}
+
+func (p pluginAccountAPI) snapshot(ctx context.Context, credential store.SiteCredential) PluginAccount {
+	return p.poolAPI().snapshot(ctx, credential)
+}
+
+func (p pluginAccountAPI) poolAPI() accountPool[PluginAccount] {
+	return accountPool[PluginAccount]{s: p.s, p: pluginAccountProvider{api: p}}
+}
+
+func (p pluginAccountAPI) login() accountLogin[pluginCredential, PluginAccount] {
+	return accountLogin[pluginCredential, PluginAccount]{s: p.s, p: pluginLoginProvider{api: p}}
+}
+
+func (p pluginAccountAPI) requireSite(ctx context.Context, siteID uuid.UUID) error {
+	if siteID == uuid.Nil {
+		return fmt.Errorf("site id is required")
+	}
+	item, err := p.s.Get(ctx, siteID)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(strings.TrimSpace(item.SiteType), p.siteType) {
+		return fmt.Errorf("site type %q is not %s", item.SiteType, p.siteType)
+	}
+	return nil
+}
+
+func (p pluginAccountAPI) resolveRegion(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if p.pool == nil {
+			return "", nil
+		}
+		return p.pool.DefaultRegion, nil
+	}
+	for _, region := range p.pool.Regions {
+		if region.ID == raw {
+			return region.ID, nil
+		}
+	}
+	return "", fmt.Errorf("region %q is not configured", raw)
+}
+
+func (p pluginAccountAPI) regionFromFields(fields map[string]string) string {
+	if p.pool == nil {
+		return ""
+	}
+	for _, region := range p.pool.Regions {
+		if fields["region"] == region.ID || fields["realm"] == region.ID {
+			return region.ID
+		}
+		for _, realm := range region.Realms {
+			if fields["realm"] == realm {
+				return region.ID
+			}
+		}
+		for _, domain := range region.Domains {
+			if fields["domain"] == domain {
+				return region.ID
+			}
+		}
+	}
+	return ""
+}
+
+func (p pluginAccountAPI) baseURL(region string) string {
+	if p.pool == nil {
+		return ""
+	}
+	for _, item := range p.pool.Regions {
+		if item.ID == region {
+			return strings.TrimRight(strings.TrimSpace(item.BaseURL), "/")
+		}
+	}
+	return p.pool.DefaultBaseURL()
+}
+
+func (p pluginAccountAPI) accessField() string {
+	if p.pool != nil && p.pool.Credential.AccessTokenField != "" {
+		return p.pool.Credential.AccessTokenField
+	}
+	return "access_token"
+}
+
+func (p pluginAccountAPI) secretNames() map[string]struct{} {
+	names := map[string]struct{}{}
+	if p.pool == nil {
+		return names
+	}
+	for _, field := range p.pool.Credential.Fields {
+		if field.Secret {
+			names[field.Name] = struct{}{}
+		}
+	}
+	return names
+}
+
+func (p pluginAccountAPI) identityOf(fields map[string]string) (string, error) {
+	if p.pool == nil {
+		return "", errors.New("account identity is not configured")
+	}
+	identity := p.pool.Credential.Identity
+	if name, ok := strings.CutPrefix(identity, "field."); ok {
+		value := strings.TrimSpace(fields[name])
+		if value == "" {
+			return "", fmt.Errorf("identity field %q is empty", name)
+		}
+		return value, nil
+	}
+	if strings.HasPrefix(identity, "claims.") {
+		value, err := accountauth.ClaimString(fields[p.accessField()], identity)
+		if err != nil || strings.TrimSpace(value) == "" {
+			return "", errors.New("identity claim is empty")
+		}
+		return strings.TrimSpace(value), nil
+	}
+	return "", errors.New("account identity is not configured")
+}
+
+func (p pluginAccountAPI) scrubSummary(summary PluginAccountSummary, fields map[string]string) PluginAccountSummary {
+	secrets := p.secretNames()
+	summary.Status = redactText(summary.Status, fields, secrets)
+	summary.Remark = redactText(summary.Remark, fields, secrets)
+	for i := range summary.Entries {
+		entry := summary.Entries[i]
+		entry.Label = redactText(entry.Label, fields, secrets)
+		entry.Kind = redactText(entry.Kind, fields, secrets)
+		entry.Name = redactText(entry.Name, fields, secrets)
+		entry.Unit = redactText(entry.Unit, fields, secrets)
+		if entry.ResetAt != nil {
+			raw := redactText(*entry.ResetAt, fields, secrets)
+			entry.ResetAt = &raw
+		}
+		if entry.ExpiresAt != nil {
+			raw := redactText(*entry.ExpiresAt, fields, secrets)
+			entry.ExpiresAt = &raw
+		}
+		summary.Entries[i] = entry
+	}
+	return summary
+}
+
+func (p pluginAccountAPI) syncQuota(ctx context.Context, siteID uuid.UUID, current store.Site) store.Site {
+	mode := "sum"
+	if p.pool != nil && p.pool.QuotaAggregate != "" {
+		mode = p.pool.QuotaAggregate
+	}
+	if mode == "none" {
+		return current
+	}
+	siteRepo := store.NewSiteRepository(p.s.db.DB())
+	item := current
+	if item.ID == uuid.Nil {
+		loaded, err := siteRepo.GetByID(ctx, siteID)
+		if err != nil {
+			return current
+		}
+		item = loaded
+	}
+	credentials, err := store.NewSiteCredentialRepository(p.s.db.DB()).ListBySite(ctx, siteID)
+	if err != nil {
+		return item
+	}
+	states, err := store.NewSiteAPIKeyStateRepository(p.s.db.DB()).ListBySite(ctx, siteID)
+	if err != nil {
+		return item
+	}
+	statesByCredential := make(map[uuid.UUID]store.SiteAPIKeyState, len(states))
+	for _, state := range states {
+		statesByCredential[state.SiteCredentialID] = state
+	}
+	var entries []QuotaProbeEntry
+	accounts := 0
+	for _, credential := range credentials {
+		if !store.IsAccountCredentialTypeOf(credential.CredentialType, p.siteType) {
+			continue
+		}
+		accounts++
+		state := statesByCredential[credential.ID]
+		if !state.Enabled {
+			continue
+		}
+		parsed := pluginUsageView(state.Usage)
+		entries = append(entries, parsed.Entries...)
+	}
+	meta := siteMetaMap(item)
+	summary, ok := AggregateQuota(mode, entries)
+	if accounts == 0 || !ok {
+		existing, _ := meta[siteMetaQuotaProbeSummary].(map[string]any)
+		if anyString(existing["probe_type"]) != p.siteType {
+			return item
+		}
+		delete(meta, siteMetaQuotaProbeSummary)
+	} else {
+		payload := map[string]any{
+			"probe_type":       p.siteType,
+			"status":           "ok",
+			"aggregate":        mode,
+			"credential_count": accounts,
+			"fetched_at":       time.Now().UTC().Format(time.RFC3339),
+		}
+		if summary.Unit != "" {
+			payload["unit"] = summary.Unit
+		}
+		if summary.Remaining != nil {
+			payload["remaining_min"] = *summary.Remaining
+		}
+		if summary.Limit != nil {
+			payload["limit"] = *summary.Limit
+		}
+		if summary.Used != nil {
+			payload["used"] = *summary.Used
+		}
+		meta[siteMetaQuotaProbeSummary] = payload
+	}
+	updated, err := siteRepo.UpdateMeta(ctx, item.ID, store.JSON(jsonBytes(meta)))
+	if err != nil {
+		return item
+	}
+	return updated
+}
+
+type pluginAccountProvider struct {
+	api pluginAccountAPI
+}
+
+func (p pluginAccountProvider) name() string { return p.api.siteType }
+
+func (p pluginAccountProvider) isCredential(credentialType string) bool {
+	return store.IsAccountCredentialTypeOf(credentialType, p.api.siteType)
+}
+
+func (p pluginAccountProvider) requireSite(ctx context.Context, siteID uuid.UUID) error {
+	return p.api.requireSite(ctx, siteID)
+}
+
+func (pluginAccountProvider) ensureAccess(context.Context, store.Site, store.SiteCredential) (string, adapter.SiteConfig, error) {
+	return "", adapter.SiteConfig{}, errors.New("plugin account refresh does not use the adapter")
+}
+
+func (pluginAccountProvider) shouldReauth(err error) bool {
+	return errors.Is(err, accountauth.ErrReauthorizationRequired)
+}
+
+func (p pluginAccountProvider) fromStore(credential store.SiteCredential, state store.SiteAPIKeyState, models []store.SiteAPIKeyModel) (PluginAccount, bool) {
+	return p.api.accountFromStore(credential, state, models)
+}
+
+func (p pluginAccountProvider) decorate(ctx context.Context, account PluginAccount) PluginAccount {
+	account.Models = p.api.s.resolveAccountModelEndpoints(ctx, account.Models)
+	if account.Models == nil {
+		account.Models = []GrokAccountModel{}
+	}
+	return account
+}
+
+func (pluginAccountProvider) credentialID(account PluginAccount) uuid.UUID {
+	return account.CredentialID
+}
+
+func (p pluginAccountProvider) syncQuota(ctx context.Context, siteID uuid.UUID, current store.Site) store.Site {
+	return p.api.syncQuota(ctx, siteID, current)
+}
+
+func (pluginAccountProvider) resyncQuotaOnUpdateDelete() bool { return true }
+
+func (pluginAccountProvider) syncQuotaBeforeRefreshReread() bool { return false }
+
+func (pluginAccountProvider) onRefreshRereadMiss(credential store.SiteCredential, _ adapter.APIKeySummary) store.SiteCredential {
+	return credential
+}
+
+func (pluginAccountProvider) afterRefresh(context.Context, uuid.UUID, []store.SiteModel, time.Time) error {
+	return nil
+}
+
+type pluginLoginProvider struct {
+	api pluginAccountAPI
+}
+
+func (p pluginLoginProvider) name() string { return p.api.siteType }
+
+func (p pluginLoginProvider) requireSite(ctx context.Context, siteID uuid.UUID) error {
+	return p.api.requireSite(ctx, siteID)
+}
+
+func (p pluginLoginProvider) isCredential(credentialType string) bool {
+	return store.IsAccountCredentialTypeOf(credentialType, p.api.siteType)
+}
+
+func (p pluginLoginProvider) credentialPrefix() string {
+	return store.CredentialPrefixAccount + p.api.siteType + ":"
+}
+
+func (p pluginLoginProvider) normalize(tokens pluginCredential) (pluginCredential, error) {
+	tokens.Fields = cloneStringMap(tokens.Fields)
+	if strings.TrimSpace(tokens.Fields[p.api.accessField()]) == "" {
+		return tokens, fmt.Errorf("account is missing %s", p.api.accessField())
+	}
+	if strings.TrimSpace(tokens.Identity) == "" {
+		identity, err := p.api.identityOf(tokens.Fields)
+		if err != nil {
+			return tokens, err
+		}
+		tokens.Identity = identity
+	}
+	if strings.TrimSpace(tokens.Region) == "" && p.api.pool != nil {
+		tokens.Region = p.api.pool.DefaultRegion
+	}
+	return tokens, nil
+}
+
+func (pluginLoginProvider) encodeSecret(tokens pluginCredential) (string, error) {
+	return encodePluginCredential(tokens.Fields)
+}
+
+func (pluginLoginProvider) identity(tokens pluginCredential) string {
+	return strings.TrimSpace(tokens.Identity)
+}
+
+func (pluginLoginProvider) metaIdentity(meta map[string]any) string {
+	return strings.TrimSpace(anyString(meta["identity"]))
+}
+
+func (p pluginLoginProvider) secretIdentity(secret string) string {
+	fields, err := decodePluginCredential(secret)
+	if err != nil {
+		return ""
+	}
+	identity, err := p.api.identityOf(fields)
+	if err != nil {
+		return ""
+	}
+	return identity
+}
+
+func (p pluginLoginProvider) applyMeta(meta map[string]any, tokens pluginCredential) {
+	if value := strings.TrimSpace(tokens.Identity); value != "" {
+		meta["identity"] = value
+	}
+	if value := strings.TrimSpace(tokens.Region); value != "" {
+		meta["region"] = value
+	}
+	p.api.applyPublicMeta(meta, tokens.Fields)
+}
+
+func (p pluginLoginProvider) maskedLabel(tokens pluginCredential) string {
+	return pluginMaskedLabel(tokens.Identity, tokens.Fields[p.api.accessField()])
+}
+
+func (p pluginLoginProvider) snapshot(ctx context.Context, credential store.SiteCredential) PluginAccount {
+	return p.api.snapshot(ctx, credential)
+}
+
+func (p pluginAccountAPI) accountFromStore(credential store.SiteCredential, state store.SiteAPIKeyState, models []store.SiteAPIKeyModel) (PluginAccount, bool) {
+	if !store.IsAccountCredentialTypeOf(credential.CredentialType, p.siteType) {
+		return PluginAccount{}, false
+	}
+	meta := accountMetaMap(credential.Meta)
+	enabled := boolFromMeta(meta, "enabled", true)
+	if state.SiteCredentialID != uuid.Nil && state.SiteCredentialID == credential.ID {
+		enabled = state.Enabled
+	}
+	label := strings.TrimSpace(anyString(meta["identity"]))
+	if label == "" {
+		label = credential.MaskedSecret
+	}
+	accountModels := make([]GrokAccountModel, 0, len(models))
+	modelCount := 0
+	for _, model := range models {
+		if !model.Available {
+			continue
+		}
+		modelCount++
+		display := strings.TrimSpace(model.DisplayName)
+		if display == "" {
+			display = model.UpstreamModelName
+		}
+		accountModels = append(accountModels, newAccountModel(model, display))
+	}
+	usage := pluginUsageView(state.Usage)
+	fields := map[string]string{}
+	if p.pool != nil {
+		for _, field := range p.pool.Credential.Fields {
+			if field.Secret {
+				continue
+			}
+			value := strings.TrimSpace(anyString(meta[field.Name]))
+			if value == "" {
+				continue
+			}
+			fields[field.Name] = value
+		}
+	}
+	account := PluginAccount{
+		CredentialID:   credential.ID,
+		MaskedToken:    label,
+		Enabled:        enabled,
+		Region:         anyString(meta["region"]),
+		Identity:       anyString(meta["identity"]),
+		Remark:         usage.Remark,
+		Status:         usage.Status,
+		ReauthRequired: boolFromMeta(meta, "reauth_required", false),
+		SyncStatus:     state.SyncStatus,
+		Fields:         fields,
+		ModelCount:     modelCount,
+		Models:         accountModels,
+		Entries:        usage.Entries,
+		QuotaUnit:      usage.Unit,
+	}
+	if state.SyncMessage.Valid && state.SyncMessage.String != usage.Remark {
+		account.SyncMessage = state.SyncMessage.String
+	}
+	if state.RemainQuota.Valid {
+		value := state.RemainQuota.Int64
+		account.RemainingQuota = &value
+	}
+	if state.UsedQuota.Valid {
+		value := state.UsedQuota.Int64
+		account.UsedQuota = &value
+	}
+	if usage.Limit != nil {
+		limit := int64(math.Round(*usage.Limit))
+		account.QuotaLimit = &limit
+	}
+	if account.Models == nil {
+		account.Models = []GrokAccountModel{}
+	}
+	if len(account.Fields) == 0 {
+		account.Fields = nil
+	}
+	return account, true
+}
+
+type pluginUsage struct {
+	Status  string
+	Remark  string
+	Entries []QuotaProbeEntry
+	Limit   *float64
+	Unit    string
+}
+
+func pluginUsageView(raw []byte) pluginUsage {
+	if len(raw) == 0 {
+		return pluginUsage{}
+	}
+	var payload struct {
+		Status  string            `json:"status"`
+		Remark  string            `json:"remark"`
+		Entries []QuotaProbeEntry `json:"entries"`
+		Limit   *float64          `json:"limit"`
+		Unit    string            `json:"unit"`
+	}
+	if json.Unmarshal(raw, &payload) != nil {
+		return pluginUsage{}
+	}
+	return pluginUsage{
+		Status:  payload.Status,
+		Remark:  payload.Remark,
+		Entries: payload.Entries,
+		Limit:   payload.Limit,
+		Unit:    payload.Unit,
+	}
+}
+
+func pluginQuotaTotals(entries []QuotaProbeEntry) (remain, used any, limit *float64, unit string) {
+	summary, ok := AggregateQuota("sum", entries)
+	if !ok {
+		return nil, nil, nil, ""
+	}
+	return floatToInt(summary.Remaining), floatToInt(summary.Used), summary.Limit, summary.Unit
+}
+
+func floatToInt(value *float64) any {
+	if value == nil {
+		return nil
+	}
+	return int64(math.Round(*value))
+}
+
+func encodePluginCredential(fields map[string]string) (string, error) {
+	if len(fields) == 0 {
+		return "", errors.New("account credential package is empty")
+	}
+	encoded, err := json.Marshal(cloneStringMap(fields))
+	if err != nil {
+		return "", errors.New("account credential package cannot be stored")
+	}
+	return string(encoded), nil
+}
+
+func decodePluginCredential(secret string) (map[string]string, error) {
+	var fields map[string]string
+	if err := json.Unmarshal([]byte(secret), &fields); err != nil || fields == nil {
+		return nil, errors.New("account credential package is invalid")
+	}
+	return fields, nil
+}
+
+func pluginMaskedLabel(identity, access string) string {
+	identity = strings.TrimSpace(identity)
+	access = strings.TrimSpace(access)
+	if identity != "" && identity != access && !strings.Contains(access, identity) {
+		return identity
+	}
+	return accountMaskedLabel("", access)
+}
+
+func pluginLoginInterval(kind string, interval int) int {
+	if interval > 0 {
+		return interval
+	}
+	if kind == accountLoginCustomPoll {
+		return 3
+	}
+	return 5
+}
+
+func pluginRegionLabel(text jsplugin.LocalizedText, primary, fallback string) string {
+	if value := strings.TrimSpace(text[primary]); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(text[fallback]); value != "" {
+		return value
+	}
+	return ""
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func redactCredentialError(err error, fields map[string]string, secrets map[string]struct{}) error {
+	if err == nil {
+		return nil
+	}
+	redacted := redactText(err.Error(), fields, secrets)
+	if redacted == err.Error() {
+		return err
+	}
+	return errors.New(redacted)
+}
+
+func redactText(text string, fields map[string]string, secrets map[string]struct{}) string {
+	for name := range secrets {
+		value := fields[name]
+		if len(value) < 4 {
+			continue
+		}
+		text = strings.ReplaceAll(text, value, "[redacted]")
+	}
+	return text
+}
+
+func (s *Service) withPluginRefreshLease(ctx context.Context, credentialID uuid.UUID, fn func() error) error {
+	if s == nil || s.db == nil {
+		return errors.New("site store is not available")
+	}
+	leases := store.NewSiteCredentialRefreshLeaseRepository(s.db.DB())
+	var held string
+	defer func() {
+		if held == "" {
+			return
+		}
+		_ = leases.Release(context.WithoutCancel(ctx), credentialID, held)
+	}()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		leaseID := uuid.NewString()
+		acquired, err := leases.TryAcquire(ctx, credentialID, leaseID, time.Now(), pluginAccountRefreshLeaseTTL)
+		if err != nil {
+			return err
+		}
+		if !acquired {
+			timer := time.NewTimer(pluginAccountRefreshLeaseWait)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+			continue
+		}
+		held = leaseID
+		return fn()
+	}
+}

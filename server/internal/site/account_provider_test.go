@@ -18,7 +18,9 @@ func TestAccountProviderFor(t *testing.T) {
 		seen[desc.SiteType] = true
 		for _, siteType := range []string{desc.SiteType, strings.ToUpper(desc.SiteType), " " + desc.SiteType + " "} {
 			provider, ok := service.AccountProviderFor(siteType)
-			if desc.Accounts == nil {
+			// Plugin account pools need an injected runtime. A descriptor alone
+			// does not expose /accounts.
+			if desc.Accounts == nil || strings.Contains(desc.SiteType, "/") {
 				if ok || provider != nil {
 					t.Fatalf("AccountProviderFor(%q) = %v, %v, want none", siteType, provider, ok)
 				}

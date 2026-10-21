@@ -282,8 +282,34 @@ func (h Handler) writeAccountCallError(w http.ResponseWriter, r *http.Request, e
 }
 
 func accountImportResponse(items any) (any, map[string]any) {
-	body := jsonSlice(items)
-	return body, map[string]any{"total": sliceLen(body), "imported": 0, "failed": 0}
+	switch typed := items.(type) {
+	case []sitepkg.PluginAccountImportItem:
+		if typed == nil {
+			typed = []sitepkg.PluginAccountImportItem{}
+		}
+		return typed, accountImportMeta(importStatuses(typed, func(item sitepkg.PluginAccountImportItem) string { return item.Status }))
+	default:
+		body := jsonSlice(items)
+		return body, map[string]any{"total": sliceLen(body), "imported": 0, "failed": 0}
+	}
+}
+
+func accountImportMeta(imported, failed, total int) map[string]any {
+	return map[string]any{"total": total, "imported": imported, "failed": failed}
+}
+
+func importStatuses[T any](items []T, status func(T) string) (imported, failed, total int) {
+	total = len(items)
+	for _, item := range items {
+		if status(item) == "imported" {
+			imported++
+			continue
+		}
+		if status(item) != "" {
+			failed++
+		}
+	}
+	return imported, failed, total
 }
 
 func jsonSlice(items any) any {

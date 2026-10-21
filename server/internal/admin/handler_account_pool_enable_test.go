@@ -4,16 +4,17 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"testing"
 
 	"xlyra/server/internal/jsplugin"
 )
 
-func TestEnableAccountPoolUnavailable(t *testing.T) {
+func TestEnableAccountPoolPlugin(t *testing.T) {
 	prev := jsplugin.AccountPoolEnabled
 	t.Cleanup(func() { jsplugin.AccountPoolEnabled = prev })
-	jsplugin.AccountPoolEnabled = false
+	jsplugin.AccountPoolEnabled = true
 
 	st := openAdminJSPluginStore(t)
 	manager := jsplugin.NewManager(st, nil)
@@ -63,8 +64,14 @@ func TestEnableAccountPoolUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := enablePluginVersion(t, h, "acme.pool", "1.0.0", map[string]any{"confirm_hosts": []string{"api.example.cn"}})
-	body := decodeEnableError(t, rec)
-	if rec.Code != http.StatusBadRequest || body.Error.Code != "js_plugin_account_pool_unavailable" || body.Error.Message != "账号池插件的登录、刷新与网关接入尚未完成,暂不能启用" {
-		t.Fatalf("enable = %d %s %s", rec.Code, body.Error.Code, body.Error.Message)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable = %d %s", rec.Code, rec.Body.String())
+	}
+	var okBody struct {
+		OK         bool  `json:"ok"`
+		Generation int64 `json:"generation"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &okBody); err != nil || !okBody.OK || okBody.Generation == 0 {
+		t.Fatalf("enable success: %v %s", err, rec.Body.String())
 	}
 }

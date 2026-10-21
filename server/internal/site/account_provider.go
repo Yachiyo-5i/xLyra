@@ -12,7 +12,10 @@ import (
 	oauthsvc "xlyra/server/internal/oauth"
 )
 
-const accountLoginDeviceCode = "oauth2_device_code"
+const (
+	accountLoginDeviceCode = "oauth2_device_code"
+	accountLoginCustomPoll = "custom_poll"
+)
 
 var (
 	ErrAccountImportUnsupported = errors.New("account import is not supported")
@@ -81,7 +84,7 @@ func (s *Service) AccountProviderFor(siteType string) (AccountProvider, bool) {
 	case "grok":
 		return grokAccountAPI{s: s}, true
 	default:
-		return nil, false
+		return s.pluginAccountProvider(desc.SiteType)
 	}
 }
 
