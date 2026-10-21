@@ -35,19 +35,33 @@ func newSteppedResult(kind string) any {
 // plugin once. steps are the exchanges finished so far.
 func (p *Plugin) CallStepped(ctx context.Context, probeCtx ProbeContext, steps []ProbeStep) (SteppedDecision, error) {
 	spec, ok := lookupKind(p.Manifest.Kind)
-	if !ok || spec.Family != FamilyStepped || p.Manifest.Kind == KindQuotaProbe {
+	if !ok || spec.Family != FamilyStepped || p.Manifest.Kind == KindQuotaProbe || len(spec.Hooks) == 0 {
 		return SteppedDecision{}, fmt.Errorf("kind %q is not a stepped kind", p.Manifest.Kind)
 	}
-	hook := spec.Hooks[0]
+	return p.CallSteppedHook(ctx, spec.Hooks[0], p.Manifest.Kind, probeCtx, steps)
+}
+
+// CallSteppedHook runs one exported hook and decodes the return as resultKind
+// (model_list, credential_check, or site_detect). hook is the export name, so
+// one package can serve several stepped contracts. A missing export returns an
+// error and does not enter the runtime.
+func (p *Plugin) CallSteppedHook(ctx context.Context, hook, resultKind string, probeCtx ProbeContext, steps []ProbeStep) (SteppedDecision, error) {
+	if p == nil || !p.HasHook(hook) {
+		return SteppedDecision{}, fmt.Errorf("%s hook is missing", hook)
+	}
+	spec, ok := lookupKind(resultKind)
+	if !ok || spec.Family != FamilyStepped || resultKind == KindQuotaProbe {
+		return SteppedDecision{}, fmt.Errorf("kind %q is not a stepped result kind", resultKind)
+	}
 	ctxValue := probeCtx.asMap()
-	if p.Manifest.Kind == KindSiteDetect {
+	if resultKind == KindSiteDetect {
 		ctxValue = encodeValue(DetectContext{BaseURL: probeCtx.BaseURL, Now: probeCtx.Now}).(map[string]any)
 	}
 	out, logs, dropped, err := p.callHook(ctx, hook, spec.Timeout, len(steps), ctxValue, stepsAsValue(steps))
 	if err != nil {
 		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, err
 	}
-	decision, err := decodeSteppedDecision(out, p.Manifest.Kind)
+	decision, err := decodeSteppedDecision(out, resultKind)
 	if err != nil {
 		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, hook, len(steps), 0)
 	}

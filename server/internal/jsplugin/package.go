@@ -54,10 +54,15 @@ type SiteSection struct {
 
 // BaseURLSettings returns how the site address is prepared for the plugin.
 func (m Manifest) BaseURLSettings() (mode, defaultBase string) {
-	if m.Kind == KindQuotaProbe {
+	switch m.Kind {
+	case KindQuotaProbe:
 		return m.QuotaProbe.BaseURLMode, m.QuotaProbe.DefaultBaseURL
+	case KindSiteProvider:
+		// No site section. An empty mode is as_is, the same default quota probes use.
+		return "as_is", m.SiteProvider.Protocol.OfficialBaseURL
+	default:
+		return m.Site.BaseURLMode, m.Site.DefaultBaseURL
 	}
-	return m.Site.BaseURLMode, m.Site.DefaultBaseURL
 }
 
 // ProtocolSection is the protocol manifest block. Method and Auth are applied

@@ -35,8 +35,8 @@ const (
 	// FamilyEvent kinds are called off the request path when xLyra emits an
 	// event, and answer with actions for xLyra to carry out.
 	FamilyEvent KindFamily = "event"
-	// FamilyProvider kinds declare an API-key site type. Hooks, when a later
-	// build calls them, are bound to that site type rather than to one site.
+	// FamilyProvider kinds declare an API-key site type. Hooks the module exports
+	// are bound to that site type rather than to one site.
 	FamilyProvider KindFamily = "provider"
 )
 

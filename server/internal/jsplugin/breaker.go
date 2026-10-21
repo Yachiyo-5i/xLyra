@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	probeFailureTripCount = 20
-	protocolErrorWindow   = 5 * time.Minute
-	protocolMinCalls      = 50
-	protocolErrorRate     = 0.5
+	probeFailureTripCount   = 20
+	protocolErrorWindow     = 5 * time.Minute
+	protocolMinCalls        = 50
+	protocolErrorRate       = 0.5
 	protocolInterruptWindow = time.Minute
-	protocolInterruptTrip = 10
+	protocolInterruptTrip   = 10
 )
 
 type breakerKey struct {
@@ -118,6 +118,11 @@ func (b *Breaker) RecordProbeResult(plugin *Plugin, success bool) {
 		return
 	}
 	b.probe[key]++
+	// site_provider keeps the failure count and metrics. A bad hook must not
+	// disable the version, because that would take the site type with it.
+	if plugin.Manifest.Kind == KindSiteProvider {
+		return
+	}
 	if b.probe[key] >= probeFailureTripCount {
 		b.probe[key] = 0
 		b.trip(key, "probe_failures")
