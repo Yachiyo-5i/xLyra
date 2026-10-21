@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Site, SiteAccountCapabilities, SiteQuotaProbeEntry, SiteTypeInfo } from '@/features/sites/api/sites'
-import { accountBalanceDetails, accountLoginHintKey, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatSiteBalance, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import { accountBalanceDetails, accountLoginHintKey, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatQuotaProbeBalance, formatSiteBalance, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -264,6 +264,40 @@ describe('grok billing summary', () => {
       quota_probe: { probe_type: 'grok', status: 'ok', remaining_min: 95, limit: 100, unit: 'percent' },
     } as unknown as Parameters<typeof formatSiteBalance>[0]
     expect(formatSiteBalance(site)).toBe('95%')
+  })
+})
+
+describe('generic credits and percent quota summary', () => {
+  function summarySite(probeType: string, unit: 'credits' | 'percent' | 'usd', remaining: number, limit: number, used: number): Site {
+    return {
+      ...siteWithSyncState('unknown'),
+      site_type: probeType,
+      quota_probe: { probe_type: probeType, status: 'ok', remaining_min: remaining, limit, used, unit },
+    }
+  }
+
+  it('formats a credits probe as remaining over limit', () => {
+    const acme = summarySite('acme', 'credits', 1999, 2000, 1)
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('1,999 / 2,000')
+    expect(siteBalanceDetails(acme)).toEqual([
+      { label: 'accountBalance', value: '1,999 credits' },
+      { label: 'totalLimit', value: '2,000 credits' },
+    ])
+  })
+
+  it('formats a percent probe the same as grok', () => {
+    const grok = summarySite('grok', 'percent', 95, 100, 5)
+    const acme = summarySite('acme', 'percent', 95, 100, 5)
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe(formatQuotaProbeBalance(grok.quota_probe))
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('95%')
+    expect(siteBalanceDetails(acme)).toEqual(siteBalanceDetails(grok))
+    expect(siteBalanceDetails(acme)).toEqual([{ label: 'accountBalance', value: '95%' }])
+  })
+
+  it('keeps usd amounts on the currency path', () => {
+    const acme = summarySite('acme', 'usd', 12.5, 100, 1)
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('$12.50')
+    expect(siteBalanceDetails(acme)).toEqual([{ label: 'accountBalance', value: '$12.50' }])
   })
 })
 

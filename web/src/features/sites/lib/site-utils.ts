@@ -344,15 +344,21 @@ export function accountQuotaEntries(
 
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
-  if (probe.probe_type === 'grok') {
-    if (typeof probe.remaining_min !== 'number') return undefined
-    return formatProbePercent(probe.remaining_min)
-  }
   if (probe.probe_type === 'deepseek' || probe.probe_type === 'moonshot') {
     return formatAccountBalance(probe.entries)
   }
   if (probe.probe_type === 'kimi' || probe.probe_type === 'glm') {
     return formatFiveHourWeeklyQuotaBalance(probe)
+  }
+  const unit = probe.unit?.trim().toLowerCase() ?? ''
+  if (unit === 'credits') {
+    if (typeof probe.remaining_min !== 'number') return undefined
+    const remaining = formatCreditAmount(probe.remaining_min)
+    return typeof probe.limit === 'number' ? `${remaining} / ${formatCreditAmount(probe.limit)}` : remaining
+  }
+  if (unit === 'percent') {
+    if (typeof probe.remaining_min !== 'number') return undefined
+    return formatProbePercent(probe.remaining_min)
   }
   if (typeof probe.remaining_min !== 'number') {
     if (probe.unlimited !== true) return undefined
@@ -361,9 +367,6 @@ export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | un
       return `${prefix}${formatProbeAmount(probe.used_total)} / ∞${suffix}`
     }
     return '∞'
-  }
-  if (isQuotaProbePercent(probe)) {
-    return formatProbePercent(probe.remaining_min)
   }
   const { prefix, suffix } = quotaProbeCurrency(probe.unit)
   const remaining = formatProbeAmount(Math.max(probe.remaining_min, 0))
@@ -459,7 +462,14 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
     if (probeType === 'kimi' || probeType === 'glm') {
       return fiveHourWeeklyQuotaDetails(probe, language)
     }
-    if (probeType === 'grok') {
+    const unit = probe.unit?.trim().toLowerCase() ?? ''
+    if (unit === 'credits') {
+      if (typeof probe.remaining_min !== 'number') return []
+      const rows: SiteBalanceDetail[] = [{ label: 'accountBalance', value: `${formatCreditAmount(probe.remaining_min)} credits` }]
+      if (typeof probe.limit === 'number') rows.push({ label: 'totalLimit', value: `${formatCreditAmount(probe.limit)} credits` })
+      return rows
+    }
+    if (unit === 'percent') {
       if (typeof probe.remaining_min !== 'number') return []
       return [{ label: 'accountBalance', value: formatProbePercent(Math.max(probe.remaining_min, 0)) }]
     }
