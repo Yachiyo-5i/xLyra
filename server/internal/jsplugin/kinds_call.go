@@ -126,6 +126,21 @@ func (p *Plugin) CallErrorClassify(ctx context.Context, c ErrorClassifyContext, 
 	return out, nil
 }
 
+// CallErrorClassifyHook runs one exported hook and decodes it as an
+// error_classifier verdict. hook is the export name, so a site_provider can
+// serve the same contract with the same 50 ms limit. A missing export returns
+// an error and does not enter the runtime.
+func (p *Plugin) CallErrorClassifyHook(ctx context.Context, hook string, c ErrorClassifyContext, in ErrorClassifyInput) (ErrorClassifyResult, error) {
+	var out ErrorClassifyResult
+	if err := p.callOneShotHook(ctx, hook, KindErrorClassifier, &out, encodeValue(c), encodeValue(in)); err != nil {
+		return ErrorClassifyResult{}, err
+	}
+	if len(out.Reason) > 200 {
+		return ErrorClassifyResult{}, annotate(p, shapeError("result.reason: longer than 200 bytes"), hook, 0, 0)
+	}
+	return out, nil
+}
+
 // CallModelMetadata runs a model_metadata plugin. Every id in the result must
 // be one of the input names.
 func (p *Plugin) CallModelMetadata(ctx context.Context, c ModelMetadataContext, in ModelMetadataInput) (ModelMetadataResult, error) {
@@ -185,7 +200,19 @@ func (p *Plugin) callOneShot(ctx context.Context, kind string, out any, args ...
 	if !ok || p.Manifest.Kind != kind {
 		return fmt.Errorf("plugin %s is not a %s plugin", p.Manifest.ID, kind)
 	}
-	hook := spec.Hooks[0]
+	return p.callOneShotHook(ctx, spec.Hooks[0], kind, out, args...)
+}
+
+// callOneShotHook runs hook with kind's timeout and decodes into out.
+// It checks that hook is exported, not that the plugin's kind equals kind.
+func (p *Plugin) callOneShotHook(ctx context.Context, hook, kind string, out any, args ...any) error {
+	if p == nil || !p.HasHook(hook) {
+		return fmt.Errorf("%s hook is missing", hook)
+	}
+	spec, ok := lookupKind(kind)
+	if !ok {
+		return fmt.Errorf("kind %q is unknown", kind)
+	}
 	started := time.Now()
 	value, _, _, err := p.callHook(ctx, hook, spec.Timeout, 0, args...)
 	if err != nil {

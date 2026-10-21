@@ -137,6 +137,68 @@ func TestCallSteppedHookMissingAndKindGuard(t *testing.T) {
 	}
 }
 
+func TestCallErrorClassifyHookSiteProvider(t *testing.T) {
+	t.Parallel()
+	plugin := providerPlugin(t, "acme.example", `
+export function classify(ctx, input) {
+  const ctxKeys = Object.keys(ctx).sort().join(",");
+  const inKeys = Object.keys(input).sort().join(",");
+  if (ctxKeys !== "siteType" || inKeys !== "code,message,status,type") {
+    return { class: "limited", reason: "leak:" + ctxKeys + "/" + inKeys };
+  }
+  return { class: "subscription_limit", reason: ctx.siteType + "|" + input.status + "|" + input.code + "|" + input.type + "|" + input.message };
+}`)
+	if _, err := plugin.CallErrorClassify(context.Background(), ErrorClassifyContext{SiteType: "acme.example/chat"}, ErrorClassifyInput{Status: 429}); err == nil || !strings.Contains(err.Error(), "not a error_classifier plugin") {
+		t.Fatalf("CallErrorClassify error = %v", err)
+	}
+	out, err := plugin.CallErrorClassifyHook(context.Background(), "classify",
+		ErrorClassifyContext{SiteType: "acme.example/chat"},
+		ErrorClassifyInput{Status: 429, Code: "rate_limit", Type: "quota", Message: "slow down"})
+	if err != nil || out.Class != "subscription_limit" || out.Reason != "acme.example/chat|429|rate_limit|quota|slow down" {
+		t.Fatalf("out = %+v err = %v", out, err)
+	}
+
+	exact := providerPlugin(t, "acme.exact", `export function classify() { return { class: "limited", reason: "a".repeat(200) }; }`)
+	out, err = exact.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500})
+	if err != nil || out.Class != "limited" || len(out.Reason) != 200 {
+		t.Fatalf("200-byte reason = %+v err = %v", out, err)
+	}
+	long := providerPlugin(t, "acme.long", `export function classify() { return { class: "limited", reason: "a".repeat(201) }; }`)
+	if _, err := long.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500}); err == nil || !strings.Contains(err.Error(), "200") {
+		t.Fatalf("long reason error = %v", err)
+	}
+	unknown := providerPlugin(t, "acme.unknown", `export function classify() { return { class: "ban_forever" }; }`)
+	if _, err := unknown.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500}); err == nil || !strings.Contains(err.Error(), "ban_forever") {
+		t.Fatalf("unknown class error = %v", err)
+	}
+	extra := providerPlugin(t, "acme.extra", `export function classify() { return { class: "transient", cooldownSeconds: 9 }; }`)
+	if _, err := extra.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500}); err == nil || !strings.Contains(err.Error(), KindShape) {
+		t.Fatalf("extra field error = %v", err)
+	}
+	broken := providerPlugin(t, "acme.broken", `export function classify() { throw new Error("boom"); }`)
+	if _, err := broken.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500}); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("throw error = %v", err)
+	}
+	bare := providerPlugin(t, "acme.bare", `export function listModels() { return { result: { models: [] } }; }`)
+	if _, err := bare.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500}); err == nil || !strings.Contains(err.Error(), "classify hook is missing") {
+		t.Fatalf("missing hook error = %v", err)
+	}
+}
+
+func TestCallErrorClassifyHookUsesClassifierTimeout(t *testing.T) {
+	t.Parallel()
+	plugin := providerPlugin(t, "acme.example", `export function classify() { for (;;) {} }`)
+	started := time.Now()
+	_, err := plugin.CallErrorClassifyHook(context.Background(), "classify", ErrorClassifyContext{}, ErrorClassifyInput{Status: 500})
+	elapsed := time.Since(started)
+	if err == nil || !strings.Contains(err.Error(), KindTimeout) {
+		t.Fatalf("error = %v", err)
+	}
+	if elapsed < 40*time.Millisecond || elapsed > 180*time.Millisecond {
+		t.Fatalf("elapsed %s, want the 50ms classifier timeout", elapsed)
+	}
+}
+
 func TestCallSteppedHookUsesProbeTimeout(t *testing.T) {
 	t.Parallel()
 	plugin := providerPlugin(t, "acme.example", `export function listModels() { for (;;) {} }`)

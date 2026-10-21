@@ -313,6 +313,67 @@ export function check() { return { result: { status: "ok", message: "from-bindin
 	}
 }
 
+func TestProviderHookPlugin(t *testing.T) {
+	provider := providerHookPlugin(t, "acme.example", `export function classify() { return { class: "limited" }; }`)
+	bare := providerHookPlugin(t, "bare.example", `export function listModels() { return { result: { models: [] } }; }`)
+	other := kindsTestPlugin(t, jsplugin.KindErrorClassifier, "other.example", header("other.example", jsplugin.KindErrorClassifier)+`
+export function classify() { return { class: "limited" }; }`)
+	useCatalog(t, provider, bare, other)
+	ClearPluginSiteTypes()
+	t.Cleanup(ClearPluginSiteTypes)
+	if err := SetPluginSiteTypes([]PluginSiteType{
+		{Descriptor: SiteTypeDescriptor{SiteType: "acme.example/chat"}, PluginID: "acme.example", Enabled: true, Hosts: []string{"api.example.com"}},
+		{Descriptor: SiteTypeDescriptor{SiteType: "paused.example/chat"}, PluginID: "acme.example", Enabled: false, Hosts: []string{"api.example.com"}},
+		{Descriptor: SiteTypeDescriptor{SiteType: "bare.example/chat"}, PluginID: "bare.example", Enabled: true, Hosts: []string{"api.example.com"}},
+		{Descriptor: SiteTypeDescriptor{SiteType: "other.example/chat"}, PluginID: "other.example", Enabled: true, Hosts: []string{"api.example.com"}},
+		{Descriptor: SiteTypeDescriptor{SiteType: "gone.example/chat"}, PluginID: "gone.example", Enabled: true, Hosts: []string{"api.example.com"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	registry := jsplugin.DefaultCatalog().Registry()
+	service := &Service{}
+	cases := []struct {
+		name     string
+		siteType string
+		hook     string
+		wantID   string
+	}{
+		{name: "enabled classify", siteType: "acme.example/chat", hook: "classify", wantID: "acme.example"},
+		{name: "disabled", siteType: "paused.example/chat", hook: "classify"},
+		{name: "other kind", siteType: "other.example/chat", hook: "classify"},
+		{name: "missing hook", siteType: "bare.example/chat", hook: "classify"},
+		{name: "other export", siteType: "acme.example/chat", hook: "rewritePayload"},
+		{name: "builtin", siteType: "openai", hook: "classify"},
+		{name: "not registered", siteType: "gone.example/chat", hook: "classify"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin, ok := ProviderHookPlugin(registry, tc.siteType, tc.hook)
+			if tc.wantID == "" {
+				if ok || plugin != nil {
+					t.Fatalf("ProviderHookPlugin = %v, %v", pluginIDOf(plugin), ok)
+				}
+			} else if !ok || plugin == nil || plugin.Manifest.ID != tc.wantID || !plugin.HasHook(tc.hook) {
+				t.Fatalf("ProviderHookPlugin = %v, %v", pluginIDOf(plugin), ok)
+			}
+			got, gotOK := service.siteTypeHookPlugin(tc.siteType, tc.hook)
+			if gotOK != ok || pluginIDOf(got) != pluginIDOf(plugin) {
+				t.Fatalf("siteTypeHookPlugin = %v, %v; ProviderHookPlugin = %v, %v", pluginIDOf(got), gotOK, pluginIDOf(plugin), ok)
+			}
+		})
+	}
+	if plugin, ok := ProviderHookPlugin(nil, "acme.example/chat", "classify"); ok || plugin != nil {
+		t.Fatal("nil registry returned a plugin")
+	}
+}
+
+func pluginIDOf(plugin *jsplugin.Plugin) string {
+	if plugin == nil {
+		return ""
+	}
+	return plugin.Manifest.ID
+}
+
 func TestSiteProviderHookFailureDoesNotFallBack(t *testing.T) {
 	plugin := providerHookPlugin(t, "acme.example", `
 export function listModels() { return { error: "broken list" }; }

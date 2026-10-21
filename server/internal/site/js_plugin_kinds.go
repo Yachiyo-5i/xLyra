@@ -54,11 +54,17 @@ func (s *Service) boundSitePlugin(item store.Site, kind string) (*jsplugin.Plugi
 // siteTypeHookPlugin returns the enabled site_provider for siteType when it
 // exports hook. A disabled type, another kind, or a missing export is false.
 func (s *Service) siteTypeHookPlugin(siteType, hook string) (*jsplugin.Plugin, bool) {
+	return ProviderHookPlugin(s.activeJSRegistry(), siteType, hook)
+}
+
+// ProviderHookPlugin returns the enabled site_provider registered for siteType
+// when it exports hook. registry is the catalog generation to read. A disabled
+// type, another kind, a missing export, or a nil registry is false.
+func ProviderHookPlugin(registry *jsplugin.Registry, siteType, hook string) (*jsplugin.Plugin, bool) {
 	item, ok := LookupPluginSiteType(siteType)
 	if !ok || !item.Enabled || item.PluginID == "" {
 		return nil, false
 	}
-	registry := s.activeJSRegistry()
 	if registry == nil {
 		return nil, false
 	}
