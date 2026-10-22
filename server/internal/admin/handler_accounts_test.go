@@ -159,8 +159,8 @@ func TestAccountRouteShapes(t *testing.T) {
 
 			modelBody := `{"model":"demo-model","enabled":false}`
 			modeled := fixture.perform(fixture.handler.UpdateAccountModel, http.MethodPut, "/api/v1/sites/x/accounts/x/models", modelBody, true)
-			adminAssertStatus(t, modeled, http.StatusOK)
-			assertExactJSONKeys(t, decodeObject(t, modeled.Body.Bytes()), "model", "account")
+			// The fixture has no model row. A failed model update must fail the request.
+			assertAdminErrorCode(t, modeled, http.StatusBadRequest, "account_model_update_failed")
 
 			refreshed := fixture.performTimeout(fixture.handler.RefreshAccount, http.MethodPost, "/api/v1/sites/x/accounts/"+uuid.NewString()+"/refresh", "", uuid.New())
 			assertAdminErrorCode(t, refreshed, http.StatusBadRequest, "account_refresh_failed")

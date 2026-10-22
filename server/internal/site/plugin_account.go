@@ -26,6 +26,7 @@ const (
 	pluginAccountRefreshLeaseWait = 250 * time.Millisecond
 	pluginAccountRefreshLead      = 300 * time.Second
 	pluginLoginResultTTL          = 10 * time.Minute
+	pluginPendingLoginMax         = 256
 	pluginImportMaxFiles          = 50
 	pluginImportMaxAccounts       = 200
 	// pluginAccountWorkers matches the scheduler's default site-health worker
@@ -356,14 +357,25 @@ func (r *pluginLoginResults) remember(session string, account PluginAccount) {
 	delete(r.pending, session)
 }
 
-func (r *pluginLoginResults) rememberRegion(session, region string) {
+func (r *pluginLoginResults) rememberRegion(session, region string) error {
 	session = strings.TrimSpace(session)
-	if r == nil || session == "" || strings.TrimSpace(region) == "" {
-		return
+	region = strings.TrimSpace(region)
+	if r == nil || session == "" || region == "" {
+		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.pending[session] = pluginPendingLogin{region: region, expiresAt: time.Now().Add(pluginLoginResultTTL)}
+	now := time.Now()
+	for id, item := range r.pending {
+		if now.After(item.expiresAt) {
+			delete(r.pending, id)
+		}
+	}
+	if _, exists := r.pending[session]; !exists && len(r.pending) >= pluginPendingLoginMax {
+		return fmt.Errorf("too many pending logins; retry after an existing login expires")
+	}
+	r.pending[session] = pluginPendingLogin{region: region, expiresAt: now.Add(pluginLoginResultTTL)}
+	return nil
 }
 
 func (r *pluginLoginResults) region(session string) string {
@@ -545,7 +557,9 @@ func (p pluginAccountAPI) StartLogin(ctx context.Context, siteID uuid.UUID, para
 	if err != nil {
 		return AccountLoginStart{}, err
 	}
-	p.s.pluginLogins.rememberRegion(started.ID, region)
+	if err := p.s.pluginLogins.rememberRegion(started.ID, region); err != nil {
+		return AccountLoginStart{}, err
+	}
 	if started.Status == "complete" {
 		account, finishErr := p.finishLogin(ctx, siteID, started.Identity, started.Credential, region, nil)
 		if finishErr != nil {
@@ -742,9 +756,7 @@ func (p pluginAccountAPI) refreshAccount(ctx context.Context, siteID, credential
 }
 
 type pluginRefreshPrepared struct {
-	credential store.SiteCredential
 	fields     map[string]string
-	refreshed  bool
 	summary    PluginAccountSummary
 	models     []adapter.Model
 	syncModels bool
@@ -765,46 +777,63 @@ func (p pluginAccountAPI) refreshOne(ctx context.Context, siteID, credentialID u
 	}
 	var prepared pluginRefreshPrepared
 	err = p.s.withPluginRefreshLease(ctx, credential.ID, func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		current, err := repo.GetByID(ctx, credentialID)
 		if err != nil {
 			return err
+		}
+		if current.SiteID != siteID || !store.IsAccountCredentialTypeOf(current.CredentialType, p.siteType) {
+			return fmt.Errorf("%s account was not found", p.siteType)
 		}
 		fields, err := p.readCredentialFields(current)
 		if err != nil {
 			return err
 		}
+		rotated := false
 		if p.refreshesTokens() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			refreshed, refreshErr := p.runtime.Refresh(ctx, cloneStringMap(fields))
 			if refreshErr != nil {
-				return p.failRefresh(ctx, current, refreshErr, fields)
+				return p.failRefresh(ctx, current, refreshErr, fields, false)
 			}
 			if strings.TrimSpace(refreshed[p.accessField()]) == "" {
 				return fmt.Errorf("refreshed account is missing %s", p.accessField())
 			}
 			fields = refreshed
-			prepared.refreshed = true
+			rotated = true
 		}
 		base := p.baseURL(anyString(accountMetaMap(current.Meta)["region"]))
 		summary, sumErr := p.runtime.Summarize(ctx, base, cloneStringMap(fields))
 		if sumErr != nil {
-			return p.failRefresh(ctx, current, sumErr, fields)
+			return p.failRefresh(ctx, current, sumErr, fields, rotated)
 		}
 		summary = p.scrubSummary(summary, fields)
 		if p.pool != nil && p.pool.ModelsPerAccount {
 			models, listErr := p.runtime.ListModels(ctx, cloneStringMap(fields))
 			if listErr != nil {
-				return p.failRefresh(ctx, current, listErr, fields)
+				return p.failRefresh(ctx, current, listErr, fields, rotated)
 			}
 			prepared.models = models
 			prepared.syncModels = true
 		}
-		prepared.credential = current
+		if rotated {
+			if _, err := p.saveCredentialFields(context.WithoutCancel(ctx), current, fields); err != nil {
+				return err
+			}
+		}
 		prepared.fields = fields
 		prepared.summary = summary
 		return nil
 	})
 	if err != nil {
 		return PluginAccount{}, err
+	}
+	if pluginRefreshLeaseReleased != nil {
+		pluginRefreshLeaseReleased(siteID)
 	}
 	if err := ctx.Err(); err != nil {
 		return PluginAccount{}, err
@@ -823,12 +852,6 @@ func (p pluginAccountAPI) refreshOne(ctx context.Context, siteID, credentialID u
 	}
 	if current.SiteID != siteID || !store.IsAccountCredentialTypeOf(current.CredentialType, p.siteType) {
 		return PluginAccount{}, fmt.Errorf("%s account was not found", p.siteType)
-	}
-	if prepared.refreshed {
-		current, err = p.saveCredentialFields(ctx, current, prepared.fields)
-		if err != nil {
-			return PluginAccount{}, err
-		}
 	}
 	if prepared.syncModels {
 		if err := p.writeAccountModels(ctx, current, prepared.models); err != nil {
@@ -857,8 +880,9 @@ func (p pluginAccountAPI) refreshOne(ctx context.Context, siteID, credentialID u
 }
 
 // probeAccountHealth ensures a token when it is due, then calls summarizeAccount.
-// It does not write usage or the site quota. Reauthorization and other probe
-// failures still update sync status. A cancelled context writes nothing.
+// It does not write usage or the site quota. A token the upstream already
+// issued is stored even when the context is cancelled afterwards. Cancellation
+// does not mark the account failed. Other probe failures still update sync status.
 func (p pluginAccountAPI) probeAccountHealth(ctx context.Context, credential store.SiteCredential) (string, string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", "", err
@@ -879,9 +903,12 @@ func (p pluginAccountAPI) probeAccountHealth(ctx context.Context, credential sto
 				return err
 			}
 			status, message = "stale", err.Error()
-			return p.failRefresh(ctx, current, err, fields)
+			return p.failRefresh(ctx, current, err, fields, false)
 		}
 		if p.refreshesTokens() && p.pool != nil && PluginAccountNeedsRefresh(*p.pool, fields, time.Now()) {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			refreshed, refreshErr := p.runtime.Refresh(ctx, cloneStringMap(fields))
 			if refreshErr != nil {
 				if contextCanceled(ctx, refreshErr) {
@@ -891,17 +918,14 @@ func (p pluginAccountAPI) probeAccountHealth(ctx context.Context, credential sto
 					return errors.Is(refreshErr, accountauth.ErrReauthorizationRequired)
 				})
 				message = redactCredentialError(refreshErr, fields, p.secretNames()).Error()
-				return p.failRefresh(ctx, current, refreshErr, fields)
-			}
-			if err := ctx.Err(); err != nil {
-				return err
+				return p.failRefresh(ctx, current, refreshErr, fields, false)
 			}
 			if strings.TrimSpace(refreshed[p.accessField()]) == "" {
 				cause := fmt.Errorf("refreshed account is missing %s", p.accessField())
 				status, message = "stale", cause.Error()
-				return p.failRefresh(ctx, current, cause, fields)
+				return p.failRefresh(ctx, current, cause, fields, false)
 			}
-			current, err = p.saveCredentialFields(ctx, current, refreshed)
+			current, err = p.saveCredentialFields(context.WithoutCancel(ctx), current, refreshed)
 			if err != nil {
 				return err
 			}
@@ -920,7 +944,7 @@ func (p pluginAccountAPI) probeAccountHealth(ctx context.Context, credential sto
 				return errors.Is(sumErr, accountauth.ErrReauthorizationRequired)
 			})
 			message = redactCredentialError(sumErr, fields, p.secretNames()).Error()
-			return p.failRefresh(ctx, current, sumErr, fields)
+			return p.failRefresh(ctx, current, sumErr, fields, false)
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -973,19 +997,26 @@ func (p pluginAccountAPI) refreshesTokens() bool {
 	}
 }
 
-func (p pluginAccountAPI) failRefresh(ctx context.Context, credential store.SiteCredential, cause error, fields map[string]string) error {
-	reauth := errors.Is(cause, accountauth.ErrReauthorizationRequired)
+func (p pluginAccountAPI) failRefresh(ctx context.Context, credential store.SiteCredential, cause error, fields map[string]string, rotated bool) error {
 	scrubbed := redactCredentialError(cause, fields, p.secretNames())
+	if rotated {
+		saved, err := p.saveCredentialFields(context.WithoutCancel(ctx), credential, fields)
+		if err != nil {
+			return err
+		}
+		credential = saved
+	}
 	if contextCanceled(ctx, cause) {
 		return scrubbed
 	}
+	reauth := errors.Is(cause, accountauth.ErrReauthorizationRequired)
 	p.s.recordAccountRefreshFailure(ctx, credential, scrubbed, func(error) bool { return reauth })
 	return scrubbed
 }
 
-// contextCanceled reports that this attempt must not commit. A cancelled
-// parent counts even when the upstream error is not wrapped as context.Canceled,
-// so a timed-out probe cannot disable an account or replace its usage.
+// contextCanceled reports that this attempt must not be recorded as an account
+// failure. A cancelled parent counts even when the upstream error is not
+// wrapped as context.Canceled, so a timed-out probe cannot disable an account.
 func contextCanceled(ctx context.Context, err error) bool {
 	if ctx != nil && ctx.Err() != nil {
 		return true
@@ -1016,7 +1047,11 @@ func (p pluginAccountAPI) refreshForGateway(ctx context.Context, siteID, credent
 	if err := p.requireSite(ctx, siteID); err != nil {
 		return nil, err
 	}
-	defer p.s.siteLocks.lock(siteID)()
+	unlock := p.s.siteLocks.lock(siteID)
+	defer unlock()
+	if pluginGatewayHoldsSiteLock != nil {
+		pluginGatewayHoldsSiteLock(siteID)
+	}
 	repo := store.NewSiteCredentialRepository(p.s.db.DB())
 	credential, err := repo.GetByID(ctx, credentialID)
 	if err != nil {
@@ -1039,6 +1074,9 @@ func (p pluginAccountAPI) refreshForGateway(ctx context.Context, siteID, credent
 			fields = stored
 			return nil
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		refreshed, refreshErr := p.runtime.Refresh(ctx, cloneStringMap(stored))
 		if refreshErr != nil {
 			return p.failGatewayRefresh(ctx, current, refreshErr, stored)
@@ -1046,7 +1084,7 @@ func (p pluginAccountAPI) refreshForGateway(ctx context.Context, siteID, credent
 		if strings.TrimSpace(refreshed[p.accessField()]) == "" {
 			return fmt.Errorf("refreshed account is missing %s", p.accessField())
 		}
-		if _, err := p.saveCredentialFields(ctx, current, refreshed); err != nil {
+		if _, err := p.saveCredentialFields(context.WithoutCancel(ctx), current, refreshed); err != nil {
 			return err
 		}
 		fields = refreshed
@@ -1061,6 +1099,9 @@ func (p pluginAccountAPI) refreshForGateway(ctx context.Context, siteID, credent
 func (p pluginAccountAPI) failGatewayRefresh(ctx context.Context, credential store.SiteCredential, cause error, fields map[string]string) error {
 	reauth := errors.Is(cause, accountauth.ErrReauthorizationRequired)
 	scrubbed := redactCredentialError(cause, fields, p.secretNames())
+	if contextCanceled(ctx, cause) {
+		return scrubbed
+	}
 	p.s.recordAccountRefreshFailure(ctx, credential, scrubbed, func(error) bool { return reauth })
 	if !reauth {
 		return scrubbed
@@ -1094,11 +1135,25 @@ func (p pluginAccountAPI) saveCredentialFields(ctx context.Context, credential s
 	if identity, idErr := p.identityOf(fields); idErr == nil {
 		meta["identity"] = identity
 	}
-	updated, err := store.NewSiteCredentialRepository(p.s.db.DB()).UpdateSecret(ctx, credential.ID, encrypted)
+	prefix := store.CredentialPrefixAccount + strings.ToLower(strings.TrimSpace(p.siteType)) + ":"
+	var updated store.SiteCredential
+	err = p.s.db.WithinTx(ctx, func(tx store.Tx) error {
+		repo := store.NewSiteCredentialRepository(tx)
+		saved, err := repo.UpdateSecretIfTypePrefix(ctx, credential.ID, encrypted, prefix)
+		if err != nil {
+			return err
+		}
+		saved, err = updateCredentialMeta(ctx, repo, saved.ID, meta)
+		if err != nil {
+			return err
+		}
+		updated = saved
+		return nil
+	})
 	if err != nil {
 		return store.SiteCredential{}, err
 	}
-	return updateCredentialMeta(ctx, store.NewSiteCredentialRepository(p.s.db.DB()), updated.ID, meta)
+	return updated, nil
 }
 
 func (p pluginAccountAPI) applyPublicMeta(meta map[string]any, fields map[string]string) {
@@ -1927,6 +1982,16 @@ func normalizePluginUnixSeconds(n int64) int64 {
 	}
 	return n
 }
+
+// pluginRefreshLeaseReleased runs after refreshOne leaves the credential lease
+// and before it takes the site lock. Tests interleave another writer here.
+// Production leaves it nil.
+var pluginRefreshLeaseReleased func(siteID uuid.UUID)
+
+// pluginGatewayHoldsSiteLock runs after a gateway refresh takes the site lock
+// and before it takes the credential lease. Tests use it to overlap the refresh
+// paths. Production leaves it nil.
+var pluginGatewayHoldsSiteLock func(siteID uuid.UUID)
 
 func (s *Service) withPluginRefreshLease(ctx context.Context, credentialID uuid.UUID, fn func() error) error {
 	if s == nil || s.db == nil {

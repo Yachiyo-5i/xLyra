@@ -2060,8 +2060,12 @@ func (s *Service) SiteModelEndpointTypes(ctx context.Context, siteModelID uuid.U
 }
 
 func (s *Service) syncSiteModelStatusFromAPIKeyModels(ctx context.Context, siteID uuid.UUID, modelName string, updatedAPIKeyModel store.SiteAPIKeyModel) error {
-	apiKeyModelRepo := store.NewSiteAPIKeyModelRepository(s.db.DB())
-	siteModelRepo := store.NewSiteModelRepository(s.db.DB())
+	return syncSiteModelStatusOn(ctx, s.db.DB(), siteID, modelName, updatedAPIKeyModel)
+}
+
+func syncSiteModelStatusOn(ctx context.Context, db store.Tx, siteID uuid.UUID, modelName string, updatedAPIKeyModel store.SiteAPIKeyModel) error {
+	apiKeyModelRepo := store.NewSiteAPIKeyModelRepository(db)
+	siteModelRepo := store.NewSiteModelRepository(db)
 
 	apiKeyModels, err := apiKeyModelRepo.ListBySite(ctx, siteID)
 	if err != nil {
