@@ -3,8 +3,12 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
+	"unsafe"
 
 	"xlyra/server/internal/gateway"
 	"xlyra/server/internal/jsplugin"
@@ -93,6 +97,52 @@ func TestAccountPoolRuntimeAdapter(t *testing.T) {
 	if _, err := closed.ParseImport(raw); !errors.Is(err, site.ErrAccountImportUnsupported) || strings.Contains(err.Error(), token) {
 		t.Fatalf("disabled import = %v", err)
 	}
+}
+
+func TestAccountPoolRuntimeBlocksMetadataDial(t *testing.T) {
+	plugin := compileAccountPoolPlugin(t)
+	runtime, err := newAccountPoolRuntime(plugin, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := accountPoolRuntimeClient(t, runtime)
+	if client == nil || client.Transport == nil {
+		t.Fatal("account pool client has no guarded transport")
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok || transport.DialContext == nil {
+		t.Fatal("account pool transport has no dial")
+	}
+	const token = "METADATA_TOKEN_9f3c"
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := transport.DialContext(ctx, "tcp", "169.254.169.254:80")
+	if conn != nil {
+		_ = conn.Close()
+		t.Fatal("metadata dial connected")
+	}
+	if err == nil || !strings.Contains(err.Error(), "blocked connection") {
+		t.Fatalf("dial = %v", err)
+	}
+	if strings.Contains(err.Error(), "no route to host") || strings.Contains(err.Error(), token) || strings.Contains(err.Error(), "http://") || strings.Contains(err.Error(), "https://") {
+		t.Fatalf("dial error = %v", err)
+	}
+	if client.Timeout != 0 {
+		t.Fatalf("client timeout = %s", client.Timeout)
+	}
+}
+
+func accountPoolRuntimeClient(t *testing.T, runtime site.PluginAccountRuntime) *http.Client {
+	t.Helper()
+	adapter, ok := runtime.(accountPoolRuntimeAdapter)
+	if !ok {
+		t.Fatalf("runtime type %T", runtime)
+	}
+	field := reflect.ValueOf(adapter.runtime).Elem().FieldByName("client")
+	if !field.IsValid() || field.IsNil() {
+		return nil
+	}
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(*http.Client)
 }
 
 func compileAccountPoolPlugin(t *testing.T) *jsplugin.Plugin {

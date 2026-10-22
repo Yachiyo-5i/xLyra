@@ -35,17 +35,22 @@ func (m *Manager) launchSync(ctx context.Context, interval time.Duration, ticks 
 	}()
 }
 
+// primeCatalogSync loads the catalog once at startup. The seen generation
+// advances only after Reload succeeds, same as syncOnce, so a failed startup
+// reload is retried on the next tick even when the generation did not change.
 func (m *Manager) primeCatalogSync(ctx context.Context) {
-	gen, err := m.repo.CatalogGeneration(ctx)
-	if err != nil {
-		if ctx.Err() == nil {
-			slog.Warn("js plugin catalog generation read failed", "error", err)
-		}
-	} else {
-		m.setSeenGeneration(gen)
+	gen, genErr := m.repo.CatalogGeneration(ctx)
+	if genErr != nil && ctx.Err() == nil {
+		slog.Warn("js plugin catalog generation read failed", "error", genErr)
 	}
-	if err := m.Reload(ctx); err != nil && ctx.Err() == nil {
-		slog.Warn("js plugin catalog reload failed", "error", err)
+	if err := m.Reload(ctx); err != nil {
+		if ctx.Err() == nil {
+			slog.Warn("js plugin catalog reload failed", "error", err)
+		}
+		return
+	}
+	if genErr == nil {
+		m.setSeenGeneration(gen)
 	}
 }
 
