@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
 
 	"xlyra/server/internal/config"
@@ -55,15 +56,91 @@ func NewGuardedDialer(timeout time.Duration) *net.Dialer {
 }
 
 // NewGuardedTransport clones http.DefaultTransport and dials through the SSRF
-// guard. Proxy, idle limits, and TLS timeouts stay as they are on the default
+// guard. Idle limits and TLS timeouts stay as they are on the default
 // transport. dialTimeout is the TCP dial timeout; zero uses 30s.
+//
+// HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, and the lowercase forms are read here.
+// http.ProxyFromEnvironment caches the first process-wide read, so this builds
+// its own proxy function from that snapshot and keeps environment proxies
+// usable. The proxy host:port values themselves are exempt from the guard.
+// Every other direct dial is still checked, including other loopback and
+// private addresses when HTTP_CLIENT_BLOCK_PRIVATE_NETWORKS is on.
+//
+// Limitation: once a request goes through a proxy, the proxy resolves the
+// target. This guard only sees the direct dial. Account-pool URLs are also
+// limited to https and a manifest hostname allow-list, which cannot be an IP.
 func NewGuardedTransport(dialTimeout time.Duration) *http.Transport {
 	if dialTimeout <= 0 {
 		dialTimeout = 30 * time.Second
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DialContext = NewGuardedDialer(dialTimeout).DialContext
+	proxyForURL := httpproxy.FromEnvironment().ProxyFunc()
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		if req == nil || req.URL == nil {
+			return nil, nil
+		}
+		return proxyForURL(req.URL)
+	}
+	allowed := environmentProxyDialAddrs()
+	guarded := NewGuardedDialer(dialTimeout)
+	direct := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if _, ok := allowed[address]; ok {
+			return direct.DialContext(ctx, network, address)
+		}
+		return guarded.DialContext(ctx, network, address)
+	}
 	return transport
+}
+
+// environmentProxyDialAddrs is the exact host:port set dialed for the
+// process proxy variables. Only those addresses skip the guard.
+func environmentProxyDialAddrs() map[string]struct{} {
+	allowed := map[string]struct{}{}
+	for _, key := range []string{
+		"HTTP_PROXY", "http_proxy",
+		"HTTPS_PROXY", "https_proxy",
+		"ALL_PROXY", "all_proxy",
+	} {
+		addr, ok := proxyDialAddr(os.Getenv(key))
+		if !ok {
+			continue
+		}
+		allowed[addr] = struct{}{}
+	}
+	return allowed
+}
+
+func proxyDialAddr(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		parsed, err = url.Parse("http://" + raw)
+		if err != nil || parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
+			return "", false
+		}
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return "", false
+	}
+	port := parsed.Port()
+	if port == "" {
+		switch strings.ToLower(parsed.Scheme) {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		case "socks5", "socks5h":
+			port = "1080"
+		default:
+			return "", false
+		}
+	}
+	return net.JoinHostPort(host, port), true
 }
 
 type ProxyProfile struct {
