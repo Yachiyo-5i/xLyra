@@ -151,15 +151,7 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 	}
 
 	if refreshErr == nil && result.Site.ID != uuid.Nil {
-		if matchedModels, err := catalog.NewService(s.db, s.confFile).MatchSiteModels(ctx, site.ID); err == nil {
-			result.Models = availableSiteModels(matchedModels)
-		}
-		if unpriced := s.syncCanonicalPricingFallback(ctx, site.ID, result.Models); len(unpriced) > 0 {
-			message := fmt.Sprintf("%d models have no pricing and will record zero cost: %s", len(unpriced), strings.Join(unpriced, ", "))
-			if state, err := stateRepo.MarkPricingGap(ctx, site.ID, message); err == nil {
-				result.State = state
-			}
-		}
+		result.Models, result.State = s.matchAndPriceSiteModels(ctx, site, result.Models, result.State)
 	}
 
 	if fresh, err := s.Get(ctx, siteID); err == nil {
@@ -173,6 +165,22 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 	}
 
 	return result, refreshErr
+}
+
+// matchAndPriceSiteModels binds site models to the canonical catalog, writes
+// canonical fallback prices, then records a pricing-gap warning. Models that
+// already have an upstream or manual price are left in place.
+func (s *Service) matchAndPriceSiteModels(ctx context.Context, site store.Site, models []store.SiteModel, state store.SiteState) ([]store.SiteModel, store.SiteState) {
+	if matchedModels, err := catalog.NewService(s.db, s.confFile).MatchSiteModels(ctx, site.ID); err == nil {
+		models = availableSiteModels(matchedModels)
+	}
+	if unpriced := s.syncCanonicalPricingFallback(ctx, site.ID, models); len(unpriced) > 0 {
+		message := fmt.Sprintf("%d models have no pricing and will record zero cost: %s", len(unpriced), strings.Join(unpriced, ", "))
+		if next, err := store.NewSiteStateRepository(s.db.DB()).MarkPricingGap(ctx, site.ID, message); err == nil {
+			state = next
+		}
+	}
+	return models, state
 }
 
 func xlyraRefreshCanFallbackToAPIKey(err error) bool {

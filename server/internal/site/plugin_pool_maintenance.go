@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"xlyra/server/internal/catalog"
 	"xlyra/server/internal/store"
 )
 
@@ -200,9 +199,7 @@ func (s *Service) finishPluginAccountPoolRefresh(ctx context.Context, site store
 	}
 	site = s.restoreAutoDisabledSiteAfterRefreshSuccess(ctx, site)
 	site = api.syncQuota(ctx, site.ID, site)
-	if matched, matchErr := catalog.NewService(s.db, s.confFile).MatchSiteModels(ctx, site.ID); matchErr == nil {
-		models = availableSiteModels(matched)
-	}
+	models, state = s.matchAndPriceSiteModels(ctx, site, models, state)
 	return RefreshResult{
 		Site:          site,
 		State:         state,
