@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +48,9 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 	}
 
 	check := s.runSiteHealthCheck(ctx, item)
+	if check.errorType == "provider_unavailable" {
+		return s.providerUnavailableHealthResult(ctx, item, source, check)
+	}
 	// A timeout already classified by the probe must still be stored. The
 	// caller's context is done, so the write uses a context that can reach
 	// the database. Account rows are left untouched.
@@ -98,6 +102,43 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 		State:    state,
 		Snapshot: snapshot,
 		Recent:   recent,
+	}, nil
+}
+
+// providerUnavailableHealthResult explains the skip without a failure snapshot,
+// so consecutive failures and the site-health cooldown stay unchanged.
+func (s *Service) providerUnavailableHealthResult(ctx context.Context, item store.Site, source string, check siteHealthCheck) (HealthResult, error) {
+	repo := store.NewHealthRepository(s.db.DB())
+	state, err := repo.GetSiteState(ctx, item.ID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return HealthResult{}, err
+		}
+		state = unknownSiteHealthState(item.ID)
+	}
+	recent, err := repo.ListSiteSnapshots(ctx, item.ID, siteHealthRecentLimit)
+	if err != nil {
+		return HealthResult{}, err
+	}
+	metadata, _ := json.Marshal(check.metadata)
+	return HealthResult{
+		Site:  item,
+		State: state,
+		Snapshot: store.HealthSnapshot{
+			ID:           uuid.New(),
+			SiteID:       item.ID,
+			Scope:        "site",
+			Source:       source,
+			Endpoint:     check.endpoint,
+			Method:       check.method,
+			Success:      false,
+			LatencyMS:    sql.NullInt64{Int64: int64(check.latency / time.Millisecond), Valid: true},
+			ErrorType:    sql.NullString{String: check.errorType, Valid: check.errorType != ""},
+			ErrorMessage: sql.NullString{String: check.message, Valid: strings.TrimSpace(check.message) != ""},
+			CheckedAt:    time.Now(),
+			Metadata:     metadata,
+		},
+		Recent: recent,
 	}, nil
 }
 
@@ -265,6 +306,16 @@ func (s *Service) runSiteHealthCheck(ctx context.Context, item store.Site) siteH
 		metadata: map[string]any{
 			"site_type": item.SiteType,
 		},
+	}
+
+	if pluginProviderUnavailable(item.SiteType) {
+		check.endpoint = "provider"
+		check.method = "SKIP"
+		check.latency = time.Since(start)
+		check.errorType = "provider_unavailable"
+		check.message = pluginProviderUnavailableDetail(item.SiteType, "health check skipped")
+		check.metadata["skipped"] = true
+		return check
 	}
 
 	if api, ok := s.pluginAccountAPI(item.SiteType); ok {

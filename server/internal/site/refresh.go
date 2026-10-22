@@ -73,6 +73,11 @@ const refreshKeySummaryWorkers = 4
 const siteMetaAutoDisabledByRefresh = "auto_disabled_by_refresh"
 const credentialMetaAutoDisabledByRefresh = "auto_disabled_by_refresh"
 
+// partial is a persisted sync status the site UI already treats as non-fatal
+// when validation stays ok. "skipped" is only the in-memory fallback for a
+// missing state row.
+const pluginProviderUnavailableSyncStatus = "partial"
+
 func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshResult, error) {
 	var (
 		poolAPI        pluginAccountAPI
@@ -111,6 +116,10 @@ func (s *Service) RefreshState(ctx context.Context, siteID uuid.UUID) (RefreshRe
 
 	stateRepo := store.NewSiteStateRepository(s.db.DB())
 	_, _ = stateRepo.MarkSyncStarted(followCtx, siteID)
+
+	if pluginProviderUnavailable(site.SiteType) {
+		return s.markRefreshProviderUnavailable(followCtx, site)
+	}
 
 	if pool && strings.EqualFold(strings.TrimSpace(site.SiteType), poolAPI.siteType) {
 		return s.finishPluginAccountPoolRefresh(followCtx, site, poolAPI, accountResults, accountErr)
@@ -207,6 +216,9 @@ func (s *Service) RefreshAllStates(ctx context.Context) ([]RefreshBatchItem, err
 }
 
 func (s *Service) shouldSkipBulkRefresh(ctx context.Context, item store.Site) (bool, string) {
+	if pluginProviderUnavailable(item.SiteType) {
+		return true, pluginProviderUnavailableDetail(item.SiteType, "skipped by bulk refresh")
+	}
 	if !item.Enabled && !siteAutoDisabledByRefresh(item) {
 		return true, "site is disabled; skipped by bulk refresh"
 	}
@@ -892,6 +904,43 @@ func restoreAPIKeyStateAfterAuthRecovery(ctx context.Context, repo store.SiteAPI
 		return store.SiteAPIKeyState{}, fmt.Errorf("restore api key state after auth recovery: %w", err)
 	}
 	return state, nil
+}
+
+func pluginProviderUnavailableDetail(siteType, detail string) string {
+	return fmt.Sprintf("provider plugin for site_type %q is unavailable; %s", strings.TrimSpace(siteType), detail)
+}
+
+// markRefreshProviderUnavailable records a skipped sync and leaves the site
+// enabled. The provider row is still in the database; only its plugin is gone.
+func (s *Service) markRefreshProviderUnavailable(ctx context.Context, item store.Site) (RefreshResult, error) {
+	now := time.Now()
+	repo := store.NewSiteStateRepository(s.db.DB())
+	existing, err := repo.GetBySite(ctx, item.ID)
+	if err != nil && !errorsIsNotFound(err) {
+		return RefreshResult{}, err
+	}
+	var lastSynced any
+	if existing.LastSyncedAt.Valid {
+		lastSynced = existing.LastSyncedAt.Time
+	}
+	state, err := repo.Upsert(ctx, store.UpsertSiteStateParams{
+		SiteID:            item.ID,
+		ValidationOK:      true,
+		SyncStatus:        pluginProviderUnavailableSyncStatus,
+		SyncMessage:       pluginProviderUnavailableDetail(item.SiteType, "refresh skipped"),
+		LastSyncStartedAt: now,
+		LastSyncedAt:      lastSynced,
+		APIKeyCount:       existing.APIKeyCount,
+		ModelCount:        existing.ModelCount,
+		RawStatus:         existing.RawStatus,
+		UserSummary:       existing.UserSummary,
+		Pricing:           existing.Pricing,
+		Checkin:           existing.Checkin,
+	})
+	if err != nil {
+		return RefreshResult{}, err
+	}
+	return RefreshResult{Site: item, State: state}, nil
 }
 
 func (s *Service) markRefreshFailed(ctx context.Context, item store.Site, message string) (RefreshResult, error) {

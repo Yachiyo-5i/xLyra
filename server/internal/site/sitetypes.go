@@ -508,6 +508,19 @@ func SiteTypeAvailable(siteType string) bool {
 	return ok && item.Enabled
 }
 
+// pluginProviderUnavailable reports that siteType names a plugin provider
+// (it contains "/") and that provider is absent from the current snapshot.
+// A slash-free type, including an unknown built-in name, is not this case.
+// A plugin type that is still listed, even when disabled, is not this case.
+func pluginProviderUnavailable(siteType string) bool {
+	key := strings.ToLower(strings.TrimSpace(siteType))
+	if !strings.Contains(key, "/") {
+		return false
+	}
+	_, ok := LookupPluginSiteType(key)
+	return !ok
+}
+
 // ProviderStatus is the computed admin field for a site's provider. Built-in
 // types return an empty string. Plugin types return "enabled" or "unavailable".
 func ProviderStatus(siteType string) string {
