@@ -61,10 +61,10 @@ func NewRouter(cfg config.Config, logger *slog.Logger, db *store.Store, confFile
 }
 
 func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string) (http.Handler, *gateway.Handler) {
-	return NewRouterWithGatewayWithOAuth(context.Background(), nil, cfg, logger, db, confFile, masterKey, nil)
+	return NewRouterWithGatewayWithOAuth(context.Background(), nil, cfg, logger, db, confFile, masterKey, nil, nil)
 }
 
-func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service) (http.Handler, *gateway.Handler) {
+func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service, sharedSite *site.Service) (http.Handler, *gateway.Handler) {
 	appTimeZone := config.ResolveTimeZone()
 	var authService *auth.Service
 	if db != nil {
@@ -112,7 +112,12 @@ func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, c
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)
 		}
 		wireJSPluginAutomation(oauthService, jsPluginManager, authService, defaultHTTPClient)
-		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		// sharedSite is the instance background jobs already hold. Plugin modules
+		// have to land on it; a second service never sees them.
+		siteService = sharedSite
+		if siteService == nil {
+			siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		}
 		siteProviderCurrent = func() *jsplugin.Registry {
 			return jsPluginManager.Catalog().Registry()
 		}

@@ -129,7 +129,7 @@ func run() int {
 	// so the plugin catalog sync shares it with the other background tasks.
 	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
 	var backgroundTasks sync.WaitGroup
-	router, gatewayHandler := app.NewRouterWithGatewayWithOAuth(backgroundCtx, &backgroundTasks, cfg, logger, db, confFile, masterKey, oauthService)
+	router, gatewayHandler := app.NewRouterWithGatewayWithOAuth(backgroundCtx, &backgroundTasks, cfg, logger, db, confFile, masterKey, oauthService, siteService)
 	schedule := scheduler.New(logger.With("thread", "scheduler"), scheduler.Options{
 		SiteHealthInterval: cfg.SiteHealthInterval,
 		SiteHealthTimeout:  cfg.SiteHealthTimeout,

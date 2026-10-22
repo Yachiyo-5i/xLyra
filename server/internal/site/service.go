@@ -416,6 +416,13 @@ func (s *Service) SetPluginAdapterModules(modules []adapter.Module) error {
 	return s.adapters.SetDynamicModules(modules)
 }
 
+func (s *Service) ModuleForSiteType(siteType string) (adapter.Module, bool) {
+	if s == nil {
+		return nil, false
+	}
+	return s.adapters.ModuleForSiteType(siteType)
+}
+
 func (s *Service) Capabilities(siteType string) []string {
 	module, ok := s.adapters.ModuleForSiteType(siteType)
 	if !ok {
