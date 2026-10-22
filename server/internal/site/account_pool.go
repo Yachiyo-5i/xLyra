@@ -169,9 +169,10 @@ func (p accountPool[A]) setModelEnabled(ctx context.Context, siteID uuid.UUID, c
 	err = p.s.db.WithinTx(ctx, func(tx store.Tx) error {
 		updatedModel, err := store.NewSiteAPIKeyModelRepository(tx).UpdateEnabled(ctx, credential.ID, modelName, enabled)
 		if err != nil {
-			return err
-		}
-		if err := syncSiteModelStatusOn(ctx, tx, siteID, modelName, updatedModel); err != nil {
+			if !errorsIsNotFound(err) {
+				return err
+			}
+		} else if err := syncSiteModelStatusOn(ctx, tx, siteID, modelName, updatedModel); err != nil {
 			return err
 		}
 		updated, err = updateCredentialMeta(ctx, store.NewSiteCredentialRepository(tx), credential.ID, meta)

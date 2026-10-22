@@ -1974,6 +1974,14 @@ func siteHealthResultPayload(result sitepkg.HealthResult) map[string]any {
 		"recent": recent,
 		"meta":   map[string]any{"recent_count": len(recent)},
 	}
+	if result.Skipped {
+		payload["ok"] = true
+		payload["skipped"] = true
+		if reason := strings.TrimSpace(result.SkipReason); reason != "" {
+			payload["skip_reason"] = reason
+		}
+		return payload
+	}
 	if result.Snapshot.ID != uuid.Nil {
 		payload["snapshot"] = healthSnapshotPayload(result.Snapshot)
 		payload["ok"] = result.Snapshot.Success

@@ -264,6 +264,10 @@ func (h Handler) accountProvider(w http.ResponseWriter, r *http.Request) (uuid.U
 	}
 	provider, ok := h.sites.AccountProviderFor(item.SiteType)
 	if !ok {
+		if sitepkg.PluginProviderUnavailable(item.SiteType) {
+			h.writeError(w, r, http.StatusConflict, "provider_unavailable", "provider plugin is not enabled")
+			return uuid.Nil, nil, false
+		}
 		h.writeError(w, r, http.StatusNotFound, "accounts_not_supported", "site type does not support accounts")
 		return uuid.Nil, nil, false
 	}

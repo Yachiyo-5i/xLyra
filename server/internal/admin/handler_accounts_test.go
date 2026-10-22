@@ -88,6 +88,28 @@ func TestAccountRoutesRejectUnsupportedSiteType(t *testing.T) {
 	}
 }
 
+func TestAccountRoutesRejectUnavailablePluginProvider(t *testing.T) {
+	t.Parallel()
+
+	fixture := newAccountRouteFixture(t, "acme.example/missing")
+	for _, call := range accountCalls(fixture.handler) {
+		t.Run(call.name, func(t *testing.T) {
+			t.Parallel()
+			rec := fixture.perform(call.fn, call.method, call.path, call.body, call.credential)
+			adminAssertStatus(t, rec, http.StatusConflict)
+			body := adminDecodeJSON[struct {
+				Error struct {
+					Code    string `json:"code"`
+					Message string `json:"message"`
+				} `json:"error"`
+			}](t, rec)
+			if body.Error.Code != "provider_unavailable" || body.Error.Message != "provider plugin is not enabled" {
+				t.Fatalf("%s error = %#v", call.name, body.Error)
+			}
+		})
+	}
+}
+
 func TestAccountRoutesRejectMissingSite(t *testing.T) {
 	t.Parallel()
 
@@ -159,8 +181,8 @@ func TestAccountRouteShapes(t *testing.T) {
 
 			modelBody := `{"model":"demo-model","enabled":false}`
 			modeled := fixture.perform(fixture.handler.UpdateAccountModel, http.MethodPut, "/api/v1/sites/x/accounts/x/models", modelBody, true)
-			// The fixture has no model row. A failed model update must fail the request.
-			assertAdminErrorCode(t, modeled, http.StatusBadRequest, "account_model_update_failed")
+			adminAssertStatus(t, modeled, http.StatusOK)
+			assertExactJSONKeys(t, decodeObject(t, modeled.Body.Bytes()), "model", "account")
 
 			refreshed := fixture.performTimeout(fixture.handler.RefreshAccount, http.MethodPost, "/api/v1/sites/x/accounts/"+uuid.NewString()+"/refresh", "", uuid.New())
 			assertAdminErrorCode(t, refreshed, http.StatusBadRequest, "account_refresh_failed")

@@ -284,22 +284,17 @@ func TestPluginRefreshRepairRejectsCredentialTypeChange(t *testing.T) {
 	assertPluginLeaseCount(t, fx.st, 0)
 }
 
-func TestPluginRefreshRepairModelEnableFailureKeepsMeta(t *testing.T) {
+func TestPluginRefreshRepairModelMissingStillUpdatesMeta(t *testing.T) {
 	fx := newPluginRefreshFixture(t, "acme.example/model_missing", nil)
-	before, err := store.NewSiteCredentialRepository(fx.st.DB()).GetByID(context.Background(), fx.account.CredentialID)
+	account, err := fx.provider.SetModelEnabled(context.Background(), fx.siteID, fx.account.CredentialID, "acme-chat", false)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("missing model row: %v", err)
 	}
-	_, err = fx.provider.SetModelEnabled(context.Background(), fx.siteID, fx.account.CredentialID, "acme-chat", false)
-	if err == nil {
-		t.Fatal("SetModelEnabled succeeded without a model row")
+	if account == nil {
+		t.Fatal("missing account")
 	}
-	after, err := store.NewSiteCredentialRepository(fx.st.DB()).GetByID(context.Background(), fx.account.CredentialID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(after.Meta) != string(before.Meta) {
-		t.Fatalf("meta changed from %s to %s", before.Meta, after.Meta)
+	if !pluginMetaDisablesModel(pluginCredentialMeta(t, fx.st, fx.account.CredentialID), "acme-chat") {
+		t.Fatal("disabled_models was not updated")
 	}
 }
 
@@ -774,6 +769,8 @@ type refreshRepairRuntime struct {
 	summarizeErr          error
 	summarizeHonorsCancel bool
 	listErr               error
+	startCalls            int
+	refreshPublic         map[string]string
 }
 
 func (r *refreshRepairRuntime) holdNext() {
@@ -804,6 +801,9 @@ func (r *refreshRepairRuntime) releaseHold() {
 }
 
 func (r *refreshRepairRuntime) StartLogin(context.Context, map[string]string) (PluginLoginStart, error) {
+	r.mu.Lock()
+	r.startCalls++
+	r.mu.Unlock()
 	return PluginLoginStart{
 		ID: "sess-repair", Kind: accountLoginCustomPoll, Status: "pending",
 		UserCode: "CODE-1", VerificationURL: "https://api.example.com/activate", Interval: 2,
@@ -857,9 +857,13 @@ func (r *refreshRepairRuntime) Refresh(ctx context.Context, fields map[string]st
 	token := fmt.Sprintf("ACCESS-%s-r%d", pluginAccountTokenMark, call)
 	r.mu.Lock()
 	r.issued = append(r.issued, token)
+	extra := cloneStringMap(r.refreshPublic)
 	r.mu.Unlock()
 	out := cloneStringMap(fields)
 	out["access_token"] = token
+	for key, value := range extra {
+		out[key] = value
+	}
 	return out, nil
 }
 

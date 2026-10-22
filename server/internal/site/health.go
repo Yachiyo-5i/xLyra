@@ -23,10 +23,12 @@ const siteHealthCooldownDuration = 15 * time.Minute
 const siteHealthDataRetention = 24 * time.Hour
 
 type HealthResult struct {
-	Site     store.Site
-	State    store.SiteHealthState
-	Snapshot store.HealthSnapshot
-	Recent   []store.HealthSnapshot
+	Site       store.Site
+	State      store.SiteHealthState
+	Snapshot   store.HealthSnapshot
+	Recent     []store.HealthSnapshot
+	Skipped    bool
+	SkipReason string
 }
 
 type HealthHourlyBucket struct {
@@ -35,6 +37,13 @@ type HealthHourlyBucket struct {
 	SuccessCount int
 	FailureCount int
 	TotalCount   int
+}
+
+// PluginProviderUnavailable reports that siteType names a plugin provider
+// that is absent from the current snapshot. A slash-free type, including an
+// unknown built-in name, is not this case.
+func PluginProviderUnavailable(siteType string) bool {
+	return pluginProviderUnavailable(siteType)
 }
 
 func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source string) (HealthResult, error) {
@@ -122,10 +131,11 @@ func (s *Service) providerUnavailableHealthResult(ctx context.Context, item stor
 	}
 	metadata, _ := json.Marshal(check.metadata)
 	return HealthResult{
-		Site:  item,
-		State: state,
+		Site:       item,
+		State:      state,
+		Skipped:    true,
+		SkipReason: check.message,
 		Snapshot: store.HealthSnapshot{
-			ID:           uuid.New(),
 			SiteID:       item.ID,
 			Scope:        "site",
 			Source:       source,
