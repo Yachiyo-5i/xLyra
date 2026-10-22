@@ -744,8 +744,15 @@
       "siteProvider": "Site provider"
     },
     "metricsEmpty": "No calls yet",
-    "metricsSummary": "{{errors}}/{{calls}} failed ({{rate}}%)",
+    "metricsSummary": "{{success}} succeeded · {{failed}} failed",
     "metricsLabel": "Last 24 hours",
+    "metricsHint": "Each plugin code run (sign-in, refresh, quota fetch, model list, and similar) counts once. Only a plugin code error counts as a failure; it does not mean the account itself is unavailable. Counts reset when the service restarts.",
+    "metricsHealth": {
+      "none": "No calls yet",
+      "ok": "Running normally",
+      "warn": "A few failures",
+      "bad": "Many failures"
+    },
     "metrics24h": "24h",
     "signed": "Signed",
     "unsigned": "Unsigned",

@@ -744,8 +744,15 @@
       "siteProvider": "站点类型"
     },
     "metricsEmpty": "暂无调用",
-    "metricsSummary": "{{errors}}/{{calls}} 失败（{{rate}}%）",
+    "metricsSummary": "成功 {{success}} · 失败 {{failed}}",
     "metricsLabel": "近 24 小时",
+    "metricsHint": "每次插件代码执行（登录、刷新、拉取额度、拉取模型等）记一次；插件代码报错才算失败，不代表账号本身是否可用；服务重启后清零。",
+    "metricsHealth": {
+      "none": "暂无调用",
+      "ok": "运行正常",
+      "warn": "有少量失败",
+      "bad": "失败较多"
+    },
     "metrics24h": "近 24h",
     "signed": "已签名",
     "unsigned": "未签名",

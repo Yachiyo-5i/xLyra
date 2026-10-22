@@ -744,8 +744,15 @@
       "siteProvider": "サイトプロバイダー"
     },
     "metricsEmpty": "呼び出しなし",
-    "metricsSummary": "失敗 {{errors}}/{{calls}}（{{rate}}%）",
+    "metricsSummary": "成功 {{success}} · 失敗 {{failed}}",
     "metricsLabel": "過去 24 時間",
+    "metricsHint": "プラグインのコードが実行されるたび（ログイン、更新、利用枠の取得、モデル一覧の取得など）に 1 回と数えます。失敗になるのはプラグインのコードがエラーになった場合だけで、アカウント自体が使えるかどうかとは関係ありません。サービスを再起動するとゼロに戻ります。",
+    "metricsHealth": {
+      "none": "呼び出しなし",
+      "ok": "正常",
+      "warn": "失敗が少なめ",
+      "bad": "失敗が多い"
+    },
     "metrics24h": "24h",
     "signed": "署名済み",
     "unsigned": "未署名",

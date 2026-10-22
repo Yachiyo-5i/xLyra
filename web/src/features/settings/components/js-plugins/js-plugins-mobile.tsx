@@ -31,7 +31,7 @@ type MobileUploadedCardProps = {
   kind: string
   /** Badge or dash for the enabled version. */
   enabledVersion: ReactNode
-  metrics: string
+  metrics: ReactNode
   labels: { kind: string; enabledVersion: string; metrics: string }
   actions: ReactNode
 }

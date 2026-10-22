@@ -10,6 +10,7 @@ import { useMobileLayout } from '@/hooks/use-media-query'
 import { EmptyState } from '@/components/common/empty-state'
 import { PageHeader } from '@/components/common/page-header'
 import { JSPluginVersionMenu, type VersionMenuItem } from '@/features/settings/components/js-plugins/js-plugin-version-menu'
+import { PluginMetrics24h } from '@/features/settings/components/js-plugins/plugin-metrics-24h'
 import { JSPluginAutomationSection } from '@/features/settings/components/js-plugins/js-plugin-automation'
 import {
   acceptEnableDialog,
@@ -67,7 +68,6 @@ import {
   tryJSPlugin,
   uploadJSPlugin,
   type JSPluginListItem,
-  type JSPluginMetrics24h,
   type JSPluginTrustedKey,
   type JSPluginVersion,
 } from '@/features/settings/api/js-plugins'
@@ -140,18 +140,6 @@ function shortSha256(sha?: string) {
   if (!sha) return '—'
   if (sha.length <= 14) return sha
   return `${sha.slice(0, 8)}…${sha.slice(-6)}`
-}
-
-function formatMetrics24h(t: TFunction, metrics?: JSPluginMetrics24h) {
-  if (!metrics || metrics.calls <= 0) {
-    return t('settings:jsPlugins.metricsEmpty')
-  }
-  const rate = (metrics.error_rate * 100).toFixed(1)
-  return t('settings:jsPlugins.metricsSummary', {
-    errors: metrics.errors,
-    calls: metrics.calls,
-    rate,
-  })
 }
 
 const UPLOADED_COLUMN_SIZING = {
@@ -557,7 +545,7 @@ export function JSPluginsSettingsWorkspace() {
         id: 'metrics_24h',
         header: t('settings:jsPlugins.columns.metrics24h'),
         cell: ({ row }) => (
-          <span className="text-body tabular-nums text-label-2">{formatMetrics24h(t, row.original.metrics_24h)}</span>
+          <PluginMetrics24h className="text-body text-label-2" metrics={row.original.metrics_24h} />
         ),
         meta: { align: 'center' },
       },
@@ -710,7 +698,7 @@ export function JSPluginsSettingsWorkspace() {
                     <span className="text-label-2">—</span>
                   )
                 }
-                metrics={formatMetrics24h(t, plugin.metrics_24h)}
+                metrics={<PluginMetrics24h metrics={plugin.metrics_24h} />}
                 labels={{
                   kind: t('settings:jsPlugins.columns.kind'),
                   enabledVersion: t('settings:jsPlugins.columns.enabledVersion'),
@@ -780,8 +768,9 @@ export function JSPluginsSettingsWorkspace() {
                 <span className="block text-footnote">{kindLabel(t, managePlugin.kind)}</span>
               ) : null}
               {managePlugin?.enabled_version && managePlugin.metrics_24h ? (
-                <span className="block text-footnote text-label-2">
-                  {t('settings:jsPlugins.metricsLabel')}: {formatMetrics24h(t, managePlugin.metrics_24h)}
+                <span className="flex flex-wrap items-center gap-1.5 text-footnote text-label-2">
+                  <span>{t('settings:jsPlugins.metricsLabel')}:</span>
+                  <PluginMetrics24h metrics={managePlugin.metrics_24h} />
                 </span>
               ) : null}
             </DialogDescription>
