@@ -205,6 +205,7 @@ function MobileSiteCard({
             src={icon}
             name={site.name}
             empty="hidden"
+            muted={site.provider_status === 'unavailable'}
             className="mt-0.5 size-8 shrink-0 rounded-inner"
             imageClassName={siteTypeIconClassName(site.site_type)}
           />

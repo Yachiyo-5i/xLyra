@@ -114,6 +114,7 @@ export function SitesTable({
               src={icon}
               name={site.name}
               empty="hidden"
+              muted={site.provider_status === 'unavailable'}
               className="h-7 w-7 shrink-0 rounded-inner"
               imageClassName={siteTypeIconClassName(site.site_type)}
             />

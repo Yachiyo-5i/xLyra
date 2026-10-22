@@ -93,12 +93,20 @@ func TestGetPluginIcon(t *testing.T) {
 		}
 	}
 
-	if err := store.NewJSPluginRepository(st.DB()).SetVersionStatus(ctx, "acme.example", "1.0.0", store.JSPluginStatusDisabled, nil); err != nil {
+	repo := store.NewJSPluginRepository(st.DB())
+	if err := repo.SetVersionStatus(ctx, "acme.example", "1.0.0", store.JSPluginStatusEnabled, nil); err != nil {
+		t.Fatal(err)
+	}
+	enabled := pluginIconRequest(t, router, session.Token, "/api/v1/plugin-icons/acme.example", "")
+	if enabled.Code != http.StatusOK || !bytes.Equal(enabled.Body.Bytes(), png) || enabled.Header().Get("ETag") != etag {
+		t.Fatalf("enabled status = %d etag=%q", enabled.Code, enabled.Header().Get("ETag"))
+	}
+	if err := manager.Disable(ctx, "acme.example"); err != nil {
 		t.Fatal(err)
 	}
 	disabled := pluginIconRequest(t, router, session.Token, "/api/v1/plugin-icons/acme.example", "")
-	if disabled.Code != http.StatusOK || !bytes.Equal(disabled.Body.Bytes(), png) {
-		t.Fatalf("disabled status = %d", disabled.Code)
+	if disabled.Code != http.StatusOK || !bytes.Equal(disabled.Body.Bytes(), png) || disabled.Header().Get("ETag") != etag {
+		t.Fatalf("disabled status = %d etag=%q", disabled.Code, disabled.Header().Get("ETag"))
 	}
 
 	if err := manager.DeletePlugin(ctx, "acme.example"); err != nil {

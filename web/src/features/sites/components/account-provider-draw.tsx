@@ -435,7 +435,12 @@ export function AccountProviderDraw({
   const titleText = accountLabel('title', 'title')
   const title = builtin ? titleText : (
     <span className="inline-flex min-w-0 items-center gap-2">
-      <SiteTypeIcon src={iconURL} name={typeLabel || titleText} className="h-5 w-5 shrink-0 rounded-control" />
+      <SiteTypeIcon
+        src={iconURL}
+        name={typeLabel || titleText}
+        muted={site?.provider_status === 'unavailable'}
+        className="h-5 w-5 shrink-0 rounded-control"
+      />
       <span className="truncate">{titleText}</span>
     </span>
   )

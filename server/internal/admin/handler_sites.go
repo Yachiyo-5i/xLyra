@@ -2449,10 +2449,21 @@ func intFromAny(value any) int {
 	}
 }
 
+// siteTypeIconURL is the admin icon for a site type. A type still in the
+// snapshot keeps its registered IconURL, including the ?v= cache key.
+// A plugin type (the id contains "/") that has dropped out of that snapshot
+// — the provider was disabled — still points at the icon endpoint, which
+// serves the uploaded package. There is no package sha left to append, so
+// the cache key is omitted. Built-in names never contain "/".
 func siteTypeIconURL(siteType string) string {
-	desc, ok := sitepkg.LookupSiteType(siteType)
-	if !ok {
+	if desc, ok := sitepkg.LookupSiteType(siteType); ok {
+		return desc.IconURL
+	}
+	key := strings.ToLower(strings.TrimSpace(siteType))
+	pluginID, _, found := strings.Cut(key, "/")
+	pluginID = strings.TrimSpace(pluginID)
+	if !found || pluginID == "" {
 		return ""
 	}
-	return desc.IconURL
+	return "/api/v1/plugin-icons/" + pluginID
 }

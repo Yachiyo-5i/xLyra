@@ -9,6 +9,47 @@ import (
 	sitepkg "xlyra/server/internal/site"
 )
 
+func TestSiteTypeIconURLFallsBackWhenPluginTypeLeavesSnapshot(t *testing.T) {
+	sitepkg.ClearPluginSiteTypes()
+	t.Cleanup(sitepkg.ClearPluginSiteTypes)
+
+	const icon = "/api/v1/plugin-icons/acme.example?v=0123456789abcdef"
+	if err := sitepkg.SetPluginSiteTypes([]sitepkg.PluginSiteType{{
+		Descriptor: sitepkg.SiteTypeDescriptor{
+			SiteType:      "acme.example/pool",
+			DisplayName:   "Acme Pool",
+			CredentialKey: "acme.example/pool",
+			IconURL:       icon,
+		},
+		PluginID: "acme.example",
+		Enabled:  true,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := siteTypeIconURL("acme.example/pool"); got != icon {
+		t.Fatalf("in snapshot = %q, want %q", got, icon)
+	}
+	if got := siteTypeIconURL(" ACME.EXAMPLE/Pool "); got != icon {
+		t.Fatalf("in snapshot normalized = %q, want %q", got, icon)
+	}
+	if got := siteTypeIconURL("openai"); got != "/brand-icons/openai.png" {
+		t.Fatalf("builtin while plugin is registered = %q", got)
+	}
+
+	sitepkg.ClearPluginSiteTypes()
+	for _, siteType := range []string{"acme.example/pool", " ACME.EXAMPLE/Pool ", "acme.example/chat"} {
+		if got := siteTypeIconURL(siteType); got != "/api/v1/plugin-icons/acme.example" {
+			t.Fatalf("siteTypeIconURL(%q) = %q, want plugin icon without cache key", siteType, got)
+		}
+	}
+	if got := siteTypeIconURL("openai"); got != "/brand-icons/openai.png" {
+		t.Fatalf("builtin after plugin left snapshot = %q", got)
+	}
+	if got := siteTypeIconURL("unknown"); got != "" {
+		t.Fatalf("unknown builtin-shaped name = %q, want empty", got)
+	}
+}
+
 func TestListSiteTypesIncludesPluginIconURL(t *testing.T) {
 	sitepkg.ClearPluginSiteTypes()
 	t.Cleanup(sitepkg.ClearPluginSiteTypes)

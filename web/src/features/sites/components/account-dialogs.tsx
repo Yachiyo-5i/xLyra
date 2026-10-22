@@ -161,7 +161,6 @@ export function AccountHeaderActions({
           </Button>
         ) : (
           <Button size="sm" variant="secondary" disabled={importDisabled} onClick={onImport}>
-            <Upload className="h-3.5 w-3.5" />
             {importLabel}
           </Button>
         )

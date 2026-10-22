@@ -73,6 +73,7 @@ import { SiteCreateSheet } from '@/features/sites/components/site-create-sheet'
 import { SiteModelTestSheet } from '@/features/sites/components/site-model-test-sheet'
 import { SiteModelsDraw } from '@/features/sites/components/site-models-draw'
 import { MobileSitesList } from '@/features/sites/components/mobile-sites-list'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import { SitesTable } from '@/features/sites/components/sites-table'
 import {
   mergeListSite,
@@ -402,7 +403,7 @@ export function SitesWorkspace({
 
   const filterTabs = useMemo(() => {
     const seen = new Set<string>()
-    const tabs: { value: string; label: string; icon: string | null }[] = []
+    const tabs: { value: string; label: string; icon: string | null; muted: boolean }[] = []
     for (const site of sites) {
       const key = normalizedSiteTypeFilter(site.site_type)
       if (seen.has(key)) continue
@@ -410,7 +411,8 @@ export function SitesWorkspace({
       tabs.push({
         value: key,
         label: formatSiteTypeLabel(site.site_type, siteTypes, i18n.language),
-        icon: siteTypeIcon(site.site_type, siteTypes),
+        icon: siteTypeIcon(site.site_type, siteTypes) || site.icon_url || null,
+        muted: site.provider_status === 'unavailable',
       })
     }
     return tabs
@@ -871,13 +873,13 @@ export function SitesWorkspace({
             <TabsTrigger key={tab.value} value={tab.value}>
               <span className="flex items-center gap-1.5">
                 {tab.icon ? (
-                  <img
+                  <SiteTypeIcon
                     src={tab.icon}
-                    alt=""
-                    className={cn(
-                      'h-4 w-4 rounded object-contain',
-                      siteTypeIconClassName(tab.value),
-                    )}
+                    name={tab.label}
+                    empty="hidden"
+                    muted={tab.muted}
+                    className="h-4 w-4 shrink-0 rounded"
+                    imageClassName={siteTypeIconClassName(tab.value)}
                   />
                 ) : null}
                 {tab.label}
