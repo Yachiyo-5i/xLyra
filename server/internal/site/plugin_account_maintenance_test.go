@@ -153,6 +153,8 @@ type scriptedPluginRuntime struct {
 	refreshCalls   int
 	summarizeCalls int
 	failDead       bool
+	failAll        bool
+	label          string
 }
 
 func (s *scriptedPluginRuntime) setFailDead(fail bool) {
@@ -184,7 +186,12 @@ func (s *scriptedPluginRuntime) Summarize(_ context.Context, _ string, fields ma
 	s.mu.Lock()
 	s.summarizeCalls++
 	failDead := s.failDead
+	failAll := s.failAll
+	label := s.label
 	s.mu.Unlock()
+	if failAll {
+		return PluginAccountSummary{}, errors.New("invalid api key")
+	}
 	if failDead && fields["subject"] == "dead" {
 		return PluginAccountSummary{}, accountauth.ErrReauthorizationRequired
 	}
@@ -192,6 +199,7 @@ func (s *scriptedPluginRuntime) Summarize(_ context.Context, _ string, fields ma
 	limit := 20.0
 	return PluginAccountSummary{
 		Status: "ok",
+		Label:  label,
 		Entries: []QuotaProbeEntry{{
 			Label: "credits", Remaining: &remaining, Limit: &limit, Unit: "credits",
 		}},
@@ -277,4 +285,94 @@ func mustCredential(t *testing.T, st *store.Store, id uuid.UUID) store.SiteCrede
 		t.Fatal(err)
 	}
 	return cred
+}
+
+func TestPluginAccountEmptyPoolStaysNormal(t *testing.T) {
+	st := openPluginAccountStore(t)
+	ctx := context.Background()
+	ClearPluginSiteTypes()
+	t.Cleanup(ClearPluginSiteTypes)
+	if err := SetPluginSiteTypes([]PluginSiteType{{
+		Descriptor: SiteTypeDescriptor{SiteType: pluginAccountTestType, DisplayName: "P38"},
+		PluginID:   "acme.example",
+		Enabled:    true,
+		Hosts:      []string{"api.example.com"},
+		Pool:       pluginAccountTestSpec(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &scriptedPluginRuntime{}
+	svc := NewService(st, siteTestMasterKey)
+	if err := svc.SetPluginAccountRuntimes(map[string]PluginAccountRuntime{pluginAccountTestType: runtime}); err != nil {
+		t.Fatal(err)
+	}
+	site := createTypedSite(t, st, pluginAccountTestType)
+
+	refreshed, err := svc.RefreshState(ctx, site.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed.State.ValidationOK.Valid || !refreshed.State.ValidationOK.Bool || refreshed.State.SyncStatus != "synced" || refreshed.State.SyncMessage.Valid {
+		t.Fatalf("empty refresh status=%s validation=%v message=%v", refreshed.State.SyncStatus, refreshed.State.ValidationOK, refreshed.State.SyncMessage)
+	}
+	if !refreshed.Site.Enabled || refreshed.Site.Status != "active" {
+		t.Fatalf("empty site enabled=%v status=%s", refreshed.Site.Enabled, refreshed.Site.Status)
+	}
+	health, err := svc.CheckSiteHealth(ctx, site.ID, "manual")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !health.Snapshot.Success || (health.Snapshot.ErrorType.Valid && health.Snapshot.ErrorType.String != "") {
+		t.Fatalf("empty health success=%v type=%v message=%v", health.Snapshot.Success, health.Snapshot.ErrorType, health.Snapshot.ErrorMessage)
+	}
+	snapshots, err := store.NewHealthRepository(st.DB()).ListSiteSnapshots(ctx, site.ID, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshots) == 0 {
+		t.Fatal("empty pool wrote no health snapshot")
+	}
+	for _, snapshot := range snapshots {
+		if !snapshot.Success {
+			t.Fatalf("empty pool failure snapshot: %#v", snapshot)
+		}
+	}
+
+	live := insertPluginAccount(t, svc, site.ID, "live-token", "live")
+	refreshed, err = svc.RefreshState(ctx, site.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed.State.ValidationOK.Bool || refreshed.State.SyncStatus != "partial" || !strings.Contains(refreshed.State.SyncMessage.String, "models.perAccount is not enabled") {
+		t.Fatalf("account refresh status=%s validation=%v message=%v", refreshed.State.SyncStatus, refreshed.State.ValidationOK, refreshed.State.SyncMessage)
+	}
+	health, err = svc.CheckSiteHealth(ctx, site.ID, "manual")
+	if err != nil || !health.Snapshot.Success || !strings.Contains(health.Snapshot.ErrorMessage.String, "ok (1/1 accounts healthy)") {
+		t.Fatalf("account health success=%v message=%v err=%v", health.Snapshot.Success, health.Snapshot.ErrorMessage, err)
+	}
+	if accountCredentialState(ctx, st.DB(), live.ID).SyncStatus != "synced" {
+		t.Fatal("added account did not sync")
+	}
+
+	failedRuntime := &scriptedPluginRuntime{failAll: true}
+	if err := svc.SetPluginAccountRuntimes(map[string]PluginAccountRuntime{pluginAccountTestType: failedRuntime}); err != nil {
+		t.Fatal(err)
+	}
+	failedSite := createTypedSite(t, st, pluginAccountTestType)
+	insertPluginAccount(t, svc, failedSite.ID, "bad-token", "bad")
+	_, err = svc.RefreshState(ctx, failedSite.ID)
+	if err == nil || !strings.Contains(err.Error(), "enabled accounts failed") {
+		t.Fatalf("all-failed refresh = %v", err)
+	}
+	failedState, err := store.NewSiteStateRepository(st.DB()).GetBySite(ctx, failedSite.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failedState.ValidationOK.Bool || failedState.SyncStatus != "failed" {
+		t.Fatalf("all-failed state status=%s validation=%v", failedState.SyncStatus, failedState.ValidationOK)
+	}
+	failedHealth, err := svc.CheckSiteHealth(ctx, failedSite.ID, "manual")
+	if err != nil || failedHealth.Snapshot.Success {
+		t.Fatalf("all-failed health success=%v err=%v", failedHealth.Snapshot.Success, err)
+	}
 }

@@ -669,6 +669,7 @@ func (p pluginAccountAPI) importOne(ctx context.Context, siteID uuid.UUID, sourc
 		item.Error = redactCredentialError(err, imported.Fields, p.secretNames()).Error()
 		return item
 	}
+	p.rememberAccountLabel(ctx, account.CredentialID, imported.Fields, "")
 	item.Status = "imported"
 	item.CredentialID = account.CredentialID.String()
 	item.Label = account.MaskedToken
@@ -701,6 +702,7 @@ func (p pluginAccountAPI) finishLogin(ctx context.Context, siteID uuid.UUID, ide
 	if err != nil {
 		return PluginAccount{}, redactCredentialError(err, fields, p.secretNames())
 	}
+	p.rememberAccountLabel(ctx, account.CredentialID, fields, "")
 	refreshed, refreshErr := p.refreshAccount(ctx, siteID, account.CredentialID)
 	if refreshErr != nil {
 		return account, nil
@@ -835,6 +837,10 @@ func (p pluginAccountAPI) refreshOne(ctx context.Context, siteID, credentialID u
 		if _, err := p.syncSiteModelUnion(ctx, siteID); err != nil {
 			return PluginAccount{}, err
 		}
+	}
+	current, err = p.storeAccountLabel(ctx, current, prepared.fields, prepared.summary.Label)
+	if err != nil {
+		return PluginAccount{}, err
 	}
 	if err := p.persistSummary(ctx, current, prepared.summary); err != nil {
 		return PluginAccount{}, err
@@ -1168,11 +1174,15 @@ func (p pluginAccountAPI) persistSummary(ctx context.Context, credential store.S
 	if summary.Remark != "" {
 		message = summary.Remark
 	}
+	name := strings.TrimSpace(credential.DisplayName)
+	if name == "" {
+		name = credential.MaskedSecret
+	}
 	repo := store.NewSiteAPIKeyStateRepository(p.s.db.DB())
 	if _, err := repo.Upsert(ctx, store.UpsertSiteAPIKeyStateParams{
 		SiteCredentialID: credential.ID,
 		SiteID:           credential.SiteID,
-		Name:             credential.MaskedSecret,
+		Name:             name,
 		Enabled:          enabled,
 		RemainQuota:      remain,
 		UsedQuota:        used,
@@ -1520,7 +1530,7 @@ func (p pluginLoginProvider) applyMeta(meta map[string]any, tokens pluginCredent
 }
 
 func (p pluginLoginProvider) maskedLabel(tokens pluginCredential) string {
-	return pluginMaskedLabel(tokens.Identity, tokens.Fields[p.api.accessField()])
+	return p.api.visibleLabel(tokens.Fields, "")
 }
 
 func (p pluginLoginProvider) snapshot(ctx context.Context, credential store.SiteCredential) PluginAccount {
@@ -1678,13 +1688,128 @@ func decodePluginCredential(secret string) (map[string]string, error) {
 	return fields, nil
 }
 
-func pluginMaskedLabel(identity, access string) string {
-	identity = strings.TrimSpace(identity)
-	access = strings.TrimSpace(access)
-	if identity != "" && identity != access && !strings.Contains(access, identity) {
-		return identity
+// pluginAccountAliasFields are readable, non-secret credential fields used when
+// the manifest does not declare a display source or an identity.
+var pluginAccountAliasFields = []string{
+	"email", "nickname", "nick_name", "preferred_username", "phone", "phone_number", "phoneNumber",
+}
+
+// visibleLabel is the account name written onto the credential: manifest display,
+// then identity, then a nickname or email field, then a truncated mask.
+// The result never contains a secret and is never the full credential id.
+func (p pluginAccountAPI) visibleLabel(fields map[string]string, summaryLabel string) string {
+	candidates := make([]string, 0, 3)
+	if p.pool != nil {
+		if label := strings.TrimSpace(p.pool.ResolveDisplay(fields, summaryLabel)); label != "" {
+			candidates = append(candidates, label)
+		}
+		if identity, err := p.pool.ResolveIdentity(fields); err == nil {
+			if identity = strings.TrimSpace(identity); identity != "" {
+				candidates = append(candidates, identity)
+			}
+		}
+	}
+	if alias := pluginAccountPublicAlias(p.pool, fields); alias != "" {
+		candidates = append(candidates, alias)
+	}
+	secrets := p.secretNames()
+	access := ""
+	if fields != nil {
+		access = fields[p.accessField()]
+	}
+	for _, candidate := range candidates {
+		cleaned := cleanPluginDisplayLabel(candidate, fields, secrets)
+		if cleaned == "" || pluginLabelInsideSecret(cleaned, access) {
+			continue
+		}
+		return cleaned
 	}
 	return accountMaskedLabel("", access)
+}
+
+func pluginAccountPublicAlias(pool *jsplugin.AccountPoolSpec, fields map[string]string) string {
+	if pool == nil || fields == nil {
+		return ""
+	}
+	secret := map[string]struct{}{}
+	for _, field := range pool.Credential.Fields {
+		if field.Secret {
+			secret[field.Name] = struct{}{}
+		}
+	}
+	for _, name := range pluginAccountAliasFields {
+		if _, hidden := secret[name]; hidden {
+			continue
+		}
+		if value := strings.TrimSpace(fields[name]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func pluginLabelInsideSecret(label, secret string) bool {
+	label = strings.TrimSpace(label)
+	secret = strings.TrimSpace(secret)
+	if label == "" || secret == "" {
+		return false
+	}
+	return strings.Contains(secret, label)
+}
+
+func pluginAccountLabelIsUUID(value string) bool {
+	_, err := uuid.Parse(strings.TrimSpace(value))
+	return err == nil
+}
+
+// pluginAccountLabelReplaceable reports whether a stored name was generated
+// (empty, a uuid, a truncation mask, or the sibling auto label) and can be
+// replaced. A custom name that differs from its sibling is kept.
+func pluginAccountLabelReplaceable(value, sibling string, id uuid.UUID) bool {
+	value = strings.TrimSpace(value)
+	sibling = strings.TrimSpace(sibling)
+	if value == "" || pluginAccountLabelIsUUID(value) {
+		return true
+	}
+	if id != uuid.Nil && strings.EqualFold(value, id.String()) {
+		return true
+	}
+	if strings.Contains(value, "...") || strings.Contains(value, "…") {
+		return true
+	}
+	return sibling != "" && value == sibling
+}
+
+func (p pluginAccountAPI) storeAccountLabel(ctx context.Context, credential store.SiteCredential, fields map[string]string, summaryLabel string) (store.SiteCredential, error) {
+	label := p.visibleLabel(fields, summaryLabel)
+	if strings.TrimSpace(label) == "" {
+		return credential, nil
+	}
+	display := strings.TrimSpace(credential.DisplayName)
+	masked := strings.TrimSpace(credential.MaskedSecret)
+	nextDisplay := display
+	nextMask := masked
+	if pluginAccountLabelReplaceable(display, masked, credential.ID) {
+		nextDisplay = label
+		nextMask = label
+	} else if pluginAccountLabelReplaceable(masked, display, credential.ID) {
+		nextMask = label
+	}
+	if nextDisplay == display && nextMask == masked {
+		return credential, nil
+	}
+	return store.NewSiteCredentialRepository(p.s.db.DB()).UpdateAccountLabel(ctx, credential.ID, nextDisplay, nextMask)
+}
+
+func (p pluginAccountAPI) rememberAccountLabel(ctx context.Context, credentialID uuid.UUID, fields map[string]string, summaryLabel string) {
+	if credentialID == uuid.Nil || p.s == nil || p.s.db == nil {
+		return
+	}
+	credential, err := store.NewSiteCredentialRepository(p.s.db.DB()).GetByID(ctx, credentialID)
+	if err != nil {
+		return
+	}
+	_, _ = p.storeAccountLabel(ctx, credential, fields, summaryLabel)
 }
 
 func pluginLoginInterval(kind string, interval int) int {

@@ -248,6 +248,20 @@ func (r SiteCredentialRepository) UpdateSecretIfTypePrefix(ctx context.Context, 
 	return r.GetByID(ctx, id)
 }
 
+func (r SiteCredentialRepository) UpdateAccountLabel(ctx context.Context, id uuid.UUID, displayName, maskedSecret string) (SiteCredential, error) {
+	result := r.db.WithContext(ctx).Model(&SiteCredential{}).Where("id = ?", id).UpdateColumns(map[string]any{
+		"display_name":  displayName,
+		"masked_secret": maskedSecret,
+	})
+	if result.Error != nil {
+		return SiteCredential{}, fmt.Errorf("update site credential label: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return SiteCredential{}, fmt.Errorf("update site credential label: %w", gorm.ErrRecordNotFound)
+	}
+	return r.GetByID(ctx, id)
+}
+
 func (r SiteCredentialRepository) UpdateCredentialType(ctx context.Context, id uuid.UUID, credentialType string) (SiteCredential, error) {
 	result := r.db.WithContext(ctx).Model(&SiteCredential{}).Where("id = ?", id).UpdateColumns(map[string]any{
 		"credential_type": strings.TrimSpace(credentialType),

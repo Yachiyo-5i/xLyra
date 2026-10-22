@@ -166,6 +166,12 @@ func (s *Service) finishPluginAccountPoolRefresh(ctx context.Context, site store
 	if err != nil {
 		return RefreshResult{}, err
 	}
+	// No accounts yet: stay synced, the same as a built-in account pool before
+	// the first login. Model sync has nothing to list and must not mark the site down.
+	if accountCount == 0 {
+		syncStatus = "synced"
+		syncMessage = nil
+	}
 	repo := store.NewSiteStateRepository(s.db.DB())
 	existing, err := repo.GetBySite(ctx, site.ID)
 	if err != nil && !errorsIsNotFound(err) {
@@ -375,6 +381,16 @@ func (s *Service) runPluginAccountHealth(ctx context.Context, item store.Site, a
 		check.latency = time.Since(start)
 		return check
 	}
+	if len(accountCreds) == 0 {
+		// Waiting for the first account. grokHealthOutcome treats zero
+		// credentials as a missing credential; that failure snapshot is what
+		// made an empty plugin pool look abnormal.
+		check.success = true
+		check.errorType = ""
+		check.message = "ok"
+		check.latency = time.Since(start)
+		return check
+	}
 	check.success, check.errorType, check.message = grokHealthOutcome(len(accountCreds), total, passed)
 	check.message = accountPoolHealthMessage(item.SiteType, check.message)
 	check.latency = time.Since(start)
@@ -382,6 +398,9 @@ func (s *Service) runPluginAccountHealth(ctx context.Context, item store.Site, a
 }
 
 func pluginHealthAccountName(credential store.SiteCredential) string {
+	if name := strings.TrimSpace(credential.DisplayName); name != "" {
+		return name
+	}
 	meta := accountMetaMap(credential.Meta)
 	if name := strings.TrimSpace(anyString(meta["identity"])); name != "" {
 		return name

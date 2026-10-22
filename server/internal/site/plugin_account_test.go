@@ -234,6 +234,7 @@ type fakePluginAccountRuntime struct {
 	polls        int
 	rotations    int
 	failNext     bool
+	label        string
 	bases        []string
 	leaseSamples []int64
 }
@@ -293,12 +294,14 @@ func (f *fakePluginAccountRuntime) Refresh(ctx context.Context, fields map[strin
 func (f *fakePluginAccountRuntime) Summarize(_ context.Context, baseURL string, _ map[string]string) (PluginAccountSummary, error) {
 	f.mu.Lock()
 	f.bases = append(f.bases, baseURL)
+	label := f.label
 	f.mu.Unlock()
 	remaining := 12.4
 	limit := 20.0
 	return PluginAccountSummary{
 		Status: "ok",
 		Remark: "pro",
+		Label:  label,
 		Entries: []QuotaProbeEntry{{
 			Label:     "credits",
 			Remaining: &remaining,
