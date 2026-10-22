@@ -423,3 +423,37 @@ func captureStderr(t *testing.T, fn func()) string {
 	}
 	return buf.String()
 }
+
+func TestBuildProjectIncludesSiteProviderIcon(t *testing.T) {
+	dir := newProject(t, "site_provider", "acme-icon")
+	manifestPath := filepath.Join(dir, "manifest.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := strings.Replace(string(raw), `"subtitle":`, `"icon": "assets/icon.png",
+      "subtitle":`, 1)
+	if next == string(raw) {
+		t.Fatal("manifest has no subtitle to attach an icon to")
+	}
+	if err := os.WriteFile(manifestPath, []byte(next), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	icon := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00}
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "assets", "icon.png"), icon, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	built, err := buildProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(built.Files["assets/icon.png"]) != string(icon) {
+		t.Fatalf("package icon = %d bytes", len(built.Files["assets/icon.png"]))
+	}
+	if _, _, _, err := built.assemble(); err != nil {
+		t.Fatal(err)
+	}
+}
