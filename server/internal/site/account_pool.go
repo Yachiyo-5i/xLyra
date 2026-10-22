@@ -165,9 +165,18 @@ func (p accountPool[A]) setModelEnabled(ctx context.Context, siteID uuid.UUID, c
 		disabledModels[modelName] = struct{}{}
 	}
 	meta["disabled_models"] = sortedStringSet(disabledModels)
-	updatedAPIKeyModel, _ := store.NewSiteAPIKeyModelRepository(p.s.db.DB()).UpdateEnabled(ctx, credential.ID, modelName, enabled)
-	_ = p.s.syncSiteModelStatusFromAPIKeyModels(ctx, siteID, modelName, updatedAPIKeyModel)
-	updated, err := updateCredentialMeta(ctx, credentialRepo, credential.ID, meta)
+	var updated store.SiteCredential
+	err = p.s.db.WithinTx(ctx, func(tx store.Tx) error {
+		updatedModel, err := store.NewSiteAPIKeyModelRepository(tx).UpdateEnabled(ctx, credential.ID, modelName, enabled)
+		if err != nil {
+			return err
+		}
+		if err := syncSiteModelStatusOn(ctx, tx, siteID, modelName, updatedModel); err != nil {
+			return err
+		}
+		updated, err = updateCredentialMeta(ctx, store.NewSiteCredentialRepository(tx), credential.ID, meta)
+		return err
+	})
 	if err != nil {
 		return zero, err
 	}
