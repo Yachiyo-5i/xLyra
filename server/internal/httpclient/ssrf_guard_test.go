@@ -1,9 +1,43 @@
 package httpclient
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestNewGuardedTransportBlocksMetadataAndAllowsLoopback(t *testing.T) {
+	orig := ssrfBlockPrivateNetworks
+	ssrfBlockPrivateNetworks = false
+	t.Cleanup(func() { ssrfBlockPrivateNetworks = orig })
+
+	transport := NewGuardedTransport(time.Second)
+	if transport.Proxy == nil || transport.DialContext == nil {
+		t.Fatal("guarded transport lost the default proxy or dial")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	const token = "METADATA_TOKEN_9f3c"
+	conn, err := transport.DialContext(ctx, "tcp", "169.254.169.254:80")
+	if conn != nil {
+		_ = conn.Close()
+		t.Fatal("metadata dial connected")
+	}
+	if err == nil || !strings.Contains(err.Error(), "blocked connection") {
+		t.Fatalf("metadata dial = %v", err)
+	}
+	if strings.Contains(err.Error(), "no route to host") || strings.Contains(err.Error(), token) || strings.Contains(err.Error(), "http://") || strings.Contains(err.Error(), "https://") {
+		t.Fatalf("metadata dial error = %v", err)
+	}
+	conn, err = transport.DialContext(ctx, "tcp", "127.0.0.1:1")
+	if conn != nil {
+		_ = conn.Close()
+	}
+	if err != nil && strings.Contains(err.Error(), "blocked connection") {
+		t.Fatalf("loopback dial blocked: %v", err)
+	}
+}
 
 func TestNewGuardedDialerAppliesSSRFGuard(t *testing.T) {
 	dialer := NewGuardedDialer(time.Second)

@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"net/http"
 	"strings"
+	"time"
 
 	"xlyra/server/internal/adapter"
+	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/site"
 )
@@ -18,7 +21,11 @@ type accountPoolRuntimeAdapter struct {
 }
 
 func newAccountPoolRuntime(plugin *jsplugin.Plugin, pool *jsplugin.AccountPoolSpec) (site.PluginAccountRuntime, error) {
-	runtime, err := jsplugin.NewAccountProviderRuntime(plugin, nil)
+	// Leave Timeout unset so the runtime applies its own 20s limit. The dial
+	// guard matches the process HTTP client; proxy and idle settings stay on
+	// the default transport.
+	client := &http.Client{Transport: httpclient.NewGuardedTransport(30 * time.Second)}
+	runtime, err := jsplugin.NewAccountProviderRuntime(plugin, client)
 	if err != nil {
 		return nil, err
 	}

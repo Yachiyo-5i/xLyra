@@ -54,6 +54,18 @@ func NewGuardedDialer(timeout time.Duration) *net.Dialer {
 	}
 }
 
+// NewGuardedTransport clones http.DefaultTransport and dials through the SSRF
+// guard. Proxy, idle limits, and TLS timeouts stay as they are on the default
+// transport. dialTimeout is the TCP dial timeout; zero uses 30s.
+func NewGuardedTransport(dialTimeout time.Duration) *http.Transport {
+	if dialTimeout <= 0 {
+		dialTimeout = 30 * time.Second
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = NewGuardedDialer(dialTimeout).DialContext
+	return transport
+}
+
 type ProxyProfile struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

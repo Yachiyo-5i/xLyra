@@ -121,6 +121,39 @@ func TestCatalogSyncLoopSurvivesReadFailure(t *testing.T) {
 	}
 }
 
+func TestPrimeCatalogSyncRetriesAfterFailedReload(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	a := NewManager(st, &Catalog{})
+	b := NewManager(st, &Catalog{})
+	if _, err := a.Upload(ctx, "", tickPackage(t)); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if err := a.Enable(ctx, "acme-tick", "1.0.0", EnableOptions{ConfirmUntrusted: true, GrantPermissions: []string{ActionNotify}}); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	gen, err := store.NewJSPluginRepository(st.DB()).CatalogGeneration(ctx)
+	if err != nil || gen == 0 {
+		t.Fatalf("generation = %d, %v", gen, err)
+	}
+	if err := st.DB().Exec(`ALTER TABLE js_plugin_versions RENAME TO js_plugin_versions_hidden`).Error; err != nil {
+		t.Fatalf("hide versions: %v", err)
+	}
+	b.primeCatalogSync(ctx)
+	if _, ok := b.Catalog().Registry().ByPluginID("acme-tick"); ok {
+		t.Fatal("reload succeeded while versions were hidden")
+	}
+	if err := st.DB().Exec(`ALTER TABLE js_plugin_versions_hidden RENAME TO js_plugin_versions`).Error; err != nil {
+		t.Fatalf("restore versions: %v", err)
+	}
+	if err := b.syncOnce(ctx); err != nil {
+		t.Fatalf("sync after failed prime: %v", err)
+	}
+	if _, ok := b.Catalog().Registry().ByPluginID("acme-tick"); !ok {
+		t.Fatal("next sync did not reload after a failed prime")
+	}
+}
+
 func waitCatalogGen(t *testing.T, m *Manager, min int64) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)

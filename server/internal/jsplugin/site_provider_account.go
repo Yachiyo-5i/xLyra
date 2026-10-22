@@ -17,8 +17,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
+	"weak"
 
 	"xlyra/server/internal/accountauth"
 )
@@ -33,7 +35,12 @@ const (
 	accountLoginSessionTTL  = 10 * time.Minute
 	accountLoginDefaultWait = 5
 	accountLoginMaxWait     = 60
+	maxLoginSessions        = 256
 )
+
+// loginSessionReapInterval is how often an idle runtime drops expired login
+// sessions. Zero means one minute. Tests shorten it; production leaves it at 0.
+var loginSessionReapInterval atomic.Int64
 
 var (
 	// ErrLoginSessionNotFound means this process has no jar or device code
@@ -43,6 +50,10 @@ var (
 
 	// ErrLoginSessionExpired means the device code or the custom login timed out.
 	ErrLoginSessionExpired = errors.New("login session expired")
+
+	// ErrTooManyLoginSessions means this process is already holding the maximum
+	// number of in-flight logins. Existing sessions are left in place.
+	ErrTooManyLoginSessions = errors.New("too many login sessions; try again after one finishes")
 
 	// ErrAccountTransient is a custom-login or custom-refresh transport failure
 	// that should be retried. It does not mean the grant is dead.
@@ -173,7 +184,8 @@ type accountCall struct {
 
 // NewAccountProviderRuntime builds a runtime from an account-pool plugin.
 // client is optional; nil uses the default transport with a 20s timeout.
-// The plugin must already declare the hooks its manifest requires.
+// A non-nil client's dialer is kept, including an SSRF guard installed by
+// the host. The plugin must already declare the hooks its manifest requires.
 func NewAccountProviderRuntime(plugin *Plugin, client *http.Client) (*AccountProviderRuntime, error) {
 	if plugin == nil {
 		return nil, errors.New("plugin is required")
@@ -190,13 +202,15 @@ func NewAccountProviderRuntime(plugin *Plugin, client *http.Client) (*AccountPro
 			return nil, fmt.Errorf("%s hook is missing", name)
 		}
 	}
-	return &AccountProviderRuntime{
+	rt := &AccountProviderRuntime{
 		plugin:   plugin,
 		spec:     spec,
 		hosts:    append([]string(nil), plugin.Manifest.SiteProvider.Hosts...),
 		client:   client,
 		sessions: map[string]*loginSession{},
-	}, nil
+	}
+	rt.armLoginReaper()
+	return rt, nil
 }
 
 // StartLogin begins a device-code or custom_poll login.
@@ -207,6 +221,9 @@ func (r *AccountProviderRuntime) StartLogin(ctx context.Context, params map[stri
 		return LoginSession{}, err
 	}
 	params = cloneParams(params)
+	if err = r.rejectIfLoginSessionsFull(); err != nil {
+		return LoginSession{}, err
+	}
 	switch r.spec.Login.Kind {
 	case "oauth2_device_code":
 		return r.startOAuth(ctx)
@@ -344,7 +361,7 @@ func (r *AccountProviderRuntime) startOAuth(ctx context.Context) (LoginSession, 
 	}
 	start, err := accountauth.StartDeviceCode(ctx, cfg)
 	if err != nil {
-		return LoginSession{}, scrubBag(nil, err)
+		return LoginSession{}, scrubOutboundError(nil, err)
 	}
 	bag := NewSecretBag()
 	bag.Set("device_code", start.DeviceCode)
@@ -361,7 +378,10 @@ func (r *AccountProviderRuntime) startOAuth(ctx context.Context) (LoginSession, 
 	state.verificationURLComplete = start.VerificationURIComplete
 	state.interval = start.Interval
 	state.expiresAt = time.Now().Add(time.Duration(start.ExpiresIn) * time.Second)
-	r.store(state)
+	if err := r.store(state); err != nil {
+		state.wipe()
+		return LoginSession{}, err
+	}
 	return state.public("pending"), nil
 }
 
@@ -372,7 +392,7 @@ func (r *AccountProviderRuntime) pollOAuth(ctx context.Context, state *loginSess
 	}
 	poll, err := accountauth.PollDeviceCode(ctx, cfg, state.deviceCode, state.interval)
 	if err != nil {
-		return LoginPoll{}, state.call.bag.ScrubError(err)
+		return LoginPoll{}, scrubOutboundError(state.call.bag, err)
 	}
 	state.interval = poll.Interval
 	switch poll.Status {
@@ -434,7 +454,7 @@ func (r *AccountProviderRuntime) refreshOAuth(ctx context.Context, credentialFie
 	}
 	tokens, err := accountauth.RefreshOAuth2(ctx, cfg, refresh)
 	if err != nil {
-		return nil, bag.ScrubError(err)
+		return nil, scrubOutboundError(bag, err)
 	}
 	bag.Set(r.accessField(), tokens.AccessToken)
 	if tokens.RefreshToken != "" && name != "" {
@@ -494,7 +514,10 @@ func (r *AccountProviderRuntime) startCustom(ctx context.Context, params map[str
 		return LoginSession{}, bag.ScrubError(err)
 	}
 	state.baseline = cloneSteps(state.call.steps)
-	r.store(state)
+	if err := r.store(state); err != nil {
+		state.wipe()
+		return LoginSession{}, err
+	}
 	return state.public("pending"), nil
 }
 
@@ -763,7 +786,7 @@ func (r *AccountProviderRuntime) doAccountHTTP(ctx context.Context, client *http
 			// Do not include the redirect URL. It can carry a code that is not in the bag yet.
 			return ProbeResponse{}, &CallError{Kind: KindURLRejected, Detail: "redirect left the allowed host"}
 		}
-		return ProbeResponse{}, fmt.Errorf("%w: %s", ErrAccountTransient, call.bag.Scrub(err.Error()))
+		return ProbeResponse{}, accountTransportError(call.bag, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	buf, err := io.ReadAll(io.LimitReader(resp.Body, maxProbeResponseBody+1))
@@ -771,7 +794,7 @@ func (r *AccountProviderRuntime) doAccountHTTP(ctx context.Context, client *http
 		if ctx.Err() != nil {
 			return ProbeResponse{}, ctx.Err()
 		}
-		return ProbeResponse{}, fmt.Errorf("%w: %s", ErrAccountTransient, call.bag.Scrub(err.Error()))
+		return ProbeResponse{}, accountTransportError(call.bag, err)
 	}
 	if len(buf) > maxProbeResponseBody {
 		return ProbeResponse{}, &CallError{Kind: KindResponseTooLarge, Detail: "response is too large"}
@@ -1101,22 +1124,54 @@ func (r *AccountProviderRuntime) newSession(kind string, bag *SecretBag, jar htt
 	}, nil
 }
 
-func (r *AccountProviderRuntime) store(session *loginSession) {
+func (r *AccountProviderRuntime) store(session *loginSession) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.sweepLocked(time.Now(), session)
+	expired := r.detachExpiredLocked(time.Now(), nil)
 	if r.sessions == nil {
 		r.sessions = map[string]*loginSession{}
 	}
+	if _, exists := r.sessions[session.id]; !exists && len(r.sessions) >= maxLoginSessions {
+		r.mu.Unlock()
+		wipeDetached(expired)
+		return ErrTooManyLoginSessions
+	}
 	r.sessions[session.id] = session
+	r.mu.Unlock()
+	wipeDetached(expired)
+	return nil
 }
 
 func (r *AccountProviderRuntime) load(id string) *loginSession {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	session := r.sessions[id]
-	r.sweepLocked(time.Now(), session)
+	expired := r.detachExpiredLocked(time.Now(), session)
+	r.mu.Unlock()
+	wipeDetached(expired)
 	return session
+}
+
+func (r *AccountProviderRuntime) rejectIfLoginSessionsFull() error {
+	r.mu.Lock()
+	expired := r.detachExpiredLocked(time.Now(), nil)
+	full := len(r.sessions) >= maxLoginSessions
+	r.mu.Unlock()
+	wipeDetached(expired)
+	if full {
+		return ErrTooManyLoginSessions
+	}
+	return nil
+}
+
+// reapLoginSessions drops expired sessions and wipes them after they leave the map.
+// now is injectable so a poll can keep its lock while a later timestamp expires it.
+func (r *AccountProviderRuntime) reapLoginSessions(now time.Time) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	expired := r.detachExpiredLocked(now, nil)
+	r.mu.Unlock()
+	wipeDetached(expired)
 }
 
 // drop wipes secrets and removes the session. Caller holds session.mu.
@@ -1129,12 +1184,113 @@ func (r *AccountProviderRuntime) drop(session *loginSession) {
 	}
 }
 
-func (r *AccountProviderRuntime) sweepLocked(now time.Time, keep *loginSession) {
+// detachExpiredLocked removes expired sessions from the map. The caller wipes
+// them after releasing r.mu so a PollLogin holding session.mu can finish.
+// keep stays in the map; PollLogin expires that session itself.
+func (r *AccountProviderRuntime) detachExpiredLocked(now time.Time, keep *loginSession) []*loginSession {
+	if len(r.sessions) == 0 {
+		return nil
+	}
+	var expired []*loginSession
 	for id, session := range r.sessions {
 		if session == keep || session.expiresAt.IsZero() || !now.After(session.expiresAt) {
 			continue
 		}
 		delete(r.sessions, id)
+		expired = append(expired, session)
+	}
+	return expired
+}
+
+func wipeDetached(sessions []*loginSession) {
+	for _, session := range sessions {
+		if session == nil {
+			continue
+		}
+		session.mu.Lock()
+		session.wipe()
+		session.mu.Unlock()
+	}
+}
+
+// armLoginReaper reaps expired sessions on a timer. The timer holds a weak
+// pointer, so a catalog reload that drops the runtime ends the chain on the
+// next tick instead of leaving a goroutine behind.
+func (r *AccountProviderRuntime) armLoginReaper() {
+	scheduleLoginReap(weak.Make(r))
+}
+
+func scheduleLoginReap(slot weak.Pointer[AccountProviderRuntime]) {
+	interval := time.Duration(loginSessionReapInterval.Load())
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	time.AfterFunc(interval, func() {
+		rt := slot.Value()
+		if rt == nil {
+			return
+		}
+		rt.reapLoginSessions(time.Now())
+		scheduleLoginReap(slot)
+	})
+}
+
+func accountTransportError(bag *SecretBag, err error) error {
+	text := redactRequestURL(err.Error())
+	if bag != nil {
+		text = bag.Scrub(text)
+	}
+	return fmt.Errorf("%w: %s", ErrAccountTransient, text)
+}
+
+func scrubOutboundError(bag *SecretBag, err error) error {
+	if err == nil {
+		return nil
+	}
+	text := redactRequestURL(err.Error())
+	if bag != nil {
+		text = bag.Scrub(text)
+	}
+	if text == err.Error() {
+		return err
+	}
+	return &scrubbedError{err: err, msg: text}
+}
+
+func redactRequestURL(text string) string {
+	for {
+		start, length := urlSchemeIndex(text)
+		if start < 0 {
+			return text
+		}
+		end := start + length
+		for end < len(text) && !isURLTerminator(text[end]) {
+			end++
+		}
+		text = text[:start] + text[end:]
+	}
+}
+
+func urlSchemeIndex(text string) (int, int) {
+	lower := strings.ToLower(text)
+	https := strings.Index(lower, "https://")
+	http := strings.Index(lower, "http://")
+	switch {
+	case https >= 0 && (http < 0 || https <= http):
+		return https, len("https://")
+	case http >= 0:
+		return http, len("http://")
+	default:
+		return -1, 0
+	}
+}
+
+func isURLTerminator(b byte) bool {
+	switch b {
+	case ' ', '"', '\'', '<', '>', '\n', '\r', '\t':
+		return true
+	default:
+		return false
 	}
 }
 
