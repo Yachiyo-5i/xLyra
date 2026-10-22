@@ -21,9 +21,10 @@ type accountPoolRuntimeAdapter struct {
 }
 
 func newAccountPoolRuntime(plugin *jsplugin.Plugin, pool *jsplugin.AccountPoolSpec) (site.PluginAccountRuntime, error) {
-	// Leave Timeout unset so the runtime applies its own 20s limit. The dial
-	// guard matches the process HTTP client; proxy and idle settings stay on
-	// the default transport.
+	// Leave Timeout unset so the runtime applies its own 20s limit.
+	// NewGuardedTransport keeps environment proxies and exempts only those
+	// addresses. A proxied target is resolved by the proxy; account-pool URLs
+	// are also https plus a hostname allow-list, which cannot be an IP.
 	client := &http.Client{Transport: httpclient.NewGuardedTransport(30 * time.Second)}
 	runtime, err := jsplugin.NewAccountProviderRuntime(plugin, client)
 	if err != nil {

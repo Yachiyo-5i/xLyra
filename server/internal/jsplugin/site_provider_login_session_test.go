@@ -98,30 +98,130 @@ func TestExpiredLoginSessionIsRemovedAndWiped(t *testing.T) {
 }
 
 func TestAccountTransportErrorHidesRequestURL(t *testing.T) {
-	const token = "METADATA_TOKEN_9f3c"
-	plugin := mustPlugin(t, customSource(), customSection())
-	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		return nil, &url.Error{
-			Op:  req.Method,
-			URL: "https://metadata.acme.example/latest?token=" + token,
-			Err: errors.New("blocked connection to non-public address 169.254.169.254"),
+	tests := []struct {
+		name string
+		raw  string
+		hide []string
+	}{
+		{
+			name: "query token",
+			raw:  "https://metadata.acme.example/latest?token=METADATA_TOKEN_9f3c",
+			hide: []string{"METADATA_TOKEN_9f3c", "https://", "http://"},
+		},
+		{
+			name: "userinfo",
+			raw:  "https://user:s3cret@10.1.2.3:8080/latest?token=METADATA_TOKEN_9f3c",
+			hide: []string{"s3cret", "METADATA_TOKEN_9f3c", "10.1.2.3", "https://", "http://"},
+		},
+		{
+			name: "single quote",
+			raw:  "https://idp.example/oauth/o'reilly?code=METADATA_TOKEN_9f3c",
+			hide: []string{"METADATA_TOKEN_9f3c", "reilly", "https://", "http://"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := mustPlugin(t, customSource(), customSection())
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return nil, &url.Error{
+					Op:  req.Method,
+					URL: tc.raw,
+					Err: errors.New("blocked connection to non-public address 169.254.169.254"),
+				}
+			})}
+			rt, err := NewAccountProviderRuntime(plugin, client)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rt.hosts = []string{"api.example.cn"}
+			_, err = rt.StartLogin(context.Background(), map[string]string{"region": "cn"})
+			if err == nil {
+				t.Fatal("expected transport failure")
+			}
+			if !errors.Is(err, ErrAccountTransient) {
+				t.Fatalf("error = %v", err)
+			}
+			if !strings.Contains(err.Error(), "blocked connection") {
+				t.Fatalf("error = %v", err)
+			}
+			for _, hidden := range tc.hide {
+				if strings.Contains(err.Error(), hidden) {
+					t.Fatalf("error = %v still has %q", err, hidden)
+				}
+			}
+		})
+	}
+}
+
+func TestRedactRequestURL(t *testing.T) {
+	const secret = "SECRET_VALUE_9f3c"
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "uppercase scheme",
+			in:   "GET HTTPS://metadata.acme.example/latest?token=" + secret + " done",
+			want: "GET  done",
+		},
+		{
+			name: "quoted url",
+			in:   `upstream "https://idp.example/oauth?code=` + secret + `" failed`,
+			want: `upstream "" failed`,
+		},
+		{
+			name: "single quote url",
+			in:   "fetch 'https://idp.example/oauth/o'reilly?code=" + secret + "' now",
+			want: "fetch ' now",
+		},
+		{
+			name: "userinfo",
+			in:   "login user:s3cret@10.1.2.3:8080 failed",
+			want: "login  failed",
+		},
+		{
+			name: "ipv6",
+			in:   "https://[::1]/latest?token=" + secret,
+			want: "",
+		},
+		{
+			name: "plain text",
+			in:   "blocked connection to non-public address 169.254.169.254",
+			want: "blocked connection to non-public address 169.254.169.254",
+		},
+		{
+			name: "dial detail",
+			in:   "dial tcp 169.254.169.254:80: connect: connection refused",
+			want: "dial tcp 169.254.169.254:80: connect: connection refused",
+		},
+		{
+			name: "two urls",
+			in:   "see https://a.example/x?t=" + secret + " and http://b.example/y?t=" + secret,
+			want: "see  and ",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := redactRequestURL(tc.in); got != tc.want {
+				t.Fatalf("redactRequestURL(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+
+	t.Run("secret bag", func(t *testing.T) {
+		const token = "TOKEN_VALUE_9f3c"
+		bag := NewSecretBag()
+		bag.Set("access_token", token)
+		err := accountTransportError(bag, errors.New("upstream said "+token+" dial tcp 169.254.169.254:80"))
+		if !errors.Is(err, ErrAccountTransient) {
+			t.Fatalf("error = %v", err)
 		}
-	})}
-	rt, err := NewAccountProviderRuntime(plugin, client)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt.hosts = []string{"api.example.cn"}
-	_, err = rt.StartLogin(context.Background(), map[string]string{"region": "cn"})
-	if err == nil {
-		t.Fatal("expected transport failure")
-	}
-	if !errors.Is(err, ErrAccountTransient) {
-		t.Fatalf("error = %v", err)
-	}
-	if !strings.Contains(err.Error(), "blocked connection") || strings.Contains(err.Error(), token) || strings.Contains(err.Error(), "https://") || strings.Contains(err.Error(), "http://") {
-		t.Fatalf("error = %v", err)
-	}
+		got := err.Error()
+		if strings.Contains(got, token) || !strings.Contains(got, "[redacted]") || !strings.Contains(got, "dial tcp 169.254.169.254:80") {
+			t.Fatalf("error = %s", got)
+		}
+	})
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

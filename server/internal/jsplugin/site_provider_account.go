@@ -13,6 +13,7 @@ import (
 	"net/http/cookiejar"
 	"net/textproto"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1257,17 +1258,33 @@ func scrubOutboundError(bag *SecretBag, err error) error {
 	return &scrubbedError{err: err, msg: text}
 }
 
+// userinfoPattern removes scheme-less user:password@host fragments.
+// A single quote is not a boundary; stopping there would keep the query.
+var userinfoPattern = regexp.MustCompile(`[^\s"'<>]+:[^\s"'<>]+@[^\s"'<>]+`)
+
 func redactRequestURL(text string) string {
 	for {
 		start, length := urlSchemeIndex(text)
 		if start < 0 {
-			return text
+			break
 		}
 		end := start + length
 		for end < len(text) && !isURLTerminator(text[end]) {
 			end++
 		}
+		// length is the scheme, so end is always past start. Stop anyway if a
+		// future matcher ever reports an empty span.
+		if end <= start {
+			break
+		}
 		text = text[:start] + text[end:]
+	}
+	for {
+		loc := userinfoPattern.FindStringIndex(text)
+		if loc == nil || loc[1] <= loc[0] {
+			return text
+		}
+		text = text[:loc[0]] + text[loc[1]:]
 	}
 }
 
@@ -1285,9 +1302,12 @@ func urlSchemeIndex(text string) (int, int) {
 	}
 }
 
+// isURLTerminator ends a URL at whitespace, a double quote, or an angle
+// bracket. An apostrophe is not a terminator: a path may contain one, and
+// stopping there would leave the rest of the query.
 func isURLTerminator(b byte) bool {
 	switch b {
-	case ' ', '"', '\'', '<', '>', '\n', '\r', '\t':
+	case ' ', '"', '<', '>', '\n', '\r', '\t':
 		return true
 	default:
 		return false
