@@ -867,6 +867,8 @@
     "bindQuotaFailed": "Bind failed",
     "siteProvider": {
       "title": "Site provider",
+      "versionEnabled": "Enabled",
+      "versionLatest": "Latest (not enabled)",
       "siteType": "Site type ID",
       "displayName": "Display name",
       "hosts": "Hosts",

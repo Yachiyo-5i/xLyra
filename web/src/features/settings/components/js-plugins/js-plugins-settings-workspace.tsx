@@ -58,20 +58,17 @@ import {
   disableJSPlugin,
   automationManifest,
   enableJSPluginVersion,
-  grantedHostPermissions,
   getJSPlugin,
   JS_PLUGIN_MAX_PACKAGE_BYTES,
   jsPluginQueryKeys,
   listJSPluginTrustedKeys,
   listUploadedJSPlugins,
-  siteProviderOf,
   tryJSPlugin,
   uploadJSPlugin,
   type JSPluginListItem,
   type JSPluginTrustedKey,
   type JSPluginVersion,
 } from '@/features/settings/api/js-plugins'
-import { resolveText } from '@/features/settings/lib/localized-text'
 import { listSites, sitesQueryKeys } from '@/features/sites/api/sites'
 import { APIError } from '@/lib/http'
 import { toast } from '@/lib/toast'
@@ -149,7 +146,7 @@ const UPLOADED_COLUMN_SIZING = {
 }
 
 export function JSPluginsSettingsWorkspace() {
-  const { t, i18n } = useTranslation(['settings', 'common'])
+  const { t } = useTranslation(['settings', 'common'])
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [managePlugin, setManagePlugin] = useState<JSPluginListItem | null>(null)
@@ -470,17 +467,6 @@ export function JSPluginsSettingsWorkspace() {
   }, [])
 
   const enabledVersionRow = (detailQuery.data?.versions ?? []).find((row) => row.status === 'enabled')
-  const siteProviderItems = (detailQuery.data?.versions ?? []).flatMap((row) => {
-    const info = siteProviderOf(row.manifest)
-    if (!info) return []
-    return [{
-      version: row.version,
-      siteType: info.siteType,
-      displayName: resolveText(info.displayName, i18n.language) ?? '',
-      hosts: info.hosts,
-      grantedHosts: grantedHostPermissions(row.granted_permissions),
-    }]
-  })
   const bindsToSites = managePlugin?.scope === 'site'
   const siteBinding = useSiteBinding(
     managePlugin && enabledVersionRow && bindsToSites
@@ -864,7 +850,7 @@ export function JSPluginsSettingsWorkspace() {
                   </section>
                 ) : null}
 
-                {siteProviderItems.length > 0 ? <JSPluginSiteProviderSection items={siteProviderItems} /> : null}
+                <JSPluginSiteProviderSection versions={detailQuery.data?.versions ?? []} />
 
                 {siteBinding.applicable ? (
                   <JSPluginSiteBindingSection

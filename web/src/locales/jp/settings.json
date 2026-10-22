@@ -867,6 +867,8 @@
     "bindQuotaFailed": "紐付け失敗",
     "siteProvider": {
       "title": "サイトプロバイダー",
+      "versionEnabled": "現在有効",
+      "versionLatest": "最新バージョン（未有効）",
       "siteType": "サイトタイプ ID",
       "displayName": "表示名",
       "hosts": "ホスト",

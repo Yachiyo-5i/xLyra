@@ -867,6 +867,8 @@
     "bindQuotaFailed": "绑定失败",
     "siteProvider": {
       "title": "站点提供方",
+      "versionEnabled": "当前启用",
+      "versionLatest": "最新版本(未启用)",
       "siteType": "站点类型 ID",
       "displayName": "显示名",
       "hosts": "主机",
