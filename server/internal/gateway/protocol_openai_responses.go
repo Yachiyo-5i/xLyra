@@ -69,6 +69,8 @@ type responsesOutputItem struct {
 	ReasoningContent  string                   `json:"reasoning_content,omitempty"`
 	Thinking          string                   `json:"thinking,omitempty"`
 	ThinkingSignature string                   `json:"thinking_signature,omitempty"`
+	Summary           []responsesOutputContent `json:"summary,omitempty"`
+	EncryptedContent  string                   `json:"encrypted_content,omitempty"`
 	Action            map[string]any           `json:"action,omitempty"`
 }
 

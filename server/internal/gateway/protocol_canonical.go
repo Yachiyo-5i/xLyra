@@ -1627,9 +1627,11 @@ func canonicalResponseFromResponsesResponse(response responsesResponse) canonica
 			Thinking: canonicalThinkingFromResponsesItem(map[string]any{
 				"type":               item.Type,
 				"content":            responsesOutputContentAsAny(item.Content),
+				"summary":            responsesOutputContentAsAny(item.Summary),
 				"reasoning_content":  item.ReasoningContent,
 				"thinking":           item.Thinking,
 				"thinking_signature": item.ThinkingSignature,
+				"encrypted_content":  item.EncryptedContent,
 			}),
 			CallID:        item.CallID,
 			Name:          item.Name,

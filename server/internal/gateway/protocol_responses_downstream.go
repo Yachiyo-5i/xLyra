@@ -340,8 +340,13 @@ func responsesOutputItemHasContent(item *responsesOutputItem) bool {
 	if item == nil {
 		return false
 	}
-	if item.Arguments != "" || item.Result != "" || item.Output != nil || item.ReasoningContent != "" || item.Thinking != "" || item.ThinkingSignature != "" {
+	if item.Arguments != "" || item.Result != "" || item.Output != nil || item.ReasoningContent != "" || item.Thinking != "" || item.ThinkingSignature != "" || strings.TrimSpace(item.EncryptedContent) != "" {
 		return true
+	}
+	for _, content := range item.Summary {
+		if responsesOutputContentHasText(&content) {
+			return true
+		}
 	}
 	if strings.EqualFold(strings.TrimSpace(item.Type), "function_call") || strings.EqualFold(strings.TrimSpace(item.Type), "custom_tool_call") {
 		return item.Name != "" || item.CallID != ""

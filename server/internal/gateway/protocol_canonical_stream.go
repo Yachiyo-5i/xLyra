@@ -1367,22 +1367,28 @@ func (e *openAIChatStreamEncoder) writeChunk(chunk map[string]any) error {
 }
 
 type openAIResponsesStreamEncoder struct {
-	options       canonicalStreamOptions
-	w             http.ResponseWriter
-	capture       *streamCaptureState
-	responseID    string
-	model         string
-	createdAt     int64
-	responseSent  bool
-	textStarted   bool
-	textBuffer    strings.Builder
-	completed     bool
-	sequence      int
-	textOutputIdx int
-	contentIndex  int
-	nextOutputIdx int
-	toolCalls     map[string]*responsesStreamToolCallState
-	toolCallOrder []string
+	options            canonicalStreamOptions
+	w                  http.ResponseWriter
+	capture            *streamCaptureState
+	responseID         string
+	model              string
+	createdAt          int64
+	responseSent       bool
+	textStarted        bool
+	textBuffer         strings.Builder
+	completed          bool
+	sequence           int
+	textOutputIdx      int
+	contentIndex       int
+	nextOutputIdx      int
+	toolCalls          map[string]*responsesStreamToolCallState
+	toolCallOrder      []string
+	reasoningText      strings.Builder
+	reasoningSignature strings.Builder
+	reasoningItem      map[string]any
+	reasoningOutputIdx int
+	reasoningIndexed   bool
+	reasoningClosed    bool
 	// Native web search.
 	searchCalls     []*responsesStreamSearchState
 	citations       []canonicalCitation
@@ -1663,6 +1669,20 @@ func (e *openAIResponsesStreamEncoder) sendReasoningEvent(event canonicalStreamE
 		appendStreamAnnotation(e.capture, redactedReasoningAnnotation(event))
 		return nil
 	}
+	switch event.ReasoningKind {
+	case "thinking_signature":
+		e.reasoningSignature.WriteString(event.Delta)
+	case "encrypted_reasoning":
+	default:
+		if event.Delta != "" {
+			e.reasoningText.WriteString(event.Delta)
+			if !e.reasoningIndexed && strings.TrimSpace(e.reasoningText.String()) != "" {
+				e.reasoningOutputIdx = e.nextOutputIdx
+				e.nextOutputIdx++
+				e.reasoningIndexed = true
+			}
+		}
+	}
 	if err := e.sendResponseStartIfNeeded(); err != nil {
 		return err
 	}
@@ -1730,6 +1750,9 @@ func (e *openAIResponsesStreamEncoder) sendTerminalResponse(status string, compl
 		return fmt.Errorf("stream completed without usage metadata")
 	}
 	if err := e.sendResponseStartIfNeeded(); err != nil {
+		return err
+	}
+	if err := e.finishReasoningItem(); err != nil {
 		return err
 	}
 	if e.textStarted {
@@ -1885,8 +1908,54 @@ func (e *openAIResponsesStreamEncoder) writeEvent(event string, payload map[stri
 	return nil
 }
 
+func (e *openAIResponsesStreamEncoder) finishReasoningItem() error {
+	if e.reasoningClosed {
+		return nil
+	}
+	e.reasoningClosed = true
+	item := responsesReasoningItem([]canonicalThinkingBlock{{
+		Thinking:  e.reasoningText.String(),
+		Signature: e.reasoningSignature.String(),
+	}})
+	if item == nil {
+		return nil
+	}
+	if !e.reasoningIndexed {
+		e.reasoningOutputIdx = e.nextOutputIdx
+		e.nextOutputIdx++
+		e.reasoningIndexed = true
+	}
+	if err := e.sendResponseStartIfNeeded(); err != nil {
+		return err
+	}
+	item["id"] = responsesItemIDForType("reasoning", "", nonEmptyString(e.responseID, "reasoning"))
+	item["status"] = "completed"
+	e.reasoningItem = item
+	added := clonePayload(item)
+	added["status"] = "in_progress"
+	e.sequence++
+	if err := e.writeEvent("response.output_item.added", map[string]any{
+		"type":            "response.output_item.added",
+		"sequence_number": e.sequence,
+		"output_index":    e.reasoningOutputIdx,
+		"item":            added,
+	}); err != nil {
+		return err
+	}
+	e.sequence++
+	return e.writeEvent("response.output_item.done", map[string]any{
+		"type":            "response.output_item.done",
+		"sequence_number": e.sequence,
+		"output_index":    e.reasoningOutputIdx,
+		"item":            item,
+	})
+}
+
 func (e *openAIResponsesStreamEncoder) responsePayload(status string, usage completionUsage) map[string]any {
 	output := []any{}
+	if (status == "completed" || status == "incomplete") && e.reasoningItem != nil {
+		output = append(output, e.reasoningItem)
+	}
 	if status == "completed" || status == "incomplete" {
 		for _, call := range e.searchCalls {
 			output = append(output, call.Item)
