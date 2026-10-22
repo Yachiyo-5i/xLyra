@@ -244,10 +244,11 @@ func (r JSPluginRepository) EnqueueEvent(ctx context.Context, eventType, entityT
 }
 
 // DueEvents returns pending events whose time has come, oldest first.
-func (r JSPluginRepository) DueEvents(ctx context.Context, now time.Time, limit int) ([]JSPluginEvent, error) {
+// Due is the database clock, the same clock that stamps next_attempt_at.
+func (r JSPluginRepository) DueEvents(ctx context.Context, limit int) ([]JSPluginEvent, error) {
 	var items []JSPluginEvent
 	err := r.db.WithContext(ctx).
-		Where("status = ? AND next_attempt_at <= ?", JSPluginEventPending, now).
+		Where("status = ? AND next_attempt_at <= NOW()", JSPluginEventPending).
 		Order("id ASC").Limit(limit).Find(&items).Error
 	return items, err
 }
@@ -259,11 +260,12 @@ func (r JSPluginRepository) FinishEvent(ctx context.Context, id int64, status, d
 		status, detail, id).Error
 }
 
-// RetryEvent keeps an event pending and schedules its next attempt.
-func (r JSPluginRepository) RetryEvent(ctx context.Context, id int64, detail string, next time.Time) error {
+// RetryEvent keeps an event pending and schedules its next attempt on the
+// database clock. delay is seconds as float64 so a millisecond survives.
+func (r JSPluginRepository) RetryEvent(ctx context.Context, id int64, detail string, delay time.Duration) error {
 	return r.db.WithContext(ctx).Exec(
-		`UPDATE js_plugin_events SET attempts = attempts + 1, last_error = ?, next_attempt_at = ? WHERE id = ?`,
-		detail, next, id).Error
+		`UPDATE js_plugin_events SET attempts = attempts + 1, last_error = ?, next_attempt_at = NOW() + make_interval(secs => ?) WHERE id = ?`,
+		detail, delay.Seconds(), id).Error
 }
 
 // PurgeFinished deletes finished events and old log rows.
