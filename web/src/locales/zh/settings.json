@@ -141,6 +141,7 @@
       "title": "会话",
       "deleteOtherSessions": "删除其他会话",
       "status": "状态",
+      "device": "设备",
       "ip": "IP",
       "lastActive": "最近活跃",
       "expires": "过期时间",

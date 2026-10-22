@@ -141,6 +141,7 @@
       "title": "Sessions",
       "deleteOtherSessions": "Delete Other Sessions",
       "status": "Status",
+      "device": "Device",
       "ip": "IP",
       "lastActive": "Last Active",
       "expires": "Expires",
