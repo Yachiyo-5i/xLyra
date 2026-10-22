@@ -97,6 +97,14 @@ xlyra-plugin run --hook listModels --key-env RELAY_KEY --base-url https://api.ex
 }
 ```
 
+### display
+
+`display.name` 必填，`display.subtitle` 可选。两者都是一个字符串，或按语言分的对象（最多 8 种语言，每种不超过 400 字节），键保持清单里的写法，例如 `zh`、`en`、`jp`。
+
+管理端按当前界面语言展示这两段文案。先精确匹配语言码，再匹配语言前缀（`zh-CN` 用 `zh`）。界面语言是日文时，`ja` 和 `jp` 都能对上。没有当前语言时用 `en`，再没有用 `zh`，还没有就用其余非空文本里语言标签字母序的第一个。只含空白的值会丢掉，不参与选择。建议至少写 `zh` 和 `en`。
+
+站点类型接口仍返回 `display_name` 和 `subtitle` 字符串，取值顺序是 `zh`、然后 `en`、再按语言标签字母序的第一个非空值，给不读多语言字段的客户端做回退。多语言正文在 `display_name_i18n` 和 `subtitle_i18n`，没有可用文本时省略。内置站点类型没有这两个字段。
+
 ### 站点类型 ID
 
 `siteType` 必须匹配 `^[a-z0-9][a-z0-9.-]{1,62}[a-z0-9]/[a-z][a-z0-9_]{0,31}$`。左侧 3–64 位，规则与插件 `id` 相同；右侧以小写字母开头，后面最多 31 位小写字母、数字或 `_`。左侧必须等于本包 `id`。不能占用内置站点类型的名字（内置类型的 ID 不含 `/`）。
@@ -694,7 +702,7 @@ export function rewritePayload(_ctx: RewritePayloadContext, payload: Record<stri
 - 插件图标：`display.icon` 声明的 PNG 或 WebP 由 `GET /api/v1/plugin-icons/{pluginID}` 提供。这个接口在管理端会话路由组里，浏览器要带 Cookie `xlyra_admin_session`；停用后仍可访问，插件删除后返回 404。站点类型的 `icon_url` 是 `/api/v1/plugin-icons/<pluginID>?v=<包 SHA256 的前 16 位>`，换包后 `v` 会变。没有声明图标时 `icon_url` 仍为空，创建页用显示名的首字符做占位。创建页先查内置图标映射，插件类型没有映射，于是用 `icon_url`。
 - `display.brandColor` 只校验 `#RRGGBB`，不会送到创建页。
 - 创建页的额度探测下拉只对 `openai` 和 `anthropic` 出现，倍率只对 `openai`、`anthropic`、`google_gemini` 出现。插件站点类型的倍率能力固定为关。创建时写入的额度探测值是 `none`，服务端把它当成没配置；导出了 `probe` 就会自动探测。
-- 显示名和副标题按 `zh`、然后 `en`、再按语言标签字母序取第一个非空值。写成单个字符串时，用的就是这句。
+- 显示名和副标题按界面语言展示，见 [display](#display)。`display_name` / `subtitle` 字符串仍按 `zh`、然后 `en`、再按语言标签字母序取第一个非空值。
 - 替代协议不开放。协议规格里不能写 `alternate_protocols`。
 - `rewritePayload` 的输入或返回值，JSON 超过 1 MiB 会失败。大图 base64 很容易超过。构造超大返回值时，也可能先碰到 50 ms 时限，错误是 `js_timeout` 而不是体积错误。
 

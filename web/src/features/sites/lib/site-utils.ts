@@ -1,6 +1,7 @@
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { localeFromLanguage as dateTimeLocale } from '@/lib/locale'
 import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
+import { siteTypeDisplayName } from '@/features/sites/lib/localized-site-type-text'
 import type { SiteUpdatedAtDisplayMode } from '@/features/sites/lib/types'
 
 const UPDATED_AT_MODE_KEY = 'xlyra:sites:updated-at-display-mode'
@@ -79,9 +80,12 @@ export function isSiteEnableBlockedByAbnormalState(site: Site, validationOverrid
   return !site.enabled && isSiteAbnormal(site, validationOverride)
 }
 
-export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[]): string {
-  const fromAPI = siteTypes?.find((siteTypeInfo) => siteTypeInfo.site_type === siteType)?.display_name
-  if (fromAPI) return fromAPI
+export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[], language?: string): string {
+  const info = siteTypes?.find((siteTypeInfo) => siteTypeInfo.site_type === siteType)
+  if (info) {
+    const fromAPI = language ? siteTypeDisplayName(info, language) : info.display_name
+    if (fromAPI) return fromAPI
+  }
   const t = siteType.trim().toLowerCase()
   if (t === 'codex') return 'Codex OAuth'
   if (t === 'antigravity') return 'Antigravity OAuth'

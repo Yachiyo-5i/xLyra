@@ -12,6 +12,8 @@ type siteTypeInfo struct {
 	SiteType           string                       `json:"site_type"`
 	DisplayName        string                       `json:"display_name"`
 	Subtitle           string                       `json:"subtitle"`
+	DisplayNameI18n    map[string]string            `json:"display_name_i18n,omitempty"`
+	SubtitleI18n       map[string]string            `json:"subtitle_i18n,omitempty"`
 	CredentialKey      string                       `json:"credential_key"`
 	CredentialType     string                       `json:"credential_type"`
 	RequiresBaseURL    bool                         `json:"requires_base_url"`
@@ -55,6 +57,8 @@ func (h Handler) ListSiteTypes(w http.ResponseWriter, r *http.Request) {
 			SiteType:           desc.SiteType,
 			DisplayName:        desc.DisplayName,
 			Subtitle:           desc.Subtitle,
+			DisplayNameI18n:    desc.DisplayNameI18n,
+			SubtitleI18n:       desc.SubtitleI18n,
 			CredentialKey:      desc.CredentialKey,
 			CredentialType:     desc.APICredentialType,
 			RequiresBaseURL:    desc.RequiresBaseURL,

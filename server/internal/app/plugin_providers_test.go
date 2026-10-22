@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 	"testing"
@@ -34,6 +35,65 @@ func TestSiteProviderText(t *testing.T) {
 				t.Fatalf("siteProviderText = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestPluginSiteTypeDisplayI18n(t *testing.T) {
+	svc := site.NewService(nil, "test-master-key")
+	logger, _ := discardLogger()
+	t.Cleanup(func() {
+		applySiteProviders(nil, svc, logger)
+		site.ClearPluginSiteTypes()
+		gateway.ClearRuntimeProviderSpecs()
+	})
+
+	poolName := jsplugin.LocalizedText{"zh": "池", "en": " Pool ", "jp": "プール", "fr": "  ", "de": ""}
+	poolSubtitle := jsplugin.LocalizedText{"zh": " \t ", "en": "Account pool", "ja": ""}
+	chatName := jsplugin.LocalizedText{"en": "Sample", "zh": "示例", "fr": ""}
+	chatSubtitle := jsplugin.LocalizedText{"zh": "对话", "en": "Chat", "jp": "チャット", "de": " "}
+	applySiteProviders(jsplugin.NewRegistry(
+		testProviderPlugin("acme.example", "acme.example/pool", []string{"api.example.com"}, "https://api.example.com", nil, poolName, poolSubtitle),
+		testProviderPlugin("acme.sample", "acme.sample/chat", []string{"api.example.com"}, "https://api.example.com", nil, chatName, chatSubtitle),
+	), svc, logger)
+	poolName["zh"] = "changed"
+	poolSubtitle["en"] = "changed"
+	chatName["en"] = "changed"
+
+	gotPool, ok := site.LookupSiteType("acme.example/pool")
+	if !ok {
+		t.Fatal("pool site type missing")
+	}
+	if gotPool.DisplayName != "池" || gotPool.Subtitle != "Account pool" {
+		t.Fatalf("flattened pool text = %q / %q", gotPool.DisplayName, gotPool.Subtitle)
+	}
+	if !maps.Equal(gotPool.DisplayNameI18n, map[string]string{"zh": "池", "en": "Pool", "jp": "プール"}) {
+		t.Fatalf("pool display_name_i18n = %#v", gotPool.DisplayNameI18n)
+	}
+	if !maps.Equal(gotPool.SubtitleI18n, map[string]string{"en": "Account pool"}) {
+		t.Fatalf("pool subtitle_i18n = %#v", gotPool.SubtitleI18n)
+	}
+
+	gotChat, ok := site.LookupSiteType("acme.sample/chat")
+	if !ok {
+		t.Fatal("chat site type missing")
+	}
+	if gotChat.DisplayName != "示例" || gotChat.Subtitle != "对话" {
+		t.Fatalf("flattened chat text = %q / %q", gotChat.DisplayName, gotChat.Subtitle)
+	}
+	if !maps.Equal(gotChat.DisplayNameI18n, map[string]string{"zh": "示例", "en": "Sample"}) {
+		t.Fatalf("chat display_name_i18n = %#v", gotChat.DisplayNameI18n)
+	}
+	if !maps.Equal(gotChat.SubtitleI18n, map[string]string{"zh": "对话", "en": "Chat", "jp": "チャット"}) {
+		t.Fatalf("chat subtitle_i18n = %#v", gotChat.SubtitleI18n)
+	}
+
+	for _, desc := range site.SiteTypeDescriptors() {
+		if strings.Contains(desc.SiteType, "/") {
+			continue
+		}
+		if desc.DisplayNameI18n != nil || desc.SubtitleI18n != nil {
+			t.Fatalf("builtin %s has i18n maps: %#v %#v", desc.SiteType, desc.DisplayNameI18n, desc.SubtitleI18n)
+		}
 	}
 }
 

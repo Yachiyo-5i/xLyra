@@ -16,6 +16,8 @@ type SiteTypeDescriptor struct {
 	SiteType                     string
 	DisplayName                  string
 	Subtitle                     string
+	DisplayNameI18n              map[string]string `json:"display_name_i18n,omitempty"`
+	SubtitleI18n                 map[string]string `json:"subtitle_i18n,omitempty"`
 	CredentialKey                string
 	APICredentialType            string
 	CredentialCategory           string
@@ -375,6 +377,12 @@ func ClearPluginSiteTypes() {
 func normalizePluginSiteType(item PluginSiteType, id string) PluginSiteType {
 	desc := item.Descriptor
 	desc.SiteType = id
+	if len(desc.DisplayNameI18n) > 0 {
+		desc.DisplayNameI18n = cloneStringMap(desc.DisplayNameI18n)
+	}
+	if len(desc.SubtitleI18n) > 0 {
+		desc.SubtitleI18n = cloneStringMap(desc.SubtitleI18n)
+	}
 	desc.SupportsAPIKeyCostMultiplier = false
 	desc.OfficialBaseURLProvider = ""
 	item.PluginID = strings.TrimSpace(item.PluginID)

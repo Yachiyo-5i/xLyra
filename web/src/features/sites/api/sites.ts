@@ -36,6 +36,8 @@ export type SiteTypeInfo = {
   site_type: string
   display_name: string
   subtitle: string
+  display_name_i18n?: Record<string, string>
+  subtitle_i18n?: Record<string, string>
   credential_key: string
   credential_type: 'api_key' | 'system_token' | 'oauth' | 'xlyra' | 'grok_sso' | 'account'
   requires_base_url: boolean

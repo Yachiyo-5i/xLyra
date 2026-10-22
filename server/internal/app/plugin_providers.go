@@ -206,6 +206,8 @@ func convertSiteProvider(plugin *jsplugin.Plugin) (preparedSiteProvider, error) 
 				SiteType:           siteType,
 				DisplayName:        displayName,
 				Subtitle:           siteProviderText(section.Display.Subtitle),
+				DisplayNameI18n:    siteProviderI18n(section.Display.Name),
+				SubtitleI18n:       siteProviderI18n(section.Display.Subtitle),
 				CredentialKey:      siteType,
 				RequiresBaseURL:    false,
 				OfficialBaseURL:    official,
@@ -309,6 +311,26 @@ func siteProviderPluginID(plugin *jsplugin.Plugin) string {
 		return ""
 	}
 	return plugin.Manifest.ID
+}
+
+// siteProviderI18n copies a manifest text for the admin UI. Blank values are
+// dropped. Keys stay as written, including zh, en, and jp.
+func siteProviderI18n(text jsplugin.LocalizedText) map[string]string {
+	if len(text) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(text))
+	for key, value := range text {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // siteProviderText picks zh, then en, then the first non-empty value in key order.

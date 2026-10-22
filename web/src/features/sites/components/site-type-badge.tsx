@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import type { SiteTypeInfo } from '@/features/sites/api/sites'
 import { formatSiteTypeLabel, siteTypeColor } from '@/features/sites/lib/site-utils'
@@ -16,7 +17,8 @@ type SiteTypeBadgeProps = {
  * logo 没有颜色的类型退回中性徽标。
  */
 export function SiteTypeBadge({ siteType, siteTypes, className }: SiteTypeBadgeProps) {
-  const label = formatSiteTypeLabel(siteType, siteTypes)
+  const { i18n } = useTranslation()
+  const label = formatSiteTypeLabel(siteType, siteTypes, i18n.language)
   const color = siteTypeColor(siteType)
   if (!color) {
     return <Badge variant="neutral" className={className}>{label}</Badge>

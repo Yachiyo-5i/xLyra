@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -113,15 +114,22 @@ func TestListSiteTypesExposeAccountCapabilities(t *testing.T) {
 }
 
 func sameSiteTypeInfo(got, want siteTypeInfo) bool {
-	gotAccounts, wantAccounts := got.Accounts, want.Accounts
-	got.Accounts, want.Accounts = nil, nil
-	if got != want {
+	if got.SiteType != want.SiteType ||
+		got.DisplayName != want.DisplayName ||
+		got.Subtitle != want.Subtitle ||
+		got.CredentialKey != want.CredentialKey ||
+		got.CredentialType != want.CredentialType ||
+		got.RequiresBaseURL != want.RequiresBaseURL ||
+		got.OfficialBaseURL != want.OfficialBaseURL ||
+		got.ShowInCreateDialog != want.ShowInCreateDialog ||
+		got.IconURL != want.IconURL ||
+		got.PluginID != want.PluginID ||
+		got.ProviderStatus != want.ProviderStatus ||
+		!maps.Equal(got.DisplayNameI18n, want.DisplayNameI18n) ||
+		!maps.Equal(got.SubtitleI18n, want.SubtitleI18n) {
 		return false
 	}
-	if (gotAccounts == nil) != (wantAccounts == nil) {
-		return false
-	}
-	return sameAccountCapabilities(gotAccounts, wantAccounts)
+	return sameAccountCapabilities(got.Accounts, want.Accounts)
 }
 
 func sameAccountCapabilities(got, want *siteTypeAccountCapabilities) bool {
@@ -166,6 +174,12 @@ func siteTypeJSONKeys(item siteTypeInfo) []string {
 		"requires_base_url",
 		"show_in_create_dialog",
 		"icon_url",
+	}
+	if len(item.DisplayNameI18n) > 0 {
+		keys = append(keys, "display_name_i18n")
+	}
+	if len(item.SubtitleI18n) > 0 {
+		keys = append(keys, "subtitle_i18n")
 	}
 	if item.OfficialBaseURL != "" {
 		keys = append(keys, "official_base_url")

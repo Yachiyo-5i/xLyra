@@ -145,7 +145,7 @@ export function SitesWorkspace({
   initialSearch?: string
 }) {
   const queryClient = useQueryClient()
-  const { t } = useTranslation('sites')
+  const { t, i18n } = useTranslation('sites')
   const isMobile = useMobileLayout()
   const [initialURLTarget] = useState(() =>
     siteURLTarget(new URLSearchParams(initialSearch)),
@@ -409,12 +409,12 @@ export function SitesWorkspace({
       seen.add(key)
       tabs.push({
         value: key,
-        label: formatSiteTypeLabel(site.site_type, siteTypes),
+        label: formatSiteTypeLabel(site.site_type, siteTypes, i18n.language),
         icon: siteTypeIcon(site.site_type, siteTypes),
       })
     }
     return tabs
-  }, [siteTypes, sites])
+  }, [i18n.language, siteTypes, sites])
 
   const filteredSites = useMemo(() => {
     const keyword = effectiveSearch.trim().toLowerCase()
@@ -1141,7 +1141,7 @@ export function SitesWorkspace({
         site={activeAccountsSite}
         capabilities={accountCapabilities(activeAccountsSite, siteTypes)}
         iconURL={activeAccountsSite ? siteTypeIcon(activeAccountsSite.site_type, siteTypes) || activeAccountsSite.icon_url || null : null}
-        typeLabel={activeAccountsSite ? formatSiteTypeLabel(activeAccountsSite.site_type, siteTypes) : null}
+        typeLabel={activeAccountsSite ? formatSiteTypeLabel(activeAccountsSite.site_type, siteTypes, i18n.language) : null}
         onOpenChange={(open) => {
           if (!open) {
             setAccountsSite(null)

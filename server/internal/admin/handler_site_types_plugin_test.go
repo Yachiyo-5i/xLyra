@@ -162,3 +162,112 @@ func TestListSiteTypesAppendsEnabledPluginSiteTypes(t *testing.T) {
 		t.Fatalf("siteTypeIconURL(disabled) = %q", got)
 	}
 }
+
+func TestListSiteTypesPluginDisplayI18n(t *testing.T) {
+	sitepkg.ClearPluginSiteTypes()
+	t.Cleanup(sitepkg.ClearPluginSiteTypes)
+
+	if err := sitepkg.SetPluginSiteTypes([]sitepkg.PluginSiteType{
+		{
+			Descriptor: sitepkg.SiteTypeDescriptor{
+				SiteType:           "acme.example/pool",
+				DisplayName:        "池",
+				Subtitle:           "Account pool",
+				DisplayNameI18n:    map[string]string{"zh": "池", "en": "Pool", "jp": "プール"},
+				SubtitleI18n:       map[string]string{"en": "Account pool"},
+				CredentialKey:      "acme.example/pool",
+				ShowInCreateDialog: true,
+			},
+			PluginID: "acme.example",
+			Enabled:  true,
+		},
+		{
+			Descriptor: sitepkg.SiteTypeDescriptor{
+				SiteType:           "acme.sample/chat",
+				DisplayName:        "示例",
+				Subtitle:           "对话",
+				DisplayNameI18n:    map[string]string{"zh": "示例", "en": "Sample"},
+				SubtitleI18n:       map[string]string{"zh": "对话", "en": "Chat", "jp": "チャット"},
+				CredentialKey:      "acme.sample/chat",
+				ShowInCreateDialog: true,
+			},
+			PluginID: "acme.sample",
+			Enabled:  true,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := adminPerform((Handler{}).ListSiteTypes, adminTestRequest(http.MethodGet, "/api/v1/site-types", ""))
+	adminAssertStatus(t, rec, http.StatusOK)
+	var envelope struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if len(envelope.Items) != len(headSiteTypeInfos)+2 {
+		t.Fatalf("item count = %d", len(envelope.Items))
+	}
+
+	found := map[string]json.RawMessage{}
+	for index, raw := range envelope.Items {
+		var got siteTypeInfo
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("decode item %d: %v", index, err)
+		}
+		found[got.SiteType] = raw
+		if index < len(headSiteTypeInfos) {
+			want := headSiteTypeInfos[index]
+			if !sameSiteTypeInfo(got, want) {
+				t.Fatalf("builtin %s = %#v", want.SiteType, got)
+			}
+			if strings.Contains(string(raw), "display_name_i18n") || strings.Contains(string(raw), "subtitle_i18n") {
+				t.Fatalf("builtin %s includes i18n fields: %s", want.SiteType, raw)
+			}
+		}
+	}
+
+	wantPool := siteTypeInfo{
+		SiteType:           "acme.example/pool",
+		DisplayName:        "池",
+		Subtitle:           "Account pool",
+		DisplayNameI18n:    map[string]string{"zh": "池", "en": "Pool", "jp": "プール"},
+		SubtitleI18n:       map[string]string{"en": "Account pool"},
+		CredentialKey:      "acme.example/pool",
+		CredentialType:     "api_key",
+		ShowInCreateDialog: true,
+		PluginID:           "acme.example",
+		ProviderStatus:     "enabled",
+	}
+	wantChat := siteTypeInfo{
+		SiteType:           "acme.sample/chat",
+		DisplayName:        "示例",
+		Subtitle:           "对话",
+		DisplayNameI18n:    map[string]string{"zh": "示例", "en": "Sample"},
+		SubtitleI18n:       map[string]string{"zh": "对话", "en": "Chat", "jp": "チャット"},
+		CredentialKey:      "acme.sample/chat",
+		CredentialType:     "api_key",
+		ShowInCreateDialog: true,
+		PluginID:           "acme.sample",
+		ProviderStatus:     "enabled",
+	}
+	for _, want := range []siteTypeInfo{wantPool, wantChat} {
+		raw := found[want.SiteType]
+		if raw == nil {
+			t.Fatalf("missing %s", want.SiteType)
+		}
+		var got siteTypeInfo
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !sameSiteTypeInfo(got, want) {
+			t.Fatalf("%s = %#v, want %#v", want.SiteType, got, want)
+		}
+		keys := append(siteTypeJSONKeys(want), "plugin_id", "provider_status")
+		assertExactJSONKeys(t, mapFromRawObject(t, raw), want.SiteType, keys...)
+		if strings.Contains(string(raw), `"fr"`) || strings.Contains(string(raw), `"  "`) {
+			t.Fatalf("%s kept a blank language: %s", want.SiteType, raw)
+		}
+	}
+}

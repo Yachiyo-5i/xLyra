@@ -37,6 +37,7 @@ import {
 } from '@/features/sites/api/sites'
 import type { SiteGroup } from '@/features/settings/api/site-groups'
 import { type ProxyConfig } from '@/features/settings/api/settings'
+import { providerSubtitle, siteTypeDisplayName } from '@/features/sites/lib/localized-site-type-text'
 import { isAccountLoginSiteType, siteTypeIconClassName } from '@/features/sites/lib/site-utils'
 import { editSiteFormResetKey } from '@/features/sites/lib/site-cache'
 import {
@@ -425,6 +426,7 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {group.items.map((st) => {
               const icon = siteTypeIconPath(st.site_type) ?? st.icon_url
+              const name = siteTypeDisplayName(st, language)
               const subtitle = providerSubtitle(st, language, t)
               return (
                 <button
@@ -435,13 +437,13 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
                 >
                   <SiteTypeIcon
                     src={icon}
-                    name={st.display_name}
+                    name={name}
                     className="h-8 w-8 shrink-0 rounded-control"
                     imageClassName={siteTypeIconClassName(st.site_type)}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <div className="text-headline text-label">{st.display_name}</div>
+                      <div className="text-headline text-label">{name}</div>
                       <SiteTypePluginTag pluginId={st.plugin_id} />
                     </div>
                     {subtitle ? (
@@ -456,14 +458,6 @@ function ProviderWall({ siteTypes, onSelect, language, t }: { siteTypes: SiteTyp
       ))}
     </div>
   )
-}
-
-function providerSubtitle(siteType: SiteTypeInfo, language: string, t: (key: string) => string) {
-  const key = `form.providerSubtitles.${siteType.site_type}`
-  const translated = t(key)
-  if (translated !== key) return translated
-  if (!language.startsWith('zh') && /[\u4e00-\u9fff]/.test(siteType.subtitle)) return undefined
-  return siteType.subtitle
 }
 
 function providerGroups(providers: SiteTypeInfo[], t: (key: string) => string) {
@@ -566,6 +560,7 @@ export function SiteCreateSheet({
 
   const selectedProvider = siteType || null
   const selectedProviderInfo = siteTypes?.find(st => st.site_type === selectedProvider)
+  const selectedProviderName = selectedProviderInfo ? siteTypeDisplayName(selectedProviderInfo, i18n.language) : ''
   const selectedProviderIcon = selectedProvider
     ? siteTypeIconPath(selectedProvider) ?? selectedProviderInfo?.icon_url
     : null
@@ -758,13 +753,13 @@ export function SiteCreateSheet({
               ) : null}
               <SiteTypeIcon
                 src={selectedProviderIcon}
-                name={selectedProviderInfo?.display_name ?? ''}
+                name={selectedProviderName}
                 empty="hidden"
                 className="h-6 w-6 shrink-0 rounded-control"
                 imageClassName={siteTypeIconClassName(selectedProvider)}
               />
               <SheetTitle>
-                {selectedProviderInfo?.display_name ?? t('form.createTitle')}
+                {selectedProviderInfo ? selectedProviderName : t('form.createTitle')}
               </SheetTitle>
             </div>
           ) : (
