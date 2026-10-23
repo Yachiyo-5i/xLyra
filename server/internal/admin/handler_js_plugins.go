@@ -29,6 +29,9 @@ func (h Handler) ListJSPlugins(w http.ResponseWriter, r *http.Request) {
 	repo := store.NewJSPluginRepository(h.trafficDB.DB())
 	plugins, err := repo.ListPlugins(r.Context())
 	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
 		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_list_failed", "failed to list plugins")
 		return
 	}
