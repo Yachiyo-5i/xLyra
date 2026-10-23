@@ -9,7 +9,7 @@
   </p>
   <p>
     <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License" />
-    <img src="https://img.shields.io/badge/backend-Go%201.26.5+-00ADD8.svg" alt="Backend" />
+    <img src="https://img.shields.io/badge/backend-Go%201.26.10+-00ADD8.svg" alt="Backend" />
     <img src="https://img.shields.io/badge/frontend-React%2019-61DAFB.svg" alt="Frontend" />
     <img src="https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg" alt="Database" />
     <a href="https://hub.docker.com/r/yachiiiiyo/xlyra"><img src="https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg" alt="Docker Pulls" /></a>
@@ -274,7 +274,7 @@ Docker 默认数据挂载：
 
 ## 本地开发
 
-本地开发需要 Go 1.26.5、Node.js 24 和可用的 PostgreSQL 17 实例。以下示例连接 `127.0.0.1:5432`，数据库名、用户和密码分别为 `xlyra`、`postgres` 和 `postgres`，可通过环境变量覆盖。
+本地开发需要 Go 1.26.10、Node.js 24 和可用的 PostgreSQL 17 实例。以下示例连接 `127.0.0.1:5432`，数据库名、用户和密码分别为 `xlyra`、`postgres` 和 `postgres`，可通过环境变量覆盖。
 
 安装前端依赖：
 

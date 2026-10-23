@@ -1,6 +1,6 @@
 module xlyra/server
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/Yachiyo-5i/moejs v0.1.0-yachiyo.2
