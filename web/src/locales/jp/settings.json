@@ -141,6 +141,7 @@
       "title": "セッション",
       "deleteOtherSessions": "他のセッションを削除",
       "status": "ステータス",
+      "device": "デバイス",
       "ip": "IP",
       "lastActive": "最終アクティブ",
       "expires": "有効期限",

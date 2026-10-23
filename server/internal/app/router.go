@@ -246,7 +246,7 @@ func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, c
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(httpx.WithRequestIDHeader)
-	r.Use(middleware.RealIP)
+	r.Use(httpx.RealClientIP)
 	r.Use(httpx.IPWhitelist(confFile))
 	r.Use(middleware.Recoverer)
 	r.Use(routeAwareTimeout(cfg.RequestTimeout))

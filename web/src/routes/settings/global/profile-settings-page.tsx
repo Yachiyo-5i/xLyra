@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { KeyRound, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { localeFromLanguage } from '@/lib/locale'
+import { defaultTableColumnWidths } from '@/lib/table-column-widths'
+import { parseUserAgent } from '@/lib/user-agent'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FormField } from '@/components/ui/form-field'
@@ -29,6 +31,8 @@ import {
 } from '@/features/auth/api/profile'
 import { CreatedAccessTokenDialog, DeleteAccessTokenDialog } from '@/routes/settings/global/components/profile-access-token-dialogs'
 import { ProfileTOTPSetupSheet, type TOTPSetupState } from '@/routes/settings/global/components/profile-totp-setup-sheet'
+
+const sessionColumnWidths = defaultTableColumnWidths([12, 22, 16, 17, 17, 16])
 
 export function ProfileSettingsPage() {
   const { t, i18n } = useTranslation('settings')
@@ -371,23 +375,30 @@ export function ProfileSettingsPage() {
         </div>
         <div className="overflow-hidden rounded-card border border-separator">
           <table className="w-full table-fixed text-left text-body">
+            <colgroup>
+              {sessionColumnWidths.map((width, index) => (
+                <col key={index} style={{ width: `${width}%` }} />
+              ))}
+            </colgroup>
             <thead className="bg-fill-3 text-label-2">
               <tr>
-                <th className="px-3 py-3 font-medium">{t('profile.sessions.status')}</th>
-                <th className="px-3 py-3 font-medium">{t('profile.sessions.ip')}</th>
-                <th className="px-3 py-3 font-medium">{t('profile.sessions.lastActive')}</th>
-                <th className="px-3 py-3 font-medium">{t('profile.sessions.expires')}</th>
-                <th className="px-3 py-3 text-right font-medium">{t('profile.sessions.actions')}</th>
+                <th className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 font-medium sm:px-3">{t('profile.sessions.status')}</th>
+                <th className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 font-medium sm:px-3">{t('profile.sessions.device')}</th>
+                <th className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 font-medium sm:px-3">{t('profile.sessions.ip')}</th>
+                <th className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 font-medium sm:px-3">{t('profile.sessions.lastActive')}</th>
+                <th className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 font-medium sm:px-3">{t('profile.sessions.expires')}</th>
+                <th className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 text-right font-medium sm:px-3">{t('profile.sessions.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-separator">
               {(sessionsQuery.data?.items ?? []).map((item) => (
                 <tr key={item.id}>
-                  <td className="px-3 py-3">{item.current ? <Badge variant="success">{t('profile.sessions.current')}</Badge> : <Badge variant="neutral">{t('profile.sessions.other')}</Badge>}</td>
-                  <td className="px-3 py-3">{item.ip_address ?? '-'}</td>
-                  <td className="px-3 py-3">{formatDateTime(item.last_seen_at, i18n.language)}</td>
-                  <td className="px-3 py-3">{formatDateTime(item.expires_at, i18n.language)}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="overflow-hidden px-2 py-3 sm:px-3">{item.current ? <Badge variant="success">{t('profile.sessions.current')}</Badge> : <Badge variant="neutral">{t('profile.sessions.other')}</Badge>}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 sm:px-3" title={item.user_agent || undefined}>{formatSessionDevice(item.user_agent)}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 sm:px-3">{item.ip_address ?? '-'}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 sm:px-3">{formatDateTime(item.last_seen_at, i18n.language)}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap px-2 py-3 sm:px-3">{formatDateTime(item.expires_at, i18n.language)}</td>
+                  <td className="overflow-hidden px-2 py-3 text-right sm:px-3">
                     <Button
                       variant="secondary"
                       size="sm"
@@ -440,6 +451,12 @@ function SectionTitle({ title, description }: { title: string; description?: str
       {description ? <p className="text-label-2 text-body">{description}</p> : null}
     </div>
   )
+}
+
+function formatSessionDevice(userAgent?: string) {
+  const parsed = parseUserAgent(userAgent ?? '')
+  if (!parsed.os) return parsed.browser
+  return `${parsed.browser} · ${parsed.os}`
 }
 
 function formatDateTime(value?: string | null, language?: string) {
