@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,16 +33,17 @@ export function ConfirmDialog({
   const { t } = useTranslation('common')
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel() }}>
-      <DialogContent className="w-[min(92vw,520px)]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+      {/* 提醒类弹窗（仿 iOS Alert）：始终居中，文字居中，两个按钮等宽并排 */}
+      <DialogContent presentation="center" className="w-[min(92vw,380px)]">
+        <DialogHeader className="border-0 px-6 pb-1 pt-6 text-center">
+          <DialogTitle className="text-title-3">{title}</DialogTitle>
+          <DialogDescription className="mt-2">{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter
-          cancel={<Button variant="outline" onClick={onCancel} disabled={pending}>{t('actions.cancel')}</Button>}
+          className="grid grid-cols-2 border-0 px-6 pb-6 pt-5"
+          cancel={<Button variant="secondary" onClick={onCancel} disabled={pending}>{t('actions.cancel')}</Button>}
           confirm={(
-            <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} disabled={pending}>
-              {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+            <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} loading={pending}>
               {confirmLabel}
             </Button>
           )}

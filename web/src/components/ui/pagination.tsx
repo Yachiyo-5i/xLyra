@@ -2,6 +2,7 @@ import * as React from 'react'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { fieldFocusClass, fieldSurfaceClass } from '@/components/ui/field-styles'
 import {
   Select,
   SelectContent,
@@ -28,21 +29,14 @@ function clampPage(page: number, totalPages: number) {
   return Math.min(Math.max(page, 1), totalPages)
 }
 
+/** 翻页按钮：secondary 圆形图标按钮，与工具栏按钮同高 */
 function PaginationIconButton({
   children,
   className,
   ...props
 }: React.ComponentProps<typeof Button>) {
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className={cn(
-        'size-9 rounded-lg border border-[hsl(var(--glass-border-strong))] bg-[hsl(var(--surface-panel))] text-foreground shadow-[0_4px_14px_rgba(4,8,18,0.08)] hover:bg-[hsl(var(--surface-soft-hover))] disabled:border-[hsl(var(--glass-border))] disabled:bg-[hsl(var(--surface-subtle))] disabled:text-[hsl(var(--text-faint))]',
-        className,
-      )}
-      {...props}
-    >
+    <Button variant="secondary" size="icon-sm" className={cn('rounded-full', className)} {...props}>
       {children}
     </Button>
   )
@@ -102,7 +96,7 @@ export function PaginationControls({
             setIsEditing(false)
           }}
         >
-          <SelectTrigger className="h-10 w-[132px] rounded-xl">
+          <SelectTrigger className="h-[var(--control-h-sm)] w-[124px] text-callout">
             <SelectValue placeholder={t('pagination.perPagePlaceholder')} />
           </SelectTrigger>
           <SelectContent searchable={false}>
@@ -115,8 +109,8 @@ export function PaginationControls({
         </Select>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3 px-1 py-1">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-callout text-label-2">
           <span>{t('pagination.pagePrefix')}</span>
           <input
             inputMode="numeric"
@@ -143,17 +137,17 @@ export function PaginationControls({
                 setIsEditing(false)
               }
             }}
-            className="h-9 w-12 rounded-lg border border-[hsl(var(--glass-border-strong))] bg-[hsl(var(--surface-panel))] px-2 text-center text-base font-semibold text-foreground shadow-[0_4px_14px_rgba(4,8,18,0.08)] outline-none transition-[border-color,box-shadow] focus:border-[hsl(var(--field-border-focus))] focus:ring-2 focus:ring-[hsl(var(--ring-soft))] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            className={cn(fieldSurfaceClass, fieldFocusClass, 'h-[var(--control-h-sm)] w-12 px-2 text-center font-mono text-callout font-semibold tabular-nums')}
             aria-label={t('pagination.label')}
           />
           <span>{t('pagination.pageSuffix')}</span>
-          <span className="text-muted-soft font-medium">
+          <span className="tabular-nums text-label-3">
             {t('pagination.totalPages', { count: totalPages })}
             {showDetails ? t('pagination.totalItems', { count: totalItems }) : ''}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <PaginationIconButton
             aria-label={t('pagination.first')}
             disabled={disabled || !canPrevious}

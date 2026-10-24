@@ -13,7 +13,8 @@
       "reasoning": "推理强度",
       "input": "输入",
       "output": "输出",
-      "cost": "花费"
+      "cost": "花费",
+      "tokens": "Tokens"
     },
     "test": "测试",
     "success": "成功",
@@ -186,7 +187,8 @@
     "filters": "筛选",
     "done": "完成",
     "statusCode": "状态码 {{code}}",
-    "tokens": "输入 {{input}} / 输出 {{output}}"
+    "tokens": "输入 {{input}} / 输出 {{output}}",
+    "timeRange": "时间范围"
   },
   "page": {
     "loadFailed": "请求日志读取失败",

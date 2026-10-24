@@ -19,30 +19,58 @@ import (
 const RouteSiteHeader = "X-Xlyra-Route-Site"
 
 type Handler struct {
-	logger              *slog.Logger
-	auth                *auth.Service
-	router              *routeengine.Service
-	db                  *store.Store
-	credentials         credential.Service
-	httpClient          *http.Client
-	clients             *httpclient.Manager
-	limits              *upstreamConcurrencyCache
-	recorder            Recorder
-	oauth               *oauthsvc.Service
-	rateLimits          *ratelimit.Service
-	modelsCache         *modelsCache
-	noRoutes            *noRouteSuppressionCache
-	userBalanceThrottle *userBalanceThrottle
-	credentialSelector  *credentialWindowSelector
-	confFile            *config.ConfigFile
-	usage               *usage.Service
-	timeZone            config.TimeZone
-	exposeRouteSite     bool
-	cacheObservationKey []byte
+	logger               *slog.Logger
+	auth                 *auth.Service
+	router               *routeengine.Service
+	db                   *store.Store
+	credentials          credential.Service
+	httpClient           *http.Client
+	forcedUpstreamClient *http.Client
+	clients              *httpclient.Manager
+	limits               *upstreamConcurrencyCache
+	recorder             Recorder
+	oauth                gatewayOAuth
+	pluginAccounts       PluginAccountRefresher
+	rateLimits           *ratelimit.Service
+	modelsCache          *modelsCache
+	noRoutes             *noRouteSuppressionCache
+	userBalanceThrottle  *userBalanceThrottle
+	credentialSelector   *credentialWindowSelector
+	confFile             *config.ConfigFile
+	usage                *usage.Service
+	timeZone             config.TimeZone
+	exposeRouteSite      bool
+	cacheObservationKey  []byte
 }
 
 func (h Handler) WithRouteSiteHeader() Handler {
 	h.exposeRouteSite = true
+	return h
+}
+
+// WithPluginAccountRefresher installs the plugin account-pool token refresher.
+// A nil refresher leaves account bundles that are still inside leadSeconds usable
+// and fails the credential when a refresh is due.
+func (h Handler) WithPluginAccountRefresher(refresher PluginAccountRefresher) Handler {
+	h.pluginAccounts = refresher
+	return h
+}
+
+// WithHTTPClient replaces the upstream HTTP client. A nil client is ignored.
+func (h Handler) WithHTTPClient(client *http.Client) Handler {
+	if client != nil {
+		h.httpClient = client
+	}
+	return h
+}
+
+// WithForcedUpstreamClient makes every upstream call use client, including
+// streaming profiles that otherwise build their own client. Tests use it to
+// pin an upstream at httptest. A nil client is ignored.
+func (h Handler) WithForcedUpstreamClient(client *http.Client) Handler {
+	if client != nil {
+		h.forcedUpstreamClient = client
+	}
 	return h
 }
 

@@ -29,6 +29,38 @@ func TestBreakerTripsProbeFailures(t *testing.T) {
 	}
 }
 
+func TestBreakerSiteProviderRecordsWithoutTrip(t *testing.T) {
+	t.Parallel()
+	var trips []string
+	breaker := NewBreaker(func(pluginID, version, reason string) {
+		trips = append(trips, pluginID+" "+reason)
+	})
+	provider := &Plugin{Manifest: Manifest{ID: "com.example.provider", Version: "1.0.0", Kind: KindSiteProvider}}
+	for i := 0; i < probeFailureTripCount+5; i++ {
+		breaker.RecordProbeResult(provider, false)
+	}
+	if len(trips) != 0 {
+		t.Fatalf("site_provider trips = %v", trips)
+	}
+	metrics := breaker.Metrics(provider.Manifest.ID, provider.Manifest.Version)
+	if metrics.Calls != probeFailureTripCount+5 || metrics.Errors != probeFailureTripCount+5 {
+		t.Fatalf("metrics = %+v", metrics)
+	}
+	breaker.RecordProbeResult(provider, true)
+	metrics = breaker.Metrics(provider.Manifest.ID, provider.Manifest.Version)
+	if metrics.Calls != probeFailureTripCount+6 || metrics.Errors != probeFailureTripCount+5 {
+		t.Fatalf("metrics after success = %+v", metrics)
+	}
+
+	quota := &Plugin{Manifest: Manifest{ID: "com.example.probe", Version: "1.0.0", Kind: KindQuotaProbe}}
+	for i := 0; i < probeFailureTripCount; i++ {
+		breaker.RecordProbeResult(quota, false)
+	}
+	if len(trips) != 1 || trips[0] != "com.example.probe probe_failures" {
+		t.Fatalf("quota trips = %v", trips)
+	}
+}
+
 func TestBreakerIgnoresBuiltinPlugins(t *testing.T) {
 	t.Parallel()
 	breaker := NewBreaker(func(pluginID, version, reason string) {

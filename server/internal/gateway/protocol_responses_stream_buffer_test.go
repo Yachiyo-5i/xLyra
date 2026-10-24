@@ -7,6 +7,18 @@ import (
 	"testing"
 )
 
+func TestReadBufferedResponsesStreamBodyPreservesReasoningEncryptedContent(t *testing.T) {
+	t.Parallel()
+
+	body, err := readBufferedResponsesStreamBody(strings.NewReader(
+		gatewaySSEEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_sig","output":[{"id":"rs_1","type":"reasoning","summary":[{"type":"summary_text","text":"plan"}],"encrypted_content":"xlyra-anthropic:sig-buffer"}]}}`),
+	))
+	if err != nil {
+		t.Fatalf("readBufferedResponsesStreamBody returned error: %v", err)
+	}
+	assertGatewayBodyContainsAll(t, string(body), `"encrypted_content":"xlyra-anthropic:sig-buffer"`, `"text":"plan"`)
+}
+
 func TestReadBufferedResponsesStreamBodyRejectsNilReader(t *testing.T) {
 	t.Parallel()
 

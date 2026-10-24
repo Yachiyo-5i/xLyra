@@ -51,6 +51,30 @@ func (s *Service) boundSitePlugin(item store.Site, kind string) (*jsplugin.Plugi
 	return plugin, true
 }
 
+// siteTypeHookPlugin returns the enabled site_provider for siteType when it
+// exports hook. A disabled type, another kind, or a missing export is false.
+func (s *Service) siteTypeHookPlugin(siteType, hook string) (*jsplugin.Plugin, bool) {
+	return ProviderHookPlugin(s.activeJSRegistry(), siteType, hook)
+}
+
+// ProviderHookPlugin returns the enabled site_provider registered for siteType
+// when it exports hook. registry is the catalog generation to read. A disabled
+// type, another kind, a missing export, or a nil registry is false.
+func ProviderHookPlugin(registry *jsplugin.Registry, siteType, hook string) (*jsplugin.Plugin, bool) {
+	item, ok := LookupPluginSiteType(siteType)
+	if !ok || !item.Enabled || item.PluginID == "" {
+		return nil, false
+	}
+	if registry == nil {
+		return nil, false
+	}
+	plugin, ok := registry.ByPluginID(item.PluginID)
+	if !ok || plugin == nil || plugin.Manifest.Kind != jsplugin.KindSiteProvider || !plugin.HasHook(hook) {
+		return nil, false
+	}
+	return plugin, true
+}
+
 // SitePluginID returns the plugin id bound to a site for a kind, or "".
 func SitePluginID(cfg *GatewayConfig, kind string) string {
 	if cfg == nil {
@@ -62,7 +86,13 @@ func SitePluginID(cfg *GatewayConfig, kind string) string {
 // driveStepped runs a model_list, credential_check or site_detect plugin to
 // completion. The host sends every request and adds the credential; secret is
 // empty for kinds that take none, and then no Authorization header is sent.
-func driveStepped(ctx context.Context, client *http.Client, plugin *jsplugin.Plugin, probeCtx jsplugin.ProbeContext, secret string) (result any, err error) {
+func driveStepped(ctx context.Context, client *http.Client, plugin *jsplugin.Plugin, probeCtx jsplugin.ProbeContext, secret string) (any, error) {
+	return driveSteppedHook(ctx, client, plugin, "", "", probeCtx, secret)
+}
+
+// driveSteppedHook is driveStepped for one export. An empty hook uses the
+// plugin kind's own stepped hook. A hook failure is returned as-is.
+func driveSteppedHook(ctx context.Context, client *http.Client, plugin *jsplugin.Plugin, hook, resultKind string, probeCtx jsplugin.ProbeContext, secret string) (result any, err error) {
 	defer func() {
 		if breaker := jsplugin.DefaultCatalog().Breaker(); breaker != nil {
 			breaker.RecordProbeResult(plugin, err == nil)
@@ -92,7 +122,13 @@ func driveStepped(ctx context.Context, client *http.Client, plugin *jsplugin.Plu
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		decision, callErr := plugin.CallStepped(ctx, probeCtx, steps)
+		var decision jsplugin.SteppedDecision
+		var callErr error
+		if hook == "" {
+			decision, callErr = plugin.CallStepped(ctx, probeCtx, steps)
+		} else {
+			decision, callErr = plugin.CallSteppedHook(ctx, hook, resultKind, probeCtx, steps)
+		}
 		logs, dropped := decision.Logs, decision.DroppedLogs
 		if call, ok := callErr.(*jsplugin.CallError); ok {
 			logs, dropped = call.Logs, call.DroppedLogs
@@ -111,6 +147,13 @@ func driveStepped(ctx context.Context, client *http.Client, plugin *jsplugin.Plu
 		if decision.Request == nil || step == jsplugin.MaxProbeSteps-1 {
 			return nil, fmt.Errorf("plugin %s exceeded %d steps", plugin.Manifest.ID, jsplugin.MaxProbeSteps)
 		}
+		target, resolveErr := jsplugin.ResolveProbeURL(canonical, decision.Request.Path, decision.Request.Query)
+		if resolveErr != nil {
+			return nil, &jsplugin.CallError{Kind: jsplugin.KindURLRejected, Detail: resolveErr.Error()}
+		}
+		if hostErr := CheckPluginHost(probeCtx.SiteType, target); hostErr != nil {
+			return nil, fmt.Errorf("plugin %s: %w", plugin.Manifest.ID, hostErr)
+		}
 		response, err := doProbeHTTP(ctx, &httpClient, canonical, secret, decision.Request)
 		if err != nil {
 			return nil, err
@@ -122,14 +165,17 @@ func driveStepped(ctx context.Context, client *http.Client, plugin *jsplugin.Plu
 
 // ---- model_list ----
 
-// pluginModelLister adapts a model_list plugin to the interface the model
-// sync uses, so the sync code does not care where the list comes from.
+// pluginModelLister adapts a model_list plugin, or a site_provider listModels
+// hook, to the interface the model sync uses. An empty hook uses the plugin's
+// own stepped export; hook and resultKind name one export and its contract.
 type pluginModelLister struct {
-	plugin *jsplugin.Plugin
+	plugin     *jsplugin.Plugin
+	hook       string
+	resultKind string
 }
 
 func (l pluginModelLister) ListModels(ctx context.Context, site adapter.SiteConfig, apiKey string) ([]adapter.Model, error) {
-	result, err := driveStepped(ctx, site.Client, l.plugin, jsplugin.ProbeContext{
+	result, err := driveSteppedHook(ctx, site.Client, l.plugin, l.hook, l.resultKind, jsplugin.ProbeContext{
 		SiteType:       site.SiteType,
 		BaseURL:        site.BaseURL,
 		CredentialType: defaultCredentialType,
@@ -157,27 +203,33 @@ func (l pluginModelLister) ListModels(ctx context.Context, site adapter.SiteConf
 	return models, nil
 }
 
-// modelListerFor returns the plugin bound to the site if there is one, and the
-// adapter's own lister otherwise.
+// modelListerFor returns the model source for a site. A model_list plugin bound
+// to the site wins, then the site type's listModels hook, then the adapter.
 func (s *Service) modelListerFor(item store.Site, module adapter.Module) (adapter.GatewayModelLister, bool) {
 	if plugin, ok := s.boundSitePlugin(item, jsplugin.KindModelList); ok {
 		return pluginModelLister{plugin: plugin}, true
+	}
+	if plugin, ok := s.siteTypeHookPlugin(item.SiteType, "listModels"); ok {
+		return pluginModelLister{plugin: plugin, hook: "listModels", resultKind: jsplugin.KindModelList}, true
 	}
 	return adapter.AsGatewayModelLister(module)
 }
 
 // ---- credential_check ----
 
-// pluginCredentialValidator adapts a credential_check plugin to
-// adapter.CredentialValidator. A rejected key becomes an error that classifies
-// as credential_invalid; an unanswered check becomes a transient one, so a site
-// outage is never mistaken for a bad key.
+// pluginCredentialValidator adapts a credential_check plugin, or a
+// site_provider check hook, to adapter.CredentialValidator. A rejected key
+// becomes an error that classifies as credential_invalid; an unanswered check
+// becomes a transient one, so a site outage is never mistaken for a bad key.
+// An empty hook uses the plugin's own stepped export.
 type pluginCredentialValidator struct {
-	plugin *jsplugin.Plugin
+	plugin     *jsplugin.Plugin
+	hook       string
+	resultKind string
 }
 
 func (v pluginCredentialValidator) ValidateCredentials(ctx context.Context, site adapter.SiteConfig, apiKey string) error {
-	result, err := driveStepped(ctx, site.Client, v.plugin, jsplugin.ProbeContext{
+	result, err := driveSteppedHook(ctx, site.Client, v.plugin, v.hook, v.resultKind, jsplugin.ProbeContext{
 		SiteType:       site.SiteType,
 		BaseURL:        site.BaseURL,
 		CredentialType: defaultCredentialType,
@@ -223,18 +275,23 @@ func nonEmpty(value, fallback string) string {
 	return fallback
 }
 
-// credentialValidatorFor returns the plugin bound to the site if there is one,
-// and the adapter's own validator otherwise.
+// credentialValidatorFor returns the credential check for a site. A
+// credential_check plugin bound to the site wins, then the site type's check
+// hook, then the adapter.
 func (s *Service) credentialValidatorFor(item store.Site, module adapter.Module) (adapter.CredentialValidator, bool) {
 	if plugin, ok := s.boundSitePlugin(item, jsplugin.KindCredentialCheck); ok {
 		return pluginCredentialValidator{plugin: plugin}, true
 	}
+	if plugin, ok := s.siteTypeHookPlugin(item.SiteType, "check"); ok {
+		return pluginCredentialValidator{plugin: plugin, hook: "check", resultKind: jsplugin.KindCredentialCheck}, true
+	}
 	return adapter.AsCredentialValidator(module)
 }
 
-// runPluginHealthCheck runs the bound credential_check plugin against the
-// site's first usable API key.
-func (s *Service) runPluginHealthCheck(ctx context.Context, item store.Site, plugin *jsplugin.Plugin, start time.Time, check siteHealthCheck) siteHealthCheck {
+// runPluginHealthCheck runs a credential_check plugin, or a site_provider
+// check hook, against the site's first usable API key. check passing is healthy.
+func (s *Service) runPluginHealthCheck(ctx context.Context, item store.Site, validator pluginCredentialValidator, start time.Time, check siteHealthCheck) siteHealthCheck {
+	plugin := validator.plugin
 	check.endpoint = "credential_check " + plugin.Manifest.ID
 	check.metadata["plugin"] = plugin.Manifest.ID
 	_, credential, err := s.siteWithAPIKeyCredential(ctx, item.ID)
@@ -244,7 +301,7 @@ func (s *Service) runPluginHealthCheck(ctx context.Context, item store.Site, plu
 		check.message = err.Error()
 		return check
 	}
-	err = pluginCredentialValidator{plugin: plugin}.ValidateCredentials(ctx, s.toAdapterSite(ctx, item), credential.Secret)
+	err = validator.ValidateCredentials(ctx, s.toAdapterSite(ctx, item), credential.Secret)
 	check.latency = time.Since(start)
 	if err == nil {
 		check.success = true

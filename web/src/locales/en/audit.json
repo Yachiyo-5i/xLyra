@@ -20,7 +20,8 @@
     "failure": "Failure",
     "dateFrom": "Start date",
     "dateTo": "End date",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "date": "Date"
   },
   "empty": {
     "loading": "Loading audit records",

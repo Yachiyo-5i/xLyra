@@ -686,7 +686,7 @@ func (r CanonicalModelRepository) Matrix(ctx context.Context, canonicalID uuid.U
 			if apiKeyModel.SiteModelID.Valid && apiKeyModel.SiteModelID.UUID == model.ID {
 				totalCredentialIDs[apiKeyModel.SiteCredentialID] = struct{}{}
 				credential, ok := credentialsByID[apiKeyModel.SiteCredentialID]
-				if !ok || !apiKeyModel.Available || !apiKeyModel.Enabled || !isModelBoundCredentialType(credential.CredentialType) || !credentialUsable(credential) {
+				if !ok || !apiKeyModel.Available || !apiKeyModel.Enabled || !IsModelBoundCredentialType(credential.CredentialType) || !credentialUsable(credential) {
 					continue
 				}
 				if !credentialStateUsableForCredentialAt(credential, statesByCredentialID[credential.ID], time.Now()) || credentialCooling(cooldowns, site.ID, model.ID, credential.ID) {

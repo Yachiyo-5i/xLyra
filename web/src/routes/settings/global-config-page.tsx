@@ -32,7 +32,7 @@ export function GlobalConfigPage() {
 
       <div className="lg:hidden">
         <Select value={activePath} onValueChange={(value) => navigate(value)}>
-          <SelectTrigger className="h-10 w-full min-w-0">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent searchable={false}>
@@ -42,7 +42,7 @@ export function GlobalConfigPage() {
                 <SelectItem
                   key={item.to}
                   value={item.to}
-                  icon={<Icon className="h-4 w-4 text-muted-soft" />}
+                  icon={<Icon className="h-4 w-4 text-label-2" />}
                 >
                   {item.label}
                 </SelectItem>
@@ -52,7 +52,7 @@ export function GlobalConfigPage() {
         </Select>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-8 lg:border-t lg:border-[hsl(var(--divider))] lg:pt-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-8 lg:border-t lg:border-separator lg:pt-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="hidden min-h-0 overflow-hidden lg:block">
           <nav className="sticky top-0 grid gap-1">
             {globalSettingsNav.map((item) => {
@@ -63,10 +63,10 @@ export function GlobalConfigPage() {
                   to={item.to}
                   className={({ isActive }) =>
                     cn(
-                      'group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                      'group flex h-10 items-center gap-3 rounded-control px-3 text-body font-medium transition-colors',
                       isActive
-                        ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                        : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
+                        ? 'bg-fill-3 text-label'
+                        : 'text-label-2 hover:bg-fill-4 hover:text-label',
                     )
                   }
                 >
@@ -75,7 +75,7 @@ export function GlobalConfigPage() {
                       <Icon
                         className={cn(
                           'h-4 w-4 shrink-0 transition-colors',
-                          isActive ? 'text-primary' : 'text-muted-soft group-hover:text-foreground',
+                          isActive ? 'text-tint' : 'text-label-2 group-hover:text-label',
                         )}
                       />
                       <span className="min-w-0 truncate">{item.label}</span>

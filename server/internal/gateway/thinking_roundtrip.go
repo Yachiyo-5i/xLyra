@@ -2,6 +2,8 @@ package gateway
 
 import "strings"
 
+const anthropicEncryptedContentPrefix = "xlyra-anthropic:"
+
 func canonicalThinkingFromChatMessage(msg map[string]any) []canonicalThinkingBlock {
 	thinking := firstNonEmptyGatewayString(
 		anyString(msg["reasoning_content"]),
@@ -24,11 +26,29 @@ func canonicalThinkingFromResponsesItem(item map[string]any) []canonicalThinking
 			responsesReasoningText(item["content"]),
 			responsesReasoningText(item["summary"]),
 		)
+		signature := responsesItemThinkingSignature(item)
 		if thinking != "" {
-			return []canonicalThinkingBlock{{Type: "thinking", Thinking: thinking, Signature: firstNonEmptyGatewayString(anyString(item["thinking_signature"]), anyString(item["signature"]))}}
+			return []canonicalThinkingBlock{{Type: "thinking", Thinking: thinking, Signature: signature}}
 		}
+		return nil
 	}
 	return canonicalThinkingFromChatMessage(item)
+}
+
+func responsesItemThinkingSignature(item map[string]any) string {
+	return firstNonEmptyGatewayString(
+		anyString(item["thinking_signature"]),
+		anyString(item["signature"]),
+		claudeSignatureFromEncryptedContent(anyString(item["encrypted_content"])),
+	)
+}
+
+func claudeSignatureFromEncryptedContent(value string) string {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, anthropicEncryptedContentPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(value, anthropicEncryptedContentPrefix))
 }
 
 func responsesReasoningText(raw any) string {
@@ -50,6 +70,20 @@ func responsesReasoningText(raw any) string {
 	default:
 		return ""
 	}
+}
+
+func anthropicThinkingBlocksFromCanonicalFiltered(blocks []canonicalThinkingBlock, requireSignature bool) []any {
+	if !requireSignature {
+		return anthropicThinkingBlocksFromCanonical(blocks)
+	}
+	signed := make([]canonicalThinkingBlock, 0, len(blocks))
+	for _, block := range blocks {
+		if strings.TrimSpace(block.Signature) == "" {
+			continue
+		}
+		signed = append(signed, block)
+	}
+	return anthropicThinkingBlocksFromCanonical(signed)
 }
 
 func anthropicThinkingBlocksFromCanonical(blocks []canonicalThinkingBlock) []any {
@@ -100,6 +134,7 @@ func responsesReasoningItem(blocks []canonicalThinkingBlock) map[string]any {
 	for _, block := range blocks {
 		if signature := strings.TrimSpace(block.Signature); signature != "" {
 			item["thinking_signature"] = signature
+			item["encrypted_content"] = anthropicEncryptedContentPrefix + signature
 			break
 		}
 	}

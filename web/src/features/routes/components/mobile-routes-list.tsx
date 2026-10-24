@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { BrandMark } from '@/components/common/brand-mark'
 import { EmptyState } from '@/components/common/empty-state'
 import { Badge } from '@/components/ui/badge'
+import { CardMetric, CardMetrics } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { RouteOverviewItem } from '@/features/routes/api/routes'
 import type { CanonicalModelItem } from '@/features/sites/api/sites'
@@ -31,7 +32,7 @@ export function MobileRoutesList({
 
   if (!items.length) {
     return (
-      <div className={cn('rounded-lg border border-[hsl(var(--glass-border))] px-4 py-8', className)}>
+      <div className={cn('rounded-inner border border-separator px-4 py-8', className)}>
         <EmptyState title={t('workspace.noModels')} description={t('workspace.noModelsDesc')} />
       </div>
     )
@@ -83,8 +84,8 @@ function MobileRouteCard({
   return (
     <article
       className={cn(
-        'overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))] shadow-[var(--button-secondary-shadow)]',
-        expanded && 'border-[hsl(var(--primary)/0.45)]',
+        'overflow-hidden rounded-card mat-regular',
+        expanded && 'border-tint/45',
       )}
     >
       <button type="button" className="w-full p-3 text-left" onClick={onClick}>
@@ -98,7 +99,7 @@ function MobileRouteCard({
 
           <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h3 className="break-all text-base font-semibold leading-snug text-foreground">{modelName}</h3>
+              <h3 className="break-all text-headline leading-snug text-label">{modelName}</h3>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
                 {item.candidate_summary.cooldown_count > 0 ? (
                   <Badge variant="warning" className="px-2 py-0.5 text-[11px]">
@@ -107,41 +108,29 @@ function MobileRouteCard({
                 ) : null}
               </div>
             </div>
-            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center text-muted-soft">
+            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center text-label-2">
               <Chevron className="size-4" />
             </span>
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-1.5 text-xs">
-          <MobileMetric
+        <CardMetrics columns={3} className="mt-3">
+          <CardMetric
             label={t('card.channels')}
             value={t('card.channelsValue', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
-            hint={t('card.channelsHint', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
-            priority
+            title={t('card.channelsHint', { routable: item.candidate_summary.eligible_count, configured: item.candidate_summary.site_model_count })}
           />
-          <MobileMetric label={t('card.siteCount')} value={String(item.candidate_summary.site_count)} priority />
-          <MobileMetric label={t('card.request')} value={hasTraffic ? String(item.traffic_24h.request_count) : t('card.noRequest')} />
-          <MobileMetric
+          <CardMetric label={t('card.siteCount')} value={String(item.candidate_summary.site_count)} />
+          <CardMetric label={t('card.request')} value={hasTraffic ? String(item.traffic_24h.request_count) : t('card.noRequest')} />
+          <CardMetric
             label={t('card.successRate')}
             value={hasTraffic ? formatPercent(item.traffic_24h.success_rate, 2) : '-'}
-            accent={hasTraffic}
           />
-          <MobileMetric label={t('card.latency')} value={formatLatency(item.traffic_24h.avg_latency_ms)} />
-        </div>
+          <CardMetric label={t('card.latency')} value={formatLatency(item.traffic_24h.avg_latency_ms)} />
+        </CardMetrics>
       </button>
       {children}
     </article>
   )
 }
 
-function MobileMetric({ label, value, hint }: { label: string; value: string; accent?: boolean; priority?: boolean; hint?: string }) {
-  return (
-    <div className="min-w-0 px-2 py-2" title={hint}>
-      <span className="block truncate text-[11px] text-muted-soft">{label}</span>
-      <span className="mt-1 block truncate text-sm font-semibold text-foreground tabular-nums" title={value}>
-        {value}
-      </span>
-    </div>
-  )
-}

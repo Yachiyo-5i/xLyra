@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
+import { Card, CardMetric, CardMetrics } from '@/components/ui/card'
 import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
@@ -60,7 +60,7 @@ function MobileModelCard({
   const Chevron = expanded ? ChevronDown : ChevronRight
 
   return (
-    <Card className="overflow-hidden rounded-lg p-0">
+    <Card className="overflow-hidden p-0">
       <button
         type="button"
         onClick={onToggle}
@@ -83,7 +83,7 @@ function MobileModelCard({
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div
-                className="break-words text-sm font-semibold leading-5 text-foreground transition-opacity hover:opacity-80"
+                className="break-words text-headline leading-5 text-label transition-opacity hover:opacity-80"
                 onClick={(event) => {
                   event.stopPropagation()
                   copyToClipboard(model.model_key, t('card.copied'))
@@ -91,9 +91,9 @@ function MobileModelCard({
               >
                 {model.model_key}
               </div>
-              <div className="text-muted-soft text-xs">{model.brand}</div>
+              <div className="text-label-2 text-footnote">{model.brand}</div>
             </div>
-            <Chevron className="mt-0.5 h-4 w-4 shrink-0 text-muted-soft" />
+            <Chevron className="mt-0.5 h-4 w-4 shrink-0 text-label-2" />
           </div>
 
           <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -111,7 +111,7 @@ function MobileModelCard({
       </button>
 
       {expanded ? (
-        <div className="border-t border-[hsl(var(--glass-divider))] bg-[hsl(var(--surface-subtle)/0.24)] px-3 py-3">
+        <div className="border-t border-separator bg-fill-4 px-3 py-3">
           <div className="max-h-[68vh] space-y-4 overflow-y-auto">
             {model.supportedSites.map((site) => (
               <MobileModelSiteDetails
@@ -150,16 +150,16 @@ function MobileModelSiteDetails({
       ]
 
   return (
-    <section className="border-b border-[hsl(var(--glass-divider))] pb-4 last:border-b-0 last:pb-0">
+    <section className="border-b border-separator pb-4 last:border-b-0 last:pb-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div
-            className="truncate text-sm font-semibold text-foreground"
+            className="truncate text-headline text-label"
             title={site.siteName}
           >
             {site.siteName}
           </div>
-          <div className="mt-1 break-words text-xs text-muted-soft">
+          <div className="mt-1 break-words text-footnote text-label-2">
             {site.upstreamName || '--'}
           </div>
         </div>
@@ -198,22 +198,22 @@ function MobilePricingBlock({
     .map((endpointType) => ({ endpointType, enabled: true }))
 
   return (
-    <div className="rounded-lg bg-[hsl(var(--surface-subtle)/0.58)] px-3 py-3">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-        <MobileField
+    <div className="rounded-inner bg-fill-4 px-3 py-3">
+      <CardMetrics>
+        <CardMetric
           label={t('card.headers.upstreamModel')}
           value={pricing.modelName || site.upstreamName || '--'}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.group')}
           value={isNewAPISite(site.siteType) ? pricing.groupName || '--' : '-'}
         />
         <MobileAPIKeyField pricing={pricing} />
-        <MobileField
+        <CardMetric
           label={t('card.headers.groupRatio')}
           value={formatGroupRatio(pricing.groupRatio)}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.inputPrice')}
           value={formatPricingValue(
             pricing.inputValue ?? pricing.perRequestValue,
@@ -222,7 +222,7 @@ function MobilePricingBlock({
             t,
           )}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.outputPrice')}
           value={formatPricingValue(
             pricing.outputValue ?? pricing.audioOutputValue,
@@ -231,7 +231,7 @@ function MobilePricingBlock({
             t,
           )}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.cachePrice')}
           value={formatPricingValue(
             pricing.cacheInputValue,
@@ -240,7 +240,7 @@ function MobilePricingBlock({
             t,
           )}
         />
-        <MobileField
+        <CardMetric
           label={t('card.headers.cacheWritePrice')}
           value={formatPricingValue(
             pricing.createCacheInputValue,
@@ -254,10 +254,10 @@ function MobilePricingBlock({
               : undefined
           }
         />
-      </div>
+      </CardMetrics>
 
       <div className="mt-3">
-        <div className="text-[11px] text-muted-soft">
+        <div className="text-[11px] text-label-2">
           {t('card.headers.protocol')}
         </div>
         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -268,7 +268,7 @@ function MobilePricingBlock({
               </span>
             ))
           ) : (
-            <span className="text-xs text-muted-soft">--</span>
+            <span className="text-footnote text-label-2">--</span>
           )}
         </div>
       </div>
@@ -282,32 +282,10 @@ function MobileAPIKeyField({ pricing }: { pricing: PricingRow }) {
     return <MobileKeyGroupField status={pricing.keyGroupStatus} />
   }
   return (
-    <MobileField
+    <CardMetric
       label={t('card.headers.apiKeys')}
       value={pricing.apiKeyName}
     />
-  )
-}
-
-function MobileField({
-  label,
-  value,
-  title,
-}: {
-  label: string
-  value: string
-  title?: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] text-muted-soft">{label}</div>
-      <div
-        className="mt-1 break-words font-medium leading-4 text-foreground"
-        title={title ?? value}
-      >
-        {value}
-      </div>
-    </div>
   )
 }
 
@@ -319,7 +297,7 @@ function MobileKeyGroupField({
   const { t } = useTranslation('models')
 
   if (!status) {
-    return <MobileField label={t('card.headers.apiKeys')} value="--" />
+    return <CardMetric label={t('card.headers.apiKeys')} value="--" />
   }
 
   const variant =
@@ -331,12 +309,12 @@ function MobileKeyGroupField({
 
   return (
     <div className="min-w-0">
-      <div className="text-[11px] text-muted-soft">
+      <div className="text-[11px] text-label-2">
         {t('card.headers.apiKeys')}
       </div>
       <Badge
         variant={variant}
-        className="mt-1 justify-center border-transparent px-2 py-0.5 text-xs tabular-nums tracking-normal"
+        className="mt-1 justify-center border-transparent px-2 py-0.5 text-footnote tabular-nums tracking-normal"
         title={t(tooltipKey, { enabled: status.enabled, total: status.total })}
       >
         {status.enabled}/{status.total}

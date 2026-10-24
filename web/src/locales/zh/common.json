@@ -73,14 +73,6 @@
     "logoutSuccess": "已退出登录",
     "logoutFailed": "退出登录失败"
   },
-  "theme": {
-    "modeLight": "浅色",
-    "modeDark": "深色",
-    "modeSystem": "系统",
-    "baseDefault": "默认",
-    "displayDark": "深色",
-    "displayLight": "浅色"
-  },
   "brands": {
     "otherBrand": "其他品牌",
     "all": "全部"
@@ -97,5 +89,9 @@
   "notFound": {
     "title": "页面不存在",
     "description": "你访问的页面不存在，或已经被移除。"
+  },
+  "list": {
+    "count": "共 {{count}} 条",
+    "clearFilters": "清除筛选"
   }
 }

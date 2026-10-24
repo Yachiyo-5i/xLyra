@@ -92,7 +92,10 @@
   "picker": {
     "model": "Model",
     "reasoning": "Reasoning",
-    "noModels": "No models available"
+    "noModels": "No models available",
+    "selectModel": "Select model",
+    "reset": "Reset to default",
+    "back": "Back"
   },
   "protocol": {
     "chat": "Chat Completions",
@@ -109,5 +112,17 @@
     "xhigh": "Extra high",
     "max": "Max",
     "ultra": "Ultra"
+  },
+  "attach": {
+    "menu": "Add",
+    "photo": "Photos",
+    "camera": "Take photo",
+    "file": "Files"
+  },
+  "mobile": {
+    "back": "Back",
+    "menu": "Conversations",
+    "newChat": "New chat",
+    "delete": "Delete conversation"
   }
 }

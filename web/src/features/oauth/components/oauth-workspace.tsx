@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { focusManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, LoaderCircle, Plus, RotateCcw, Search, Upload } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -43,8 +45,9 @@ import {
 } from '@/features/oauth/api/oauth'
 import { OAuthConnectionCard } from '@/features/oauth/components/oauth-connection-card'
 import { OAuthCreateDraw } from '@/features/oauth/components/oauth-create-draw'
+import { OAuthDisclaimerDialog } from '@/features/oauth/components/oauth-disclaimer-dialog'
 import { OAuthImportSheet } from '@/features/oauth/components/oauth-import-sheet'
-import { MobileOAuthConnectionCard } from '@/features/oauth/components/mobile-oauth-connection-card'
+import { cn } from '@/lib/utils'
 import { OAuthWorkspaceSkeleton } from '@/features/oauth/components/oauth-workspace-skeleton'
 import { SiteModelTestSheet } from '@/features/sites/components/site-model-test-sheet'
 import { ChannelSplitDialog } from '@/features/usage/components/channel-split-dialog'
@@ -56,6 +59,7 @@ import {
   saveOAuthUpdatedAtMode,
   oauthConnectionSearchText,
   oauthConnectionEffectiveStatus,
+  getOAuthSources,
   oauthPageURL,
   parseOAuthCallbackInput,
   providerLabel,
@@ -72,6 +76,11 @@ const EMPTY_CONNECTIONS: OAuthConnectionListItem[] = []
 const EMPTY_SITE_MODELS: SiteModel[] = []
 const EMPTY_SITE_GROUPS: SiteGroup[] = []
 const EMPTY_SITES: Site[] = []
+
+type OAuthDisclaimerAction =
+  | { type: 'create' }
+  | { type: 'import' }
+  | { type: 'reauth'; item: OAuthConnectionListItem }
 
 const PROVIDER_GROUP_ORDER: string[] = ['codex', 'claude_code', 'antigravity']
 
@@ -95,6 +104,7 @@ export function OAuthWorkspace() {
   const [providerFilter, setProviderFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
+  const [disclaimer, setDisclaimer] = useState<OAuthDisclaimerAction | null>(null)
   const [createState, setCreateState] = useState<OAuthCreateState>(DEFAULT_CREATE_STATE)
   const [createMode, setCreateMode] = useState<'create' | 'reauth'>('create')
   const [createProxyId, setCreateProxyId] = useState('direct')
@@ -129,15 +139,43 @@ export function OAuthWorkspace() {
     [connectionsQuery.data?.items],
   )
   const siteGroups = siteGroupsQuery.data?.items ?? EMPTY_SITE_GROUPS
+  // 来源 Tab 只列出已添加过连接的类型，按分组顺序排列
+  const availableProviders = useMemo(() => {
+    const present = new Set(connections.map((item) => item.provider))
+    return [
+      ...PROVIDER_GROUP_ORDER.filter((provider) => present.has(provider)),
+      ...[...present].filter((provider) => !PROVIDER_GROUP_ORDER.includes(provider)),
+    ]
+  }, [connections])
+  const sourceTabsRef = useRef<HTMLDivElement>(null)
+  const [sourceTabsOverflowing, setSourceTabsOverflowing] = useState(false)
+  useLayoutEffect(() => {
+    const element = sourceTabsRef.current
+    if (!element) return
+    const update = () => {
+      const list = element.querySelector('[role="tablist"]')
+      if (!list) return
+      // 当前是否已留出 32px 淡出区：留出时内容区要扣掉它，避免切换内边距时来回抖动
+      const reserved = element.classList.contains('pr-8') ? 32 : 0
+      setSourceTabsOverflowing(list.scrollWidth > element.clientWidth - reserved + 0.5)
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    if (element.parentElement) observer.observe(element.parentElement)
+    return () => observer.disconnect()
+  }, [availableProviders, isMobile])
+  // 选中的来源被删光后自动回到「全部」
+  const effectiveProviderFilter = providerFilter !== 'all' && availableProviders.includes(providerFilter) ? providerFilter : 'all'
   const filteredConnections = useMemo(() => {
     const keyword = search.trim().toLowerCase()
     return connections.filter((item) => {
       const matchSearch = !keyword || oauthConnectionSearchText(item).includes(keyword)
-      const matchProvider = providerFilter === 'all' || item.provider === providerFilter
+      const matchProvider = effectiveProviderFilter === 'all' || item.provider === effectiveProviderFilter
       const matchStatus = statusFilter === 'all' || oauthConnectionEffectiveStatus(item) === statusFilter
       return matchSearch && matchProvider && matchStatus
     })
-  }, [connections, search, providerFilter, statusFilter])
+  }, [connections, search, effectiveProviderFilter, statusFilter])
 
   const normalConnections = useMemo(
     () => filteredConnections.filter((item) => {
@@ -463,6 +501,24 @@ export function OAuthWorkspace() {
     })
   }, [queryClient, searchParams, setSearchParams, t])
 
+  function confirmDisclaimer() {
+    const action = disclaimer
+    setDisclaimer(null)
+    if (!action) return
+    if (action.type === 'create') {
+      setCreateMode('create')
+      setCreateProxyId('direct')
+      setCreateOpen(true)
+      return
+    }
+    if (action.type === 'import') {
+      setImportResult(null)
+      setImportSheetOpen(true)
+      return
+    }
+    startReconnectOAuth(action.item)
+  }
+
   function startReconnectOAuth(item: OAuthConnectionListItem) {
     if (item.provider !== 'codex' && item.provider !== 'antigravity' && item.provider !== 'claude_code') {
       toast.error(t('workspace.toast.linkFailed'), { description: item.provider })
@@ -514,17 +570,13 @@ export function OAuthWorkspace() {
         if (item.site_id) toggleEnabledMutation.mutate({ siteId: item.site_id, enabled })
       },
       onDelete: () => setDeleteTarget(item),
-      onReconnect: () => startReconnectOAuth(item),
+      onReconnect: () => setDisclaimer({ type: 'reauth', item }),
       updatedAtMode,
       now,
       onUpdatedAtModeChange: setUpdatedAtMode,
     }
 
-    return mobile ? (
-      <MobileOAuthConnectionCard key={item.id} {...cardProps} />
-    ) : (
-      <OAuthConnectionCard key={item.id} {...cardProps} />
-    )
+    return <OAuthConnectionCard key={item.id} {...cardProps} compact={mobile} />
   }
 
   const deleteTargetPending = deleteMutation.isPending
@@ -591,10 +643,16 @@ export function OAuthWorkspace() {
         />
       ) : null}
 
+      <OAuthDisclaimerDialog
+        open={Boolean(disclaimer)}
+        onOpenChange={(next) => { if (!next) setDisclaimer(null) }}
+        onConfirm={confirmDisclaimer}
+      />
+
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(next) => { if (!next && !deleteTargetPending) setDeleteTarget(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2"><DialogTitle>{t('workspace.deleteDialog.title')}</DialogTitle></DialogHeader>
-          <DialogBody className="pt-0 text-sm text-muted-soft">
+          <DialogBody className="pt-0 text-body text-label-2">
             <DialogDescription className="mt-0">
               {deleteTarget ? t('workspace.deleteDialog.confirm', { provider: providerLabel(deleteTarget.provider) }) : t('workspace.deleteDialog.confirmDefault')}
             </DialogDescription>
@@ -626,68 +684,110 @@ export function OAuthWorkspace() {
     )
   }
 
+  const oauthSources = getOAuthSources(t)
+  const statusSelect = (
+    <Select value={statusFilter} onValueChange={setStatusFilter}>
+      <SelectTrigger variant="filter" filterLabel={t('workspace.statusFilter.label')} active={statusFilter !== 'all'}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent searchable={false} widthMode="content">
+        <SelectItem value="all">{t('workspace.statusFilter.all')}</SelectItem>
+        <SelectItem value="connected">{t('workspace.statusFilter.connected')}</SelectItem>
+        <SelectItem value="pending_sync">{t('workspace.statusFilter.pendingSync')}</SelectItem>
+        <SelectItem value="reconnect_required">{t('workspace.statusFilter.reconnectRequired')}</SelectItem>
+        <SelectItem value="expired">{t('workspace.statusFilter.expired')}</SelectItem>
+        <SelectItem value="error">{t('workspace.statusFilter.error')}</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+  // 与站点页一致的来源横条：类型多时横向滚动、右侧淡出；状态筛选不随之滚动——桌面紧跟在横条右侧，移动端固定在这一行最右
+  const sourceControls = (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div
+        ref={sourceTabsRef}
+        className={cn(
+          'scrollbar-hidden min-w-0 overflow-x-auto',
+          // 只有放不下时才留出右侧淡出区，放得下时状态筛选紧贴横条
+          sourceTabsOverflowing && 'pr-8 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)]',
+        )}
+      >
+        <Tabs value={effectiveProviderFilter} onValueChange={setProviderFilter}>
+          <TabsList className="inline-flex w-max">
+            <TabsTrigger value="all">{t('workspace.provider.all')}</TabsTrigger>
+            {availableProviders.map((provider) => {
+              const source = oauthSources.find((item) => item.value === provider)
+              return (
+                <TabsTrigger key={provider} value={provider}>
+                  <span className="flex items-center gap-1.5">
+                    {source?.iconPath ? <img src={source.iconPath} alt="" className="size-4 rounded object-contain" /> : null}
+                    {source?.label ?? providerLabel(provider)}
+                  </span>
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
+        </Tabs>
+      </div>
+      <div className={cn('shrink-0', isMobile && 'ml-auto')}>{statusSelect}</div>
+    </div>
+  )
+
   if (isMobile) {
     return (
-      <div className="relative space-y-4 pb-2">
+      <div className="relative space-y-4 pb-20">
         <PageHeader
           eyebrow={t('workspace.pageHeader.eyebrow')}
           title={t('workspace.pageHeader.title')}
           description={t('workspace.pageHeader.description')}
         />
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-              <label className="relative min-w-0">
-                <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t('workspace.search')}
-                  className="h-10 pl-10"
-                />
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label={t('workspace.refreshAll')}
-                disabled={refreshAllMutation.isPending || !connections.length}
-                onClick={() => refreshAllMutation.mutate()}
-              >
-                {refreshAllMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-              </Button>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5">
-              <Select value={providerFilter} onValueChange={setProviderFilter}>
-                <SelectTrigger variant="filter" filterLabel={t('workspace.provider.label')} active={providerFilter !== 'all'}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent searchable={false} widthMode="content">
-                  <SelectItem value="all">{t('workspace.provider.all')}</SelectItem>
-                  <SelectItem value="codex">Codex</SelectItem>
-                  <SelectItem value="antigravity">Antigravity</SelectItem>
-                  <SelectItem value="claude_code">Claude Code</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger variant="filter" filterLabel={t('workspace.statusFilter.label')} active={statusFilter !== 'all'}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent searchable={false} widthMode="content">
-                  <SelectItem value="all">{t('workspace.statusFilter.all')}</SelectItem>
-                  <SelectItem value="connected">{t('workspace.statusFilter.connected')}</SelectItem>
-                  <SelectItem value="pending_sync">{t('workspace.statusFilter.pendingSync')}</SelectItem>
-                  <SelectItem value="reconnect_required">{t('workspace.statusFilter.reconnectRequired')}</SelectItem>
-                  <SelectItem value="expired">{t('workspace.statusFilter.expired')}</SelectItem>
-                  <SelectItem value="error">{t('workspace.statusFilter.error')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
+        <MobileFilterBar
+          search={{ value: search, onChange: (event) => setSearch(event.target.value), placeholder: t('workspace.search') }}
+          actions={
+            <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="rounded-full"
+              aria-label={t('workspace.import')}
+              onClick={() => setDisclaimer({ type: 'import' })}
+            >
+              <Upload />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="rounded-full"
+              aria-label={t('workspace.refreshAll')}
+              disabled={refreshAllMutation.isPending || !connections.length}
+              onClick={() => refreshAllMutation.mutate()}
+            >
+              {refreshAllMutation.isPending ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+            </Button>
+            </>
+          }
+          segments={sourceControls}
+          summary={
+            <>
+              <span className="tabular-nums">{t('common:list.count', { count: filteredConnections.length })}</span>
+              {search || effectiveProviderFilter !== 'all' || statusFilter !== 'all' ? (
+                <button
+                  type="button"
+                  className="text-label-2 transition-colors active:text-label"
+                  onClick={() => {
+                    setSearch('')
+                    setProviderFilter('all')
+                    setStatusFilter('all')
+                  }}
+                >
+                  {t('common:list.clearFilters')}
+                </button>
+              ) : null}
+            </>
+          }
+        />
 
         {filteredConnections.length ? (
           <div className="space-y-4">
@@ -697,17 +797,7 @@ export function OAuthWorkspace() {
                   const collapsed = Boolean(collapsedProviderGroups[provider])
                   return (
                     <div key={provider}>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 rounded-lg bg-[hsl(var(--surface-subtle)/0.6)] px-3 py-2.5 text-left text-sm text-muted-soft transition-colors hover:text-foreground"
-                        onClick={() => toggleProviderGroup(provider)}
-                      >
-                        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-                        <span className="font-medium">
-                          {providerLabel(provider)}
-                          <span className="ml-2 text-xs opacity-60">({items.length})</span>
-                        </span>
-                      </button>
+                      <GroupHeader label={providerLabel(provider)} count={items.length} collapsed={collapsed} onClick={() => toggleProviderGroup(provider)} />
                       {!collapsed ? (
                         <div className="mt-3 space-y-3">
                           {items.map((item) => renderConnectionCard(item, true))}
@@ -723,18 +813,8 @@ export function OAuthWorkspace() {
 
             {errorConnections.length > 0 ? (
               <div>
-                <div className="border-t border-[hsl(var(--glass-border))] mb-3" />
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-lg bg-[hsl(var(--surface-subtle)/0.6)] px-3 py-2.5 text-left text-sm text-muted-soft transition-colors hover:text-foreground"
-                  onClick={() => setErrorCollapsed((v) => !v)}
-                >
-                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${errorCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="font-medium">
-                    {t('workspace.errorAccounts')}
-                    <span className="ml-2 text-xs opacity-60">({errorConnections.length})</span>
-                  </span>
-                </button>
+                <div className="mb-3 border-t border-separator" />
+                <GroupHeader label={t('workspace.errorAccounts')} count={errorConnections.length} collapsed={errorCollapsed} onClick={() => setErrorCollapsed((v) => !v)} />
                 {!errorCollapsed ? (
                   <div className="mt-3 space-y-3">
                     {errorConnections.map((item) => renderConnectionCard(item, true))}
@@ -750,24 +830,11 @@ export function OAuthWorkspace() {
         )}
 
         <Button
-          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] right-5 z-20 h-12 w-12 rounded-full p-0 shadow-[0_18px_34px_rgba(15,23,42,0.22)]"
-          onClick={() => {
-            setCreateMode('create')
-            setCreateProxyId('direct')
-            setCreateOpen(true)
-          }}
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
+          onClick={() => setDisclaimer({ type: 'create' })}
           aria-label={t('workspace.createNew')}
         >
           <Plus className="h-5 w-5" />
-        </Button>
-
-        <Button
-          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+11rem)] right-5 z-20 h-12 w-12 rounded-full border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.34)] p-0 text-foreground shadow-[0_18px_34px_rgba(15,23,42,0.16)] backdrop-blur-[24px] backdrop-saturate-150 hover:bg-[hsl(var(--card)/0.48)]"
-          variant="outline"
-          onClick={() => { setImportSheetOpen(true); setImportResult(null) }}
-          aria-label={t('workspace.import')}
-        >
-          <Upload className="h-5 w-5" />
         </Button>
 
         {overlayContent}
@@ -792,34 +859,10 @@ export function OAuthWorkspace() {
               placeholder={t('workspace.search')}
               className="pl-10"
             />
-            <Search className="text-foreground/40 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 pointer-events-none z-10" />
+            <Search className="text-label-3 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 pointer-events-none z-10" />
           </div>
 
-          <Select value={providerFilter} onValueChange={setProviderFilter}>
-            <SelectTrigger variant="filter" filterLabel={t('workspace.provider.label')} active={providerFilter !== 'all'}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent searchable={false} widthMode="content">
-              <SelectItem value="all">{t('workspace.provider.all')}</SelectItem>
-              <SelectItem value="codex">Codex</SelectItem>
-              <SelectItem value="antigravity">Antigravity</SelectItem>
-              <SelectItem value="claude_code">Claude Code</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger variant="filter" filterLabel={t('workspace.statusFilter.label')} active={statusFilter !== 'all'}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent searchable={false} widthMode="content">
-              <SelectItem value="all">{t('workspace.statusFilter.all')}</SelectItem>
-              <SelectItem value="connected">{t('workspace.statusFilter.connected')}</SelectItem>
-              <SelectItem value="pending_sync">{t('workspace.statusFilter.pendingSync')}</SelectItem>
-              <SelectItem value="reconnect_required">{t('workspace.statusFilter.reconnectRequired')}</SelectItem>
-              <SelectItem value="expired">{t('workspace.statusFilter.expired')}</SelectItem>
-              <SelectItem value="error">{t('workspace.statusFilter.error')}</SelectItem>
-            </SelectContent>
-          </Select>
+          {sourceControls}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -831,15 +874,11 @@ export function OAuthWorkspace() {
             {refreshAllMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
             {t('workspace.refreshAll')}
           </Button>
-          <Button variant="outline" onClick={() => { setImportSheetOpen(true); setImportResult(null) }}>
+          <Button variant="outline" onClick={() => setDisclaimer({ type: 'import' })}>
             <Upload className="h-4 w-4" />
             {t('workspace.import')}
           </Button>
-          <Button onClick={() => {
-            setCreateMode('create')
-            setCreateProxyId('direct')
-            setCreateOpen(true)
-          }}>
+          <Button onClick={() => setDisclaimer({ type: 'create' })}>
             <Plus className="h-4 w-4" />
             {t('workspace.createNew')}
           </Button>
@@ -855,17 +894,7 @@ export function OAuthWorkspace() {
                   const collapsed = Boolean(collapsedProviderGroups[provider])
                   return (
                     <div key={provider}>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 rounded-md px-1 py-2 text-sm text-muted-soft transition-colors hover:text-foreground"
-                        onClick={() => toggleProviderGroup(provider)}
-                      >
-                        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-                        <span className="font-medium">
-                          {providerLabel(provider)}
-                          <span className="ml-2 text-xs opacity-60">({items.length})</span>
-                        </span>
-                      </button>
+                      <GroupHeader label={providerLabel(provider)} count={items.length} collapsed={collapsed} onClick={() => toggleProviderGroup(provider)} />
                       {!collapsed ? (
                         <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
                           {items.map((item) => renderConnectionCard(item))}
@@ -881,18 +910,8 @@ export function OAuthWorkspace() {
 
             {errorConnections.length > 0 ? (
               <div>
-                <div className="mb-4 border-t border-[hsl(var(--glass-border))]" />
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-1 py-2 text-sm text-muted-soft transition-colors hover:text-foreground"
-                  onClick={() => setErrorCollapsed((v) => !v)}
-                >
-                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${errorCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="font-medium">
-                    {t('workspace.errorAccounts')}
-                    <span className="ml-2 text-xs opacity-60">({errorConnections.length})</span>
-                  </span>
-                </button>
+                <div className="mb-4 border-t border-separator" />
+                <GroupHeader label={t('workspace.errorAccounts')} count={errorConnections.length} collapsed={errorCollapsed} onClick={() => setErrorCollapsed((v) => !v)} />
                 {!errorCollapsed ? (
                   <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
                     {errorConnections.map((item) => (
@@ -954,4 +973,30 @@ function claudeCodeAuthorizationResultFromURL(callbackURL: string) {
     throw new Error('Claude Code callback URL must contain code and state')
   }
   return `${code}#${state}`
+}
+
+/** 分组标题：可折叠，标题 + 数量，不带底色 */
+function GroupHeader({
+  label,
+  count,
+  collapsed,
+  onClick,
+}: {
+  label: string
+  count: number
+  collapsed: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1.5 py-1 text-left text-headline text-label transition-colors hover:text-label-2"
+      aria-expanded={!collapsed}
+      onClick={onClick}
+    >
+      <ChevronDown className={cn('size-4 shrink-0 text-label-3 transition-transform', collapsed && '-rotate-90')} />
+      {label}
+      <span className="text-footnote font-normal text-label-3 tabular-nums">{count}</span>
+    </button>
+  )
 }

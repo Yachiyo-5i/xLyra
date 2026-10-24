@@ -338,24 +338,20 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
           />
         </div>
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <MobileRoutesFilterBar
-              search={search}
-              brandItems={brandItems}
-              siteItems={siteItems}
-              selectedBrand={selectedBrand}
-              selectedSite={selectedSite}
-              sortMode={sortMode}
-              isFetching={overviewQuery.isFetching || selectionQuery.isFetching || tracesQuery.isFetching || cooldownsQuery.isFetching}
-              onSearchChange={setSearch}
-              onBrandChange={setSelectedBrand}
-              onSiteChange={setSelectedSite}
-              onSortModeChange={setSortMode}
-              onRefresh={refreshAll}
-            />
-          </div>
-        </div>
+        <MobileRoutesFilterBar
+          search={search}
+          brandItems={brandItems}
+          siteItems={siteItems}
+          selectedBrand={selectedBrand}
+          selectedSite={selectedSite}
+          sortMode={sortMode}
+          isFetching={overviewQuery.isFetching || selectionQuery.isFetching || tracesQuery.isFetching || cooldownsQuery.isFetching}
+          onSearchChange={setSearch}
+          onBrandChange={setSelectedBrand}
+          onSiteChange={setSelectedSite}
+          onSortModeChange={setSortMode}
+          onRefresh={refreshAll}
+        />
 
         <MobileRoutesList
           items={filteredOverviewItems}
@@ -366,7 +362,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
         />
 
         {expandedModelKey && !filteredOverviewItems.some((item) => item.canonical_model.model_key === expandedModelKey) ? (
-          <div className="overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))]">
+          <div className="overflow-hidden rounded-card mat-regular">
             {renderRouteDetails(undefined, true)}
           </div>
         ) : null}
@@ -384,7 +380,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-72 shrink-0">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-label/40" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -393,7 +389,7 @@ export function RoutesWorkspace({ initialSearch = '' }: { initialSearch?: string
           />
         </div>
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={refreshAll}
           disabled={overviewQuery.isFetching || selectionQuery.isFetching || tracesQuery.isFetching || cooldownsQuery.isFetching}
         >

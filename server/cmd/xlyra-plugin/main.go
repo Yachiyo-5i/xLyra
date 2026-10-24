@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"xlyra/server/internal/jsplugin"
 )
@@ -48,9 +49,9 @@ func main() {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "  xlyra-plugin init [--kind quota_probe|protocol] [--id ID] [--name NAME] <dir>\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin init [--kind %s] [--id ID] [--name NAME] <dir>\n", supportedKindList())
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin build [--out dist] [dir]\n")
-	fmt.Fprintf(os.Stderr, "  xlyra-plugin run --key-env VAR [--base-url URL] [--site-type T] [dir]\n")
+	fmt.Fprintf(os.Stderr, "  xlyra-plugin run --key-env VAR [--base-url URL] [--site-type T] [--hook probe|listModels|check] [dir]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin test [--watch] [dir]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin pack [--sign key.pem] [--out file.xlp] [dir]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin verify <package.xlp>\n")
@@ -58,6 +59,17 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin --version\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin keygen [--out key.pem]\n")
 	fmt.Fprintf(os.Stderr, "  xlyra-plugin sign <package.xlp> --key key.pem [--out signed.xlp]\n")
+	fmt.Fprintf(os.Stderr, "\nrun --hook drives a site_provider probe, listModels, or check hook. classify and rewritePayload are covered by test, not run.\n")
+}
+
+// supportedKindList is the --kind choice list, in the same order as `xlyra-plugin kinds`.
+func supportedKindList() string {
+	kinds := jsplugin.SupportedKinds()
+	names := make([]string, len(kinds))
+	for i, info := range kinds {
+		names[i] = info.Name
+	}
+	return strings.Join(names, "|")
 }
 
 func runKeygen(args []string) {

@@ -34,6 +34,56 @@ func (p *program) addOptionalHooks(names []string) error {
 	return nil
 }
 
+// requireCallableHooks rejects an optional export that exists and is not a
+// function. A missing export is allowed.
+func (s *session) requireCallableHooks(names []string) error {
+	for _, name := range names {
+		value, ok := s.rt.Export(name)
+		if !ok {
+			continue
+		}
+		if !value.IsObject() || !value.AsObject().IsCallable() {
+			return fmt.Errorf("%s hook: %w", name, moejs.ErrNotCallable)
+		}
+	}
+	s.rt.ReleaseCallData()
+	return nil
+}
+
+// requireHooks registers exports that must exist. A missing export fails.
+// Whether the value is a function is checked by requireExports.
+func (p *program) requireHooks(names []string) error {
+	for _, name := range names {
+		hook, err := p.mod.Hook(name)
+		if errors.Is(err, moejs.ErrHookNotFound) {
+			return fmt.Errorf("export %q is required", name)
+		}
+		if err != nil {
+			return fmt.Errorf("%s hook: %w", name, err)
+		}
+		p.hooks[name] = hook
+	}
+	return nil
+}
+
+// requireExports rejects a missing export or one that is not a function.
+func (s *session) requireExports(names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+	for _, name := range names {
+		value, ok := s.rt.Export(name)
+		if !ok {
+			return fmt.Errorf("export %q is required", name)
+		}
+		if !value.IsObject() || !value.AsObject().IsCallable() {
+			return fmt.Errorf("%s hook: %w", name, moejs.ErrNotCallable)
+		}
+	}
+	s.rt.ReleaseCallData()
+	return nil
+}
+
 func compileProgram(name, source string, hookNames ...string) (*program, error) {
 	mod, err := moejs.Compile(name, source)
 	if err != nil {

@@ -17,6 +17,10 @@ type openAIChatProtocolAdapter struct {
 	path               string
 	mimoTTS            bool
 	mimoTTSFormat      string
+	// aggregateChatSSE folds an upstream chat SSE body into one JSON response
+	// when a plugin site says the upstream only speaks chat SSE, and only when
+	// the downstream request did not ask for a stream.
+	aggregateChatSSE bool
 }
 
 func (a openAIChatProtocolAdapter) ProtocolName() string {
@@ -73,6 +77,7 @@ func newOpenAIChatProtocolAdapter(request gatewayRequest, candidate routeengine.
 		path:               spec.Path,
 		mimoTTS:            isMiMoV25TTSModel(candidate.Model.UpstreamName),
 		mimoTTSFormat:      strings.ToLower(stringFromMapAny(audio, "format")),
+		aggregateChatSSE:   pluginSiteUpstreamStreamOnly(candidate.Site.SiteType) && !request.Stream,
 	}
 }
 
@@ -115,6 +120,14 @@ func (a openAIChatProtocolAdapter) TransformBufferedResponse(statusCode int, hea
 			Usage:       usage,
 		}, nil
 	}
+	if a.aggregateChatSSE && statusCode >= 200 && statusCode < 300 && (isEventStreamContentType(contentType) || looksLikeSSEBody(body)) {
+		aggregated, err := aggregateChatCompletionSSE(body)
+		if err != nil {
+			return gatewayBufferedResponse{}, err
+		}
+		body = aggregated
+		contentType = "application/json"
+	}
 	if a.downstreamProtocol != "" && a.downstreamProtocol != canonicalProtocolOpenAIChat && statusCode >= 200 && statusCode < 300 {
 		convertedBody, usage, err := convertResponseBetweenProtocols(canonicalProtocolOpenAIChat, a.downstreamProtocol, body, responseConversionOptions{RequireUsage: true})
 		if err != nil {
@@ -136,7 +149,7 @@ func (a openAIChatProtocolAdapter) TransformBufferedResponse(statusCode int, hea
 }
 
 func (a openAIChatProtocolAdapter) usesRawBufferedResponse() bool {
-	return a.mimoTTS
+	return a.mimoTTS || a.aggregateChatSSE
 }
 
 func (a openAIChatProtocolAdapter) ProxyStream(ctx context.Context, w http.ResponseWriter, resp *http.Response, startedAt time.Time, candidate routeengine.Candidate) (streamCaptureState, bool, error) {

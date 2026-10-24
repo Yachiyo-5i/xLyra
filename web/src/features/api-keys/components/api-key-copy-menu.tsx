@@ -21,7 +21,7 @@ export function APIKeyCopyMenu({ apiKey, triggerClassName }: { apiKey: Downstrea
     return (
       <button
         type="button"
-        className={cn('inline-flex max-w-full items-center gap-2 text-muted-soft transition-colors hover:text-foreground', triggerClassName)}
+        className={cn('inline-flex max-w-full items-center gap-2 text-label-2 transition-colors hover:text-label', triggerClassName)}
         onClick={() => {
           if (variant) {
             void copyAPIKeyVariantToClipboard(apiKey, variant.id, t)
@@ -30,7 +30,7 @@ export function APIKeyCopyMenu({ apiKey, triggerClassName }: { apiKey: Downstrea
         title={display}
         disabled={!variant}
       >
-        <span className="min-w-0 truncate font-mono text-xs">{display}</span>
+        <span className="min-w-0 truncate font-mono text-footnote">{display}</span>
         <Copy className="h-3.5 w-3.5 shrink-0" />
       </button>
     )
@@ -41,11 +41,11 @@ export function APIKeyCopyMenu({ apiKey, triggerClassName }: { apiKey: Downstrea
       <PopoverPrimitive.Trigger asChild>
         <button
           type="button"
-          className={cn('inline-flex max-w-full items-center gap-1.5 text-muted-soft transition-colors hover:text-foreground', triggerClassName)}
+          className={cn('inline-flex max-w-full items-center gap-1.5 text-label-2 transition-colors hover:text-label', triggerClassName)}
           title={display}
           disabled={variants.length === 0}
         >
-          <span className="min-w-0 truncate font-mono text-xs">{display}</span>
+          <span className="min-w-0 truncate font-mono text-footnote">{display}</span>
           <ChevronDown className="h-3 w-3 shrink-0" />
         </button>
       </PopoverPrimitive.Trigger>
@@ -53,13 +53,13 @@ export function APIKeyCopyMenu({ apiKey, triggerClassName }: { apiKey: Downstrea
         <PopoverPrimitive.Content
           align="start"
           sideOffset={6}
-          className="glass-panel-strong z-[130] min-w-36 rounded-lg p-1 shadow-[var(--shadow-dialog)]"
+          className="lg-regular z-[130] min-w-36 rounded-inner p-1"
         >
           {variants.map((variant) => (
             <button
               key={variant.id}
               type="button"
-              className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs leading-5 text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+              className="flex w-full items-center gap-1.5 rounded-inner px-2 py-1.5 text-left text-footnote leading-5 text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
               onClick={() => {
                 void copyAPIKeyVariantToClipboard(apiKey, variant.id, t)
                 setOpen(false)

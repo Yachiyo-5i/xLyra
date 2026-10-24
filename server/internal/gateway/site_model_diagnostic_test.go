@@ -93,6 +93,120 @@ func TestSiteModelTestGatewayRequestBuildsDiagnosticRequest(t *testing.T) {
 	}
 }
 
+func TestSiteModelTestPayloadAddsOpenCodeDefaultReadTool(t *testing.T) {
+	t.Parallel()
+
+	request, err := siteModelTestGatewayRequest(gatewayEndpointChatCompletions, "deepseek-v4.1-flash-free", "测活，收到回复", true)
+	if err != nil {
+		t.Fatalf("siteModelTestGatewayRequest returned error: %v", err)
+	}
+	candidate := siteModelTestRouteCandidate()
+	candidate.Site.SiteType = "opencode_go"
+	protocol := newOpenAIChatProtocolAdapter(request, candidate)
+	payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
+	if err != nil {
+		t.Fatalf("buildGatewayUpstreamPayload returned error: %v", err)
+	}
+	tools, ok := payload["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("tools = %#v, want one default read tool", payload["tools"])
+	}
+	tool, ok := tools[0].(map[string]any)
+	if !ok || stringFromMapAny(tool, "type") != "function" {
+		t.Fatalf("tool = %#v, want OpenAI function tool", tools[0])
+	}
+	function, ok := tool["function"].(map[string]any)
+	if !ok || stringFromMapAny(function, "name") != "read" {
+		t.Fatalf("function = %#v, want read", tool["function"])
+	}
+}
+
+func TestOpenCodeZenFreeModelTestRoutingAndDefaultTools(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		model        string
+		endpoint     string
+		wantPath     string
+		wantProtocol string
+	}{
+		{model: "longcat-2.5-preview-free", endpoint: upstreamEndpointTypeOpenAI, wantPath: gatewayEndpointChatCompletions, wantProtocol: "openai_chat_completions"},
+		{model: "mimo-v2.6-flash-free", endpoint: upstreamEndpointTypeOpenAI, wantPath: gatewayEndpointChatCompletions, wantProtocol: "openai_chat_completions"},
+		{model: "minimax-m3.1-flash-free", endpoint: upstreamEndpointTypeOpenAI, wantPath: gatewayEndpointChatCompletions, wantProtocol: "openai_chat_completions"},
+		{model: "nemotron-3.5-lightning-free", endpoint: upstreamEndpointTypeOpenAI, wantPath: gatewayEndpointChatCompletions, wantProtocol: "openai_chat_completions"},
+		{model: "nemotron-3.5-super-vl-free", endpoint: upstreamEndpointTypeOpenAI, wantPath: gatewayEndpointChatCompletions, wantProtocol: "openai_chat_completions"},
+		{model: "jev-1.13-free", endpoint: upstreamEndpointTypeTypeSafeSystemOne, wantPath: gatewayEndpointTypeSafeSystemOne, wantProtocol: "typesafe_systemone"},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			policy, err := store.ResolveSiteModelEndpointPolicyForSite(
+				store.CanonicalModel{SupportedEndpointTypes: store.JSON(`["anthropic-messages"]`)},
+				store.SiteModel{
+					UpstreamName: tc.model,
+					Capabilities: store.JSON(`{"supported_endpoint_types":["anthropic-messages"]}`),
+				},
+				store.SiteModelEndpointOverride{},
+				"openai",
+				"https://opencode.ai/zen",
+			)
+			if err != nil {
+				t.Fatalf("ResolveSiteModelEndpointPolicyForSite: %v", err)
+			}
+			if len(policy.SupportedEndpointTypes) != 1 || policy.SupportedEndpointTypes[0] != tc.endpoint {
+				t.Fatalf("SupportedEndpointTypes = %#v, want [%q]", policy.SupportedEndpointTypes, tc.endpoint)
+			}
+
+			candidate := siteModelTestRouteCandidate()
+			candidate.Site.SiteType = "openai"
+			candidate.Site.BaseURL = "https://opencode.ai/zen"
+			candidate.Model.UpstreamName = tc.model
+			candidate.Model.SupportedEndpointTypes = policy.SupportedEndpointTypes
+			path, err := siteModelTestDownstreamPath(candidate.Model.SupportedEndpointTypes)
+			if err != nil {
+				t.Fatalf("siteModelTestDownstreamPath: %v", err)
+			}
+			if path != tc.wantPath {
+				t.Fatalf("downstream path = %q, want %q", path, tc.wantPath)
+			}
+			request, err := siteModelTestGatewayRequest(path, tc.model, "测活，收到回复", false)
+			if err != nil {
+				t.Fatalf("siteModelTestGatewayRequest: %v", err)
+			}
+			protocol, err := (Handler{}).siteModelTestProtocolAdapter(context.Background(), request, candidate, siteModelTestProtocolAuto)
+			if err != nil {
+				t.Fatalf("siteModelTestProtocolAdapter: %v", err)
+			}
+			if got := protocol.ProtocolName(); got != tc.wantProtocol {
+				t.Fatalf("protocol = %q, want %q", got, tc.wantProtocol)
+			}
+			if tc.endpoint == upstreamEndpointTypeTypeSafeSystemOne {
+				if got := protocol.UpstreamPath(candidate.Site.BaseURL); got != "https://opencode.ai/zen/v1/systemone" {
+					t.Fatalf("JEV upstream path = %q, want https://opencode.ai/zen/v1/systemone", got)
+				}
+			}
+			payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
+			if err != nil {
+				t.Fatalf("buildGatewayUpstreamPayload: %v", err)
+			}
+			if tc.endpoint == upstreamEndpointTypeOpenAI {
+				tools, ok := payload["tools"].([]any)
+				if !ok || len(tools) != 1 {
+					t.Fatalf("tools = %#v, want one default read tool", payload["tools"])
+				}
+				tool, ok := tools[0].(map[string]any)
+				if !ok || stringFromMapAny(tool, "type") != "function" {
+					t.Fatalf("tool = %#v, want OpenAI function tool", tools[0])
+				}
+				function, ok := tool["function"].(map[string]any)
+				if !ok || stringFromMapAny(function, "name") != "read" {
+					t.Fatalf("function = %#v, want read", tool["function"])
+				}
+			} else if _, hasTools := payload["tools"]; hasTools {
+				t.Fatalf("systemone payload unexpectedly has tools: %#v", payload["tools"])
+			}
+		})
+	}
+}
+
 func TestSiteModelTestGatewayRequestBuildsNonStreamResponsesRequest(t *testing.T) {
 	t.Parallel()
 

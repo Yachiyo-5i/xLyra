@@ -258,6 +258,7 @@ func loadFixtures(dir string) ([]Fixture, error) {
 		if err := json.Unmarshal(raw, &fixture); err != nil {
 			return nil, fmt.Errorf("%s: %w", entry.Name(), err)
 		}
+		fixture.File = path.Join("fixtures", entry.Name())
 		fixtures = append(fixtures, fixture)
 	}
 	return fixtures, nil

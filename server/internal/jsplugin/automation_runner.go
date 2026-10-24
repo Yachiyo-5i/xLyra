@@ -197,7 +197,7 @@ func (m *Manager) processDue(ctx context.Context, host AutomationHost) int {
 	if ctx.Err() != nil {
 		return 0
 	}
-	events, err := m.repo.DueEvents(ctx, time.Now(), automationBatch)
+	events, err := m.repo.DueEvents(ctx, automationBatch)
 	if err != nil {
 		if ctx.Err() == nil {
 			slog.Warn("js plugin event poll failed", "error", err)
@@ -216,7 +216,7 @@ func (m *Manager) handleEvent(ctx context.Context, host AutomationHost, event st
 	switch {
 	case retry && event.Attempts+1 < automationMaxAttempts:
 		delay := automationRetryDelays[min(event.Attempts, len(automationRetryDelays)-1)]
-		err = m.repo.RetryEvent(ctx, event.ID, detail, time.Now().Add(delay))
+		err = m.repo.RetryEvent(ctx, event.ID, detail, delay)
 	case retry:
 		err = m.repo.FinishEvent(ctx, event.ID, store.JSPluginEventFailed, detail)
 	default:

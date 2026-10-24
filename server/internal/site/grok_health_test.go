@@ -61,3 +61,25 @@ func TestGrokAccountHealthResult(t *testing.T) {
 		t.Fatal("empty name must be omitted")
 	}
 }
+
+func TestAccountPoolHealthMessage(t *testing.T) {
+	t.Parallel()
+
+	grokMessage := "no grok accounts configured"
+	if got := accountPoolHealthMessage("grok", grokMessage); got != grokMessage {
+		t.Fatalf("grok message = %q", got)
+	}
+	if got := accountPoolHealthMessage("acme.example/chat", grokMessage); got != "no accounts configured" {
+		t.Fatalf("plugin message = %q", got)
+	}
+	if got := accountPoolHealthMessage("acme.example/chat", "all 2 grok accounts failed validation"); got != "all 2 accounts failed validation" {
+		t.Fatalf("plugin failure message = %q", got)
+	}
+	okMessage := "ok (1/2 accounts healthy)"
+	if got := accountPoolHealthMessage("acme.example/chat", okMessage); got != okMessage {
+		t.Fatalf("plugin success message = %q", got)
+	}
+	if got := accountPoolHealthMessage("grok", okMessage); got != okMessage {
+		t.Fatalf("grok success message = %q", got)
+	}
+}

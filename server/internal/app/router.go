@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,9 +28,9 @@ import (
 	"xlyra/server/internal/downloads"
 	"xlyra/server/internal/gateway"
 	"xlyra/server/internal/health"
-	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/httpx"
+	"xlyra/server/internal/jsplugin"
 	"xlyra/server/internal/newapi"
 	oauthsvc "xlyra/server/internal/oauth"
 	"xlyra/server/internal/observability"
@@ -60,10 +61,10 @@ func NewRouter(cfg config.Config, logger *slog.Logger, db *store.Store, confFile
 }
 
 func NewRouterWithGateway(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string) (http.Handler, *gateway.Handler) {
-	return NewRouterWithGatewayWithOAuth(cfg, logger, db, confFile, masterKey, nil)
+	return NewRouterWithGatewayWithOAuth(context.Background(), nil, cfg, logger, db, confFile, masterKey, nil, nil)
 }
 
-func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service) (http.Handler, *gateway.Handler) {
+func NewRouterWithGatewayWithOAuth(ctx context.Context, tasks *sync.WaitGroup, cfg config.Config, logger *slog.Logger, db *store.Store, confFile *config.ConfigFile, masterKey string, sharedOAuth *oauthsvc.Service, sharedSite *site.Service) (http.Handler, *gateway.Handler) {
 	appTimeZone := config.ResolveTimeZone()
 	var authService *auth.Service
 	if db != nil {
@@ -91,17 +92,39 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	var jsPluginManager *jsplugin.Manager
 	if db != nil {
 		jsPluginManager = jsplugin.NewManager(db, jsplugin.DefaultCatalog())
-		reloadCtx, reloadCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		reloadCtx, reloadCancel := context.WithTimeout(ctx, 30*time.Second)
 		if err := jsPluginManager.Reload(reloadCtx); err != nil {
 			logger.Warn("js plugin catalog reload failed", "error", err)
 		}
 		reloadCancel()
+		jsPluginManager.StartSync(ctx, 5*time.Second)
+		if tasks != nil {
+			if done := jsPluginManager.CatalogSyncDone(); done != nil {
+				tasks.Add(1)
+				go func() {
+					defer tasks.Done()
+					<-done
+				}()
+			}
+		}
 		oauthService = sharedOAuth
 		if oauthService == nil {
 			oauthService = oauthsvc.NewService(db, masterKey, confFile)
 		}
 		wireJSPluginAutomation(oauthService, jsPluginManager, authService, defaultHTTPClient)
-		siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		// sharedSite is the instance background jobs already hold. Plugin modules
+		// have to land on it; a second service never sees them.
+		siteService = sharedSite
+		if siteService == nil {
+			siteService = site.NewServiceWithOAuthService(db, masterKey, appTimeZone, oauthService, confFile)
+		}
+		siteProviderCurrent = func() *jsplugin.Registry {
+			return jsPluginManager.Catalog().Registry()
+		}
+		jsPluginManager.SetCatalogListener(func(registry *jsplugin.Registry) {
+			applySiteProviders(registry, siteService, logger)
+		})
+		applySiteProviders(jsPluginManager.Catalog().Registry(), siteService, logger)
 		config.RegisterGeneralValidator(func(cfg config.GeneralConfig) error {
 			return site.ValidateJSPluginRuntime()
 		})
@@ -109,11 +132,15 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 		dashboardService = dashboard.NewService(db, appTimeZone)
 		analyticsService = analytics.NewService(db, appTimeZone)
 		routerService = routeengine.NewService(db)
+		routerService.SetSiteTypeFilter(site.SiteTypeAvailable)
 		usageService = usage.NewService(db, appTimeZone)
 	}
 	systemStatsService := systemstats.NewService(appTimeZone)
 	downloadService := downloads.NewService()
 	gatewayHandler := gateway.NewHandlerWithOAuthService(logger.With("thread", "gateway"), authService, routerService, db, masterKey, appTimeZone, oauthService, confFile)
+	if siteService != nil {
+		gatewayHandler = gatewayHandler.WithPluginAccountRefresher(pluginAccountRefresher{sites: siteService})
+	}
 	playgroundGatewayHandler := gatewayHandler.WithRouteSiteHeader()
 	playgroundRoot := filepath.Join(config.ResolveWorkdir(), "playground")
 	playgroundService := playground.NewService(logger.With("thread", "playground"), db, gatewayHandler, playgroundRoot)
@@ -219,7 +246,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(httpx.WithRequestIDHeader)
-	r.Use(middleware.RealIP)
+	r.Use(httpx.RealClientIP)
 	r.Use(httpx.IPWhitelist(confFile))
 	r.Use(middleware.Recoverer)
 	r.Use(routeAwareTimeout(cfg.RequestTimeout))
@@ -329,6 +356,7 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Get("/js-plugin-trusted-keys", adminHandler.ListJSPluginTrustedKeys)
 				protected.Post("/js-plugin-trusted-keys", adminHandler.CreateJSPluginTrustedKey)
 				protected.Delete("/js-plugin-trusted-keys/{id}", adminHandler.DeleteJSPluginTrustedKey)
+				protected.Get("/plugin-icons/{pluginID}", adminHandler.GetPluginIcon)
 				protected.Get("/js-plugins", adminHandler.ListJSPlugins)
 				protected.Post("/js-plugins", adminHandler.UploadJSPlugin)
 				protected.Get("/js-plugins/{id}", adminHandler.GetJSPlugin)
@@ -412,14 +440,16 @@ func NewRouterWithGatewayWithOAuth(cfg config.Config, logger *slog.Logger, db *s
 				protected.Put("/sites/{siteID}/api-keys/{apiKeyID}/secret", adminHandler.UpdateSiteAPIKeySecret)
 				protected.Put("/sites/{siteID}/api-keys/{apiKeyID}/models", adminHandler.UpdateSiteAPIKeyModel)
 				protected.Post("/sites/{siteID}/api-keys/{apiKeyID}/refresh", adminHandler.RefreshSiteAPIKey)
-				protected.Get("/sites/{siteID}/grok/accounts", adminHandler.ListGrokAccounts)
-				protected.Post("/sites/{siteID}/grok/device/start", adminHandler.StartGrokDeviceLogin)
-				protected.Post("/sites/{siteID}/grok/device/poll", adminHandler.PollGrokDeviceLogin)
-				protected.Post("/sites/{siteID}/grok/accounts/refresh", adminHandler.RefreshGrokAccounts)
-				protected.Put("/sites/{siteID}/grok/accounts/{credentialID}", adminHandler.UpdateGrokAccount)
-				protected.Put("/sites/{siteID}/grok/accounts/{credentialID}/models", adminHandler.UpdateGrokAccountModel)
-				protected.Delete("/sites/{siteID}/grok/accounts/{credentialID}", adminHandler.DeleteGrokAccount)
-				protected.Post("/sites/{siteID}/grok/accounts/{credentialID}/refresh", adminHandler.RefreshGrokAccount)
+				protected.Get("/sites/{siteID}/accounts", adminHandler.ListAccounts)
+				protected.Get("/sites/{siteID}/accounts/regions", adminHandler.ListAccountRegions)
+				protected.Post("/sites/{siteID}/accounts/import", adminHandler.ImportAccounts)
+				protected.Post("/sites/{siteID}/accounts/login/start", adminHandler.StartAccountLogin)
+				protected.Post("/sites/{siteID}/accounts/login/poll", adminHandler.PollAccountLogin)
+				protected.Post("/sites/{siteID}/accounts/refresh", adminHandler.RefreshAccounts)
+				protected.Put("/sites/{siteID}/accounts/{credentialID}", adminHandler.UpdateAccount)
+				protected.Put("/sites/{siteID}/accounts/{credentialID}/models", adminHandler.UpdateAccountModel)
+				protected.Delete("/sites/{siteID}/accounts/{credentialID}", adminHandler.DeleteAccount)
+				protected.Post("/sites/{siteID}/accounts/{credentialID}/refresh", adminHandler.RefreshAccount)
 				protected.Get("/sites/{siteID}/models", adminHandler.ListSiteModels)
 				protected.Post("/sites/{siteID}/models", adminHandler.CreateSiteModel)
 				protected.Get("/sites/{siteID}/pricing", adminHandler.ListSitePricing)

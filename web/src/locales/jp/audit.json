@@ -20,7 +20,8 @@
     "failure": "失敗",
     "dateFrom": "開始日",
     "dateTo": "終了日",
-    "clearFilters": "フィルターをクリア"
+    "clearFilters": "フィルターをクリア",
+    "date": "日付"
   },
   "empty": {
     "loading": "監査レコードを読み込み中",

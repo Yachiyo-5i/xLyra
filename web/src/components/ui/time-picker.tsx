@@ -1,8 +1,11 @@
 import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { ChevronDown, Clock, X } from 'lucide-react'
+import { ChevronsUpDown, Clock, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { useLiquidGlassRef } from '@/components/glass/use-liquid-glass'
+import { timeOptionClass } from '@/components/ui/calendar-styles'
+import { fieldClearButtonClass, fieldIconClass, fieldTriggerClass, popoverPanelClass } from '@/components/ui/field-styles'
 import { cn } from '@/lib/utils'
 
 type TimePickerProps = {
@@ -82,12 +85,7 @@ function TimeOptionButton({
     <button
       type="button"
       aria-pressed={selected}
-      className={cn(
-        'flex h-8 w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))]',
-        selected
-          ? 'bg-primary text-primary-foreground hover:bg-primary'
-          : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-      )}
+      className={timeOptionClass(selected)}
       onClick={onClick}
     >
       {children}
@@ -108,6 +106,7 @@ export function TimePicker({
 }: TimePickerProps) {
   const { t } = useTranslation('components')
   const [open, setOpen] = React.useState(false)
+  const glassRef = useLiquidGlassRef<HTMLDivElement>('regular')
   const [internalTime, setInternalTime] = React.useState<string | undefined>(() => {
     const parsed = parseTime(defaultValue)
     return parsed ? formatTime(parsed) : undefined
@@ -145,16 +144,16 @@ export function TimePicker({
             type="button"
             disabled={disabled}
             className={cn(
-              'glass-field flex h-11 w-full items-center justify-between gap-3 rounded-md px-4 text-left text-sm text-foreground outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:cursor-not-allowed disabled:opacity-50',
-              !selectedParts && 'text-[hsl(var(--input-placeholder))]',
+              fieldTriggerClass,
+              !selectedParts && 'text-label-3',
               triggerClassName,
             )}
           >
             <span className="flex min-w-0 flex-1 items-center gap-3">
-              <Clock className="text-muted-soft h-4 w-4 shrink-0" />
+              <Clock className={fieldIconClass} />
               <span className="truncate tabular-nums">{displayValue || placeholder}</span>
             </span>
-            <ChevronDown className={cn('text-muted-soft h-4 w-4 shrink-0 transition-transform duration-150', open && 'rotate-180')} />
+            <ChevronsUpDown className={fieldIconClass} />
           </button>
         </PopoverPrimitive.Trigger>
 
@@ -162,30 +161,31 @@ export function TimePicker({
           <button
             type="button"
             aria-label={t('timePicker.clear')}
-            className="text-muted-soft absolute right-10 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+            className={fieldClearButtonClass}
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
               setSelectedTime(undefined)
             }}
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="size-3.5" />
           </button>
         ) : null}
       </div>
 
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          ref={glassRef}
           align="start"
           sideOffset={8}
           // 阻止滚轮/触摸事件冒泡到 document，否则弹层在 Dialog/Sheet 内打开时滚动会被其滚动锁拦截
           onWheel={(event) => event.stopPropagation()}
           onTouchMove={(event) => event.stopPropagation()}
-          className="glass-panel-strong z-[120] w-[280px] rounded-xl p-3"
+          className={cn(popoverPanelClass, 'z-[120] w-[280px] origin-(--radix-popover-content-transform-origin) p-3')}
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <p className="text-faint px-1 text-xs font-medium">{t('timePicker.hour')}</p>
+              <p className="px-1 text-caption-1 text-label-3">{t('timePicker.hour')}</p>
               <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
                 {hourOptions.map((hour) => (
                   <TimeOptionButton
@@ -200,7 +200,7 @@ export function TimePicker({
             </div>
 
             <div className="space-y-2">
-              <p className="text-faint px-1 text-xs font-medium">{t('timePicker.minute')}</p>
+              <p className="px-1 text-caption-1 text-label-3">{t('timePicker.minute')}</p>
               <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
                 {minuteOptions.map((minute) => (
                   <TimeOptionButton
@@ -215,7 +215,7 @@ export function TimePicker({
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--divider))] pt-3">
+          <div className="mt-3 flex items-center justify-between border-t border-separator pt-3">
             <Button
               variant="ghost"
               size="sm"

@@ -73,9 +73,9 @@ export function DataTable<TData, TValue>({
 
   if (isEmpty && hideHeaderWhenEmpty && !renderBodyAppend) {
     return (
-      <div className={cn('overflow-hidden rounded-lg', className)}>
+      <div className={cn('overflow-hidden', className)}>
         {emptyState ?? (
-          <div className="px-4 py-10 text-center text-sm text-[hsl(var(--text-muted-soft))]">
+          <div className="px-4 py-10 text-center text-body text-label-3">
             No results.
           </div>
         )}
@@ -84,7 +84,8 @@ export function DataTable<TData, TValue>({
   }
 
   return (
-    <div className={cn('rounded-lg', stickyHeader !== 'page' && 'overflow-hidden', className)}>
+    // 容器外观（Card material="thick"）由调用方提供；表格本身只负责行列
+    <div className={cn(stickyHeader !== 'page' && 'overflow-hidden', className)}>
       <div className={stickyHeader === 'page' ? undefined : 'overflow-x-auto'}>
         <table ref={tableRef} className="w-full min-w-full table-fixed border-collapse text-left">
           {columnSizing ? (
@@ -94,7 +95,7 @@ export function DataTable<TData, TValue>({
           ) : null}
           <DataTableHeader sticky={stickyHeader}>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="text-faint text-xs uppercase tracking-[0.16em]">
+              <tr key={headerGroup.id} className="text-footnote font-semibold text-label-2">
                 {headerGroup.headers.map((header, index) => {
                   const meta = header.column.columnDef.meta
                   const previousColumn = leafColumns[index - 1]
@@ -105,7 +106,7 @@ export function DataTable<TData, TValue>({
                     <th
                       key={header.id}
                       className={cn(
-                        'relative whitespace-nowrap px-4 py-3 font-medium',
+                        'relative h-9 whitespace-nowrap px-4 py-2',
                         getAlignmentClass(meta?.align),
                         meta?.className,
                         meta?.headerClassName,
@@ -130,10 +131,8 @@ export function DataTable<TData, TValue>({
                   {renderRowBefore?.(row.original, index, columns.length)}
                   <tr
                     className={cn(
-                      'border-t border-[hsl(var(--glass-divider))] transition-colors [&>td]:transition-colors',
-                      selectedRowId === row.id
-                        ? '[&>td]:bg-[hsl(var(--surface-subtle))] [&>td:first-child]:rounded-l-md [&>td:last-child]:rounded-r-md'
-                        : 'hover:[&>td]:bg-[hsl(var(--surface-subtle))] hover:[&>td:first-child]:rounded-l-md hover:[&>td:last-child]:rounded-r-md',
+                      'border-t border-separator text-body text-label transition-colors duration-150',
+                      selectedRowId === row.id ? 'bg-tint/10' : 'hover:bg-fill-4',
                       onRowClick && 'cursor-pointer',
                     )}
                     onClick={onRowClick ? () => onRowClick(row.original) : undefined}
@@ -145,7 +144,7 @@ export function DataTable<TData, TValue>({
                         <td
                           key={cell.id}
                           className={cn(
-                            'px-4 py-4 align-middle',
+                            'h-11 px-4 py-3 align-middle',
                             getAlignmentClass(meta?.align),
                             meta?.className,
                             meta?.cellClassName,
@@ -159,10 +158,10 @@ export function DataTable<TData, TValue>({
                 </Fragment>
               ))
             ) : renderBodyAppend ? null : (
-              <tr className="border-t border-[hsl(var(--glass-divider))]">
+              <tr className="border-t border-separator">
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-10 text-center text-sm text-[hsl(var(--text-muted-soft))]"
+                  className="px-4 py-10 text-center text-body text-label-3"
                 >
                   {emptyState ?? 'No results.'}
                 </td>

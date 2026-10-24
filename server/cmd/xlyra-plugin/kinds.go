@@ -21,11 +21,7 @@ func runKinds() {
 			effect = "not connected yet"
 			anyOffline = true
 		}
-		hooks := strings.Join(info.Hooks, ", ")
-		if len(info.OptionalHooks) > 0 {
-			hooks += " (optional: " + strings.Join(info.OptionalHooks, ", ") + ")"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Name, info.Family, hooks, info.Credential, effect)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", info.Name, info.Family, formatHooks(info), info.Credential, effect)
 	}
 	_ = w.Flush()
 	if anyOffline {
@@ -42,6 +38,20 @@ func scopeText(scope jsplugin.Scope) string {
 		return "enable (applies to every site)"
 	case jsplugin.ScopeEndpoint:
 		return "enable, then assign a /v1/plugins/<slug> path"
+	case jsplugin.ScopeSiteType:
+		return "enable after a trusted signature and host confirmation (applies to its site type)"
 	}
 	return string(scope)
+}
+
+func formatHooks(info jsplugin.KindInfo) string {
+	hooks := strings.Join(info.Hooks, ", ")
+	if len(info.OptionalHooks) == 0 {
+		return hooks
+	}
+	optional := "(optional: " + strings.Join(info.OptionalHooks, ", ") + ")"
+	if hooks == "" {
+		return optional
+	}
+	return hooks + " " + optional
 }

@@ -254,12 +254,18 @@ func TestSyncSiteModelAPIKeySwitchesPropagatesAPIKeyModelListError(t *testing.T)
 			}
 		},
 		update: func(tx *gorm.DB) {
-			if credential, ok := tx.Statement.Dest.(*store.SiteCredential); ok {
-				savedCredential = *credential
-				tx.RowsAffected = 1
+			values, ok := tx.Statement.Dest.(map[string]any)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
 				return
 			}
-			tx.AddError(gorm.ErrInvalidData)
+			meta, ok := values["meta"].(store.JSON)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			savedCredential.Meta = append(store.JSON(nil), meta...)
+			tx.RowsAffected = 1
 		},
 	})
 

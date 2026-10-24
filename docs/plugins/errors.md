@@ -38,7 +38,7 @@ js_timeout: interrupted: timeout
 | `meta.id ... does not match manifest` | `meta` 与清单不一致 |
 | `at least one fixtures/*.json is required` | 没有测试样本 |
 | `apiVersion N is not supported` / `hostApi N is not supported` | 声明的版本比 xLyra 支持的高 |
-| `kind "..." is not supported in this build (supported: ...)` | `kind` 不是支持的九种之一，错误信息里会列出所有支持的类型 |
+| `kind "..." is not supported in this build (supported: ...)` | `kind` 不是支持的十种之一，错误信息里会列出所有支持的类型 |
 | `result.xxx: ... is not one of ...` | 返回的值不在允许的取值里（如 `status`、`class`） |
 | `result.models[N].id: "..." was not in the input` | `model_metadata` 返回了输入里没有的模型 |
 | `input is required` | 一次性函数类型的样本缺少 `input` |
@@ -50,8 +50,50 @@ js_timeout: interrupted: timeout
 
 | 错误码 | 含义 |
 | --- | --- |
-| `js_plugin_confirm_required` | 包未签名或签名者不在受信列表里，需要管理员二次确认 |
-| `js_plugin_kind_not_connected` | 类型已定义但 xLyra 尚未接入，不能启用。目前九种类型都已接入，只有以后新增的类型在接入前才会出现 |
+| `js_plugin_confirm_required` | 包未签名或签名者不在受信列表里，需要管理员二次确认。不适用于 `site_provider` |
+| `js_plugin_untrusted_not_allowed` | `site_provider` 未由受信密钥签名。`confirm_untrusted` 不能绕过，需先导入对应公钥。HTTP 403 |
+| `js_plugin_hosts_required` | 启用 `site_provider` 需要确认主机列表。响应 `error.hosts` 为完整列表。HTTP 400 |
+| `js_plugin_kind_not_connected` | 类型已定义但 xLyra 尚未接入，不能启用。目前十种类型都已接入，只有以后新增的类型在接入前才会出现 |
 | `js_plugin_pricing_review_required` | 绑定价格解析插件时没有确认预览结果 |
 | `js_plugin_permissions_required` | 启用的 `automation` 版本声明了权限，但管理员没有授予。需要在启用请求里带上 `grant_permissions` |
 | `js_plugin_automation_invalid` | 新增或修改自动化绑定时，所选对象或参数不符合插件声明的输入，错误信息里会说明原因 |
+| `js_plugin_site_type_locked` | 启用的 `site_provider` 新版本改了站点类型 ID，而旧类型仍有站点在用。HTTP 409，响应带 `from`、`to`、`count` |
+
+## 卸载时的错误
+
+| 错误码 | 含义 |
+| --- | --- |
+| `js_plugin_in_use` | 卸载插件，或删除它的最后一个版本时，仍有站点使用它声明的站点类型。HTTP 409，响应带 `site_type`、`count`。先删除这些站点再卸载。停用不受这个限制 |
+
+## 网关转发时的错误
+
+这些错误出现在网关结果里。HTTP 都是 502，请求不会发到上游，也不会换下一把密钥重试：
+
+| 错误码 | 含义 |
+| --- | --- |
+| `plugin_rewrite_failed` | 站点类型的 `rewritePayload` 失败（抛错、超时、形状不对、改了 `model` 或 `stream`、正文超过 1 MiB）。错误信息里带插件 id |
+| `upstream_host_not_allowed` | 插件站点类型的上游主机不在启用时确认的列表里，或该类型已停用 |
+| `plugin_header_template_failed` | 插件站点的请求头模板渲染失败（变量不存在，或结果含 CR、LF、其它控制字符）。错误信息里有头名，不含密钥的值 |
+
+## 账号池凭据
+
+这些错误出现在网关为插件账号池解析凭据时。这一次凭据失败，并尝试下一把。全部失败时请求失败。
+
+| 错误码 | 含义 |
+| --- | --- |
+| `plugin_account_credential_invalid` | 凭据包解不开、缺少 access token、区域基址不可用，或该站点类型的账号池没配上。不标重新授权 |
+| `plugin_account_refresh_failed` | 距到期不足 `leadSeconds` 时刷新失败，刷新没有返回字段，或刷新器没配上。只有刷新错误表示需要重新授权时，才把这把凭据标成要重新授权 |
+
+上游 401 和传输失败是否换凭据，按凭据类型是不是账号凭据判断（含 `account:<siteType>:<uuid>`，以及内置的 `grok_sso:`）。API Key 不走这条。
+
+`summarizeAccount` 返回 `status: "reauth"` 时不是上面的网关错误。宿主把这把凭据标成 `reauth_required` 并停用，不另起错误码。
+
+管理端账号接口（插件账号池与内置账号池共用）：
+
+| 错误码 | HTTP | 含义 |
+| --- | --- | --- |
+| `account_login_start_failed` | 502 | 开始登录失败 |
+| `account_login_failed` | 400 | 轮询登录失败 |
+| `account_refresh_failed` | 400 | 刷新账号失败 |
+| `account_import_failed` | 400 | 导入文件被拒绝 |
+| `account_import_unsupported` | 404 | 这种站点类型没有打开导入 |

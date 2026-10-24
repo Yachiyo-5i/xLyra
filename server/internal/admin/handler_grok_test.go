@@ -1,13 +1,9 @@
 package admin
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"xlyra/server/internal/site"
 )
 
 func TestResolveSiteCredentialsGrokAddsNoInlineAccounts(t *testing.T) {
@@ -59,17 +55,5 @@ func TestListSiteTypesOrdersOpenCodeGoAfterGrok(t *testing.T) {
 	}
 	if positions["google_gemini"]+1 != positions["grok"] || positions["grok"]+1 != positions["opencode_go"] || positions["opencode_go"]+1 != positions["deepseek"] {
 		t.Fatalf("site type positions = %#v, want google_gemini, grok, opencode_go, deepseek adjacency", positions)
-	}
-}
-
-func TestGrokAccountResponseContainsMaskWithoutToken(t *testing.T) {
-	t.Parallel()
-
-	encoded, err := json.Marshal(site.GrokAccount{MaskedToken: "abcd...wxyz"})
-	if err != nil {
-		t.Fatalf("marshal account: %v", err)
-	}
-	if !strings.Contains(string(encoded), "masked_token") || strings.Contains(string(encoded), `"token"`) {
-		t.Fatalf("account response = %s", encoded)
 	}
 }

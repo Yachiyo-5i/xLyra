@@ -10,10 +10,11 @@ export type JSPluginKind =
   | 'model_metadata'
   | 'pricing_parse'
   | 'automation'
+  | 'site_provider'
   | string
 
-/** site: bind to sites; endpoint: gets a downstream path; global: applies everywhere. */
-export type JSPluginScope = 'site' | 'endpoint' | 'global' | 'subject'
+/** site: bind to sites; endpoint: gets a downstream path; global: applies everywhere; site_type: declares a site type. */
+export type JSPluginScope = 'site' | 'endpoint' | 'global' | 'subject' | 'site_type'
 
 export type JSPluginMetrics24h = {
   calls: number
@@ -116,14 +117,32 @@ export async function deleteJSPluginTrustedKey(id: string) {
   })
 }
 
+export function enableJSPluginRequestBody(options?: {
+  confirm_untrusted?: boolean
+  grant_permissions?: string[]
+  confirm_hosts?: string[]
+}) {
+  const body: {
+    confirm_untrusted?: boolean
+    grant_permissions?: string[]
+    confirm_hosts?: string[]
+  } = {}
+  if (options?.confirm_untrusted) body.confirm_untrusted = true
+  if (options?.grant_permissions && options.grant_permissions.length > 0) {
+    body.grant_permissions = options.grant_permissions
+  }
+  if (Array.isArray(options?.confirm_hosts)) body.confirm_hosts = options.confirm_hosts
+  return body
+}
+
 export async function enableJSPluginVersion(
   pluginId: string,
   version: string,
-  options?: { confirm_untrusted?: boolean; grant_permissions?: string[] },
+  options?: { confirm_untrusted?: boolean; grant_permissions?: string[]; confirm_hosts?: string[] },
 ) {
   return apiFetch<{ ok: boolean; generation?: number }>(
     `/api/v1/js-plugins/${encodeURIComponent(pluginId)}/versions/${encodeURIComponent(version)}/enable`,
-    { method: 'POST', body: options ?? {} },
+    { method: 'POST', body: enableJSPluginRequestBody(options) },
   )
 }
 
@@ -233,6 +252,39 @@ export type JSPluginAutomationManifest = {
   schedule?: { everyMinutes?: number }
   form?: { title?: LocalizedText; description?: LocalizedText; addLabel?: LocalizedText; emptyText?: LocalizedText }
   inputs: JSPluginAutomationInput[]
+}
+
+export type JSPluginSiteProviderView = {
+  siteType: string
+  displayName?: LocalizedText
+  hosts: string[]
+}
+
+export function siteProviderOf(manifest?: Record<string, unknown>): JSPluginSiteProviderView | null {
+  if (!manifest || manifest.kind !== 'site_provider') return null
+  const raw = manifest.siteProvider
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const section = raw as Record<string, unknown>
+  const display = section.display
+  let displayName: LocalizedText | undefined
+  if (display && typeof display === 'object' && !Array.isArray(display)) {
+    const name = (display as Record<string, unknown>).name
+    if (typeof name === 'string' || (name && typeof name === 'object' && !Array.isArray(name))) {
+      displayName = name as LocalizedText
+    }
+  }
+  const hosts = Array.isArray(section.hosts)
+    ? section.hosts.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+    : []
+  return {
+    siteType: typeof section.siteType === 'string' ? section.siteType : '',
+    displayName,
+    hosts,
+  }
+}
+
+export function grantedHostPermissions(granted?: string[]) {
+  return (granted ?? []).filter((item) => item.startsWith('host:') && item.length > 'host:'.length)
 }
 
 export function automationManifest(manifest?: Record<string, unknown>): JSPluginAutomationManifest | null {

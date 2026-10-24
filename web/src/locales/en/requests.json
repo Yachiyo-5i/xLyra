@@ -13,7 +13,8 @@
       "reasoning": "Reasoning effort",
       "input": "Input",
       "output": "Output",
-      "cost": "Cost"
+      "cost": "Cost",
+      "tokens": "Tokens"
     },
     "test": "Test",
     "success": "Success",
@@ -186,7 +187,8 @@
     "filters": "Filters",
     "done": "Done",
     "statusCode": "Status {{code}}",
-    "tokens": "In {{input}} / Out {{output}}"
+    "tokens": "In {{input}} / Out {{output}}",
+    "timeRange": "Time range"
   },
   "page": {
     "loadFailed": "Failed to load request logs",

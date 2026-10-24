@@ -44,7 +44,7 @@ export function QRCode({ value, size = 192, className, imageClassName }: QRCodeP
   return (
     <div
       className={cn(
-        'flex items-center justify-center rounded-lg border border-[hsl(var(--glass-border))] bg-white p-3',
+        'flex items-center justify-center rounded-inner border border-separator bg-white p-3',
         className,
       )}
       style={{ width: size + 24, height: size + 24 }}

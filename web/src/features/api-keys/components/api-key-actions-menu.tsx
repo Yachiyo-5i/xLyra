@@ -33,9 +33,9 @@ export function APIKeyActionsMenu({
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
         <Button
-          size="icon"
+          size="icon-sm"
           variant="ghost"
-          className="h-8 w-8 text-foreground/60 hover:text-foreground"
+          className="size-7 text-label-2 hover:text-label"
           disabled={busy}
           aria-label={t('table.actions')}
         >
@@ -46,7 +46,7 @@ export function APIKeyActionsMenu({
         <PopoverPrimitive.Content
           align="end"
           sideOffset={6}
-          className="z-[120] w-44 overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--dialog-surface))] py-1 shadow-[var(--shadow-dialog)] backdrop-blur-xl"
+          className="z-[120] w-44 overflow-hidden lg-regular rounded-inner py-1"
         >
           <ActionItem icon={PencilLine} label={t('table.edit')} onClick={() => run(onEdit)} />
           <ActionItem
@@ -90,7 +90,7 @@ function ActionItem({
       disabled={disabled}
       title={title}
       onClick={onClick}
-      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-subtle))] disabled:cursor-not-allowed disabled:opacity-40 ${destructive ? 'text-destructive' : 'text-foreground'}`}
+      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-body font-medium transition-colors hover:bg-fill-3 disabled:cursor-not-allowed disabled:opacity-40 ${destructive ? 'text-danger' : 'text-label'}`}
     >
       <Icon className="h-4 w-4 text-current" />
       {label}

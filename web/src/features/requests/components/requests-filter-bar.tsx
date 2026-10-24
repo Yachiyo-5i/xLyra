@@ -1,10 +1,12 @@
 import { useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LoaderCircle, RotateCcw, Search, X } from 'lucide-react'
+import * as PopoverPrimitive from '@radix-ui/react-popover'
+import { CalendarDays, LoaderCircle, RotateCcw, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { TokenUsageHoverCard, type TokenUsageBreakdown } from '@/components/common/token-usage-hover-card'
 import { Button } from '@/components/ui/button'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { filterTriggerActiveClass, filterTriggerClass, popoverPanelClass } from '@/components/ui/field-styles'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -24,6 +26,7 @@ import {
   type SuccessFilter,
 } from '@/features/requests/lib/types'
 import { requestTpmBadgeClassName } from '@/features/requests/lib/request-badge-styles'
+import { cn } from '@/lib/utils'
 
 type RequestsFilterBarProps = {
   filters: RequestFilterState
@@ -122,73 +125,17 @@ export function RequestsFilterBar({
     }
   }
 
+  const hasDateRange = Boolean(filters.createdFromDate || filters.createdToDate)
+  const fromDate = mergeDateAndTime(filters.createdFromDate, filters.createdFromTime)
+  const toDate = mergeDateAndTime(filters.createdToDate, filters.createdToTime)
+
   return (
-    <div className="grid gap-3">
+    <div className="space-y-3">
+      {/* 第一行：搜索 + 筛选胶囊（时间范围 / 状态 / 站点 / 下游密钥），右侧刷新 */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <DateTimePicker
-            value={mergeDateAndTime(filters.createdFromDate, filters.createdFromTime)}
-            onValueChange={(date) => patchDateTimeFilter('createdFrom', date)}
-            placeholder={`${t('filters.dateFrom')} / ${t('filters.timeFrom')}`}
-            minuteStep={1}
-            disableFutureDates
-            className="w-64"
-            triggerClassName="h-10"
-          />
-          <DateTimePicker
-            value={mergeDateAndTime(filters.createdToDate, filters.createdToTime)}
-            onValueChange={(date) => patchDateTimeFilter('createdTo', date)}
-            placeholder={`${t('filters.dateTo')} / ${t('filters.timeTo')}`}
-            minuteStep={1}
-            disableFutureDates
-            className="w-64"
-            triggerClassName="h-10"
-          />
-        </div>
-
-        <div className="ml-auto flex flex-nowrap items-center justify-end gap-2">
-          <Badge
-            variant="accent"
-            className="h-8 w-fit rounded-md px-2.5 text-xs tabular-nums"
-            title={totalCostSupported ? undefined : t('filters.totalCostUnsupported')}
-          >
-            {t('filters.totalCost', { cost: totalCostLabel })}
-          </Badge>
-          <TokenUsageHoverCard
-            columns={tokenUsage ? [{ usage: tokenUsage }] : []}
-            labels={{
-              total: t('tokens.total'),
-              input: t('tokens.input'),
-              output: t('tokens.output'),
-              cached: t('tokens.cached'),
-              hitRate: t('tokens.hitRate'),
-            }}
-            disabled={!totalCostSupported || totalCostLoading || !tokenUsage}
-          >
-            <Badge
-              variant="neutral"
-              className="h-8 w-fit rounded-md px-2.5 text-xs tabular-nums"
-            >
-              {t('filters.totalTokens', { tokens: totalTokensLabel })}
-            </Badge>
-          </TokenUsageHoverCard>
-          <Badge variant="info" className="h-8 w-fit rounded-md px-2.5 text-xs tabular-nums" title={t('filters.rpmTooltip')}>
-            RPM {formatInteger(rateLimitUsage?.rpm ?? 0)}
-          </Badge>
-          <Badge
-            variant="neutral"
-            className={`h-8 w-fit rounded-md px-2.5 text-xs tabular-nums ${requestTpmBadgeClassName}`}
-            title={tpmTitle}
-          >
-            TPM {tpmLabel}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <label className="relative w-52">
-            <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <label className="relative w-52 shrink-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-label-3" />
             <Input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
@@ -198,6 +145,45 @@ export function RequestsFilterBar({
               className="pl-10"
             />
           </label>
+
+          {/* 时间范围：一枚 filter 胶囊，点开后在面板里分别选择开始与结束时间 */}
+          <PopoverPrimitive.Root>
+            <PopoverPrimitive.Trigger asChild>
+              <button type="button" className={cn(filterTriggerClass, hasDateRange && filterTriggerActiveClass)}>
+                <CalendarDays className="size-3.5" />
+                {hasDateRange
+                  ? `${formatShortDateTime(fromDate)} → ${formatShortDateTime(toDate)}`
+                  : t('mobile.timeRange')}
+              </button>
+            </PopoverPrimitive.Trigger>
+            <PopoverPrimitive.Portal>
+              <PopoverPrimitive.Content
+                align="start"
+                sideOffset={8}
+                className={cn(popoverPanelClass, 'z-[110] w-[18rem] space-y-2 p-3')}
+              >
+                <div className="text-caption-1 text-label-3">{t('filters.dateFrom')}</div>
+                <DateTimePicker
+                  value={fromDate}
+                  onValueChange={(date) => patchDateTimeFilter('createdFrom', date)}
+                  placeholder={`${t('filters.dateFrom')} / ${t('filters.timeFrom')}`}
+                  minuteStep={1}
+                  disableFutureDates
+                  className="w-full"
+                />
+                <div className="pt-1 text-caption-1 text-label-3">{t('filters.dateTo')}</div>
+                <DateTimePicker
+                  value={toDate}
+                  onValueChange={(date) => patchDateTimeFilter('createdTo', date)}
+                  placeholder={`${t('filters.dateTo')} / ${t('filters.timeTo')}`}
+                  minuteStep={1}
+                  disableFutureDates
+                  className="w-full"
+                />
+              </PopoverPrimitive.Content>
+            </PopoverPrimitive.Portal>
+          </PopoverPrimitive.Root>
+
           <Select value={filters.success} onValueChange={(value) => patchFilters({ success: value as SuccessFilter })}>
             <SelectTrigger variant="filter" filterLabel={t('table.headers.status')} active={filters.success !== 'all'}>
               <SelectValue />
@@ -236,11 +222,51 @@ export function RequestsFilterBar({
           </Select>
         </div>
 
-        <div className="ml-auto flex flex-nowrap items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center gap-4">
+          <Button variant="secondary" onClick={onRefresh} disabled={isFetching}>
+            {isFetching ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+            {t('filters.refresh')}
+          </Button>
+        </div>
+      </div>
+
+      {/* 第二行：当前筛选结果的汇总；右侧是清空筛选与两个开关 */}
+      <div className="flex min-h-6 items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <Badge
+            variant="accent"
+            className="tabular-nums"
+            title={totalCostSupported ? undefined : t('filters.totalCostUnsupported')}
+          >
+            {t('filters.totalCost', { cost: totalCostLabel })}
+          </Badge>
+          <TokenUsageHoverCard
+            columns={tokenUsage ? [{ usage: tokenUsage }] : []}
+            labels={{
+              total: t('tokens.total'),
+              input: t('tokens.input'),
+              output: t('tokens.output'),
+              cached: t('tokens.cached'),
+              hitRate: t('tokens.hitRate'),
+            }}
+            disabled={!totalCostSupported || totalCostLoading || !tokenUsage}
+          >
+            <Badge variant="neutral" className="tabular-nums">
+              {t('filters.totalTokens', { tokens: totalTokensLabel })}
+            </Badge>
+          </TokenUsageHoverCard>
+          <Badge variant="info" className="tabular-nums" title={t('filters.rpmTooltip')}>
+            RPM {formatInteger(rateLimitUsage?.rpm ?? 0)}
+          </Badge>
+          <Badge variant="neutral" className={cn('tabular-nums', requestTpmBadgeClassName)} title={tpmTitle}>
+            TPM {tpmLabel}
+          </Badge>
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
           {hasFilters ? (
-            <Button
+            <button
               type="button"
-              variant="outline"
+              className="shrink-0 text-footnote text-label-2 transition-colors hover:text-label"
               onClick={() => {
                 setSearchInput('')
                 onFiltersChange({
@@ -249,11 +275,10 @@ export function RequestsFilterBar({
                 })
               }}
             >
-              <X className="h-4 w-4" />
               {t('filters.clearFilters')}
-            </Button>
+            </button>
           ) : null}
-          <label className="flex h-10 items-center gap-2 px-1 text-sm text-foreground">
+          <label className="flex items-center gap-2 text-footnote text-label-2">
             <Switch
               checked={filters.hideWithoutSite}
               onCheckedChange={(checked) => patchFilters({ hideWithoutSite: checked })}
@@ -261,7 +286,7 @@ export function RequestsFilterBar({
             />
             <span>{t('filters.hideWithoutSite')}</span>
           </label>
-          <label className="flex h-10 items-center gap-2 px-1 text-sm text-foreground">
+          <label className="flex items-center gap-2 text-footnote text-label-2">
             <Switch
               checked={autoRefresh}
               onCheckedChange={onAutoRefreshChange}
@@ -269,10 +294,6 @@ export function RequestsFilterBar({
             />
             <span>{t('filters.autoRefresh')}</span>
           </label>
-          <Button variant="outline" onClick={onRefresh} disabled={isFetching}>
-            {isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-            {t('filters.refresh')}
-          </Button>
         </div>
       </div>
     </div>
@@ -306,4 +327,11 @@ function mergeDateAndTime(date: Date | undefined, time: string | undefined) {
 
 function formatTimeFilter(date: Date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** 时间胶囊上显示的短时间：MM-DD HH:mm，未设置的一端显示省略号 */
+function formatShortDateTime(date: Date | undefined) {
+  if (!date) return '…'
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }

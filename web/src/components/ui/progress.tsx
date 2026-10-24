@@ -27,12 +27,12 @@ const defaultThresholds: ProgressThreshold[] = [
 ]
 
 const progressVariantClassName: Record<Exclude<ProgressVariant, 'auto'>, string> = {
-  success: 'bg-[hsl(var(--badge-success-text))]',
-  info: 'bg-[hsl(var(--badge-info-text))]',
-  warning: 'bg-[hsl(var(--badge-warning-text))]',
-  danger: 'bg-[hsl(var(--destructive))]',
-  accent: 'bg-primary',
-  muted: 'bg-[hsl(var(--text-muted-soft))]',
+  success: 'bg-success',
+  info: 'bg-info',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  accent: 'bg-tint',
+  muted: 'bg-label-3',
 }
 
 function clampProgress(value: number, max: number) {
@@ -82,21 +82,23 @@ const Progress = React.forwardRef<
         value={safeValue}
         max={max}
         className={cn(
-          'relative h-2.5 w-full overflow-hidden rounded-full border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))]',
+          // 细轨道：高 6、fill-3 轨道、无描边；显示数值时加高到 14
+          'relative h-1.5 w-full overflow-hidden rounded-full bg-fill-3',
+          showValue && 'h-3.5',
           className,
         )}
         {...props}
       >
         <ProgressPrimitive.Indicator
           className={cn(
-            'h-full rounded-full transition-[transform,background-color] duration-500 ease-out',
+            'h-full rounded-full transition-[transform,background-color] duration-500 ease-(--ease-standard)',
             progressVariantClassName[resolvedVariant],
             indicatorClassName,
           )}
           style={{ transform: `translateX(-${100 - percentage}%)` }}
         />
         {showValue ? (
-          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-foreground">
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[10px] font-semibold text-label">
             {displayValue}
           </span>
         ) : null}

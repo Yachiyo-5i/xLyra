@@ -35,7 +35,7 @@ var tsTypes = []tsType{
 	{value: ProbeRequest{}, name: "ProbeRequest"},
 	{value: ProbeResponse{}, name: "ProbeResponse"},
 	{value: ProbeStep{}, name: "ProbeStep"},
-	{value: ProbeEntry{}, name: "ProbeEntry"},
+	{value: ProbeEntry{}, name: "ProbeEntry", enum: &tsEnum{"ProbeEntryKind", ProbeEntryKinds}},
 	{value: ProbeResult{}, name: "ProbeResult"},
 	{value: ModelListEntry{}, name: "ModelListEntry", section: "model_list"},
 	{value: ModelListResult{}, name: "ModelListResult"},
@@ -67,6 +67,12 @@ var tsTypes = []tsType{
 	{value: AutomationEvent{}, name: "AutomationEvent", enum: &tsEnum{"AutomationResetScope", AutomationResetScopes}},
 	{value: AutomationAction{}, name: "AutomationAction", enum: &tsEnum{"AutomationNoticeLevel", []string{"info", "warn"}}},
 	{value: AutomationResult{}, name: "AutomationResult"},
+	{value: RewritePayloadContext{}, name: "RewritePayloadContext", section: "site_provider"},
+	{value: AccountLoginContext{}, name: "AccountLoginContext"},
+	{value: AccountLoginResult{}, name: "AccountLoginResult", enum: &tsEnum{"AccountLoginStatus", AccountLoginStatuses}},
+	{value: AccountCredentialContext{}, name: "AccountCredentialContext"},
+	{value: AccountRefreshResult{}, name: "AccountRefreshResult", enum: &tsEnum{"AccountRefreshStatus", AccountRefreshStatuses}},
+	{value: AccountSummaryResult{}, name: "AccountSummaryResult", enum: &tsEnum{"AccountSummaryStatus", AccountSummaryStatuses}},
 }
 
 // TypeDeclarations renders the plugin SDK .d.ts: interfaces generated from the
@@ -106,9 +112,51 @@ func TypeDeclarations() (string, error) {
 		out.WriteString(body)
 		out.WriteString("\n")
 	}
+	kinds := SupportedKinds()
+	quoted := make([]string, len(kinds))
+	for i, info := range kinds {
+		quoted[i] = fmt.Sprintf("%q", info.Name)
+	}
+	fmt.Fprintf(&out, "export type PluginKind = %s;\n\n", strings.Join(quoted, " | "))
+	out.WriteString("export interface PluginMeta {\n  apiVersion: number;\n  id: string;\n  kind: PluginKind;\n}\n\n")
 	out.WriteString(strings.TrimLeft(tsStatic, "\n"))
+	if !strings.HasSuffix(out.String(), "\n") {
+		out.WriteByte('\n')
+	}
+	out.WriteString("\n")
+	out.WriteString(siteProviderHookTypes)
 	return out.String(), nil
 }
+
+// siteProviderHookTypes is appended after the shared hook aliases it names.
+const siteProviderHookTypes = `// ---- site_provider hooks ----
+
+export type SiteProviderProbe = (ctx: ProbeContext, steps: ProbeStep[]) => ProbeDecision;
+export type SiteProviderListModels = (ctx: ProbeContext, steps: ProbeStep[]) => ModelListDecision;
+export type SiteProviderCheck = (ctx: ProbeContext, steps: ProbeStep[]) => CredentialCheckDecision;
+export type SiteProviderClassify = (ctx: ErrorClassifyContext, input: ErrorClassifyInput) => ErrorClassifyResult;
+export type SiteProviderRewritePayload = (ctx: RewritePayloadContext, payload: Record<string, unknown>) => Record<string, unknown>;
+
+export type AccountLoginDecision = SteppedDecision<AccountLoginResult>;
+export type AccountRefreshDecision = SteppedDecision<AccountRefreshResult>;
+export type AccountSummaryDecision = SteppedDecision<AccountSummaryResult>;
+export type SiteProviderStartLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderPollLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderRefreshTokens = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountRefreshDecision;
+export type SiteProviderSummarizeAccount = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountSummaryDecision;
+
+export interface SiteProviderHooks {
+  probe?: SiteProviderProbe;
+  listModels?: SiteProviderListModels;
+  check?: SiteProviderCheck;
+  classify?: SiteProviderClassify;
+  rewritePayload?: SiteProviderRewritePayload;
+  startLogin?: SiteProviderStartLogin;
+  pollLogin?: SiteProviderPollLogin;
+  refreshTokens?: SiteProviderRefreshTokens;
+  summarizeAccount?: SiteProviderSummarizeAccount;
+}
+`
 
 func renderInterface(item tsType, names map[reflect.Type]string) (string, error) {
 	typ := reflect.TypeOf(item.value)

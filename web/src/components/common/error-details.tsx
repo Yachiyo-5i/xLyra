@@ -15,8 +15,8 @@ export function ErrorDetails({ children, message, description, asChild = false }
       disabled={!message}
       title={t('status.error')}
       description={description}
-      titleClassName="text-red-400"
-      content={<div className="whitespace-pre-wrap break-words text-muted-foreground">{message}</div>}
+      titleClassName="text-danger"
+      content={<div className="whitespace-pre-wrap break-words text-label-2">{message}</div>}
     >
       {children}
     </HoverDetails>

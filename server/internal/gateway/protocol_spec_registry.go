@@ -200,21 +200,23 @@ func effectiveProtocolSpec(protocol canonicalProtocol, candidate routeengine.Can
 	}
 
 	protocolKey := normalizeSpecKey(string(protocol))
+	var providerDef providerSpecDefinition
+	hasProvider := false
 	if providerKey != "" {
-		if providerDef, ok := config.Providers[providerKey]; ok && strings.TrimSpace(providerDef.Protocol) != "" && protocolKey == "" {
+		providerDef, hasProvider = providerSpecByKey(providerKey)
+		if hasProvider && strings.TrimSpace(providerDef.Protocol) != "" && protocolKey == "" {
 			protocolKey = normalizeSpecKey(providerDef.Protocol)
 		}
 	}
 	mergeProtocolDefinition(&resolved, config, protocolKey, map[string]bool{})
-	if providerKey != "" {
-		if providerDef, ok := config.Providers[providerKey]; ok {
-			mergeProviderDefinition(&resolved, providerDef)
-		}
+	if hasProvider {
+		mergeProviderDefinition(&resolved, providerDef)
 	}
 	if modelPattern != "" {
 		mergeModelDefinition(&resolved, modelDef)
 		applyDomesticModelRequestPolicy(&resolved, modelDef)
 	}
+	applyPluginUpstreamStreamOnly(&resolved, candidate.Site.SiteType)
 	return resolved
 }
 
@@ -664,15 +666,11 @@ func genericOpenAICompatibleSiteType(value string) bool {
 }
 
 func OfficialBaseURLForProvider(provider string) string {
-	config, err := loadProtocolSpecRegistry()
-	if err != nil {
+	def, ok := providerSpecByKey(provider)
+	if !ok {
 		return ""
 	}
-	key := normalizeSpecKey(provider)
-	if def, ok := config.Providers[key]; ok {
-		return strings.TrimSpace(def.OfficialBaseURL)
-	}
-	return ""
+	return strings.TrimSpace(def.OfficialBaseURL)
 }
 
 func upstreamPathFromSpec(baseURL string, spec resolvedProtocolSpec, fallbackPath string) string {

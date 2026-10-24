@@ -6,15 +6,12 @@ export function NotFoundPage() {
   return (
     <div className="flex min-h-[calc(100dvh-12rem)] items-center justify-center px-4 py-12 text-center">
       <div>
-        <p className="text-[7rem] font-semibold leading-none tracking-tight text-foreground sm:text-[8.5rem] md:text-[10rem]">
+        {/* 展示字号 + 等宽数字；颜色用第三级文字，让标题成为视线焦点 */}
+        <p className="font-mono text-[7rem] font-semibold leading-none tabular-nums text-label-3 sm:text-[8.5rem] md:text-[10rem]">
           404
         </p>
-        <h1 className="mt-6 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
-          {t('notFound.title')}
-        </h1>
-        <p className="text-muted-soft mx-auto mt-4 max-w-md text-base leading-7 md:text-lg">
-          {t('notFound.description')}
-        </p>
+        <h1 className="mt-6 text-title-2 text-label">{t('notFound.title')}</h1>
+        <p className="mx-auto mt-3 max-w-md text-body text-label-2">{t('notFound.description')}</p>
       </div>
     </div>
   )

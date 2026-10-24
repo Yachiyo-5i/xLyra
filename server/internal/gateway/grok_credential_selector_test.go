@@ -20,13 +20,37 @@ import (
 	"xlyra/server/internal/store"
 )
 
-func TestShouldMarkGrokCredentialSyncFailed(t *testing.T) {
-	if !shouldMarkGrokCredentialSyncFailed(gatewayAttemptResult{
+func TestAccountCredentialUsable(t *testing.T) {
+	credential := store.SiteCredential{ID: uuid.New(), Meta: store.JSON(`{"enabled":true}`)}
+	if !accountCredentialUsable(credential, store.SiteAPIKeyState{}, false) {
+		t.Fatal("credential without state should be usable")
+	}
+	disabled := credential
+	disabled.Meta = store.JSON(`{"enabled":false}`)
+	if accountCredentialUsable(disabled, store.SiteAPIKeyState{Enabled: true, SyncStatus: "synced"}, true) {
+		t.Fatal("credential with enabled false should be unusable")
+	}
+	if accountCredentialUsable(credential, store.SiteAPIKeyState{Enabled: false, SyncStatus: "synced"}, true) {
+		t.Fatal("disabled state should be unusable")
+	}
+	if accountCredentialUsable(credential, store.SiteAPIKeyState{Enabled: true, SyncStatus: "failed"}, true) {
+		t.Fatal("failed sync status should be unusable")
+	}
+	if accountCredentialUsable(credential, store.SiteAPIKeyState{Enabled: true, SyncStatus: "reauth_required"}, true) {
+		t.Fatal("reauth_required sync status should be unusable")
+	}
+	if !accountCredentialUsable(credential, store.SiteAPIKeyState{Enabled: true, SyncStatus: "synced"}, true) {
+		t.Fatal("enabled synced credential should be usable")
+	}
+}
+
+func TestShouldMarkAccountCredentialSyncFailed(t *testing.T) {
+	if !shouldMarkAccountCredentialSyncFailed(gatewayAttemptResult{
 		statusCode:         http.StatusUnauthorized,
 		upstreamStatusCode: http.StatusUnauthorized,
 		errorType:          "upstream_http_error",
 	}) {
-		t.Fatal("upstream 401 should mark the Grok credential sync state failed")
+		t.Fatal("upstream 401 should mark the account credential sync state failed")
 	}
 	for _, result := range []gatewayAttemptResult{
 		{statusCode: http.StatusOK, upstreamStatusCode: http.StatusOK, errorType: "upstream_http_error"},
@@ -37,93 +61,120 @@ func TestShouldMarkGrokCredentialSyncFailed(t *testing.T) {
 		{statusCode: http.StatusUnauthorized, upstreamStatusCode: http.StatusUnauthorized, errorType: "upstream_response_transform_failed"},
 		{statusCode: http.StatusUnauthorized, errorType: "upstream_http_error"},
 	} {
-		if shouldMarkGrokCredentialSyncFailed(result) {
+		if shouldMarkAccountCredentialSyncFailed(result) {
 			t.Fatalf("result %#v should not mark sync state failed", result)
 		}
 	}
 }
 
-func TestMarkGrokCredentialSyncFailedDisablesCredentialAndStateAtomically(t *testing.T) {
-	for _, status := range []int{http.StatusUnauthorized} {
-		status := status
-		t.Run(http.StatusText(status), func(t *testing.T) {
-			t.Parallel()
-
-			siteID := uuid.New()
-			credentialID := uuid.New()
-			credential := store.SiteCredential{
-				ID:             credentialID,
-				SiteID:         siteID,
-				CredentialType: "grok_sso:" + uuid.NewString(),
-				Meta:           store.JSON(`{"enabled":true,"tier":"premium"}`),
-			}
-			state := store.SiteAPIKeyState{
-				SiteCredentialID: credentialID,
-				SiteID:           siteID,
-				Enabled:          true,
-				SyncStatus:       "synced",
-			}
-			db := grokCredentialTransactionGorm(t)
-			if err := db.Callback().Query().Replace("gorm:query", func(tx *gorm.DB) {
-				switch destination := tx.Statement.Dest.(type) {
-				case *store.SiteCredential:
-					*destination = credential
-				case *store.SiteAPIKeyState:
-					*destination = state
-				default:
-					tx.AddError(gorm.ErrInvalidData)
-					return
-				}
-				tx.Statement.RowsAffected = 1
-			}); err != nil {
-				t.Fatalf("replace query callback: %v", err)
-			}
-			updatesInTransaction := 0
-			if err := db.Callback().Update().Replace("gorm:update", func(tx *gorm.DB) {
-				if _, ok := tx.Statement.ConnPool.(*sql.Tx); !ok {
-					tx.AddError(errors.New("grok credential update was not in a transaction"))
-					return
-				}
-				updatesInTransaction++
-				switch item := tx.Statement.Dest.(type) {
-				case *store.SiteCredential:
-					credential = *item
-				case *store.SiteAPIKeyState:
-					state = *item
-				default:
-					tx.AddError(gorm.ErrInvalidData)
-					return
-				}
-				tx.Statement.RowsAffected = 1
-			}); err != nil {
-				t.Fatalf("replace update callback: %v", err)
-			}
-
-			handler := Handler{db: gatewayStoreWithGorm(t, db)}
-			handler.markGrokCredentialSyncFailed(context.Background(), credential, gatewayAttemptResult{
-				statusCode:         status,
-				upstreamStatusCode: status,
-				errorType:          "upstream_http_error",
-			})
-
-			var meta map[string]any
-			if err := json.Unmarshal(credential.Meta, &meta); err != nil {
-				t.Fatalf("decode credential meta: %v", err)
-			}
-			if enabled, _ := meta["enabled"].(bool); enabled || meta["tier"] != "premium" {
-				t.Fatalf("credential meta = %#v, want disabled with tier preserved", meta)
-			}
-			wantMessage := fmt.Sprintf("grok upstream returned status %d", status)
-			if state.Enabled || state.SyncStatus != "reauth_required" || !state.SyncMessage.Valid || state.SyncMessage.String != wantMessage {
-				t.Fatalf("state = %#v, want disabled reauth state with message %q", state, wantMessage)
-			}
-			if updatesInTransaction != 3 {
-				t.Fatalf("transactional updates = %d, want 3", updatesInTransaction)
-			}
-			if candidates := grokCredentialCandidates([]store.GatewayCredential{{Credential: credential}}, []store.SiteAPIKeyState{state}); len(candidates) != 0 {
-				t.Fatalf("candidates = %#v, want disabled credential excluded", candidates)
+func TestMarkAccountCredentialSyncFailedDisablesCredentialAndStateAtomically(t *testing.T) {
+	for _, provider := range []string{"grok"} {
+		provider := provider
+		t.Run(provider, func(t *testing.T) {
+			for _, status := range []int{http.StatusUnauthorized} {
+				status := status
+				t.Run(http.StatusText(status), func(t *testing.T) {
+					t.Parallel()
+					assertAccountCredentialMarkedReauth(t, provider, status)
+				})
 			}
 		})
+	}
+}
+
+func assertAccountCredentialMarkedReauth(t *testing.T, provider string, status int) {
+	t.Helper()
+
+	siteID := uuid.New()
+	credentialID := uuid.New()
+	credentialType := "grok_sso:" + uuid.NewString()
+	credential := store.SiteCredential{
+		ID:             credentialID,
+		SiteID:         siteID,
+		CredentialType: credentialType,
+		Meta:           store.JSON(`{"enabled":true,"tier":"premium"}`),
+	}
+	state := store.SiteAPIKeyState{
+		SiteCredentialID: credentialID,
+		SiteID:           siteID,
+		Enabled:          true,
+		SyncStatus:       "synced",
+	}
+	db := grokCredentialTransactionGorm(t)
+	if err := db.Callback().Query().Replace("gorm:query", func(tx *gorm.DB) {
+		switch destination := tx.Statement.Dest.(type) {
+		case *store.SiteCredential:
+			*destination = credential
+		case *store.SiteAPIKeyState:
+			*destination = state
+		default:
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		tx.RowsAffected = 1
+		tx.Statement.RowsAffected = 1
+	}); err != nil {
+		t.Fatalf("replace query callback: %v", err)
+	}
+	updatesInTransaction := 0
+	if err := db.Callback().Update().Replace("gorm:update", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.ConnPool.(*sql.Tx); !ok {
+			tx.AddError(errors.New("account credential update was not in a transaction"))
+			return
+		}
+		updatesInTransaction++
+		switch item := tx.Statement.Dest.(type) {
+		case *store.SiteCredential:
+			credential = *item
+		case map[string]any:
+			meta, ok := item["meta"].(store.JSON)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			credential.Meta = append(store.JSON(nil), meta...)
+		case *store.SiteAPIKeyState:
+			state = *item
+		default:
+			tx.AddError(gorm.ErrInvalidData)
+			return
+		}
+		tx.RowsAffected = 1
+		tx.Statement.RowsAffected = 1
+	}); err != nil {
+		t.Fatalf("replace update callback: %v", err)
+	}
+
+	handler := Handler{db: gatewayStoreWithGorm(t, db)}
+	handler.markAccountCredentialSyncFailed(context.Background(), credential, provider, gatewayAttemptResult{
+		statusCode:         status,
+		upstreamStatusCode: status,
+		errorType:          "upstream_http_error",
+	})
+
+	var meta map[string]any
+	if err := json.Unmarshal(credential.Meta, &meta); err != nil {
+		t.Fatalf("decode credential meta: %v", err)
+	}
+	enabled, _ := meta["enabled"].(bool)
+	reauth, _ := meta["reauth_required"].(bool)
+	if enabled || !reauth || meta["tier"] != "premium" {
+		t.Fatalf("credential meta = %#v, want enabled=false reauth_required=true with tier preserved", meta)
+	}
+	wantMessage := fmt.Sprintf("%s upstream returned status %d", provider, status)
+	if state.Enabled || state.SyncStatus != "reauth_required" || !state.SyncMessage.Valid || state.SyncMessage.String != wantMessage {
+		t.Fatalf("state = %#v, want disabled reauth state with message %q", state, wantMessage)
+	}
+	if updatesInTransaction != 3 {
+		t.Fatalf("transactional updates = %d, want 3", updatesInTransaction)
+	}
+	if accountCredentialUsable(credential, state, true) {
+		t.Fatal("marked credential should be unusable")
+	}
+	if provider == "grok" {
+		if candidates := grokCredentialCandidates([]store.GatewayCredential{{Credential: credential}}, []store.SiteAPIKeyState{state}); len(candidates) != 0 {
+			t.Fatalf("candidates = %#v, want disabled credential excluded", candidates)
+		}
 	}
 }
 

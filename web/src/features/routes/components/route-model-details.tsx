@@ -90,19 +90,19 @@ export function RouteModelDetails({
   const currentChannel = findCurrentRouteChannel(channelRows, selectionQuery.data?.selected)
 
   return (
-    <div className={cn('border-t border-[hsl(var(--glass-divider))] pb-4 pt-3', compact ? 'px-3' : 'px-4')}>
+    <div className={cn('border-t border-separator pb-4 pt-3', compact ? 'px-3' : 'px-4')}>
       <Tabs defaultValue="routing" variant="segmented">
         <TabsList className={compact ? 'h-10' : undefined}>
-          <TabsTrigger value="routing" className={compact ? 'px-2 text-xs' : undefined}>
+          <TabsTrigger value="routing" className={compact ? 'px-2 text-footnote' : undefined}>
             {t('details.tabs.routing')}
           </TabsTrigger>
-          <TabsTrigger value="traces" className={compact ? 'px-2 text-xs' : undefined}>
+          <TabsTrigger value="traces" className={compact ? 'px-2 text-footnote' : undefined}>
             {t('details.tabs.traces')}
           </TabsTrigger>
-          <TabsTrigger value="cooldowns" className={cn('gap-1.5', compact && 'px-2 text-xs')}>
+          <TabsTrigger value="cooldowns" className={cn('gap-1.5', compact && 'px-2 text-footnote')}>
             {t('details.tabs.cooldowns')}
             {cooldowns.length > 0 ? (
-              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[hsl(var(--warning)/0.15)] px-1.5 py-0.5 text-[11px] font-medium text-[hsl(var(--warning))]">
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning">
                 {cooldowns.length}
               </span>
             ) : null}
@@ -194,7 +194,7 @@ function UpstreamCoverageSection({
   return (
     <div className="space-y-3">
       <SectionTitle>{t('details.coverage.title')}</SectionTitle>
-      <p className="text-xs text-muted-soft">{t('details.coverage.hint')}</p>
+      <p className="text-footnote text-label-2">{t('details.coverage.hint')}</p>
       {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-14 w-full" />
@@ -203,7 +203,7 @@ function UpstreamCoverageSection({
       ) : error ? (
         <SoftEmpty text={t('details.coverage.loadFailed')} />
       ) : rows.length ? (
-        <div className="divide-y divide-[hsl(var(--glass-divider))]">
+        <div className="divide-y divide-separator">
           {rows.map((row) => {
             return (
               <RouteChannelLine
@@ -329,10 +329,10 @@ function RouteInfoLine({ badges, primary, meta, action }: { badges?: ReactNode; 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {badges}
-            <span className="min-w-0 break-all text-sm font-medium text-foreground">{primary}</span>
+            <span className="min-w-0 break-all text-body font-medium text-label">{primary}</span>
           </div>
           {meta?.length ? (
-            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-soft">
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-body text-label-2">
               {meta.map((value) => (
                 <span key={value}>{value}</span>
               ))}
@@ -359,7 +359,7 @@ function RouteTracesSection({ query, t }: { query: TracesQuery; t: TFunction }) 
       ) : query.isError ? (
         <SoftEmpty text={t('details.traces.loadFailed')} />
       ) : items.length ? (
-        <div className="divide-y divide-[hsl(var(--glass-divider))]">
+        <div className="divide-y divide-separator">
           {items.map((trace) => {
             const attempt = trace.attempts.find((item) => item.success) ?? trace.attempts.at(-1)
             return (
@@ -415,7 +415,7 @@ function CooldownsSection({
       {loading ? (
         <Skeleton className="h-20 w-full" />
       ) : items.length ? (
-        <div className="max-h-[300px] divide-y divide-[hsl(var(--glass-divider))] overflow-y-auto pr-1">
+        <div className="max-h-[300px] divide-y divide-separator overflow-y-auto pr-1">
           {items.map((item) => {
             const clearing = clearingId === item.site_id
             const siteName = routeCooldownSiteName(item, sites, t)
@@ -442,7 +442,7 @@ function CooldownsSection({
                     ].filter(Boolean)}
                   />
                 </div>
-                <Button size="sm" variant="outline" onClick={() => onClear(item)} disabled={clearing}>
+                <Button size="sm" variant="secondary" onClick={() => onClear(item)} disabled={clearing}>
                   {clearing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                   {t('details.cooldowns.clear')}
                 </Button>
@@ -458,9 +458,9 @@ function CooldownsSection({
 }
 
 function SectionTitle({ children }: { children: string }) {
-  return <div className="text-xs font-medium tracking-[0.14em] text-[hsl(var(--text-muted-soft))]">{children}</div>
+  return <div className="text-footnote font-medium text-label-2">{children}</div>
 }
 
 function SoftEmpty({ text }: { text: string }) {
-  return <div className="text-muted-soft rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-3 text-sm">{text}</div>
+  return <div className="text-label-2 rounded-control border border-separator bg-fill-4 px-3 py-3 text-body">{text}</div>
 }

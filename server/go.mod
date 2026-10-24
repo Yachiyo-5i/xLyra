@@ -1,6 +1,6 @@
 module xlyra/server
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/Yachiyo-5i/moejs v0.1.0-yachiyo.2
@@ -21,7 +21,12 @@ require (
 	gorm.io/gorm v1.31.1
 )
 
-require github.com/evanw/esbuild v0.28.2
+require (
+	github.com/evanw/esbuild v0.28.2
+	github.com/refraction-networking/utls v1.8.2
+)
+
+require github.com/andybalholm/brotli v1.2.0 // indirect
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

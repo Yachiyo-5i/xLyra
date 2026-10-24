@@ -46,7 +46,7 @@ export function ModelsPriceFilterBar({
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
       <label className="relative w-56">
-        <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+        <Search className="text-label-2 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
         <Input
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}

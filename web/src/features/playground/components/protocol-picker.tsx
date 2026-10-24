@@ -35,7 +35,7 @@ export function ProtocolPicker({ protocols, value, onChange, disabled }: Protoco
       onValueChange={(next) => onChange(next as ChatProtocol)}
       disabled={disabled}
     >
-      <SelectTrigger className="inline-flex h-8 w-auto gap-1 rounded-full border-none bg-transparent px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50">
+      <SelectTrigger className="inline-flex h-8 w-auto gap-1 rounded-full border-none bg-transparent px-2.5 text-footnote font-medium text-label-2 outline-none transition-colors hover:bg-fill-3 hover:text-label focus-visible:ring-2 focus-visible:ring-tint/40 disabled:opacity-50">
         {label(value)}
       </SelectTrigger>
       <SelectContent searchable={false} widthMode="content">

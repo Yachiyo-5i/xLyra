@@ -1,4 +1,3 @@
-import { Canvas } from '@react-three/fiber'
 import { CircleHelp, Radio } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +8,7 @@ import {
   clusterSeat,
   layoutWings,
   nodeKey,
+  primaryRequestForNode,
   relatedNodeIDs,
   requestEndpointIDs,
   requestTouchesEndpoints,
@@ -16,10 +16,11 @@ import {
   wingCapacity,
   type TrafficFlowNodeRef,
 } from '@/features/traffic-flow/lib/wing-layout'
-import { EnergyScene, GatewayCoreOverlay } from './gateway-core/GatewayCore'
+import { FlowCanvas, type LaneState, type LaneView } from './flow-canvas'
+import { LyraHub } from './lyra-hub'
 import { FlowNodeCard } from './flow-node-card'
 import { TrafficFlowSparkline } from './traffic-flow-sparkline'
-import { linkPath } from '@/features/traffic-flow/lib/flow-packets'
+import { modelVisual } from '@/features/traffic-flow/lib/model-visual'
 import { useFlowMotion } from '@/features/traffic-flow/lib/use-flow-motion'
 
 type TrafficFlowStageProps = {
@@ -83,7 +84,6 @@ export function TrafficFlowStage({
     requests,
     retiringRequestIDs,
     seatsRef,
-    sizeRef,
     paused,
     reducedMotion,
     onDrained: onRequestDrained,
@@ -154,7 +154,7 @@ export function TrafficFlowStage({
       return next
     })
   }
-  const visible = placements.filter((item) => !item.clustered)
+  const visible = useMemo(() => placements.filter((item) => !item.clustered), [placements])
   const clustered = {
     downstream: placements.filter((item) => item.kind === 'downstream' && item.clustered),
     upstream: placements.filter((item) => item.kind === 'upstream' && item.clustered),
@@ -164,12 +164,21 @@ export function TrafficFlowStage({
     seatsRef.current = seats
   }, [seats])
 
+  const lanes = useMemo<LaneView[]>(() => visible.map((placement) => {
+    const request = primaryRequestForNode(placement.kind, placement.id, requests, retiringRequestIDs)
+    return {
+      key: nodeKey(placement.kind, placement.id),
+      kind: placement.kind,
+      id: placement.id,
+      x: placement.x,
+      y: placement.y,
+      state: laneState(placement, nodeFocus, selectedRequest, related, stageFocused),
+      color: request ? modelVisual(request.model_provider, request.model_key).color : '#e7ebf3',
+    }
+  }), [nodeFocus, related, requests, retiringRequestIDs, selectedRequest, stageFocused, visible])
+
   return (
-    <section ref={stageRef} className={`traffic-flow-stage${stageFocused ? ' is-focused' : ''}`} aria-label={t('map.label')} onClick={onClearSelection}>
-      <div className="traffic-flow-map-corner traffic-flow-map-corner-tl" />
-      <div className="traffic-flow-map-corner traffic-flow-map-corner-tr" />
-      <div className="traffic-flow-map-corner traffic-flow-map-corner-bl" />
-      <div className="traffic-flow-map-corner traffic-flow-map-corner-br" />
+    <section ref={stageRef} className={`traffic-flow-stage traffic-flow-surface${stageFocused ? ' is-focused' : ''}`} aria-label={t('map.label')} onClick={onClearSelection}>
       <div className="traffic-flow-lane-panel traffic-flow-lane-panel-downstream" aria-hidden="true">
         <div className="traffic-flow-lane-panel-heading">
           <i />
@@ -188,45 +197,22 @@ export function TrafficFlowStage({
           </div>
         </div>
       </div>
-      <div className="traffic-flow-sector traffic-flow-sector-center"><span>02</span>{t('lanes.gateway')}</div>
-      <svg className="traffic-flow-links" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none">
-        {visible.map((placement) => {
-          const focused = sameNode(nodeFocus, { kind: placement.kind, id: placement.id })
-            || requestTouchesEndpoints(placement.kind, placement.id, selectedRequest)
-          const peer = related.has(placement.id) && !focused
-          const className = focused ? 'traffic-flow-link is-hot' : peer || placement.lit
-            ? `traffic-flow-link${stageFocused && !peer ? ' is-dim' : ' is-active'}`
-            : `traffic-flow-link${stageFocused ? ' is-dim' : ''}`
-          return <path key={`${placement.kind}:${placement.id}`} className={className} d={linkPath(placement, size)} />
-        })}
-        {motion.pulses.map((pulse) => (
-          <g
-            key={pulse.id}
-            className={`traffic-flow-pulse is-${pulse.role}${selectedRequest && pulse.requestId !== selectedRequest.request_id ? ' is-dim' : ''}`}
-            style={{ color: pulse.color }}
-          >
-            {pulse.trail.map((point, index) => (
-              <circle key={index} className={`traffic-flow-pulse-trail is-${index + 1}`} cx={point.x} cy={point.y} r={pulse.role === 'response' ? 1.5 : 1.8} fill={pulse.color} />
-            ))}
-            <circle className="traffic-flow-pulse-head" cx={pulse.x} cy={pulse.y} r={pulse.role === 'response' ? 2.4 : 3.1} fill={pulse.color} />
-          </g>
-        ))}
-      </svg>
-      <div className="traffic-flow-core-canvas" aria-hidden="true">
-        <Canvas
-          dpr={[1, 1.4]}
-          frameloop={motionPaused ? 'demand' : 'always'}
-          gl={{ alpha: true, antialias: false, powerPreference: 'high-performance' }}
-          camera={{ position: [0, 0.18, 9.6], fov: 40 }}
-          onCreated={({ gl, camera }) => {
-            gl.setClearColor('#000000', 0)
-            camera.lookAt(0, 0, 0)
-          }}
-        >
-          <EnergyScene active={activeCount > 0 || motion.active} load={Math.min(1, (activeCount || (motion.active ? 1 : 0)) / 8)} color={gatewayColor} pulseKey={pulseKey} paused={motionPaused} />
-        </Canvas>
-      </div>
-      <GatewayCoreOverlay active={activeCount > 0 || motion.active} pulseKey={pulseKey} paused={paused} />
+      <div className="traffic-flow-sector traffic-flow-sector-center">{t('lanes.gateway')}</div>
+      <FlowCanvas
+        lanes={lanes}
+        pulsesRef={motion.pulsesRef}
+        selectedRequestId={selectedRequest?.request_id}
+        requests={requests}
+        paused={motionPaused}
+        reducedMotion={reducedMotion}
+      />
+      <LyraHub
+        active={activeCount > 0 || motion.active}
+        load={Math.min(1, (activeCount || (motion.active ? 1 : 0)) / 8)}
+        color={gatewayColor}
+        pulseKey={pulseKey}
+        paused={motionPaused}
+      />
       {visible.map((placement) => (
         <FlowNodeCard
           key={`${placement.kind}:${placement.id}`}
@@ -272,4 +258,20 @@ export function TrafficFlowStage({
       {topology && activeCount === 0 && !motion.active ? <div className="traffic-flow-idle"><CircleHelp className="size-4" />{t('status.waiting')}</div> : null}
     </section>
   )
+}
+
+function laneState(
+  placement: { kind: 'downstream' | 'upstream'; id: string; lit: boolean },
+  nodeFocus: TrafficFlowNodeRef | null,
+  selectedRequest: TrafficFlowRequest | undefined,
+  related: Set<string>,
+  stageFocused: boolean,
+): LaneState {
+  const focused = sameNode(nodeFocus, { kind: placement.kind, id: placement.id })
+    || requestTouchesEndpoints(placement.kind, placement.id, selectedRequest)
+  if (focused) return 'hot'
+  const peer = related.has(placement.id)
+  if (peer) return 'hot'
+  if (stageFocused) return 'dim'
+  return placement.lit ? 'active' : 'idle'
 }

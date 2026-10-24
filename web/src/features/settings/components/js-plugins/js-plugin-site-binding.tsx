@@ -7,20 +7,18 @@ import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-selec
 import { QUOTA_PROBE, type SiteBinding } from '@/features/settings/components/js-plugins/use-site-binding'
 import type { Site } from '@/features/sites/api/sites'
 import { siteTypeIcon } from '@/features/sites/lib/site-utils'
-import { useResolvedTheme } from '@/hooks/theme-context'
 
-// The site type's brand icon in the variant that suits the current theme; some icons are
-// light-on-dark only, so the plain icon_url from the API can vanish on a light background.
-function themedSiteIcon(site: Site, mode: 'light' | 'dark') {
-  return siteTypeIcon(site.site_type, undefined, mode) ?? site.icon_url
+// Prefer the bundled brand icon for the site type; fall back to the icon_url from the API.
+function siteIcon(site: Site) {
+  return siteTypeIcon(site.site_type) ?? site.icon_url
 }
 
-function SiteName({ site, mode }: { site: Site; mode: 'light' | 'dark' }) {
-  const icon = themedSiteIcon(site, mode)
+function SiteName({ site }: { site: Site }) {
+  const icon = siteIcon(site)
   return (
     <span className="flex min-w-0 items-center gap-2">
       {icon ? <img src={icon} alt="" className="h-4 w-4 shrink-0 rounded-sm object-contain" /> : null}
-      <span className="truncate text-sm text-foreground">{site.name}</span>
+      <span className="truncate text-body text-label">{site.name}</span>
     </span>
   )
 }
@@ -35,7 +33,6 @@ export function JSPluginSiteBindingSection({
   loading: boolean
 }) {
   const { t } = useTranslation(['settings'])
-  const resolvedMode = useResolvedTheme()
   const isQuota = binding.kind === QUOTA_PROBE
   const title = isQuota ? t('settings:jsPlugins.bindQuotaTitle') : t('settings:jsPlugins.bindSiteTitle')
   const hint = isQuota ? t('settings:jsPlugins.bindQuotaHint') : t(`settings:jsPlugins.bindSiteHint.${binding.kind}`)
@@ -44,7 +41,7 @@ export function JSPluginSiteBindingSection({
   const options: MultiSelectOption[] = sites.map((site) => ({
     value: site.id,
     label: site.name,
-    icon: themedSiteIcon(site, resolvedMode),
+    icon: siteIcon(site),
     description: binding.otherBinding[site.id]
       ? t('settings:jsPlugins.siteBinding.other', { id: binding.otherBinding[site.id] })
       : undefined,
@@ -57,15 +54,15 @@ export function JSPluginSiteBindingSection({
   const newSites = sites.filter((site) => binding.toBind.includes(site.id))
 
   return (
-    <section className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-4">
+    <section className="space-y-3 border-t border-separator pt-4">
       <div className="space-y-1">
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-        <p className="text-xs text-muted-soft">{hint}</p>
-        <p className="text-xs text-muted-soft">{t('settings:jsPlugins.siteBinding.optional')}</p>
+        <h4 className="text-headline text-label">{title}</h4>
+        <p className="text-footnote text-label-2">{hint}</p>
+        <p className="text-footnote text-label-2">{t('settings:jsPlugins.siteBinding.optional')}</p>
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-3 text-sm text-muted-soft">
+        <div className="flex items-center gap-2 py-3 text-body text-label-2">
           <LoaderCircle className="h-4 w-4 animate-spin" />
           {t('settings:jsPlugins.loading')}
         </div>
@@ -84,17 +81,17 @@ export function JSPluginSiteBindingSection({
       )}
 
       {binding.pricing && newSites.length > 0 ? (
-        <div className="divide-y divide-[hsl(var(--glass-divider))] border-t border-[hsl(var(--glass-divider))]">
+        <div className="divide-y divide-separator border-t border-separator">
           {newSites.map((site) => {
             const summary = binding.previews[site.id]
             return (
               <div key={site.id} className="py-2">
                 <div className="flex items-center justify-between gap-3">
-                  <SiteName site={site} mode={resolvedMode} />
+                  <SiteName site={site} />
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     className="shrink-0"
                     disabled={binding.previewing !== null || binding.applying}
                     onClick={() => void binding.preview(site.id)}
@@ -107,7 +104,7 @@ export function JSPluginSiteBindingSection({
                   </Button>
                 </div>
                 {summary ? (
-                  <p className="mt-1 text-xs text-muted-soft">{t('settings:jsPlugins.pricingPreviewSummary', summary)}</p>
+                  <p className="mt-1 text-footnote text-label-2">{t('settings:jsPlugins.pricingPreviewSummary', summary)}</p>
                 ) : null}
               </div>
             )

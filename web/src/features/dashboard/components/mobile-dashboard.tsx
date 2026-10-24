@@ -1,11 +1,13 @@
-import { Activity, CalendarDays, Gauge, Hash, RefreshCw, Sigma, Timer, WalletCards } from 'lucide-react'
+import { Activity, Gauge, RotateCcw, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { TokenUsageHoverCard, type TokenUsageColumn, type TokenUsageLabels } from '@/components/common/token-usage-hover-card'
+import { PageHeader } from '@/components/common/page-header'
+import type { TokenUsageColumn, TokenUsageLabels } from '@/components/common/token-usage-hover-card'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { DashboardCooldownList } from './dashboard-cooldown-list'
+import { DashboardMetricCard } from './dashboard-metric-card'
 import { DashboardRiskList } from './dashboard-risk-list'
 import { SiteUptimeStrip } from './site-uptime-strip'
 import { SystemResourcePanel } from './system-resource-panel'
@@ -41,77 +43,6 @@ type MobileDashboardProps = {
   onClearCooldown: (item: CooldownItem) => void
   onClearAllCooldowns: () => void
   formatRefreshTime: (date: string, locale: string) => string
-}
-
-type MobileKpiCardProps = {
-  icon: typeof WalletCards
-  title: string
-  primaryLabel: string
-  primaryValue: string
-  primaryIcon: typeof WalletCards
-  secondaryLabel: string
-  secondaryValue: string
-  secondaryIcon: typeof WalletCards
-  secondaryTokenUsage?: TokenUsageColumn[]
-  tokenUsageLabels?: TokenUsageLabels
-  note?: string
-  accent: 'cost' | 'traffic' | 'warning'
-}
-
-const accentClasses: Record<MobileKpiCardProps['accent'], string> = {
-  cost: 'text-[hsl(190_88%_42%)]',
-  traffic: 'text-[hsl(154_70%_38%)]',
-  warning: 'text-[hsl(42_88%_48%)]',
-}
-
-function MobileKpiCard({
-  icon: Icon,
-  title,
-  primaryLabel,
-  primaryValue,
-  primaryIcon: PrimaryIcon,
-  secondaryLabel,
-  secondaryValue,
-  secondaryIcon: SecondaryIcon,
-  secondaryTokenUsage,
-  tokenUsageLabels,
-  note,
-  accent,
-}: MobileKpiCardProps) {
-  return (
-    <Card className="rounded-2xl p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon className={cn('size-4 shrink-0', accentClasses[accent])} />
-          <p className="min-w-0 text-sm font-semibold text-foreground">{title}</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
-        <MobileKpiValue icon={PrimaryIcon} label={primaryLabel} value={primaryValue} />
-        <div className="bg-[hsl(var(--glass-divider))]" />
-        <MobileKpiValue icon={SecondaryIcon} label={secondaryLabel} value={secondaryValue} tokenUsage={secondaryTokenUsage} tokenUsageLabels={tokenUsageLabels} />
-      </div>
-      {note ? <p className="mt-3 break-words text-xs leading-5 text-muted-soft">{note}</p> : null}
-    </Card>
-  )
-}
-
-function MobileKpiValue({ icon: Icon, label, value, tokenUsage, tokenUsageLabels }: { icon: typeof WalletCards; label: string; value: string; tokenUsage?: TokenUsageColumn[]; tokenUsageLabels?: TokenUsageLabels }) {
-  const content = (
-    <div className="flex min-w-0 flex-col">
-      <div className="mb-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-soft">
-        <Icon className="size-3.5 shrink-0" />
-        <span className="min-w-0 break-words">{label}</span>
-      </div>
-      <p className="mt-auto break-words text-xl font-semibold tracking-normal text-foreground">{value}</p>
-    </div>
-  )
-  if (!tokenUsage || !tokenUsageLabels) return content
-  return (
-    <TokenUsageHoverCard columns={tokenUsage} labels={tokenUsageLabels} className="w-full">
-      {content}
-    </TokenUsageHoverCard>
-  )
 }
 
 export function MobileDashboard({
@@ -150,78 +81,64 @@ export function MobileDashboard({
   return (
     <div className="space-y-4 pb-2">
       <section className="space-y-4">
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-[0.24em] text-faint">{t('page.eyebrow')}</p>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-            <h2 className="text-3xl font-semibold tracking-tight text-foreground">{t('page.title')}</h2>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isFetching}
-            >
-              <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
-              {t('page.refresh')}
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1.5">
-            <p className="max-w-[18rem] text-sm leading-6 text-muted-soft">{t('page.description')}</p>
-            <span className="whitespace-nowrap pt-1 text-xs text-muted-soft">
-              {t('page.update')} {formatRefreshTime(generatedAt, locale)}
-            </span>
-          </div>
-        </div>
+        <PageHeader
+          eyebrow={t('page.eyebrow')}
+          title={t('page.title')}
+          description={t('page.description')}
+          actions={
+            <>
+              <span className="text-footnote text-label-3">
+                {t('page.update')} {formatRefreshTime(generatedAt, locale)}
+              </span>
+              <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching}>
+                <RotateCcw className={cn('size-4', isFetching && 'animate-spin')} />
+                {t('page.refresh')}
+              </Button>
+            </>
+          }
+        />
 
         <div className="grid gap-3">
-          <MobileKpiCard
-            icon={WalletCards}
+          <DashboardMetricCard
+            icon={<WalletCards />}
             title={t('kpis.cost')}
             primaryLabel={t('kpis.today')}
             primaryValue={costToday}
-            primaryIcon={CalendarDays}
-            secondaryLabel={t('kpis.total')}
+                        secondaryLabel={t('kpis.total')}
             secondaryValue={costTotal}
-            secondaryIcon={Sigma}
-            note={`${t('kpis.yesterdayCost')} ${costYesterday}`}
-            accent="cost"
+                        note={`${t('kpis.yesterdayCost')} ${costYesterday}`}
           />
-          <MobileKpiCard
-            icon={Activity}
+          <DashboardMetricCard
+            icon={<Activity />}
             title={t('kpis.requestsTokens')}
             primaryLabel={t('kpis.todayTotalRequests')}
             primaryValue={`${requestsToday} / ${requestsTotal}`}
-            primaryIcon={Hash}
-            secondaryLabel={t('kpis.todayTotalTokens')}
+                        secondaryLabel={t('kpis.todayTotalTokens')}
             secondaryValue={`${tokensToday} / ${tokensTotal}`}
-            secondaryIcon={Sigma}
-            secondaryTokenUsage={tokenUsage}
+                        secondaryTokenUsage={tokenUsage}
             tokenUsageLabels={tokenUsageLabels}
             note={`${t('kpis.successRate')} ${successRate} · ${t('kpis.yesterdayRequests')} ${requestsYesterday} · ${t('kpis.yesterdayTokens')} ${tokensYesterday}`}
-            accent="traffic"
           />
-          <MobileKpiCard
-            icon={Gauge}
+          <DashboardMetricCard
+            icon={<Gauge />}
             title={t('kpis.performance')}
             primaryLabel="RPM"
             primaryValue={rpm}
-            primaryIcon={Activity}
-            secondaryLabel="TPM"
+                        secondaryLabel="TPM"
             secondaryValue={tpm}
-            secondaryIcon={Timer}
-            note={`${t('kpis.completedRpm')} ${completedRpm}`}
-            accent="warning"
+                        note={`${t('kpis.completedRpm')} ${completedRpm}`}
           />
         </div>
       </section>
 
       <DashboardRiskList
-        className="h-[360px] rounded-2xl"
+        className="max-h-[480px]"
         items={riskItems}
         onItemClick={onRiskClick}
       />
 
       <DashboardCooldownList
-        className="h-[360px] rounded-2xl"
+        className="max-h-[480px]"
         compact
         items={cooldownItems}
         action={
@@ -229,18 +146,18 @@ export function MobileDashboard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-muted-soft hover:text-foreground"
+              className="text-label-2"
               disabled={cooldownsFetching}
               onClick={onRefreshCooldowns}
             >
-              <RefreshCw className={cn('size-4', cooldownsFetching && 'animate-spin')} />
+              <RotateCcw className={cn('size-4', cooldownsFetching && 'animate-spin')} />
               {t('page.refreshCooldowns')}
             </Button>
             {cooldownItems.length ? (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-muted-soft hover:text-foreground"
+                className="text-label-2"
                 disabled={clearAllCooldownsPending}
                 onClick={onClearAllCooldowns}
               >
@@ -252,8 +169,8 @@ export function MobileDashboard({
         onClearItem={onClearCooldown}
       />
 
-      <SiteUptimeStrip className="h-[380px] rounded-2xl" sites={uptimeRows} />
-      <SystemResourcePanel className="h-[420px] rounded-2xl" />
+      <SiteUptimeStrip sites={uptimeRows} />
+      <SystemResourcePanel />
     </div>
   )
 }
@@ -291,14 +208,14 @@ export function MobileDashboardSkeleton() {
 
 function MobileKpiCardSkeleton() {
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-4 flex items-center gap-2">
         <Skeleton className="size-4 rounded" />
         <Skeleton className="h-4 w-20" />
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] gap-3">
         <Skeleton className="h-12 rounded-lg" />
-        <div className="bg-[hsl(var(--glass-divider))]" />
+        <div className="bg-separator" />
         <Skeleton className="h-12 rounded-lg" />
       </div>
       <Skeleton className="mt-3 h-4 w-3/4" />
@@ -316,7 +233,7 @@ function MobilePanelSkeleton({
   variant: MobilePanelSkeletonVariant
 }) {
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-2xl p-4', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-4', className)}>
       <div className="mb-4 shrink-0 space-y-2">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-3 w-20" />
@@ -329,7 +246,7 @@ function MobilePanelSkeleton({
 function MobilePanelSkeletonContent({ variant }: { variant: MobilePanelSkeletonVariant }) {
   if (variant === 'list') {
     return (
-      <div className="min-h-0 flex-1 divide-y divide-[hsl(var(--glass-divider))] overflow-hidden">
+      <div className="min-h-0 flex-1 divide-y divide-separator overflow-hidden">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 py-3">
             <Skeleton className="mt-0.5 size-4 rounded-full" />

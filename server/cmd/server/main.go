@@ -125,7 +125,11 @@ func run() int {
 		logger.Warn("startup canonical model category reconciliation failed", "error", err)
 	}
 	reconcileCancel()
-	router, gatewayHandler := app.NewRouterWithGatewayWithOAuth(cfg, logger, db, confFile, masterKey, oauthService)
+	// Cancelled on shutdown and joined before the database closes. Created here
+	// so the plugin catalog sync shares it with the other background tasks.
+	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
+	var backgroundTasks sync.WaitGroup
+	router, gatewayHandler := app.NewRouterWithGatewayWithOAuth(backgroundCtx, &backgroundTasks, cfg, logger, db, confFile, masterKey, oauthService, siteService)
 	schedule := scheduler.New(logger.With("thread", "scheduler"), scheduler.Options{
 		SiteHealthInterval: cfg.SiteHealthInterval,
 		SiteHealthTimeout:  cfg.SiteHealthTimeout,
@@ -143,8 +147,6 @@ func run() int {
 	// Startup background tasks are tied to a shutdown-linked context and joined
 	// before the DB is closed, so cancelling on shutdown stops them promptly and
 	// they never touch a closed database. This defer runs before db.Close (LIFO).
-	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
-	var backgroundTasks sync.WaitGroup
 	defer func() {
 		backgroundCancel()
 		backgroundTasks.Wait()

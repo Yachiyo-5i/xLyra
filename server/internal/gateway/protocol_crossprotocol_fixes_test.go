@@ -393,3 +393,176 @@ func TestAnthropicSystemValuePrefersStructuredBlocks(t *testing.T) {
 		t.Fatalf("expected flattened instructions, got %#v", got)
 	}
 }
+
+func TestAnthropicToolInputSchemaFlattensTopLevelCombinators(t *testing.T) {
+	t.Parallel()
+
+	nested := map[string]any{"anyOf": []any{map[string]any{"type": "string"}, map[string]any{"type": "number"}}}
+	original := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"mode": nested,
+			"a":    map[string]any{"type": "string", "title": "top"},
+		},
+		"required": []any{"z"},
+		"anyOf": []any{
+			map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"a": map[string]any{"type": "number", "title": "branch"}, "b": map[string]any{"type": "string"}},
+				"required":   []any{"a", "b"},
+			},
+			map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"c": map[string]any{"type": "boolean"}},
+				"required":   []any{"a"},
+			},
+		},
+		"oneOf": []any{
+			map[string]any{"type": "object", "properties": map[string]any{"d": map[string]any{"type": "string"}}, "required": []any{"d", "e"}},
+			map[string]any{"type": "object", "properties": map[string]any{"e": map[string]any{"type": "string"}}, "required": []any{"d"}},
+		},
+		"allOf": []any{
+			map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "string"}}, "required": []any{"x"}},
+			map[string]any{"type": "object", "properties": map[string]any{"y": map[string]any{"type": "string"}}, "required": []any{"y"}},
+		},
+		"not":         map[string]any{"type": "null"},
+		"enum":        []any{"nope"},
+		"description": "kept",
+		"$defs":       map[string]any{"Foo": map[string]any{"type": "string"}},
+		"definitions": map[string]any{"Bar": map[string]any{"type": "number"}},
+	}
+	got := anthropicToolInputSchema(original).(map[string]any)
+	if _, ok := original["anyOf"]; !ok || original["properties"].(map[string]any)["a"].(map[string]any)["title"] != "top" {
+		t.Fatalf("input schema was mutated: %#v", original)
+	}
+	for _, key := range []string{"anyOf", "oneOf", "allOf", "not", "enum"} {
+		if _, ok := got[key]; ok {
+			t.Fatalf("top-level %s kept: %#v", key, got[key])
+		}
+	}
+	if got["type"] != "object" || got["description"] != "kept" {
+		t.Fatalf("rewritten schema = %#v", got)
+	}
+	props := got["properties"].(map[string]any)
+	if props["a"].(map[string]any)["title"] != "top" {
+		t.Fatalf("top-level property lost to a branch: %#v", props["a"])
+	}
+	if props["b"] == nil || props["c"] == nil || props["d"] == nil || props["e"] == nil || props["x"] == nil || props["y"] == nil {
+		t.Fatalf("branch properties = %#v", props)
+	}
+	if _, ok := props["mode"].(map[string]any)["anyOf"]; !ok {
+		t.Fatalf("nested anyOf was rewritten: %#v", props["mode"])
+	}
+	if !schemaStringSetEqual(got["required"], "z", "a", "d", "x", "y") {
+		t.Fatalf("required = %#v", got["required"])
+	}
+	if got["$defs"] == nil || got["definitions"] == nil {
+		t.Fatalf("defs dropped: %#v", got)
+	}
+
+	allOfOnly := anthropicToolInputSchema(map[string]any{
+		"type":     "object",
+		"required": []any{"z"},
+		"allOf": []any{
+			map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "string"}}, "required": []any{"x"}},
+			map[string]any{"type": "object", "properties": map[string]any{"y": map[string]any{"type": "string"}}, "required": []any{"y"}},
+		},
+	}).(map[string]any)
+	if !schemaStringSetEqual(allOfOnly["required"], "z", "x", "y") {
+		t.Fatalf("allOf required = %#v", allOfOnly["required"])
+	}
+
+	oneOfOnly := anthropicToolInputSchema(map[string]any{
+		"oneOf": []any{
+			map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}, "required": []any{"a", "b"}},
+			map[string]any{"type": "object", "properties": map[string]any{"b": map[string]any{"type": "string"}}, "required": []any{"a"}},
+		},
+	}).(map[string]any)
+	if !schemaStringSetEqual(oneOfOnly["required"], "a") {
+		t.Fatalf("oneOf required = %#v", oneOfOnly["required"])
+	}
+	if _, ok := oneOfOnly["properties"].(map[string]any)["a"]; !ok {
+		t.Fatalf("oneOf properties = %#v", oneOfOnly["properties"])
+	}
+
+	degenerate := anthropicToolInputSchema(map[string]any{
+		"description": "drop",
+		"properties":  map[string]any{"keep": map[string]any{"type": "string"}},
+		"anyOf":       []any{map[string]any{"type": "string"}, map[string]any{"type": "number"}},
+		"$defs":       map[string]any{"Foo": map[string]any{"type": "string"}},
+		"definitions": map[string]any{"Bar": map[string]any{"type": "number"}},
+	}).(map[string]any)
+	if degenerate["type"] != "object" || degenerate["additionalProperties"] != true || degenerate["description"] != nil || degenerate["anyOf"] != nil {
+		t.Fatalf("degenerate schema = %#v", degenerate)
+	}
+	if degenerate["properties"].(map[string]any)["keep"] == nil || degenerate["$defs"] == nil || degenerate["definitions"] == nil {
+		t.Fatalf("degenerate schema dropped retained fields: %#v", degenerate)
+	}
+	empty := anthropicToolInputSchema(map[string]any{
+		"anyOf": []any{map[string]any{"type": "string"}},
+	}).(map[string]any)
+	if empty["additionalProperties"] != true || len(empty["properties"].(map[string]any)) != 0 || empty["type"] != "object" {
+		t.Fatalf("empty degenerate schema = %#v", empty)
+	}
+
+	encoded := encodeCanonicalToolsAsAnthropic([]canonicalTool{{
+		Type:       "function",
+		Name:       "mcp",
+		Parameters: map[string]any{"anyOf": []any{map[string]any{"type": "string"}}},
+	}})
+	encodedSchema := encoded[0].(map[string]any)["input_schema"].(map[string]any)
+	if _, ok := encodedSchema["anyOf"]; ok || encodedSchema["additionalProperties"] != true {
+		t.Fatalf("encodeCanonicalToolsAsAnthropic schema = %#v", encodedSchema)
+	}
+	chat := encodeCanonicalToolsAsChat([]canonicalTool{{
+		Type:       "function",
+		Name:       "mcp",
+		Parameters: map[string]any{"anyOf": []any{map[string]any{"type": "string"}}},
+	}}).([]any)
+	chatSchema := chat[0].(map[string]any)["function"].(map[string]any)["parameters"].(map[string]any)
+	if _, ok := chatSchema["anyOf"]; !ok {
+		t.Fatalf("chat parameters were rewritten: %#v", chatSchema)
+	}
+
+	rawSchema := map[string]any{"anyOf": []any{map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}, "required": []any{"q"}}}}
+	payload := map[string]any{
+		"model":    "claude-sonnet-4-5",
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}},
+		"tools":    []any{map[string]any{"name": "mcp", "input_schema": rawSchema}},
+	}
+	finished := finishAnthropicUpstreamPayload(payload, gatewayRequest{DownstreamPath: gatewayEndpointMessages}, routeengine.Candidate{
+		Model: routeengine.CandidateModel{UpstreamName: "claude-sonnet-4-5"},
+	})
+	finishedSchema := finished["tools"].([]any)[0].(map[string]any)["input_schema"].(map[string]any)
+	if _, ok := rawSchema["anyOf"]; !ok {
+		t.Fatal("passthrough input_schema was mutated")
+	}
+	if _, ok := finishedSchema["anyOf"]; ok || finishedSchema["properties"].(map[string]any)["q"] == nil {
+		t.Fatalf("passthrough schema = %#v", finishedSchema)
+	}
+}
+
+func schemaStringSetEqual(value any, want ...string) bool {
+	got := map[string]struct{}{}
+	switch typed := value.(type) {
+	case []any:
+		for _, item := range typed {
+			got[anyString(item)] = struct{}{}
+		}
+	case []string:
+		for _, item := range typed {
+			got[item] = struct{}{}
+		}
+	default:
+		return false
+	}
+	if len(got) != len(want) {
+		return false
+	}
+	for _, item := range want {
+		if _, ok := got[item]; !ok {
+			return false
+		}
+	}
+	return true
+}

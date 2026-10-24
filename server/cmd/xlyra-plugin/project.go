@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -56,6 +57,9 @@ func buildProject(dir string) (*builtProject, error) {
 		"manifest.json": append(manifestOut, '\n'),
 		"plugin.js":     source,
 	}}
+	if err := attachDeclaredIcon(dir, manifest, built.Files); err != nil {
+		return nil, err
+	}
 	matches, err := filepath.Glob(filepath.Join(dir, "fixtures", "*.json"))
 	if err != nil {
 		return nil, err
@@ -71,10 +75,39 @@ func buildProject(dir string) (*builtProject, error) {
 		if err := json.Unmarshal(raw, &fixture); err != nil {
 			return nil, fmt.Errorf("fixtures/%s: %w", name, err)
 		}
+		fixture.File = "fixtures/" + name
 		built.Files["fixtures/"+name] = raw
 		built.Fixtures = append(built.Fixtures, namedFixture{File: name, Fixture: fixture})
 	}
 	return built, nil
+}
+
+// attachDeclaredIcon copies siteProvider.display.icon into the package.
+// The path is the manifest's relative path; validation still checks the bytes.
+func attachDeclaredIcon(dir string, manifest map[string]any, files map[string][]byte) error {
+	section, _ := manifest["siteProvider"].(map[string]any)
+	if section == nil {
+		return nil
+	}
+	display, _ := section["display"].(map[string]any)
+	if display == nil {
+		return nil
+	}
+	icon, _ := display["icon"].(string)
+	icon = strings.TrimSpace(icon)
+	if icon == "" {
+		return nil
+	}
+	cleaned := path.Clean(icon)
+	if cleaned == "." || strings.HasPrefix(cleaned, "../") || strings.HasPrefix(cleaned, "/") {
+		return fmt.Errorf("siteProvider.display.icon %q must be a relative path inside the package", icon)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(cleaned)))
+	if err != nil {
+		return fmt.Errorf("siteProvider.display.icon %q: %w", icon, err)
+	}
+	files[cleaned] = data
+	return nil
 }
 
 // bundle compiles the entry point to a single ES2023 module. Bare imports and
@@ -176,6 +209,9 @@ func runFixtures(plugin *jsplugin.Plugin, fixtures []namedFixture, out *bytes.Bu
 		label := item.File
 		if item.Fixture.Name != "" {
 			label += " (" + item.Fixture.Name + ")"
+		}
+		if item.Fixture.Hook != "" {
+			label += " hook=" + item.Fixture.Hook
 		}
 		if err != nil {
 			failed++

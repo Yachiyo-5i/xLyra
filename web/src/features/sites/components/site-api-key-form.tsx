@@ -17,7 +17,7 @@ export function SiteAPIKeyFormFields({
   return (
     <div className="space-y-4">
       <label className="block space-y-2">
-        <span className="block text-sm font-medium">{t('apiKeys.name')}</span>
+        <span className="block text-body font-medium">{t('apiKeys.name')}</span>
         <Input
           value={draft.name}
           maxLength={100}
@@ -28,7 +28,7 @@ export function SiteAPIKeyFormFields({
         className={showCostMultiplier ? 'grid grid-cols-2 gap-3' : undefined}
       >
         <label className="block space-y-2">
-          <span className="block text-sm font-medium">
+          <span className="block text-body font-medium">
             {t('apiKeys.routingPriority')}
           </span>
           <Input
@@ -44,7 +44,7 @@ export function SiteAPIKeyFormFields({
         </label>
         {showCostMultiplier ? (
           <label className="block space-y-2">
-            <span className="block text-sm font-medium">
+            <span className="block text-body font-medium">
               {t('apiKeys.costMultiplier')}
             </span>
             <Input
@@ -65,7 +65,7 @@ export function SiteAPIKeyFormFields({
       </div>
       {showAPIKey ? (
         <label className="block space-y-2">
-          <span className="block text-sm font-medium">ApiKey</span>
+          <span className="block text-body font-medium">ApiKey</span>
           <Input
             value={draft.apiKey}
             autoComplete="off"

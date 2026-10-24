@@ -129,8 +129,14 @@ func validateGoogleGeminiConversion(request canonicalRequest, target canonicalPr
 	if tools, ok := request.Raw["tools"].([]any); ok {
 		for _, rawTool := range tools {
 			tool, _ := rawTool.(map[string]any)
-			if err := validateGeminiKeys(tool, target, "functionDeclarations", "function_declarations"); err != nil {
+			if err := validateGeminiKeys(tool, target, "functionDeclarations", "function_declarations", "googleSearch", "google_search"); err != nil {
 				return err
+			}
+			if search, ok := tool["googleSearch"].(map[string]any); ok && len(search) > 0 {
+				return fmt.Errorf("Gemini googleSearch options cannot be represented by %s without loss", target)
+			}
+			if search, ok := tool["google_search"].(map[string]any); ok && len(search) > 0 {
+				return fmt.Errorf("Gemini google_search options cannot be represented by %s without loss", target)
 			}
 			declarations, _ := tool["functionDeclarations"].([]any)
 			if len(declarations) == 0 {
@@ -169,6 +175,9 @@ func validateGoogleGeminiConversion(request canonicalRequest, target canonicalPr
 	if tools, ok := request.Raw["tools"].([]any); ok {
 		for _, rawTool := range tools {
 			tool, _ := rawTool.(map[string]any)
+			if geminiToolIsSearch(tool) {
+				continue
+			}
 			if _, ok := tool["functionDeclarations"]; !ok {
 				if _, ok := tool["function_declarations"]; !ok {
 					return fmt.Errorf("a non-function Gemini tool cannot be represented by %s without loss", target)
@@ -458,6 +467,9 @@ func validateCanonicalRequestForGoogleGemini(request canonicalRequest) error {
 		return fmt.Errorf("%s field %q cannot be represented by Gemini without loss", request.SourceProtocol, key)
 	}
 	for _, tool := range request.Tools {
+		if canonicalToolIsWebSearch(tool) {
+			continue
+		}
 		if tool.Type != "function" {
 			return fmt.Errorf("%s tool type %q cannot be represented by Gemini without loss", request.SourceProtocol, tool.Type)
 		}
@@ -745,11 +757,20 @@ func canonicalMessageFromGoogleGemini(raw any) ([]canonicalMessage, error) {
 	return []canonicalMessage{message}, nil
 }
 
+func geminiToolIsSearch(tool map[string]any) bool {
+	_, camel := tool["googleSearch"]
+	_, snake := tool["google_search"]
+	return camel || snake
+}
+
 func canonicalToolsFromGoogleGemini(raw any) []canonicalTool {
 	items, _ := raw.([]any)
 	tools := make([]canonicalTool, 0)
 	for _, item := range items {
 		tool, _ := item.(map[string]any)
+		if geminiToolIsSearch(tool) {
+			tools = append(tools, canonicalWebSearchToolFromGemini())
+		}
 		declarations, _ := tool["functionDeclarations"].([]any)
 		if len(declarations) == 0 {
 			declarations, _ = tool["function_declarations"].([]any)
@@ -957,12 +978,16 @@ func encodeCanonicalResponseAsGoogleGemini(response canonicalResponse, _ respons
 		parts = []any{map[string]any{"text": ""}}
 	}
 	finishReason := geminiFinishReason(response.FinishReason)
+	candidate := map[string]any{
+		"content":      map[string]any{"role": "model", "parts": parts},
+		"finishReason": finishReason,
+	}
+	if grounding := geminiGroundingMetadata(response.Output); grounding != nil {
+		candidate["groundingMetadata"] = grounding
+	}
 	payload := map[string]any{
-		"responseId": response.ID,
-		"candidates": []any{map[string]any{
-			"content":      map[string]any{"role": "model", "parts": parts},
-			"finishReason": finishReason,
-		}},
+		"responseId":    response.ID,
+		"candidates":    []any{candidate},
 		"usageMetadata": geminiUsageMetadata(usage),
 	}
 	if response.Model != "" {

@@ -18,20 +18,21 @@ var pluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
 
 // Manifest is the plugin package manifest.
 type Manifest struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	APIVersion  int               `json:"apiVersion"`
-	HostAPI     int               `json:"hostApi"`
-	XLyra       string            `json:"xlyra"`
-	Kind        string            `json:"kind"`
-	Description string            `json:"description"`
-	License     string            `json:"license"`
-	QuotaProbe  QuotaProbeSection `json:"quotaProbe"`
-	Site        SiteSection       `json:"site"`
-	Protocol    ProtocolSection   `json:"protocol"`
-	Automation  AutomationSection `json:"automation"`
-	SHA256      map[string]string `json:"sha256"`
+	ID           string              `json:"id"`
+	Name         string              `json:"name"`
+	Version      string              `json:"version"`
+	APIVersion   int                 `json:"apiVersion"`
+	HostAPI      int                 `json:"hostApi"`
+	XLyra        string              `json:"xlyra"`
+	Kind         string              `json:"kind"`
+	Description  string              `json:"description"`
+	License      string              `json:"license"`
+	QuotaProbe   QuotaProbeSection   `json:"quotaProbe"`
+	Site         SiteSection         `json:"site"`
+	Protocol     ProtocolSection     `json:"protocol"`
+	Automation   AutomationSection   `json:"automation"`
+	SiteProvider SiteProviderSection `json:"siteProvider,omitzero"`
+	SHA256       map[string]string   `json:"sha256"`
 }
 
 // QuotaProbeSection is the quota_probe manifest block.
@@ -53,10 +54,15 @@ type SiteSection struct {
 
 // BaseURLSettings returns how the site address is prepared for the plugin.
 func (m Manifest) BaseURLSettings() (mode, defaultBase string) {
-	if m.Kind == KindQuotaProbe {
+	switch m.Kind {
+	case KindQuotaProbe:
 		return m.QuotaProbe.BaseURLMode, m.QuotaProbe.DefaultBaseURL
+	case KindSiteProvider:
+		// No site section. An empty mode is as_is, the same default quota probes use.
+		return "as_is", m.SiteProvider.Protocol.OfficialBaseURL
+	default:
+		return m.Site.BaseURLMode, m.Site.DefaultBaseURL
 	}
-	return m.Site.BaseURLMode, m.Site.DefaultBaseURL
 }
 
 // ProtocolSection is the protocol manifest block. Method and Auth are applied
@@ -84,12 +90,22 @@ func (s ProtocolSection) AuthHeader() string {
 
 // Plugin is a loaded, compiled plugin of one kind.
 type Plugin struct {
-	Manifest Manifest
-	program  *program
-	pool     *pool
-	fixtures []Fixture
-	gen      int64
-	source   string
+	Manifest      Manifest
+	program       *program
+	pool          *pool
+	fixtures      []Fixture
+	gen           int64
+	source        string
+	packageSHA256 string
+}
+
+// PackageSHA256 is the canonical digest of the package this plugin was compiled
+// from. Builtins and plugins built with NewPlugin leave it empty.
+func (p *Plugin) PackageSHA256() string {
+	if p == nil {
+		return ""
+	}
+	return p.packageSHA256
 }
 
 // ProbeType is the Go probe type this plugin replaces, such as "kimi".
@@ -140,11 +156,25 @@ func NewPlugin(manifest Manifest, source string, fixtures []Fixture, resident in
 			return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 		}
 	}
+	if err := program.requireHooks(accountPoolRequiredExports(manifest.SiteProvider)); err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	if err := rejectListModelsWithoutPerAccount(manifest, program); err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
 	if _, signs := program.hooks[HookSignRequest]; signs && manifest.Protocol.Auth != "none" {
 		return nil, fmt.Errorf("%s: signRequest needs protocol.auth \"none\", so the credential is only used for signing", manifest.ID)
 	}
 	loaded, err := newSession(program)
 	if err != nil {
+		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+	}
+	if spec, ok := lookupKind(manifest.Kind); ok {
+		if err := loaded.requireCallableHooks(spec.OptionalHooks); err != nil {
+			return nil, fmt.Errorf("%s: %w", manifest.ID, err)
+		}
+	}
+	if err := loaded.requireExports(accountPoolRequiredExports(manifest.SiteProvider)); err != nil {
 		return nil, fmt.Errorf("%s: %w", manifest.ID, err)
 	}
 	meta, err := loaded.exportMeta()
@@ -218,6 +248,10 @@ func validateBaseURLMode(mode string) error {
 }
 
 func validateManifest(manifest Manifest, source string) error {
+	return validateManifestFiles(manifest, source, nil)
+}
+
+func validateManifestFiles(manifest Manifest, source string, files map[string][]byte) error {
 	if !pluginIDPattern.MatchString(manifest.ID) || len(manifest.ID) < 3 || len(manifest.ID) > 64 {
 		return fmt.Errorf("invalid plugin id %q", manifest.ID)
 	}
@@ -236,6 +270,9 @@ func validateManifest(manifest Manifest, source string) error {
 	sum, ok := manifest.SHA256["plugin.js"]
 	if !ok || !strings.EqualFold(sum, hashSource(source)) {
 		return fmt.Errorf("plugin.js sha256 does not match the manifest")
+	}
+	if manifest.Kind != KindSiteProvider && siteProviderRequestPresent(manifest.SiteProvider.Request) {
+		return fmt.Errorf("request is not allowed for %s", manifest.Kind)
 	}
 	switch manifest.Kind {
 	case KindQuotaProbe:
@@ -283,6 +320,10 @@ func validateManifest(manifest Manifest, source string) error {
 		}
 	case KindErrorClassifier, KindModelMetadata:
 		// No manifest section: these kinds are pure functions of their input.
+	case KindSiteProvider:
+		if err := validateSiteProvider(manifest, files); err != nil {
+			return err
+		}
 	default:
 		return unsupportedKindError(manifest.Kind)
 	}

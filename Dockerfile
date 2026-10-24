@@ -14,7 +14,7 @@ ENV VITE_BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
 RUN --mount=type=cache,id=npm,target=/root/.npm \
     npm run build
 
-FROM golang:1.26-alpine AS backend-build
+FROM golang:1.26.10-alpine AS backend-build
 
 WORKDIR /src
 

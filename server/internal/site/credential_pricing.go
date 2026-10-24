@@ -94,7 +94,7 @@ func buildCredentialModelPricings(sites []store.Site, credentials []store.SiteCr
 	}
 	credentialsByID := make(map[uuid.UUID]store.SiteCredential, len(credentials))
 	for _, credential := range credentials {
-		if _, ok := apiKeySites[credential.SiteID]; !ok || !isSiteAPIKeyCredentialType(credential.CredentialType) {
+		if _, ok := apiKeySites[credential.SiteID]; !ok || !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		credentialsByID[credential.ID] = credential

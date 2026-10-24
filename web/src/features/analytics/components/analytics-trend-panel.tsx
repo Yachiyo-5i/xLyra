@@ -1,3 +1,4 @@
+import { chartCursorFill, chartGridStroke, chartTick } from '@/components/charts/chart-theme'
 import { useMemo, useState } from 'react'
 import {
   Area,
@@ -15,6 +16,8 @@ import {
   YAxis,
 } from 'recharts'
 import { useTranslation } from 'react-i18next'
+import { AreaChart as AreaChartIcon, BarChart3, LineChart as LineChartIcon, Percent } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { AnalyticsUsage } from '@/features/analytics/api/analytics'
 import {
   buildTrendChart,
@@ -44,6 +47,13 @@ type AnalyticsTrendPanelProps = {
   onMetricChange: (metric: AnalyticsTrendMetric) => void
   onDimensionChange: (dimension: AnalyticsTrendDimension) => void
 }
+
+const CHART_TYPE_ITEMS: Array<{ value: AnalyticsChartType; labelKey: string; icon: typeof AreaChartIcon }> = [
+  { value: 'stacked-area', labelKey: 'trend.chartTypes.stackedArea', icon: AreaChartIcon },
+  { value: 'percent-area', labelKey: 'trend.chartTypes.percentArea', icon: Percent },
+  { value: 'stacked-bar', labelKey: 'trend.chartTypes.stackedBar', icon: BarChart3 },
+  { value: 'line', labelKey: 'trend.chartTypes.line', icon: LineChartIcon },
+]
 
 export function AnalyticsTrendPanel({
   className,
@@ -99,29 +109,28 @@ export function AnalyticsTrendPanel({
         ? t('trend.hourDescription', { date: usage.meta.from })
         : t('trend.description', { from: usage.meta.from, to: usage.meta.to })}
       action={(
-        <div className="flex flex-wrap items-center gap-4">
-          <AnalyticsSlashTabs
-            value={dimension}
-            onValueChange={onDimensionChange}
-            items={[
-              { label: t('trend.dimensions.site'), value: 'site' as const },
-              { label: t('trend.dimensions.model'), value: 'model' as const },
-            ]}
-          />
+        // 维度与图表类型分成两组小号分段控件；图表类型只用图标，悬停显示名称
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs value={dimension} onValueChange={(next) => onDimensionChange(next as AnalyticsTrendDimension)}>
+            <TabsList className="h-8 w-auto">
+              <TabsTrigger value="site" className="px-3 text-footnote">{t('trend.dimensions.site')}</TabsTrigger>
+              <TabsTrigger value="model" className="px-3 text-footnote">{t('trend.dimensions.model')}</TabsTrigger>
+            </TabsList>
+          </Tabs>
           {!lineOnly ? (
-            <>
-              <div className="h-4 w-px bg-[hsl(var(--glass-divider))]" />
-              <AnalyticsSlashTabs
-                value={chartType}
-                onValueChange={setChartType}
-                items={[
-                  { label: t('trend.chartTypes.stackedArea'), value: 'stacked-area' as const },
-                  { label: t('trend.chartTypes.percentArea'), value: 'percent-area' as const },
-                  { label: t('trend.chartTypes.stackedBar'), value: 'stacked-bar' as const },
-                  { label: t('trend.chartTypes.line'), value: 'line' as const },
-                ]}
-              />
-            </>
+            <Tabs value={chartType} onValueChange={(next) => setChartType(next as AnalyticsChartType)}>
+              <TabsList className="h-8 w-auto">
+                {CHART_TYPE_ITEMS.map((item) => {
+                  const Icon = item.icon
+                  const label = t(item.labelKey)
+                  return (
+                    <TabsTrigger key={item.value} value={item.value} aria-label={label} title={label} className="w-9 px-0">
+                      <Icon className="size-4" />
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+            </Tabs>
           ) : null}
         </div>
       )}
@@ -137,7 +146,7 @@ export function AnalyticsTrendPanel({
           isHour={isHour}
         />
       ) : (
-        <div className="flex h-full items-center justify-center text-sm text-muted-soft">
+        <div className="flex h-full items-center justify-center text-body text-label-2">
           {t('trend.empty')}
         </div>
       )}
@@ -176,7 +185,7 @@ function TrendChart({
       tickFormatter={xTickFormatter}
       tickLine={false}
       axisLine={false}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+      tick={chartTick}
     />
   )
   const yAxis = (
@@ -185,13 +194,13 @@ function TrendChart({
       tickLine={false}
       axisLine={false}
       width={56}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+      tick={chartTick}
     />
   )
-  const grid = <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
+  const grid = <CartesianGrid stroke={chartGridStroke} vertical={false} />
   const tooltip = (
     <Tooltip
-      cursor={{ fill: 'hsl(var(--surface-subtle))' }}
+      cursor={{ fill: chartCursorFill }}
       content={(props) => (
         <TrendTooltip {...props} series={series} formatValue={formatValue} />
       )}
@@ -201,9 +210,9 @@ function TrendChart({
     <Legend
       iconType="square"
       iconSize={8}
-      wrapperStyle={{ fontSize: 12, paddingTop: 4, color: 'hsl(var(--text-muted-soft))' }}
+      wrapperStyle={{ fontSize: 12, paddingTop: 4, color: 'var(--label-tertiary)' }}
       formatter={(value) => (
-        <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+        <span style={{ color: 'var(--label-primary)' }}>{value}</span>
       )}
     />
   )
@@ -276,7 +285,7 @@ function TrendChart({
           axisLine={false}
           width={56}
           domain={percent ? [0, 1] : undefined}
-          tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 12 }}
+          tick={chartTick}
         />
         {tooltip}
         {legend}
@@ -321,7 +330,7 @@ function TrendTooltip({ active, label, payload, series, formatValue }: TrendTool
       return {
         key: dataKey,
         name: seriesItem?.name ?? String(item.name ?? dataKey),
-        color: seriesItem?.color ?? item.color ?? 'hsl(var(--text-muted-soft))',
+        color: seriesItem?.color ?? item.color ?? 'var(--label-tertiary)',
         value,
       }
     })
@@ -333,13 +342,13 @@ function TrendTooltip({ active, label, payload, series, formatValue }: TrendTool
 
   return (
     <div style={dashboardTooltipStyle} className="min-w-[164px] max-w-[280px]">
-      <div className="mb-2 flex items-center justify-between gap-5 text-xs">
-        <span className="text-muted-soft">{label}</span>
-        <span className="font-medium tabular-nums text-foreground">{formatValue(total)}</span>
+      <div className="mb-2 flex items-center justify-between gap-5 text-footnote">
+        <span className="text-label-2">{label}</span>
+        <span className="font-medium tabular-nums text-label">{formatValue(total)}</span>
       </div>
       <div className="space-y-1">
         {items.map((item) => (
-          <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-xs text-foreground">
+          <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-footnote text-label">
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
               <span className="truncate">{item.name}</span>

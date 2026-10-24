@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, CalendarDays, Gauge, Hash, RefreshCw, Sigma, Timer, WalletCards } from 'lucide-react'
+import { Activity, CalendarDays, Gauge, Hash, RotateCcw, Sigma, Timer, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/common/empty-state'
@@ -266,7 +266,7 @@ export function DashboardPage() {
         description={t('page.description')}
         actions={
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-soft">
+            <span className="text-footnote text-label-3">
               {t('page.update')} {formatDashboardRefreshTime(overview.meta.generated_at, i18n.language)}
             </span>
             <Button
@@ -274,7 +274,7 @@ export function DashboardPage() {
               onClick={refetchDashboard}
               disabled={dashboardFetching}
             >
-              <RefreshCw className={dashboardFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+              <RotateCcw className={dashboardFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
               {t('page.refresh')}
             </Button>
           </div>
@@ -325,30 +325,30 @@ export function DashboardPage() {
 
         <div className="grid gap-4 xl:grid-cols-2">
           <DashboardRiskList
-            className="h-[360px]"
+            className="max-h-[440px]"
             items={riskItems}
             onItemClick={handleRiskClick}
           />
           <DashboardCooldownList
-            className="h-[360px]"
+            className="max-h-[440px]"
             items={cooldownItems}
             action={
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 text-muted-soft hover:text-foreground"
+                  className="text-label-2"
                   disabled={cooldownsQuery.isFetching}
                   onClick={() => cooldownsQuery.refetch()}
                 >
-                  <RefreshCw className={cooldownsQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+                  <RotateCcw className={cooldownsQuery.isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
                   {t('page.refreshCooldowns')}
                 </Button>
                 {cooldownItems.length ? (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 text-muted-soft hover:text-foreground"
+                  className="text-label-2"
                   disabled={clearAllCooldownsMutation.isPending}
                   onClick={() => clearAllCooldownsMutation.mutate()}
                 >
@@ -362,8 +362,12 @@ export function DashboardPage() {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-2">
-          <SiteUptimeStrip className="h-[320px]" sites={uptimeRows} />
-          <SystemResourcePanel className="h-[320px]" />
+          {/* 站点可用性不撑高这一行：并排时绝对定位填满格子，行高只由系统资源卡片决定，站点多了在卡片内部滚动；
+              单列时没有参照，限高 480 */}
+          <div className="relative min-w-0">
+            <SiteUptimeStrip sites={uptimeRows} className="max-h-[480px] xl:absolute xl:inset-0 xl:max-h-none" />
+          </div>
+          <SystemResourcePanel />
         </div>
       </div>
     </div>
@@ -395,7 +399,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <div className="h-px w-full bg-separator @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -406,7 +410,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <div className="h-px w-full bg-separator @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -417,7 +421,7 @@ function DashboardSkeleton() {
             </div>
             <div className="grid grid-cols-1 gap-3 @[21rem]/metric:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)]">
               <Skeleton className="h-12 rounded-lg" />
-              <div className="h-px w-full bg-[hsl(var(--glass-divider))] @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
+              <div className="h-px w-full bg-separator @[21rem]/metric:h-auto @[21rem]/metric:w-px" />
               <Skeleton className="h-12 rounded-lg" />
             </div>
           </DashboardMetricSkeleton>
@@ -438,7 +442,7 @@ function DashboardSkeleton() {
 
 function DashboardMetricSkeleton({ children }: { children: ReactNode }) {
   return (
-    <Card className="@container/metric min-h-[132px] rounded-lg p-4">
+    <Card className="@container/metric min-h-[132px] p-4">
       {children}
     </Card>
   )
@@ -474,7 +478,7 @@ function DashboardPanelSkeleton({
 function DashboardPanelSkeletonContent({ variant }: { variant: DashboardPanelSkeletonVariant }) {
   if (variant === 'list') {
     return (
-      <div className="min-h-0 flex-1 divide-y divide-[hsl(var(--glass-divider))] overflow-hidden">
+      <div className="min-h-0 flex-1 divide-y divide-separator overflow-hidden">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 py-3">
             <Skeleton className="mt-0.5 size-4 rounded-full" />

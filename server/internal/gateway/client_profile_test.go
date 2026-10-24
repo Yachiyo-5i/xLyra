@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -113,6 +114,20 @@ func TestUpstreamClientForSiteWithoutStoreUsesDefaultClient(t *testing.T) {
 	}
 }
 
+func TestForcedUpstreamClientOverridesStreamingProfile(t *testing.T) {
+	t.Parallel()
+
+	forced := &http.Client{Timeout: time.Second}
+	handler := NewHandler(nil, nil, nil, nil, "test-master-key").WithForcedUpstreamClient(forced)
+	client, _, _, err := handler.upstreamClientForSite(context.Background(), uuid.New(), upstreamClientProfileRequest{Stream: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client != forced {
+		t.Fatal("streaming request did not use the forced upstream client")
+	}
+}
+
 func TestUpstreamClientForStreamingWithoutStoreUsesStreamingProfile(t *testing.T) {
 	t.Parallel()
 
@@ -133,6 +148,43 @@ func TestUpstreamClientForStreamingWithoutStoreUsesStreamingProfile(t *testing.T
 	}
 	if cfg != nil || headers != nil {
 		t.Fatalf("cfg=%#v headers=%#v, want nil nil", cfg, headers)
+	}
+}
+
+func TestUpstreamClientProfileForClaudeCodeRequestsUsesTLSFingerprint(t *testing.T) {
+	t.Parallel()
+
+	if got := upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{ClaudeCode: true}, "").TLSFingerprint; got != httpclient.TLSFingerprintClaudeCode {
+		t.Fatalf("Claude Code TLSFingerprint = %q, want %q", got, httpclient.TLSFingerprintClaudeCode)
+	}
+	if got := upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{Stream: true}, "").TLSFingerprint; got != "" {
+		t.Fatalf("other sites must keep the default handshake, got %q", got)
+	}
+}
+
+func TestUpstreamClientProfileForOpenCodeGoDisablesAutomaticCompression(t *testing.T) {
+	t.Parallel()
+
+	profile := upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{DisableCompression: true}, "")
+	if !profile.DisableCompression {
+		t.Fatal("OpenCode Go profile should disable automatic compression")
+	}
+	if upstreamClientProfileForRequest(nil, upstreamClientProfileRequest{}, "").DisableCompression {
+		t.Fatal("automatic compression should remain enabled for other sites")
+	}
+}
+
+func TestUpstreamClientForClaudeCodeSiteSkipsDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(nil, nil, nil, nil, "test-master-key")
+	client, _, _, err := handler.upstreamClientForSite(context.Background(), uuid.New(), upstreamClientProfileRequest{ClaudeCode: true})
+
+	if err != nil {
+		t.Fatalf("upstreamClientForSite returned error: %v", err)
+	}
+	if client == nil || client == handler.httpClient {
+		t.Fatalf("Claude Code requests need the fingerprinted client, got %#v", client)
 	}
 }
 

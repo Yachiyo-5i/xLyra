@@ -43,7 +43,7 @@ export function AgentConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel() }}>
-      <DialogContent className="agent-liquid-access-dialog-host w-[min(92vw,440px)]">
+      <DialogContent surface="none" className="agent-liquid-access-dialog-host w-[min(92vw,440px)]">
         <AgentLiquidGlassPanel
           backgroundImage={backgroundImage}
           variant={dark ? 'dark' : 'frosted'}

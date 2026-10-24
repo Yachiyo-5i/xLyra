@@ -44,7 +44,7 @@ export function ConversationRail({
         <button
           type="button"
           onClick={onNew}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
           aria-label={labels.new}
           title={labels.new}
         >
@@ -54,20 +54,21 @@ export function ConversationRail({
 
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
         {sessions.length > 0 ? (
-          <p className="px-3 py-2 text-xs font-medium text-faint">{labels.recent}</p>
+          <p className="px-3 pb-1 pt-2 text-caption-1 text-label-3">{labels.recent}</p>
         ) : null}
         <div className="space-y-0.5">
           {sessions.length === 0 ? (
-            <p className="px-3 py-6 text-center text-xs text-muted-soft">{labels.empty}</p>
+            <p className="px-3 py-6 text-center text-footnote text-label-2">{labels.empty}</p>
           ) : (
             sessions.map((session) => (
               <div
                 key={session.id}
                 className={cn(
-                  'group flex items-center gap-1 rounded-lg px-3 py-2 text-sm transition-colors',
+                  // 与侧边栏菜单项一致：胶囊形，选中项是微微凸起的块
+                  'group flex min-h-10 items-center gap-1 rounded-full px-3 py-2 text-body transition-colors',
                   session.id === activeId
-                    ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                    : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
+                    ? 'nav-item-selected text-label'
+                    : 'text-label-2 hover:bg-fill-4 hover:text-label',
                 )}
               >
                 <button
@@ -77,7 +78,7 @@ export function ConversationRail({
                 >
                   <span className="block truncate">{session.title || labels.untitled}</span>
                   {session.statusLabel ? (
-                    <span className="mt-0.5 block text-[11px] text-primary">{session.statusLabel}</span>
+                    <span className="mt-0.5 block text-caption-1 text-tint">{session.statusLabel}</span>
                   ) : null}
                 </button>
                 <ConfirmPopover
@@ -90,7 +91,7 @@ export function ConversationRail({
                 >
                   <button
                     type="button"
-                    className="shrink-0 rounded p-1 text-muted-soft opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 data-[state=open]:opacity-100"
+                    className="shrink-0 rounded p-1 text-label-2 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 data-[state=open]:opacity-100"
                     aria-label={labels.delete}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

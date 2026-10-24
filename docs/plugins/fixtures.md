@@ -122,11 +122,56 @@ fixtures 是放在 `fixtures/*.json` 里的录制样本：给定上游的响应�
 
 所以请自己在样本里多写几组输入，覆盖边界情况。
 
+## site_provider 样本
+
+`site_provider` 可以没有样本，没有样本的包仍能上传和启用。一旦有 `fixtures/*.json`，每个文件都必须带 `hook`，取值是 `probe`、`listModels`、`check`、`classify`、`rewritePayload` 之一，而且源码要导出同名函数。其它 kind 的样本不能写 `hook`。
+
+账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 不在自检里跑。样本写这四个名字会被拒绝。它们的返回 kind 是 `account_login`、`account_refresh`、`account_summary`，由宿主在真实登录、刷新、摘要时解码，不由 `xlyra-plugin test` 比对。对照包只为 `listModels` 和 `rewritePayload` 放了样本。
+
+`probe`、`listModels`、`check` 用上面的分步格式（`ctx`、`responses`、`expect.requests`、`expect.result`）。`classify` 用一次性函数的格式。`rewritePayload` 也是一次性函数，但 `ctx` 和 `input` 不同：
+
+```json
+{
+  "name": "drop user",
+  "hook": "rewritePayload",
+  "ctx": {
+    "siteType": "example.minimal/chat",
+    "model": "m1",
+    "stream": true,
+    "protocol": "openai_chat"
+  },
+  "input": {
+    "model": "m1",
+    "stream": true,
+    "user": "alice",
+    "messages": [{ "role": "user", "content": "hi" }]
+  },
+  "expect": {
+    "result": {
+      "model": "m1",
+      "stream": true,
+      "user": null,
+      "messages": [{ "role": "user", "content": "hi" }]
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `hook` | 必填，`rewritePayload` |
+| `ctx.siteType`、`ctx.model`、`ctx.stream`、`ctx.protocol` | 传给钩子的 `ctx`。自检只使用这四项 |
+| `input` | 必填，必须是对象，当作请求正文传给钩子 |
+| `expect.result` | 期望的正文，只检查你写出的字段 |
+| `expect.error` | 期望调用失败，值是错误信息里应包含的文字（与 `result` 二选一） |
+
+`expect.result` 里写 `null` 和“这个键不存在”比较结果相同。示例包用 `"user": null` 表示 `user` 已被删掉，见 [`examples/site-provider-minimal/fixtures/rewrite-payload.json`](./examples/site-provider-minimal/fixtures/rewrite-payload.json)。
+
 ## 提示
 
 - 每个样本文件一个场景，文件名要能说明场景，如 `weekly-only.json`、`error-code.json`。
 - 把线上真实的响应脱敏后录成样本，是最可靠的回归手段。
-- 至少要有一个样本，否则不能打包。
+- 除 `site_provider` 外，至少要有一个样本，否则不能打包。`site_provider` 没有样本也可以打包。
 
 ## 自动化样本
 

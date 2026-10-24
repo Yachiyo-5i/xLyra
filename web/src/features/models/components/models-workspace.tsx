@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ListChecks, Search } from 'lucide-react'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,9 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BrandMark } from '@/components/common/brand-mark'
-import { resolveThemedIconPath } from '@/components/common/brand-utils'
-import { useResolvedTheme } from '@/hooks/theme-context'
+import { FilterColumn } from '@/components/common/filter-column'
 import { useMobileLayout } from '@/hooks/use-media-query'
 import {
   buildBrandItems,
@@ -213,19 +212,10 @@ export function ModelsWorkspace() {
           description={t('page.description')}
         />
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <label className="relative block min-w-0">
-              <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('filters.search')}
-                className="h-10 pl-10"
-              />
-            </label>
-
-            <div className="mt-2 flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5">
+        <MobileFilterBar
+          search={{ value: search, onChange: (event) => setSearch(event.target.value), placeholder: t('filters.search') }}
+          filters={
+            <>
               <Select value={selectedBrand} onValueChange={setSelectedBrand}>
                 <SelectTrigger
                   variant="filter"
@@ -290,9 +280,27 @@ export function ModelsWorkspace() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+          summary={
+            <>
+              <span className="tabular-nums">{t('common:list.count', { count: filteredModels.length })}</span>
+              {search || selectedBrand !== 'all' || selectedSite ? (
+                <button
+                  type="button"
+                  className="text-label-2 transition-colors active:text-label"
+                  onClick={() => {
+                    setSearch('')
+                    setSelectedBrand('all')
+                    setSelectedSite(null)
+                  }}
+                >
+                  {t('common:list.clearFilters')}
+                </button>
+              ) : null}
+            </>
+          }
+        />
 
         {filteredModels.length ? (
           <MobileModelsList
@@ -308,7 +316,7 @@ export function ModelsWorkspace() {
         )}
 
         <Button
-          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] right-5 z-20 h-12 w-12 rounded-full p-0 shadow-[0_18px_34px_rgba(15,23,42,0.22)]"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
           onClick={() => setCatalogOpen(true)}
           aria-label={t('filters.catalog')}
         >
@@ -336,7 +344,7 @@ export function ModelsWorkspace() {
       {/* Search + Action bar */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-72 shrink-0">
-          <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 z-10" />
+          <Search className="text-label/40 pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 z-10" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -419,7 +427,6 @@ function MobileFilterSelectIcon({
   label?: string
   fallbackText?: string
 }) {
-  const resolvedMode = useResolvedTheme()
   const label = labelOverride ?? item?.label ?? ''
   const fallback = Array.from(
     fallbackText ?? item?.fallbackText ?? label.trim() ?? '?',
@@ -430,7 +437,7 @@ function MobileFilterSelectIcon({
   if (item?.iconPath) {
     return (
       <img
-        src={resolveThemedIconPath(item.iconPath, label, resolvedMode)}
+        src={item.iconPath}
         alt=""
         className="h-4 w-4 object-contain"
       />
@@ -438,71 +445,12 @@ function MobileFilterSelectIcon({
   }
 
   return (
-    <span className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[hsl(var(--surface-subtle))] text-[9px] font-semibold leading-none text-muted-soft">
+    <span className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-fill-3 text-[9px] font-semibold leading-none text-label-2">
       {fallback || '?'}
     </span>
   )
 }
 
-function FilterColumn({
-  title,
-  items,
-  selectedKey,
-  onSelect,
-}: {
-  title: string
-  items: {
-    key: string
-    label: string
-    count: number
-    iconPath?: string
-    fallbackText?: string
-  }[]
-  selectedKey: string | null
-  onSelect: (key: string) => void
-}) {
-  return (
-    <div className="space-y-2">
-      <h2 className="px-1 text-sm font-medium text-foreground">{title}</h2>
-      <div className="space-y-1">
-        {items.map((item) => {
-          const active = selectedKey === item.key
-
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onSelect(item.key)}
-              className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                active
-                  ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                  : 'bg-transparent text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground'
-              }`}
-            >
-              <BrandMark
-                iconPath={item.iconPath}
-                label={item.label}
-                fallback={item.label}
-                fallbackText={item.fallbackText}
-                size="sm"
-              />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              <span
-                className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
-                  active
-                    ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                    : 'bg-[hsl(var(--surface-subtle))] text-muted-soft'
-                }`}
-              >
-                {item.count}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 function ModelsWorkspaceSkeleton({ isMobile = false }: { isMobile?: boolean }) {
   if (isMobile) {
@@ -513,7 +461,7 @@ function ModelsWorkspaceSkeleton({ isMobile = false }: { isMobile?: boolean }) {
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-4 w-64 max-w-full" />
         </div>
-        <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2">
+        <div className="rounded-card border border-separator bg-fill-4 p-2">
           <Skeleton className="h-10 w-full" />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Skeleton className="h-9 w-full" />

@@ -1,0 +1,24 @@
+{
+  "name": "drop user",
+  "hook": "rewritePayload",
+  "ctx": {
+    "siteType": "example.minimal/chat",
+    "model": "m1",
+    "stream": true,
+    "protocol": "openai_chat"
+  },
+  "input": {
+    "model": "m1",
+    "stream": true,
+    "user": "alice",
+    "messages": [{ "role": "user", "content": "hi" }]
+  },
+  "expect": {
+    "result": {
+      "model": "m1",
+      "stream": true,
+      "user": null,
+      "messages": [{ "role": "user", "content": "hi" }]
+    }
+  }
+}

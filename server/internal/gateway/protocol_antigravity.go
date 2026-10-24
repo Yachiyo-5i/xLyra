@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -193,9 +194,13 @@ func encodeCanonicalRequestToAntigravityGemini(request canonicalRequest, upstrea
 	if generationConfig := antigravityCanonicalGenerationConfig(request); len(generationConfig) > 0 {
 		out["generationConfig"] = generationConfig
 	}
-	if tools := antigravityCanonicalTools(request.Tools); len(tools) > 0 {
+	geminiTools := filterWebSearchTools(request.Tools, canonicalProtocolGoogleGemini, upstreamModel)
+	geminiTools = dropWebSearchWhenGeminiCannotMix(geminiTools, upstreamModel)
+	if tools := antigravityCanonicalTools(geminiTools); len(tools) > 0 {
 		out["tools"] = tools
-		out["toolConfig"] = antigravityCanonicalToolConfig(request.ToolChoice)
+		if antigravityCanonicalToolsHaveFunctions(geminiTools) {
+			out["toolConfig"] = antigravityCanonicalToolConfig(request.ToolChoice)
+		}
 	}
 	return out
 }
@@ -871,10 +876,45 @@ func antigravityCanonicalTools(tools []canonicalTool) []any {
 		}
 		functions = append(functions, decl)
 	}
-	if len(functions) == 0 {
+	out := []any{}
+	if len(functions) > 0 {
+		out = append(out, map[string]any{"functionDeclarations": functions})
+	}
+	if canonicalToolsHaveWebSearch(tools) {
+		out = append(out, map[string]any{"googleSearch": map[string]any{}})
+	}
+	if len(out) == 0 {
 		return nil
 	}
-	return []any{map[string]any{"functionDeclarations": functions}}
+	return out
+}
+
+func antigravityCanonicalToolsHaveFunctions(tools []canonicalTool) bool {
+	for _, tool := range tools {
+		if tool.Type == "function" {
+			return true
+		}
+	}
+	return false
+}
+
+// dropWebSearchWhenGeminiCannotMix keeps function calling when a model cannot
+// combine googleSearch with functionDeclarations (everything before Gemini 3).
+func dropWebSearchWhenGeminiCannotMix(tools []canonicalTool, upstreamModel string) []canonicalTool {
+	if !canonicalToolsHaveWebSearch(tools) || !antigravityCanonicalToolsHaveFunctions(tools) {
+		return tools
+	}
+	if strings.Contains(strings.ToLower(upstreamModel), "gemini-3") {
+		return tools
+	}
+	slog.Info("native web_search dropped: Gemini model cannot combine googleSearch with function declarations", "upstream_model", upstreamModel)
+	out := make([]canonicalTool, 0, len(tools))
+	for _, tool := range tools {
+		if !canonicalToolIsWebSearch(tool) {
+			out = append(out, tool)
+		}
+	}
+	return out
 }
 
 func antigravitySanitizeSchema(raw any) any {
@@ -978,15 +1018,20 @@ func canonicalResponseFromAntigravityGemini(gemini map[string]any) canonicalResp
 		FinishReason: antigravityFinishReason(gemini),
 		Usage:        antigravityUsage(gemini),
 	}
+	searchItem, citations := webSearchItemsFromGemini(gemini, text)
+	if searchItem != nil {
+		response.Output = append(response.Output, *searchItem)
+	}
 	if text != "" || len(toolCalls) == 0 {
 		response.Output = append(response.Output, canonicalOutputItem{
-			ID:       "msg_" + uuid.NewString(),
-			Type:     "message",
-			Status:   "completed",
-			Role:     "assistant",
-			Text:     text,
-			Thinking: antigravityGeminiThinking(gemini),
-			Content:  []canonicalContentPart{{Type: "output_text", Text: text}},
+			ID:        "msg_" + uuid.NewString(),
+			Type:      "message",
+			Status:    "completed",
+			Role:      "assistant",
+			Text:      text,
+			Thinking:  antigravityGeminiThinking(gemini),
+			Content:   []canonicalContentPart{{Type: "output_text", Text: text}},
+			Citations: citations,
 		})
 	}
 	for _, toolCall := range toolCalls {

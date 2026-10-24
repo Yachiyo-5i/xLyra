@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+import { LiquidGlass } from '@/components/glass/liquid-glass'
+import { Button } from '@/components/ui/button'
 
 type ConfirmPopoverProps = {
   message: string
@@ -31,40 +32,33 @@ export function ConfirmPopover({
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>{children}</PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
+        {/* 功能层：Liquid Glass 小面板，从触发点放大展开 */}
         <PopoverPrimitive.Content
+          asChild
           side={side}
           align={align}
-          sideOffset={6}
+          sideOffset={8}
           collisionPadding={12}
           onClick={(event) => event.stopPropagation()}
-          className="glass-panel-strong z-[130] max-w-[14rem] rounded-lg p-2 shadow-[var(--shadow-dialog)]"
         >
-          <PopoverPrimitive.Arrow width={9} height={4} className="fill-[hsl(var(--surface-strong))]" />
-          <p className="px-1 text-base leading-6 text-foreground">{message}</p>
-          <div className="mt-2 flex items-center justify-end gap-1">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="min-h-8 rounded-md px-2 py-1 text-sm leading-5 text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
-            >
-              {cancelLabel ?? t('actions.cancel')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                onConfirm()
-              }}
-              className={cn(
-                'min-h-8 rounded-md px-2 py-1 text-sm leading-5 transition-colors',
-                destructive
-                  ? 'text-red-500 hover:bg-red-500/10'
-                  : 'text-primary hover:bg-[hsl(var(--primary)/0.1)]',
-              )}
-            >
-              {confirmLabel ?? t('actions.confirm')}
-            </button>
-          </div>
+          <LiquidGlass className="z-[130] w-max max-w-[16rem] origin-(--radix-popover-content-transform-origin) rounded-card p-1.5 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-90">
+            <p className="px-2.5 pb-2 pt-1.5 text-body text-label">{message}</p>
+            <div className="flex items-center justify-end gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                {cancelLabel ?? t('actions.cancel')}
+              </Button>
+              <Button
+                variant={destructive ? 'destructive' : 'default'}
+                size="sm"
+                onClick={() => {
+                  setOpen(false)
+                  onConfirm()
+                }}
+              >
+                {confirmLabel ?? t('actions.confirm')}
+              </Button>
+            </div>
+          </LiquidGlass>
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>

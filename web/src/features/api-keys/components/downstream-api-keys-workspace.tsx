@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -18,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -26,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 import {
   createDownstreamAPIKey,
   deleteDownstreamAPIKey,
@@ -268,8 +272,8 @@ export function DownstreamAPIKeysWorkspace() {
   }
 
   const orderButton = (
-    <Button variant="outline" onClick={() => setOrderOpen(true)} aria-label={t('order.title')}>
-      <ArrowDownUp className="h-4 w-4" />
+    <Button variant="secondary" onClick={() => setOrderOpen(true)} aria-label={t('order.title')}>
+      <ArrowDownUp />
       {!isMobile ? t('order.title') : null}
     </Button>
   )
@@ -328,7 +332,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.resetQuotaDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -336,7 +340,7 @@ export function DownstreamAPIKeysWorkspace() {
             <DialogDescription className="mt-0">
               {resetTarget ? t('workspace.resetQuotaDialog.description', { name: resetTarget.name }) : null}
             </DialogDescription>
-            <div className="grid gap-3 rounded-lg border border-[hsl(var(--glass-border))] p-3">
+            <div className="grid gap-3 rounded-lg border border-separator p-3">
               {resetTarget && !resetTarget.quota_unlimited && resetTarget.quota_limit != null ? (
                 <Checkbox
                   checked={resetScopes.includes('total')}
@@ -408,7 +412,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.rotateDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -453,7 +457,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.rotateResultDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -461,8 +465,8 @@ export function DownstreamAPIKeysWorkspace() {
             <DialogDescription className="mt-0">
               {rotatedKey ? t('workspace.rotateResultDialog.description', { name: rotatedKey.name }) : null}
             </DialogDescription>
-            <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-3 py-2.5">
-              <code className="min-w-0 flex-1 break-all font-mono text-sm leading-6 text-foreground">{rotatedKey?.key}</code>
+            <div className="flex items-start gap-2 rounded-lg border border-separator bg-fill-3 px-3 py-2.5">
+              <code className="min-w-0 flex-1 break-all font-mono text-body leading-6 text-label">{rotatedKey?.key}</code>
               <Button
                 size="icon"
                 variant="ghost"
@@ -495,7 +499,7 @@ export function DownstreamAPIKeysWorkspace() {
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('workspace.deleteDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -537,7 +541,7 @@ export function DownstreamAPIKeysWorkspace() {
 
   if (isMobile) {
     return (
-      <div className="relative space-y-4 pb-2">
+      <div className="relative space-y-4 pb-20">
         <div>
           <PageHeader
             eyebrow={t('workspace.eyebrow')}
@@ -546,46 +550,56 @@ export function DownstreamAPIKeysWorkspace() {
           />
         </div>
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <APIKeyEndpointCopy className="mb-2 w-full" />
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t('workspace.search')}
-                  className="pl-10"
-                />
-                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
-              </div>
-              {orderButton}
+        {/* 网关地址是信息而不是筛选：标题下方一枚小胶囊 */}
+        <APIKeyEndpointCopy className="-mt-1" />
+
+        <MobileFilterBar
+          search={{ value: search, onChange: (event) => setSearch(event.target.value), placeholder: t('workspace.search') }}
+          actions={
+            <>
+              <Button variant="secondary" size="icon" className="rounded-full" onClick={() => setOrderOpen(true)} aria-label={t('order.title')}>
+                <ArrowDownUp />
+              </Button>
               <Button
                 variant="secondary"
                 size="icon"
-                className="h-10 w-10 shrink-0 bg-[hsl(var(--card)/0.34)] backdrop-blur-[24px] hover:bg-[hsl(var(--card)/0.46)]"
+                className="rounded-full"
                 onClick={() => apiKeysQuery.refetch()}
                 disabled={apiKeysQuery.isFetching}
                 aria-label={t('workspace.refreshAll')}
               >
-                {apiKeysQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                {apiKeysQuery.isFetching ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
               </Button>
-            </div>
-
-            <div className="mt-2">
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                <SelectTrigger variant="filter" filterLabel={t('table.headers.status')} active={statusFilter !== 'all'}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent searchable={false} widthMode="content">
-                  <SelectItem value="all">{t('workspace.status.all')}</SelectItem>
-                  <SelectItem value="active">{t('workspace.status.active')}</SelectItem>
-                  <SelectItem value="disabled">{t('workspace.status.disabled')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+          // 只有「状态」一个分类维度：与站点页一致用分段横条，一点即切
+          segments={
+            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="all">{t('workspace.status.all')}</TabsTrigger>
+                <TabsTrigger value="active">{t('workspace.status.active')}</TabsTrigger>
+                <TabsTrigger value="disabled">{t('workspace.status.disabled')}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
+          summary={
+            <>
+              <span className="tabular-nums">{t('common:list.count', { count: filteredAPIKeys.length })}</span>
+              {search || statusFilter !== 'all' ? (
+                <button
+                  type="button"
+                  className="text-label-2 transition-colors active:text-label"
+                  onClick={() => {
+                    setSearch('')
+                    setStatusFilter('all')
+                  }}
+                >
+                  {t('common:list.clearFilters')}
+                </button>
+              ) : null}
+            </>
+          }
+        />
 
         {filteredAPIKeys.length ? (
           <MobileAPIKeysList {...listProps} />
@@ -598,7 +612,7 @@ export function DownstreamAPIKeysWorkspace() {
         )}
 
         <Button
-          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6rem)] right-5 z-20 h-12 w-12 rounded-full p-0 shadow-[0_18px_34px_rgba(15,23,42,0.22)]"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
           onClick={openCreateKey}
           aria-label={t('workspace.createKey')}
         >
@@ -611,16 +625,17 @@ export function DownstreamAPIKeysWorkspace() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
       <PageHeader
         eyebrow={t('workspace.eyebrow')}
         title={t('workspace.title')}
         description={t('workspace.description')}
+        // 网关地址是信息而不是筛选：放在标题右侧，工具栏只留搜索、筛选与操作
+        actions={<APIKeyEndpointCopy />}
       />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex-1 flex items-center gap-3 min-w-0">
-          <APIKeyEndpointCopy />
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="relative w-52 shrink-0">
             <Input
               value={search}
@@ -628,7 +643,7 @@ export function DownstreamAPIKeysWorkspace() {
               placeholder={t('workspace.search')}
               className="pl-10"
             />
-            <Search className="text-foreground/40 absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 pointer-events-none z-10" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-label-3" />
           </div>
 
           <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
@@ -643,36 +658,37 @@ export function DownstreamAPIKeysWorkspace() {
           </Select>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {orderButton}
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={() => apiKeysQuery.refetch()}
             disabled={apiKeysQuery.isFetching}
           >
-            {apiKeysQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            {apiKeysQuery.isFetching ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
             {t('workspace.refreshAll')}
           </Button>
-          <Button
-            onClick={() => {
-              openCreateKey()
-            }}
-          >
-            <Plus className="h-4 w-4" />
+          <Button onClick={openCreateKey}>
+            <Plus />
             {t('workspace.createKey')}
           </Button>
         </div>
       </div>
 
-      <DownstreamAPIKeysTable
-        {...listProps}
-      />
+      {/* 表格放进厚材质卡片，自身滚动：表头吸顶、右侧操作列固定 */}
+      <Card material="thick" className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <DownstreamAPIKeysTable
+          {...listProps}
+          className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[860px]"
+        />
+      </Card>
 
       {dialogs}
     </div>
   )
 }
 
+/** 网关地址：一枚可点击复制的小胶囊，不做成输入框的样子 */
 function APIKeyEndpointCopy({ className }: { className?: string }) {
   const { t } = useTranslation('api-keys')
   const endpoint = currentGatewayEndpoint()
@@ -680,16 +696,19 @@ function APIKeyEndpointCopy({ className }: { className?: string }) {
   return (
     <button
       type="button"
-      className={`glass-field inline-flex h-10 min-w-0 items-center gap-2 rounded-md px-3 text-left text-sm text-foreground transition-all duration-200 hover:bg-[hsl(var(--surface-soft-hover))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-strong))] ${className ?? 'max-w-[min(24rem,38vw)] shrink-0'}`}
+      className={cn(
+        'inline-flex h-8 max-w-full min-w-0 items-center gap-2 rounded-full bg-fill-3 px-3 text-footnote text-label-2 transition-colors hover:bg-fill-2 hover:text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint/40',
+        className,
+      )}
       title={t('workspace.endpointCopyTitle')}
       aria-label={t('workspace.endpointCopyTitle')}
       onClick={() => {
         void copyToClipboard(endpoint, t('workspace.endpointCopied'), t('workspace.endpointCopyFailed'))
       }}
     >
-      <Link className="h-4 w-4 shrink-0 text-foreground/50" />
-      <code className="min-w-0 truncate font-mono text-xs text-foreground md:text-sm">{endpoint}</code>
-      <Copy className="h-4 w-4 shrink-0 text-foreground/45" />
+      <Link className="size-3.5 shrink-0 text-label-3" />
+      <code className="min-w-0 truncate font-mono">{endpoint}</code>
+      <Copy className="size-3.5 shrink-0 text-label-3" />
     </button>
   )
 }

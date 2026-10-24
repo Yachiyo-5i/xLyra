@@ -2,10 +2,13 @@ import * as React from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { addYears, format, startOfDay, startOfMonth } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react'
 import { DayPicker, type DayPickerProps, type DropdownProps, type Matcher } from 'react-day-picker'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { useLiquidGlassRef } from '@/components/glass/use-liquid-glass'
+import { calendarClassNames, calendarDropdownTriggerClass, timeOptionClass } from '@/components/ui/calendar-styles'
+import { fieldClearButtonClass, fieldIconClass, fieldTriggerClass, popoverPanelClass } from '@/components/ui/field-styles'
 import {
   Select,
   SelectContent,
@@ -126,7 +129,7 @@ function CalendarDropdown({
       <SelectTrigger
         aria-label={ariaLabel}
         disabled={disabled}
-        className="h-9 min-w-[118px] rounded-md border-0 bg-[hsl(var(--surface-subtle))] px-3 shadow-none [&>span]:overflow-visible [&>span]:whitespace-nowrap [&>span]:text-clip"
+        className={calendarDropdownTriggerClass}
       >
         <SelectValue placeholder={selectedOption?.label ?? 'Select'} />
       </SelectTrigger>
@@ -137,7 +140,7 @@ function CalendarDropdown({
             value={String(option.value)}
             disabled={option.disabled}
             hideIndicator
-            className="justify-center whitespace-nowrap px-4 text-center"
+            className="justify-center whitespace-nowrap px-3 text-center"
           >
             {option.label}
           </SelectItem>
@@ -160,12 +163,7 @@ function TimeOptionButton({
     <button
       type="button"
       aria-pressed={selected}
-      className={cn(
-        'flex h-8 w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))]',
-        selected
-          ? 'bg-primary text-primary-foreground hover:bg-primary'
-          : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-      )}
+      className={timeOptionClass(selected)}
       onClick={onClick}
     >
       {children}
@@ -197,6 +195,7 @@ export function DateTimePicker(props: DateTimePickerProps) {
   } = props
   const { t } = useTranslation('components')
   const [open, setOpen] = React.useState(false)
+  const glassRef = useLiquidGlassRef<HTMLDivElement>('regular')
   const [internalDate, setInternalDate] = React.useState<Date | undefined>(defaultValue)
   const today = startOfDay(new Date())
   const isControlled = Object.prototype.hasOwnProperty.call(props, 'value')
@@ -249,16 +248,16 @@ export function DateTimePicker(props: DateTimePickerProps) {
             type="button"
             disabled={disabled}
             className={cn(
-              'glass-field flex h-11 w-full items-center justify-between gap-3 rounded-md px-4 text-left text-sm text-foreground outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:cursor-not-allowed disabled:opacity-50',
-              !selectedDate && 'text-[hsl(var(--input-placeholder))]',
+              fieldTriggerClass,
+              !selectedDate && 'text-label-3',
               triggerClassName,
             )}
           >
             <span className="flex min-w-0 flex-1 items-center gap-3">
-              <CalendarDays className="text-muted-soft h-4 w-4 shrink-0" />
+              <CalendarDays className={fieldIconClass} />
               <span className="truncate tabular-nums">{displayValue || placeholder}</span>
             </span>
-            <ChevronDown className={cn('text-muted-soft h-4 w-4 shrink-0 transition-transform duration-150', open && 'rotate-180')} />
+            <ChevronsUpDown className={fieldIconClass} />
           </button>
         </PopoverPrimitive.Trigger>
 
@@ -266,26 +265,27 @@ export function DateTimePicker(props: DateTimePickerProps) {
           <button
             type="button"
             aria-label={t('datePicker.clear')}
-            className="text-muted-soft absolute right-10 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+            className={fieldClearButtonClass}
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
               setSelectedDate(undefined)
             }}
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="size-3.5" />
           </button>
         ) : null}
       </div>
 
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          ref={glassRef}
           align="start"
           sideOffset={8}
           // 阻止滚轮/触摸事件冒泡到 document，否则弹层在 Dialog/Sheet 内打开时滚动会被其滚动锁拦截
           onWheel={(event) => event.stopPropagation()}
           onTouchMove={(event) => event.stopPropagation()}
-          className="glass-panel-strong z-[120] w-[min(644px,calc(100vw-2rem))] rounded-xl p-3"
+          className={cn(popoverPanelClass, 'z-[120] w-[min(644px,calc(100vw-2rem))] origin-(--radix-popover-content-transform-origin) p-3')}
         >
           <div className="grid gap-4 min-[620px]:grid-cols-[320px_1fr]">
             <div className="relative min-w-0">
@@ -299,36 +299,8 @@ export function DateTimePicker(props: DateTimePickerProps) {
                 startMonth={calendarStartMonth}
                 endMonth={calendarEndMonth}
                 showOutsideDays={showOutsideDays}
-                className="text-foreground"
-                classNames={{
-                  root: 'relative w-full',
-                  months: 'flex flex-col gap-4',
-                  month: 'space-y-3',
-                  month_caption: 'relative flex h-10 items-center justify-center px-10',
-                  dropdowns: 'flex items-center justify-center gap-2',
-                  caption_label: 'text-sm font-semibold text-foreground',
-                  nav: 'pointer-events-none absolute inset-x-0 top-0 flex h-10 items-center justify-between',
-                  button_previous:
-                    'pointer-events-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground disabled:pointer-events-none disabled:opacity-35',
-                  button_next:
-                    'pointer-events-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground disabled:pointer-events-none disabled:opacity-35',
-                  chevron: 'text-current',
-                  month_grid: 'w-full border-collapse',
-                  weekdays: 'grid grid-cols-7',
-                  weekday: 'text-faint flex h-8 items-center justify-center text-[11px] font-medium uppercase',
-                  weeks: 'grid gap-1',
-                  week: 'grid grid-cols-7 gap-1',
-                  day: 'relative h-9 w-9 p-0 text-center text-sm',
-                  day_button:
-                    'flex h-9 w-9 items-center justify-center rounded-md text-sm text-foreground transition-colors hover:bg-[hsl(var(--surface-subtle))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))]',
-                  selected:
-                    '[&>button]:bg-primary [&>button]:text-primary-foreground [&>button]:hover:bg-primary',
-                  today:
-                    '[&>button]:border [&>button]:border-[hsl(var(--glass-border-strong))] [&>button]:bg-[hsl(var(--surface-subtle))]',
-                  outside: '[&>button]:text-[hsl(var(--text-faint))] [&>button]:opacity-45',
-                  disabled: '[&>button]:pointer-events-none [&>button]:opacity-35',
-                  hidden: 'invisible',
-                }}
+                className="text-label"
+                classNames={calendarClassNames}
                 components={{
                   Dropdown: CalendarDropdown,
                   Chevron: CalendarChevron,
@@ -337,9 +309,9 @@ export function DateTimePicker(props: DateTimePickerProps) {
               />
             </div>
 
-            <div className="grid min-w-0 grid-cols-2 gap-3 border-t border-[hsl(var(--divider))] pt-4 min-[620px]:border-l min-[620px]:border-t-0 min-[620px]:pl-4 min-[620px]:pt-0">
+            <div className="grid min-w-0 grid-cols-2 gap-3 border-t border-separator pt-4 min-[620px]:border-l min-[620px]:border-t-0 min-[620px]:pl-4 min-[620px]:pt-0">
               <div className="space-y-2">
-                <p className="text-faint flex items-center gap-1.5 px-1 text-xs font-medium">
+                <p className="flex items-center gap-1.5 px-1 text-caption-1 text-label-3">
                   <Clock className="h-3.5 w-3.5" />
                   {t('timePicker.hour')}
                 </p>
@@ -357,7 +329,7 @@ export function DateTimePicker(props: DateTimePickerProps) {
               </div>
 
               <div className="space-y-2">
-                <p className="text-faint px-1 text-xs font-medium">{t('timePicker.minute')}</p>
+                <p className="px-1 text-caption-1 text-label-3">{t('timePicker.minute')}</p>
                 <div className="max-h-[300px] space-y-1 overflow-y-auto pr-1">
                   {minuteOptions.map((minute) => (
                     <TimeOptionButton
@@ -373,7 +345,7 @@ export function DateTimePicker(props: DateTimePickerProps) {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--divider))] pt-3">
+          <div className="mt-3 flex items-center justify-between border-t border-separator pt-3">
             <Button variant="ghost" size="sm" onClick={setCurrentDateTime}>
               Now
             </Button>

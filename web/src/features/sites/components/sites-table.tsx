@@ -4,20 +4,23 @@ import { ChevronDown, FlaskConical, LoaderCircle, PencilLine, RotateCcw, Trash2 
 import { useTranslation } from 'react-i18next'
 import { DataTable } from '@/components/common/data-table'
 import { defaultTableColumnWidths } from '@/lib/table-column-widths'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { SiteBalanceCell } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
+import { ProviderUnavailableBadge } from '@/features/sites/components/provider-unavailable-badge'
+import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   formatCompactTokens,
   formatDateTime,
   formatRelativeDateTime,
   formatRoutingPriority,
-  formatSiteTypeLabel,
+  isAccountLoginSiteType,
+  siteAccountCounts,
   isOAuthSite,
   isSiteEnableBlockedByAbnormalState,
   siteAccountEmail,
@@ -41,7 +44,7 @@ export function SitesTable({
   items, modelsMap, apiKeysMap, validationSnapshots, refreshingSiteIds, togglingSiteId, deletingSiteId,
   abnormalItems = [], abnormalCollapsed = true, onAbnormalCollapsedChange,
   updatedAtMode, now, onUpdatedAtModeChange,
-  onRefresh, onToggleEnabled, onEdit, onDelete, onOpenModels, onOpenAPIKeys, onOpenGrokAccounts, onOpenTest, onOpenUsageSplit, resolvedMode, siteTypes,
+  onRefresh, onToggleEnabled, onEdit, onDelete, onOpenModels, onOpenAPIKeys, onOpenAccounts, onOpenTest, onOpenUsageSplit, siteTypes,
   className,
 }: {
   items: Site[]
@@ -63,10 +66,9 @@ export function SitesTable({
   onDelete: (site: Site) => void
   onOpenModels: (site: Site) => void
   onOpenAPIKeys: (site: Site) => void
-  onOpenGrokAccounts: (site: Site) => void
+  onOpenAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
-  resolvedMode: 'light' | 'dark'
   siteTypes: SiteTypeInfo[]
   className?: string
 }) {
@@ -80,17 +82,17 @@ export function SitesTable({
   function renderAbnormalGroupRow(colSpan: number) {
     if (!abnormalItems.length || !onAbnormalCollapsedChange) return null
     return (
-      <tr className="border-t border-[hsl(var(--glass-divider))] bg-[hsl(var(--surface-subtle)/0.45)]">
+      <tr className="border-t border-separator bg-fill-4">
         <td colSpan={colSpan} className="px-4 py-2.5">
           <button
             type="button"
-            className="flex w-full items-center gap-2 text-left text-sm text-muted-soft transition-colors hover:text-foreground"
+            className="flex w-full items-center gap-2 text-left text-body text-label-2 transition-colors hover:text-label"
             onClick={() => onAbnormalCollapsedChange(!abnormalCollapsed)}
           >
             <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', abnormalCollapsed && '-rotate-90')} />
             <span className="font-medium">
               {t('page.abnormalSites')}
-              <span className="ml-2 text-xs opacity-60">({abnormalItems.length})</span>
+              <span className="ml-2 text-footnote opacity-60">({abnormalItems.length})</span>
             </span>
           </button>
         </td>
@@ -105,21 +107,29 @@ export function SitesTable({
       cell: ({ row }) => {
         const site = row.original
         const oauth = isOAuthSite(site)
-        const icon = siteTypeIcon(site.site_type, siteTypes, resolvedMode) || site.icon_url
+        const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
         return (
           <div className="flex items-center gap-3 min-w-0">
-            {icon ? <img src={icon} alt="" className={cn('h-7 w-7 shrink-0 rounded-lg object-contain', siteTypeIconClassName(site.site_type))} /> : null}
+            <SiteTypeIcon
+              src={icon}
+              name={site.name}
+              empty="hidden"
+              muted={site.provider_status === 'unavailable'}
+              className="h-7 w-7 shrink-0 rounded-inner"
+              imageClassName={siteTypeIconClassName(site.site_type)}
+            />
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center gap-2">
-                <span className="truncate font-medium text-foreground">{site.name}</span>
-                <Badge variant="outline" className="shrink-0 text-[11px] px-1.5 py-0 select-none">{formatSiteTypeLabel(site.site_type)}</Badge>
+                <span className="truncate font-medium text-label">{site.name}</span>
+                <SiteTypeBadge siteType={site.site_type} siteTypes={siteTypes} className="shrink-0 select-none" />
+                <ProviderUnavailableBadge status={site.provider_status} />
                 <SitePlanBadge site={site} />
               </div>
-              <div className="text-muted-soft truncate text-xs">
+              <div className="text-label-2 truncate text-footnote">
                 {oauth ? (
                   siteAccountEmail(site)
                 ) : site.base_url ? (
-                  <a href={site.base_url} target="_blank" rel="noreferrer noopener" className="hover:text-foreground transition-colors">{site.base_url}</a>
+                  <a href={site.base_url} target="_blank" rel="noreferrer noopener" className="hover:text-label transition-colors">{site.base_url}</a>
                 ) : null}
               </div>
             </div>
@@ -145,29 +155,29 @@ export function SitesTable({
         const models = modelsMap[site.id] ?? EMPTY_MODELS
         const keys = apiKeysMap[site.id] ?? EMPTY_API_KEYS
         const modelCount = siteModelsDisplayCount(site, models, keys)
-        const isGrok = site.site_type === 'grok'
+        const isGrok = isAccountLoginSiteType(site.site_type, siteTypes)
         const keyInfo = isOAuthSite(site) || isGrok ? null : { enabled: keys.filter((key) => key.enabled).length, total: keys.length || site.api_key_count || 0 }
         return (
-          <div className="flex items-center justify-center gap-1 text-xs tabular-nums whitespace-nowrap">
-            <button type="button" className="hover:text-foreground text-foreground cursor-pointer" onClick={() => onOpenModels(site)}>
+          <div className="flex items-center justify-center gap-1 text-footnote tabular-nums whitespace-nowrap">
+            <button type="button" className="hover:text-label text-label cursor-pointer" onClick={() => onOpenModels(site)}>
               {t('table.resources.models', { count: modelCount })}
             </button>
             {isGrok ? (
               <>
-                <span className="text-muted-soft">/</span>
-                <button type="button" className="hover:text-foreground text-foreground cursor-pointer" onClick={() => onOpenGrokAccounts(site)}>
-                  {t('table.resources.accounts', { count: site.grok_account_count ?? site.api_key_count ?? 0 })}
+                <span className="text-label-2">/</span>
+                <button type="button" className="hover:text-label text-label cursor-pointer" onClick={() => onOpenAccounts(site)}>
+                  {t('table.resources.accounts', siteAccountCounts(site))}
                 </button>
               </>
             ) : keyInfo ? (
               <>
-                <span className="text-muted-soft">/</span>
-                <button type="button" className="hover:text-foreground text-foreground cursor-pointer" onClick={() => onOpenAPIKeys(site)}>
+                <span className="text-label-2">/</span>
+                <button type="button" className="hover:text-label text-label cursor-pointer" onClick={() => onOpenAPIKeys(site)}>
                   {t('table.resources.keys', { enabled: keyInfo.enabled, total: keyInfo.total })}
                 </button>
               </>
             ) : (
-              <span className="text-muted-soft">/ -</span>
+              <span className="text-label-2">/ -</span>
             )}
           </div>
         )
@@ -178,7 +188,7 @@ export function SitesTable({
       id: 'balance',
       header: t('table.headers.balance'),
       cell: ({ row }) => <SiteBalanceCell site={row.original} apiKeys={apiKeysMap[row.original.id] ?? EMPTY_API_KEYS} />,
-      meta: { align: 'center' as const },
+      meta: { align: 'center' as const, cellClassName: 'whitespace-nowrap' },
     },
     {
       id: 'usage',
@@ -191,7 +201,7 @@ export function SitesTable({
             <span
               role="button"
               tabIndex={0}
-              className="text-sm text-muted-soft transition-colors hover:text-primary"
+              className="text-body text-label-2 transition-colors hover:text-tint"
               onClick={() => onOpenUsageSplit(site)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -212,7 +222,7 @@ export function SitesTable({
           <div
             role="button"
             tabIndex={0}
-            className="flex flex-col items-center gap-0.5 text-xs tabular-nums whitespace-nowrap"
+            className="flex flex-col items-center gap-0.5 text-footnote tabular-nums whitespace-nowrap"
             title={t('table.headers.usage')}
             onClick={() => onOpenUsageSplit(site)}
             onKeyDown={(event) => {
@@ -222,8 +232,8 @@ export function SitesTable({
               }
             }}
           >
-            <span className="text-foreground">{formatCompactTokens(totalTokens)}</span>
-            <span className="text-muted-soft">{costPrefix}{cost.toFixed(2)}</span>
+            <span className="text-label">{formatCompactTokens(totalTokens)}</span>
+            <span className="text-label-2">{costPrefix}{cost.toFixed(2)}</span>
           </div>
         )
       },
@@ -232,7 +242,7 @@ export function SitesTable({
     {
       id: 'priority',
       header: t('table.headers.priority'),
-      cell: ({ row }) => <span className="text-sm text-foreground tabular-nums">{formatRoutingPriority(row.original.routing_priority)}</span>,
+      cell: ({ row }) => <span className="text-body text-label tabular-nums">{formatRoutingPriority(row.original.routing_priority)}</span>,
       meta: { align: 'center' as const },
     },
     {
@@ -260,7 +270,7 @@ export function SitesTable({
       header: () => (
         <button
           type="button"
-          className="hover:text-foreground transition-colors cursor-pointer"
+          className="hover:text-label transition-colors cursor-pointer"
           title={updatedAtMode === 'absolute' ? t('table.updatedAtMode.showRelative') : t('table.updatedAtMode.showAbsolute')}
           aria-label={updatedAtMode === 'absolute' ? t('table.updatedAtMode.showRelative') : t('table.updatedAtMode.showAbsolute')}
           onClick={() => onUpdatedAtModeChange(updatedAtMode === 'absolute' ? 'relative' : 'absolute')}
@@ -276,7 +286,7 @@ export function SitesTable({
         return (
           <button
             type="button"
-            className="text-muted-soft hover:text-foreground cursor-pointer text-sm tabular-nums"
+            className="text-label-2 hover:text-label cursor-pointer text-body tabular-nums"
             title={updatedAtMode === 'absolute' ? t('table.updatedAtMode.showRelative') : t('table.updatedAtMode.showAbsolute')}
             aria-label={updatedAtMode === 'absolute' ? t('table.updatedAtMode.showRelative') : t('table.updatedAtMode.showAbsolute')}
             onClick={() => onUpdatedAtModeChange(updatedAtMode === 'absolute' ? 'relative' : 'absolute')}
@@ -293,25 +303,26 @@ export function SitesTable({
       cell: ({ row }) => {
         const isRefreshing = refreshingSiteIds.includes(row.original.id)
         return (
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={isRefreshing || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onRefresh(row.original.id) }} aria-label={t('table.ariaLabels.refresh', { name: row.original.name })}>
+          <div className="flex items-center gap-0.5">
+            <Button size="icon-sm" variant="ghost" className="size-7" disabled={isRefreshing || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onRefresh(row.original.id) }} aria-label={t('table.ariaLabels.refresh', { name: row.original.name })}>
               {isRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={isRefreshing || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onOpenTest(row.original) }} aria-label={t('table.ariaLabels.test', { name: row.original.name })}>
+            <Button size="icon-sm" variant="ghost" className="size-7" disabled={isRefreshing || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onOpenTest(row.original) }} aria-label={t('table.ariaLabels.test', { name: row.original.name })}>
               <FlaskConical className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onEdit(row.original) }} aria-label={t('table.ariaLabels.edit', { name: row.original.name })}>
+            <Button size="icon-sm" variant="ghost" className="size-7" disabled={togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onEdit(row.original) }} aria-label={t('table.ariaLabels.edit', { name: row.original.name })}>
               <PencilLine className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-300" disabled={deletingSiteId === row.original.id || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onDelete(row.original) }} aria-label={t('table.ariaLabels.delete', { name: row.original.name })}>
+            <Button size="icon-sm" variant="ghost" className="size-7 text-danger hover:text-danger" disabled={deletingSiteId === row.original.id || togglingSiteId === row.original.id} onClick={(event) => { event.stopPropagation(); onDelete(row.original) }} aria-label={t('table.ariaLabels.delete', { name: row.original.name })}>
               {deletingSiteId === row.original.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             </Button>
           </div>
         )
       },
-      meta: { align: 'left' as const },
+      // 操作列固定在右侧：表格横向滚动时编辑 / 删除等按钮始终可见
+      meta: { align: 'left' as const, className: 'table-sticky-end', cellClassName: 'px-2', headerClassName: 'px-2' },
     },
-  ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenGrokAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, resolvedMode, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
+  ], [apiKeysMap, deletingSiteId, i18n.language, modelsMap, now, onDelete, onEdit, onOpenAPIKeys, onOpenAccounts, onOpenModels, onOpenTest, onOpenUsageSplit, onRefresh, onToggleEnabled, onUpdatedAtModeChange, refreshingSiteIds, siteTypes, t, togglingSiteId, updatedAtMode, validationSnapshots])
 
   return (
     <DataTable

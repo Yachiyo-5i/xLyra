@@ -1,60 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { BrandMark } from '@/components/common/brand-mark'
-import type { FilterItem, SortMode } from '@/features/routes/lib/types'
+import { FilterGroup } from '@/components/common/filter-column'
+import { filterOptionClass } from '@/components/common/filter-styles'
+import type { SortMode } from '@/features/routes/lib/types'
 
-export function FilterColumn({
-  title,
-  items,
-  selectedKey,
-  onSelect,
-}: {
-  title: string
-  items: FilterItem[]
-  selectedKey: string | null
-  onSelect: (key: string) => void
-}) {
-  return (
-    <div className="space-y-2">
-      <h2 className="px-1 text-sm font-medium text-foreground">{title}</h2>
-      <div className="space-y-1">
-        {items.map((item) => {
-          const active = selectedKey === item.key
-
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onSelect(item.key)}
-              className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                active
-                  ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                  : 'bg-transparent text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground'
-              }`}
-            >
-              <BrandMark
-                iconPath={item.iconPath}
-                label={item.label}
-                fallback={item.label}
-                fallbackText={item.fallbackText}
-                size="sm"
-              />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              <span
-                className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
-                  active
-                    ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                    : 'bg-[hsl(var(--surface-subtle))] text-muted-soft'
-                }`}
-              >
-                {item.count}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+export { FilterColumn } from '@/components/common/filter-column'
 
 export function SortColumn({
   value,
@@ -73,28 +22,12 @@ export function SortColumn({
   ]
 
   return (
-    <div className="space-y-2">
-      <h2 className="px-1 text-sm font-medium text-foreground">{t('sort.title')}</h2>
-      <div className="space-y-1">
-        {items.map((item) => {
-          const active = value === item.key
-
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onChange(item.key)}
-              className={`flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                active
-                  ? 'bg-[hsl(var(--surface-subtle))] text-foreground'
-                  : 'bg-transparent text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground'
-              }`}
-            >
-              {item.label}
-            </button>
-          )
-        })}
-      </div>
-    </div>
+    <FilterGroup title={t('sort.title')}>
+      {items.map((item) => (
+        <button key={item.key} type="button" onClick={() => onChange(item.key)} className={filterOptionClass(value === item.key)}>
+          {item.label}
+        </button>
+      ))}
+    </FilterGroup>
   )
 }

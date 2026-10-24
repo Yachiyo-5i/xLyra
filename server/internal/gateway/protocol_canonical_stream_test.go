@@ -215,8 +215,13 @@ func TestProxyCanonicalStreamResponsesRefusalAndAnnotationToChat(t *testing.T) {
 	if !strings.Contains(body, `"content":"I cannot help with that."`) {
 		t.Fatalf("expected refusal to be downgraded to chat content, got %q", body)
 	}
-	if strings.Contains(body, "url_citation") {
+	// url_citation annotations are surfaced only as structured chat
+	// annotations, never mixed into the message content.
+	if strings.Contains(body, `"content":"{`) || strings.Contains(body, `"content":"url_citation`) {
 		t.Fatalf("annotation should not be emitted as chat content, got %q", body)
+	}
+	if !strings.Contains(body, `"annotations":[{"type":"url_citation"`) {
+		t.Fatalf("expected structured chat annotation, got %q", body)
 	}
 }
 

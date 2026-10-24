@@ -135,7 +135,12 @@ func (a anthropicMessagesProtocolAdapter) BuildUpstreamPayload(request gatewayRe
 func finishAnthropicUpstreamPayload(payload map[string]any, request gatewayRequest, candidate routeengine.Candidate) map[string]any {
 	payload = applyRequestPolicyForCandidate(payload, canonicalProtocolAnthropicMessages, candidate)
 	normalizeAnthropicThinkingBudget(payload)
-	return applyDomesticAnthropicRequestBody(payload, request, candidate)
+	payload = applyDomesticAnthropicRequestBody(payload, request, candidate)
+	normalizeAnthropicPayloadToolSchemas(payload)
+	if anthropicPayloadRequiresThinkingSignature(candidate, payload) {
+		dropAnthropicThinkingWithoutSignedToolRound(payload)
+	}
+	return payload
 }
 
 func applyDomesticAnthropicRequestBody(payload map[string]any, request gatewayRequest, candidate routeengine.Candidate) map[string]any {
@@ -153,6 +158,14 @@ func applyDomesticAnthropicRequestBody(payload map[string]any, request gatewayRe
 		hydrateProviderAnthropicThinking(payload, candidate, request.DownstreamPath != gatewayEndpointMessages)
 	}
 	return payload
+}
+
+func anthropicPayloadRequiresThinkingSignature(candidate routeengine.Candidate, payload map[string]any) bool {
+	model := strings.TrimSpace(candidate.Model.UpstreamName)
+	if model == "" && payload != nil {
+		model = stringFromPayloadModel(payload)
+	}
+	return !domesticAnthropicBodyProvider(matchedModelProvider(model))
 }
 
 func domesticAnthropicBodyProvider(provider string) bool {
@@ -347,17 +360,17 @@ func encodeCanonicalRequestToAnthropicMessages(request canonicalRequest, candida
 	out := map[string]any{
 		"model":      candidate.Model.UpstreamName,
 		"max_tokens": maxTokens,
-		"messages":   encodeCanonicalMessagesAsAnthropicMessages(request.Messages),
+		"messages":   encodeCanonicalMessagesAsAnthropicMessages(request.Messages, anthropicPayloadRequiresThinkingSignature(candidate, nil)),
 	}
 	if system := anthropicSystemValue(request); system != nil {
 		out["system"] = system
 	}
 	applyParamMappings(out, request, protocolParamMappings(canonicalProtocolAnthropicMessages, candidate))
-	tools := encodeCanonicalToolsAsAnthropic(request.Tools)
+	tools := encodeCanonicalToolsAsAnthropic(filterWebSearchTools(request.Tools, canonicalProtocolAnthropicMessages, candidate.Model.UpstreamName))
 	if len(tools) > 0 {
 		out["tools"] = tools
 		if request.ToolChoice != nil {
-			if converted := encodeCanonicalToolChoiceAsAnthropic(request.ToolChoice); converted != nil {
+			if converted := encodeCanonicalToolChoiceAsAnthropic(request.ToolChoice); converted != nil && anthropicToolChoiceTargetsKnownTool(converted, tools) {
 				out["tool_choice"] = converted
 			}
 		}
@@ -406,13 +419,34 @@ func canonicalResponseFromAnthropicMessagesBody(body []byte) (canonicalResponse,
 			}
 		case "text":
 			response.Output = append(response.Output, canonicalOutputItem{
-				ID:      "msg_" + root.ID,
-				Type:    "message",
-				Status:  "completed",
-				Role:    nonEmptyString(root.Role, "assistant"),
-				Text:    block.Text,
-				Content: []canonicalContentPart{{Type: "output_text", Text: block.Text}},
+				ID:        "msg_" + root.ID,
+				Type:      "message",
+				Status:    "completed",
+				Role:      nonEmptyString(root.Role, "assistant"),
+				Text:      block.Text,
+				Content:   []canonicalContentPart{{Type: "output_text", Text: block.Text}},
+				Citations: anthropicCitationsToCanonical(block.Citations),
 			})
+		case "server_tool_use":
+			if block.Name != "web_search" {
+				continue
+			}
+			item := canonicalOutputItem{
+				ID:     block.ID,
+				Type:   "web_search_call",
+				Status: "completed",
+				CallID: block.ID,
+			}
+			if query := anthropicWebSearchQuery(block.Input); query != "" {
+				item.SearchQueries = []string{query}
+			}
+			response.Output = append(response.Output, item)
+		case "web_search_tool_result":
+			for i := range response.Output {
+				if response.Output[i].Type == "web_search_call" && response.Output[i].CallID == block.ToolUseID {
+					response.Output[i].SearchSources = anthropicWebSearchSources(block.Content)
+				}
+			}
 		case "tool_use":
 			response.Output = append(response.Output, canonicalOutputItem{
 				ID:        block.ID,
@@ -453,8 +487,38 @@ func encodeCanonicalResponseAsAnthropicMessage(response canonicalResponse) ([]by
 				}
 			}
 			if text != "" {
-				content = append(content, map[string]any{"type": "text", "text": text})
+				block := map[string]any{"type": "text", "text": text}
+				if citations := anthropicCitationsFromCanonical(item.Citations); len(citations) > 0 {
+					block["citations"] = citations
+				}
+				content = append(content, block)
 			}
+		case "web_search_call":
+			callID := nonEmptyString(item.CallID, item.ID)
+			if !strings.HasPrefix(callID, "srvtoolu_") {
+				callID = "srvtoolu_" + strings.TrimPrefix(strings.TrimPrefix(callID, "ws_"), "resp_")
+			}
+			content = append(content, map[string]any{
+				"type":  "server_tool_use",
+				"id":    callID,
+				"name":  "web_search",
+				"input": map[string]any{"query": webSearchCallQuery(item)},
+			})
+			results := make([]any, 0, len(item.SearchSources))
+			for _, source := range item.SearchSources {
+				results = append(results, map[string]any{
+					"type":              "web_search_result",
+					"url":               source.URL,
+					"title":             source.Title,
+					"encrypted_content": "",
+					"page_age":          nil,
+				})
+			}
+			content = append(content, map[string]any{
+				"type":        "web_search_tool_result",
+				"tool_use_id": callID,
+				"content":     results,
+			})
 		}
 	}
 	body := map[string]any{
@@ -479,6 +543,46 @@ type anthropicContentBlock struct {
 	ID        string          `json:"id,omitempty"`
 	Name      string          `json:"name,omitempty"`
 	Input     json.RawMessage `json:"input,omitempty"`
+	// Native web search blocks.
+	ToolUseID string           `json:"tool_use_id,omitempty"`
+	Content   json.RawMessage  `json:"content,omitempty"`
+	Citations []map[string]any `json:"citations,omitempty"`
+}
+
+func anthropicWebSearchQuery(input json.RawMessage) string {
+	var parsed map[string]any
+	if err := json.Unmarshal(input, &parsed); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(anyString(parsed["query"]))
+}
+
+func anthropicWebSearchSources(content json.RawMessage) []canonicalCitation {
+	var results []map[string]any
+	if err := json.Unmarshal(content, &results); err != nil {
+		return nil
+	}
+	out := make([]canonicalCitation, 0, len(results))
+	for _, result := range results {
+		if url := strings.TrimSpace(anyString(result["url"])); url != "" {
+			out = append(out, canonicalCitation{URL: url, Title: strings.TrimSpace(anyString(result["title"]))})
+		}
+	}
+	return out
+}
+
+func anthropicCitationsToCanonical(raw []map[string]any) []canonicalCitation {
+	out := make([]canonicalCitation, 0, len(raw))
+	for _, citation := range raw {
+		if url := strings.TrimSpace(anyString(citation["url"])); url != "" {
+			out = append(out, canonicalCitation{
+				URL:       url,
+				Title:     strings.TrimSpace(anyString(citation["title"])),
+				CitedText: strings.TrimSpace(anyString(citation["cited_text"])),
+			})
+		}
+	}
+	return out
 }
 
 type anthropicCacheCreationUsageBody struct {
@@ -492,6 +596,11 @@ type anthropicMessageUsageBody struct {
 	CacheCreationInputTokens int                              `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     int                              `json:"cache_read_input_tokens"`
 	CacheCreation            *anthropicCacheCreationUsageBody `json:"cache_creation,omitempty"`
+	ServerToolUse            *anthropicServerToolUseUsage     `json:"server_tool_use,omitempty"`
+}
+
+type anthropicServerToolUseUsage struct {
+	WebSearchRequests int `json:"web_search_requests"`
 }
 
 func canonicalParamsFromAnthropicPayload(payload map[string]any) map[string]any {
@@ -583,6 +692,24 @@ func canonicalMessagesFromAnthropicContent(role string, raw any) []canonicalMess
 					Raw:          block,
 				})
 			}
+		case "server_tool_use", "web_search_tool_result":
+			// Fold hosted search blocks into plain assistant text.
+			var item canonicalOutputItem
+			if anyString(block["type"]) == "server_tool_use" {
+				if anyString(block["name"]) != "web_search" {
+					continue
+				}
+				if input, ok := block["input"].(map[string]any); ok {
+					if query := strings.TrimSpace(anyString(input["query"])); query != "" {
+						item.SearchQueries = []string{query}
+					}
+				}
+			} else if raw, err := json.Marshal(block["content"]); err == nil {
+				item.SearchSources = anthropicWebSearchSources(raw)
+			}
+			if text := webSearchHistoryText(item); text != "" {
+				message.Content = append(message.Content, canonicalContentPart{Type: contentPartTypeForRole(role), Text: text})
+			}
 		case "tool_use":
 			input := marshalAnyToString(block["input"])
 			message.ToolCalls = append(message.ToolCalls, canonicalToolCall{
@@ -620,6 +747,10 @@ func canonicalToolsFromAnthropicMessages(raw any) []canonicalTool {
 	tools := make([]canonicalTool, 0, len(items))
 	for _, item := range items {
 		tool, _ := item.(map[string]any)
+		if isWebSearchToolType(anyString(tool["type"])) {
+			tools = append(tools, canonicalWebSearchToolFromMap(tool, false))
+			continue
+		}
 		name := strings.TrimSpace(anyString(tool["name"]))
 		if name == "" {
 			continue
@@ -648,7 +779,7 @@ func canonicalToolChoiceFromAnthropic(raw any) any {
 	}
 }
 
-func encodeCanonicalMessagesAsAnthropicMessages(messages []canonicalMessage) []any {
+func encodeCanonicalMessagesAsAnthropicMessages(messages []canonicalMessage, requireSignedThinking bool) []any {
 	out := make([]any, 0, len(messages))
 	for i := 0; i < len(messages); {
 		message := messages[i]
@@ -683,6 +814,8 @@ func encodeCanonicalMessagesAsAnthropicMessages(messages []canonicalMessage) []a
 			if role == "" || role == "developer" || role == "system" {
 				role = "user"
 			}
+			thinkingBlocks := anthropicThinkingBlocksFromCanonicalFiltered(message.Thinking, requireSignedThinking)
+			droppedUnsignedThinking := requireSignedThinking && len(anthropicThinkingBlocksFromCanonical(message.Thinking)) > 0 && len(thinkingBlocks) == 0
 			blocks := encodeCanonicalContentAsAnthropic(message.Content)
 			if len(message.ToolCalls) > 0 {
 				if len(message.Content) == 0 {
@@ -690,7 +823,7 @@ func encodeCanonicalMessagesAsAnthropicMessages(messages []canonicalMessage) []a
 				}
 				next, toolUseBlocks, toolResultBlocks := encodeCanonicalMessageToolCallRoundTrip(messages, i)
 				if len(toolUseBlocks) > 0 {
-					blocks = append(anthropicThinkingBlocksFromCanonical(message.Thinking), blocks...)
+					blocks = append(thinkingBlocks, blocks...)
 					blocks = append(blocks, toolUseBlocks...)
 					out = append(out,
 						map[string]any{"role": role, "content": blocks},
@@ -705,7 +838,11 @@ func encodeCanonicalMessagesAsAnthropicMessages(messages []canonicalMessage) []a
 				}
 			}
 			if role == "assistant" {
-				blocks = append(anthropicThinkingBlocksFromCanonical(message.Thinking), blocks...)
+				blocks = append(thinkingBlocks, blocks...)
+				if droppedUnsignedThinking && anthropicAssistantContentEmpty(blocks) {
+					i++
+					continue
+				}
 			}
 			out = append(out, map[string]any{"role": role, "content": blocks})
 			i++
@@ -865,6 +1002,28 @@ func addToolCallMetadataToAnthropicBlock(block map[string]any, metadata map[stri
 	}
 }
 
+func anthropicAssistantContentEmpty(blocks []any) bool {
+	for _, raw := range blocks {
+		block, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(anyString(block["type"])) {
+		case "", "text":
+			if strings.TrimSpace(anyString(block["text"])) != "" {
+				return false
+			}
+		case "thinking":
+			if strings.TrimSpace(anyString(block["thinking"])) != "" {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func anthropicContentHasMeaningfulText(blocks []any) bool {
 	for _, raw := range blocks {
 		block, _ := raw.(map[string]any)
@@ -917,18 +1076,22 @@ func encodeCanonicalContentAsAnthropic(parts []canonicalContentPart) []any {
 func encodeCanonicalToolsAsAnthropic(tools []canonicalTool) []any {
 	out := make([]any, 0, len(tools))
 	for _, tool := range tools {
+		if canonicalToolIsWebSearch(tool) {
+			out = append(out, encodeWebSearchToolAsAnthropic(tool))
+			continue
+		}
 		if tool.Type == "custom" {
 			out = append(out, map[string]any{
 				"name":        tool.Name,
 				"description": tool.Description,
-				"input_schema": map[string]any{
+				"input_schema": anthropicToolInputSchema(map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"input": map[string]any{"type": "string"},
 					},
 					"required":             []any{"input"},
 					"additionalProperties": false,
-				},
+				}),
 			})
 			continue
 		}
@@ -1088,10 +1251,290 @@ func aliasResponsesNamespaceToolHistory(messages []canonicalMessage, aliases map
 
 // anthropicToolInputSchema guarantees a JSON Schema object; Anthropic rejects a null input_schema.
 func anthropicToolInputSchema(parameters any) any {
-	if schema, ok := parameters.(map[string]any); ok && len(schema) > 0 {
+	schema, ok := parameters.(map[string]any)
+	if !ok || len(schema) == 0 {
+		return map[string]any{"type": "object", "properties": map[string]any{}}
+	}
+	if !anthropicToolSchemaShouldRewrite(schema) {
 		return schema
 	}
-	return map[string]any{"type": "object", "properties": map[string]any{}}
+	cloned, _ := cloneSpecValue(schema).(map[string]any)
+	if cloned == nil {
+		cloned = map[string]any{}
+	}
+	return rewriteAnthropicToolInputSchema(cloned)
+}
+
+func anthropicToolSchemaShouldRewrite(schema map[string]any) bool {
+	for _, key := range []string{"oneOf", "anyOf", "allOf", "not", "enum"} {
+		if _, ok := schema[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func rewriteAnthropicToolInputSchema(schema map[string]any) map[string]any {
+	_, hasOne := schema["oneOf"]
+	_, hasAny := schema["anyOf"]
+	_, hasAll := schema["allOf"]
+	properties := map[string]any{}
+	if props, ok := schema["properties"].(map[string]any); ok {
+		properties = props
+	}
+	merged := false
+	if hasOne {
+		var ok bool
+		properties, ok = mergeAnthropicSchemaProperties(properties, schema["oneOf"])
+		merged = merged || ok
+	}
+	if hasAny {
+		var ok bool
+		properties, ok = mergeAnthropicSchemaProperties(properties, schema["anyOf"])
+		merged = merged || ok
+	}
+	if hasAll {
+		var ok bool
+		properties, ok = mergeAnthropicSchemaProperties(properties, schema["allOf"])
+		merged = merged || ok
+	}
+	if (hasOne || hasAny || hasAll) && !merged {
+		out := map[string]any{
+			"type":                 "object",
+			"properties":           properties,
+			"additionalProperties": true,
+		}
+		if defs, ok := schema["$defs"]; ok {
+			out["$defs"] = defs
+		}
+		if defs, ok := schema["definitions"]; ok {
+			out["definitions"] = defs
+		}
+		return out
+	}
+	required := schemaStringList(schema["required"])
+	if sets, ok := anthropicBranchRequiredSets(schema["oneOf"]); ok {
+		required = appendUniqueStrings(required, intersectStringSets(sets)...)
+	}
+	if sets, ok := anthropicBranchRequiredSets(schema["anyOf"]); ok {
+		required = appendUniqueStrings(required, intersectStringSets(sets)...)
+	}
+	if sets, ok := anthropicBranchRequiredSets(schema["allOf"]); ok {
+		required = appendUniqueStrings(required, unionStringSets(sets)...)
+	}
+	delete(schema, "oneOf")
+	delete(schema, "anyOf")
+	delete(schema, "allOf")
+	delete(schema, "not")
+	delete(schema, "enum")
+	schema["type"] = "object"
+	schema["properties"] = properties
+	if len(required) == 0 {
+		delete(schema, "required")
+	} else {
+		listed := make([]any, len(required))
+		for i, name := range required {
+			listed[i] = name
+		}
+		schema["required"] = listed
+	}
+	return schema
+}
+
+func mergeAnthropicSchemaProperties(base map[string]any, branches any) (map[string]any, bool) {
+	list, ok := branches.([]any)
+	if !ok {
+		return base, false
+	}
+	if base == nil {
+		base = map[string]any{}
+	}
+	merged := false
+	for _, raw := range list {
+		branch, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		props, ok := branch["properties"].(map[string]any)
+		if !ok {
+			continue
+		}
+		merged = true
+		for name, prop := range props {
+			if _, exists := base[name]; exists {
+				continue
+			}
+			base[name] = prop
+		}
+	}
+	return base, merged
+}
+
+func anthropicBranchRequiredSets(branches any) ([][]string, bool) {
+	list, ok := branches.([]any)
+	if !ok {
+		return nil, false
+	}
+	sets := make([][]string, 0, len(list))
+	for _, raw := range list {
+		branch, _ := raw.(map[string]any)
+		sets = append(sets, schemaStringList(branch["required"]))
+	}
+	return sets, true
+}
+
+func schemaStringList(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if item = strings.TrimSpace(item); item != "" {
+				out = append(out, item)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if !ok {
+				continue
+			}
+			if text = strings.TrimSpace(text); text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func intersectStringSets(sets [][]string) []string {
+	if len(sets) == 0 {
+		return nil
+	}
+	var out []string
+	for _, name := range sets[0] {
+		found := true
+		for _, set := range sets[1:] {
+			if !stringInList(set, name) {
+				found = false
+				break
+			}
+		}
+		if found {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func unionStringSets(sets [][]string) []string {
+	var out []string
+	for _, set := range sets {
+		out = appendUniqueStrings(out, set...)
+	}
+	return out
+}
+
+func stringInList(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeAnthropicPayloadToolSchemas(payload map[string]any) {
+	if payload == nil {
+		return
+	}
+	rawTools, ok := payload["tools"].([]any)
+	if !ok {
+		return
+	}
+	tools := make([]any, len(rawTools))
+	copy(tools, rawTools)
+	changed := false
+	for i, raw := range tools {
+		tool, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		schema, exists := tool["input_schema"]
+		if !exists {
+			continue
+		}
+		object, _ := schema.(map[string]any)
+		if len(object) > 0 && !anthropicToolSchemaShouldRewrite(object) {
+			continue
+		}
+		cloned := clonePayload(tool)
+		cloned["input_schema"] = anthropicToolInputSchema(schema)
+		tools[i] = cloned
+		changed = true
+	}
+	if changed {
+		payload["tools"] = tools
+	}
+}
+
+func dropAnthropicThinkingWithoutSignedToolRound(payload map[string]any) {
+	if payload == nil || !anthropicRequestThinkingEnabled(payload) {
+		return
+	}
+	messages, ok := payload["messages"].([]any)
+	if !ok {
+		return
+	}
+	for _, rawMessage := range messages {
+		message, ok := rawMessage.(map[string]any)
+		if !ok || strings.TrimSpace(anyString(message["role"])) != "assistant" {
+			continue
+		}
+		content, ok := message["content"].([]any)
+		if !ok || len(anthropicToolUseIDs(content)) == 0 {
+			continue
+		}
+		if !anthropicContentHasSignedThinking(content) {
+			delete(payload, "thinking")
+			return
+		}
+	}
+}
+
+func anthropicRequestThinkingEnabled(payload map[string]any) bool {
+	thinking, ok := payload["thinking"]
+	if !ok || thinking == nil {
+		return false
+	}
+	switch value := thinking.(type) {
+	case map[string]any:
+		kind := strings.TrimSpace(anyString(value["type"]))
+		if kind == "" {
+			return true
+		}
+		return !strings.EqualFold(kind, "disabled")
+	case bool:
+		return value
+	default:
+		return true
+	}
+}
+
+func anthropicContentHasSignedThinking(content []any) bool {
+	for _, raw := range content {
+		block, _ := raw.(map[string]any)
+		if strings.TrimSpace(anyString(block["type"])) != "thinking" {
+			continue
+		}
+		if strings.TrimSpace(anyString(block["signature"])) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func sanitizeDeepSeekAnthropicPatterns(payload map[string]any) map[string]any {
@@ -1163,6 +1606,9 @@ func encodeCanonicalToolChoiceAsAnthropic(raw any) any {
 			return map[string]any{"type": "any"}
 		}
 	case map[string]any:
+		if isWebSearchToolType(anyString(value["type"])) {
+			return map[string]any{"type": "tool", "name": "web_search"}
+		}
 		if toolType := strings.TrimSpace(anyString(value["type"])); toolType == "function" || toolType == "custom" {
 			if name := canonicalToolChoiceFunctionName(value); name != "" {
 				return map[string]any{"type": "tool", "name": name}
@@ -1318,7 +1764,15 @@ func gatewayUsageFromAnthropicUsage(usage anthropicMessageUsageBody) gatewayUsag
 		CacheCreationInputTokens:   cacheCreationTokens,
 		CacheCreation5mInputTokens: cacheCreation5mTokens,
 		CacheCreation1hInputTokens: cacheCreation1hTokens,
+		WebSearchRequests:          anthropicWebSearchRequestCount(usage),
 	}
+}
+
+func anthropicWebSearchRequestCount(usage anthropicMessageUsageBody) int {
+	if usage.ServerToolUse == nil {
+		return 0
+	}
+	return usage.ServerToolUse.WebSearchRequests
 }
 
 func anthropicUsagePayload(usage gatewayUsage) map[string]any {
@@ -1364,7 +1818,7 @@ func inspectAnthropicMessagesStreamLine(line []byte, capture *streamCaptureState
 			}
 		}
 	case "message_delta":
-		if event.Usage.OutputTokens > 0 || event.Usage.InputTokens > 0 || event.Usage.CacheReadInputTokens > 0 || event.Usage.CacheCreationInputTokens > 0 {
+		if event.Usage.OutputTokens > 0 || event.Usage.InputTokens > 0 || event.Usage.CacheReadInputTokens > 0 || event.Usage.CacheCreationInputTokens > 0 || anthropicWebSearchRequestCount(event.Usage) > 0 {
 			current := capture.usage
 			deltaUsage := gatewayUsageFromAnthropicUsage(event.Usage)
 			if deltaUsage.PromptTokens > 0 || deltaUsage.CachedPromptTokens > 0 || deltaUsage.CacheCreationInputTokens > 0 {
@@ -1374,6 +1828,9 @@ func inspectAnthropicMessagesStreamLine(line []byte, capture *streamCaptureState
 			}
 			if deltaUsage.CompletionTokens > 0 {
 				current.CompletionTokens = deltaUsage.CompletionTokens
+			}
+			if deltaUsage.WebSearchRequests > 0 {
+				current.WebSearchRequests = deltaUsage.WebSearchRequests
 			}
 			current.TotalTokens = 0
 			capture.usage = current.normalized()

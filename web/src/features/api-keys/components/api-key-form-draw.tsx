@@ -3,7 +3,7 @@ import { ChevronDown, LoaderCircle, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -318,16 +318,14 @@ export function APIKeyFormDraw({
     : undefined
 
   return (
-    <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent
-        side="right"
-       
-        onOpenAutoFocus={(event) => event.preventDefault()}
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DrawHeader>
-          <DrawTitle>{initialKey ? t('form.editTitle') : t('form.createTitle')}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className="space-y-0">
+        <SheetHeader>
+          <SheetTitle>{initialKey ? t('form.editTitle') : t('form.createTitle')}</SheetTitle>
+        </SheetHeader>
+        <SheetBody className="space-y-0">
           <FormSection title={t('form.sections.basic')}>
             <FormField label={t('form.fields.name')} required>
               <Input
@@ -459,7 +457,7 @@ export function APIKeyFormDraw({
             title={(
               <button
                 type="button"
-                className="flex w-full items-center gap-1.5 text-left text-sm font-semibold text-foreground transition-colors hover:text-foreground"
+                className="flex w-full items-center gap-1.5 text-left text-body font-semibold text-label transition-colors hover:text-label"
                 onClick={() => setAdvancedExpanded((value) => !value)}
               >
                 <ChevronDown className={`h-4 w-4 transition-transform ${advancedExpanded ? 'rotate-0' : '-rotate-90'}`} />
@@ -473,17 +471,17 @@ export function APIKeyFormDraw({
               <div className="space-y-5">
                 <div className="space-y-3">
                   <div>
-                    <span className="block text-sm font-medium">{t('form.advanced.modelMapping')}</span>
-                    <p className="text-muted-soft mt-1 text-xs">{t('form.advanced.modelMappingDesc')}</p>
+                    <span className="block text-body font-medium">{t('form.advanced.modelMapping')}</span>
+                    <p className="text-label-2 mt-1 text-footnote">{t('form.advanced.modelMappingDesc')}</p>
                   </div>
-                  <div className="rounded-lg border border-[hsl(var(--glass-border))]">
+                  <div className="rounded-inner border border-separator">
                     {mappingEntries.length ? (
                       <div className="space-y-3 p-3">
                         {mappingEntries.map((rule, index) => {
                           const identity = mappingPatternIdentity(rule.pattern)
                           const isDuplicate = identity !== '' && duplicateMappingKeys.has(identity)
                           return (
-                            <div key={index} className={index < mappingEntries.length - 1 ? 'border-b border-[hsl(var(--glass-divider))] pb-3' : ''}>
+                            <div key={index} className={index < mappingEntries.length - 1 ? 'border-b border-separator pb-3' : ''}>
                               <div className="flex items-center gap-2">
                                 <Input
                                   value={rule.pattern}
@@ -542,14 +540,14 @@ export function APIKeyFormDraw({
                                   }}
                                 >
                                   <TabsList className="h-9 w-full">
-                                    <TabsTrigger value="hard" className="text-xs">{t('form.advanced.modeHard')}</TabsTrigger>
-                                    <TabsTrigger value="soft" className="text-xs">{t('form.advanced.modeSoft')}</TabsTrigger>
+                                    <TabsTrigger value="hard" className="text-footnote">{t('form.advanced.modeHard')}</TabsTrigger>
+                                    <TabsTrigger value="soft" className="text-footnote">{t('form.advanced.modeSoft')}</TabsTrigger>
                                   </TabsList>
                                 </Tabs>
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-9 w-9 shrink-0 text-muted-soft hover:text-red-400"
+                                  className="h-9 w-9 shrink-0 text-label-2 hover:text-danger"
                                   onClick={() => {
                                     setMappingEntries((prev) => prev.filter((_, i) => i !== index))
                                   }}
@@ -558,7 +556,7 @@ export function APIKeyFormDraw({
                                 </Button>
                               </div>
                               {isDuplicate ? (
-                                <p className="mt-1 pl-1 text-xs text-red-500">{t('form.advanced.duplicateKey')}</p>
+                                <p className="mt-1 pl-1 text-footnote text-danger">{t('form.advanced.duplicateKey')}</p>
                               ) : null}
                             </div>
                           )
@@ -585,7 +583,7 @@ export function APIKeyFormDraw({
                   </div>
                 </div>
 
-                <div className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-5">
+                <div className="space-y-3 border-t border-separator pt-5">
                   <Switch
                     checked={values.imageBridgeEnabled}
                     onCheckedChange={(checked) => setValues((current) => ({ ...current, imageBridgeEnabled: checked }))}
@@ -646,7 +644,7 @@ export function APIKeyFormDraw({
                   ) : null}
                 </div>
 
-                <div className="space-y-3 border-t border-[hsl(var(--glass-divider))] pt-5">
+                <div className="space-y-3 border-t border-separator pt-5">
                   <Switch
                     checked={values.rateLimitEnabled}
                     onCheckedChange={(checked) => setValues((current) => ({ ...current, rateLimitEnabled: checked }))}
@@ -685,29 +683,29 @@ export function APIKeyFormDraw({
               </div>
             ) : null}
           </FormSection>
-        </DrawBody>
-        <DrawFooter>
+        </SheetBody>
+        <SheetFooter>
           <Button onClick={handleSubmit} disabled={saveDisabled}>
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {t('form.actions.save')}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             onClick={() => onOpenChange(false)}
             disabled={pending}
           >
             {t('form.actions.cancel')}
           </Button>
-        </DrawFooter>
-      </DrawContent>
-    </Draw>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 
 function QuotaAmountInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-sm text-muted-soft">$</span>
+      <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-body text-label-2">$</span>
       <Input
         type="text"
         inputMode="decimal"
@@ -754,8 +752,8 @@ function FormSection({
   children: ReactNode
 }) {
   return (
-    <section className={`space-y-4 py-5 ${divided ? 'border-t border-[hsl(var(--glass-divider))]' : 'pt-0'}`}>
-      {typeof title === 'string' ? <h3 className="text-sm font-semibold text-foreground">{title}</h3> : title}
+    <section className={`space-y-4 py-5 ${divided ? 'border-t border-separator' : 'pt-0'}`}>
+      {typeof title === 'string' ? <h3 className="text-body font-semibold text-label">{title}</h3> : title}
       <div className="space-y-4">{children}</div>
     </section>
   )

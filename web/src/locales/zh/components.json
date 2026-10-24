@@ -11,16 +11,6 @@
     "serviceErrorTitle": "后端服务不可用",
     "serviceErrorDesc": "后端服务暂时异常，请稍后刷新页面。"
   },
-  "themeSwitcher": {
-    "openLabel": "打开主题切换器",
-    "appearance": "外观",
-    "title": "主题",
-    "description": "模式、基底和强调色。当前为 {{mode}}。",
-    "mode": "模式",
-    "base": "基底",
-    "accent": "强调色",
-    "systemHint": "跟随系统，当前解析为 {{mode}}。"
-  },
   "modelsDraw": {
     "searchPlaceholder": "搜索模型",
     "headers": {

@@ -131,6 +131,7 @@ func attemptMetadata(
 		CacheCreation5mInputTokens: result.cacheCreation5mInputTokens,
 		CacheCreation1hInputTokens: result.cacheCreation1hInputTokens,
 		AudioOutputTokens:          result.audioOutputTokens,
+		WebSearchRequests:          result.webSearchRequests,
 	}, result.pricing, result.estimatedCost, billingAdjustment{
 		ServiceTier: result.serviceTier,
 		Mode:        result.billingMode,

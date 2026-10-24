@@ -965,8 +965,8 @@ func TestDeepSeekAnthropicPayloadUsesModelMaxTokensDefaultOnOpenAICompatibleSite
 	if err != nil {
 		t.Fatalf("BuildUpstreamPayload returned error: %v", err)
 	}
-	if payload["max_tokens"] != 8192 {
-		t.Fatalf("DeepSeek max_tokens = %#v, want model default 8192", payload["max_tokens"])
+	if payload["max_tokens"] != 32768 {
+		t.Fatalf("DeepSeek max_tokens = %#v, want Anthropic Messages default 32768", payload["max_tokens"])
 	}
 }
 

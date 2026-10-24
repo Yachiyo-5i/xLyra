@@ -17,7 +17,7 @@ export default function App() {
 
 function AppFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[hsl(var(--page-bg))] text-sm text-muted-soft">
+    <div className="flex min-h-screen items-center justify-center bg-canvas text-body text-label-2">
       Loading...
     </div>
   )

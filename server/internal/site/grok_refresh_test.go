@@ -19,7 +19,7 @@ import (
 	"xlyra/server/internal/store"
 )
 
-func TestPersistGrokRefreshMapsTierQuotaAndModels(t *testing.T) {
+func TestPersistAccountRefreshMapsTierQuotaAndModels(t *testing.T) {
 	t.Parallel()
 
 	siteID := uuid.New()
@@ -58,9 +58,21 @@ func TestPersistGrokRefreshMapsTierQuotaAndModels(t *testing.T) {
 			tx.RowsAffected = 1
 			tx.Statement.RowsAffected = 1
 		},
-		update: siteCaptureUpdate[store.SiteCredential](t, "grok credential", func(item store.SiteCredential) {
-			savedCredential = item
-		}),
+		update: func(tx *gorm.DB) {
+			values, ok := tx.Statement.Dest.(map[string]any)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			meta, ok := values["meta"].(store.JSON)
+			if !ok {
+				tx.AddError(gorm.ErrInvalidData)
+				return
+			}
+			savedCredential.Meta = append(store.JSON(nil), meta...)
+			tx.RowsAffected = 1
+			tx.Statement.RowsAffected = 1
+		},
 	})
 	summary := adapter.APIKeySummary{
 		Usage: map[string]any{"tier": "premium_plus", "limit": int64(100), "remaining": int64(42), "used": int64(58)},
@@ -72,9 +84,9 @@ func TestPersistGrokRefreshMapsTierQuotaAndModels(t *testing.T) {
 		Raw: map[string]any{"subscription": map[string]any{"tier": "premium_plus"}},
 	}
 
-	state, models, err := persistGrokRefresh(context.Background(), siteStoreWithGorm(t, db), credential, summary, time.Unix(1_800_000_000, 0))
+	state, models, err := persistAccountRefresh(context.Background(), siteStoreWithGorm(t, db), credential, summary, time.Unix(1_800_000_000, 0))
 	if err != nil {
-		t.Fatalf("persistGrokRefresh() error = %v", err)
+		t.Fatalf("persistAccountRefresh() error = %v", err)
 	}
 	if state.SiteCredentialID != credentialID || createdState.GroupName.String != "premium_plus" || createdState.RemainQuota.Int64 != 42 || createdState.UsedQuota.Int64 != 58 || createdState.SyncStatus != "synced" {
 		t.Fatalf("state=%#v created=%#v", state, createdState)
@@ -91,7 +103,7 @@ func TestPersistGrokRefreshMapsTierQuotaAndModels(t *testing.T) {
 	}
 }
 
-func TestPersistGrokRefreshUsesTransactionAndRollsBackWriteFailure(t *testing.T) {
+func TestPersistAccountRefreshUsesTransactionAndRollsBackWriteFailure(t *testing.T) {
 	t.Parallel()
 
 	siteID := uuid.New()
@@ -130,7 +142,7 @@ func TestPersistGrokRefreshUsesTransactionAndRollsBackWriteFailure(t *testing.T)
 			if _, ok := tx.Statement.ConnPool.(gorm.TxCommitter); ok {
 				transactionalWrites++
 			}
-			if _, ok := tx.Statement.Dest.(*store.SiteCredential); !ok {
+			if _, ok := tx.Statement.Dest.(map[string]any); !ok {
 				tx.AddError(gorm.ErrInvalidData)
 				return
 			}
@@ -139,12 +151,12 @@ func TestPersistGrokRefreshUsesTransactionAndRollsBackWriteFailure(t *testing.T)
 		},
 	})
 
-	_, _, err := persistGrokRefresh(context.Background(), siteStoreWithGorm(t, db), credential, adapter.APIKeySummary{
+	_, _, err := persistAccountRefresh(context.Background(), siteStoreWithGorm(t, db), credential, adapter.APIKeySummary{
 		Usage:  map[string]any{"tier": "premium"},
 		Models: []adapter.Model{{UpstreamName: "grok-4"}},
 	}, time.Unix(1_800_000_000, 0))
 	if !errors.Is(err, writeErr) {
-		t.Fatalf("persistGrokRefresh() error = %v, want %v", err, writeErr)
+		t.Fatalf("persistAccountRefresh() error = %v, want %v", err, writeErr)
 	}
 	if transactionalWrites != 3 {
 		t.Fatalf("transactional writes = %d, want credential, state, and model writes in one transaction", transactionalWrites)
@@ -154,10 +166,10 @@ func TestPersistGrokRefreshUsesTransactionAndRollsBackWriteFailure(t *testing.T)
 	}
 }
 
-func TestGrokRefreshQuotaValuesAcceptBoundedNumericTypes(t *testing.T) {
+func TestAccountRefreshQuotaValuesAcceptBoundedNumericTypes(t *testing.T) {
 	t.Parallel()
 
-	tier, limit, remaining, used, unlimited := grokRefreshQuotaValues(map[string]any{
+	tier, limit, remaining, used, unlimited := accountRefreshQuotaValues(map[string]any{
 		"tier":      "premium",
 		"limit":     float64(100),
 		"remaining": json.Number("75"),
@@ -168,8 +180,8 @@ func TestGrokRefreshQuotaValuesAcceptBoundedNumericTypes(t *testing.T) {
 	}
 }
 
-func TestGrokRefreshQuotaValuesKeepsMissingQuotaUnknown(t *testing.T) {
-	tier, limit, remaining, used, unlimited := grokRefreshQuotaValues(map[string]any{"tier": "premium"})
+func TestAccountRefreshQuotaValuesKeepsMissingQuotaUnknown(t *testing.T) {
+	tier, limit, remaining, used, unlimited := accountRefreshQuotaValues(map[string]any{"tier": "premium"})
 	if tier != "premium" || limit != nil || remaining != nil || used != nil || unlimited {
 		t.Fatalf("quota = %q %v %v %v unlimited=%v", tier, limit, remaining, used, unlimited)
 	}
@@ -186,12 +198,43 @@ func TestShouldReauthorizeGrokCredentialOnlyOnAuthFailure(t *testing.T) {
 	}
 }
 
-func TestGrokRefreshFailureStatusPreservesLastGoodModels(t *testing.T) {
-	if got := grokRefreshFailureStatus(fmt.Errorf("grok upstream returned status 500")); got != "stale" {
+func TestAccountRefreshFailureStatusPreservesLastGoodModels(t *testing.T) {
+	if got := accountRefreshFailureStatus(fmt.Errorf("grok upstream returned status 500"), shouldReauthorizeGrokCredential); got != "stale" {
 		t.Fatalf("transient refresh status = %q, want stale", got)
 	}
-	if got := grokRefreshFailureStatus(fmt.Errorf("%w: status 401", adapter.ErrGrokUnauthorized)); got != "reauth_required" {
+	if got := accountRefreshFailureStatus(fmt.Errorf("%w: status 401", adapter.ErrGrokUnauthorized), shouldReauthorizeGrokCredential); got != "reauth_required" {
 		t.Fatalf("auth refresh status = %q, want reauth_required", got)
+	}
+}
+
+func TestApplyAccountSummaryToState(t *testing.T) {
+	summary := adapter.APIKeySummary{
+		Usage: map[string]any{"tier": "personal", "limit": int64(2000), "remaining": int64(1999), "used": int64(1), "unlimited": false, "unit": "credits"},
+		Raw:   map[string]any{"model_count": 18},
+	}
+	params := store.UpsertSiteAPIKeyStateParams{}
+	applyAccountSummaryToState(&params, summary, "188****9521")
+	if params.RemainQuota != int64(1999) || params.UsedQuota != int64(1) || params.GroupName != "personal" || params.Name != "188****9521" {
+		t.Fatalf("unexpected params: %+v", params)
+	}
+	if len(params.Usage) == 0 || len(params.Raw) == 0 {
+		t.Fatalf("usage/raw must be persisted: %+v", params)
+	}
+}
+
+func TestKeepAccountStateQuotaSurvivesFailedRefresh(t *testing.T) {
+	previous := store.SiteAPIKeyState{
+		Name:        "acct",
+		GroupName:   sql.NullString{String: "personal", Valid: true},
+		RemainQuota: sql.NullInt64{Int64: 1999, Valid: true},
+		UsedQuota:   sql.NullInt64{Int64: 1, Valid: true},
+		Usage:       store.JSON(`{"limit":2000}`),
+		Raw:         store.JSON(`{"a":1}`),
+	}
+	params := store.UpsertSiteAPIKeyStateParams{SyncStatus: "stale"}
+	keepAccountStateQuota(&params, previous)
+	if params.RemainQuota != int64(1999) || params.UsedQuota != int64(1) || params.GroupName != "personal" || string(params.Usage) != `{"limit":2000}` || params.SyncStatus != "stale" {
+		t.Fatalf("quota must be carried over a failed refresh: %+v", params)
 	}
 }
 
@@ -428,6 +471,9 @@ func grokRefreshService(t *testing.T, modelCount int, syncErr error) (*Service, 
 			case *store.SiteCredential:
 				credential = *dest
 			case map[string]any:
+				if meta, ok := dest["meta"].(store.JSON); ok {
+					credential.Meta = meta
+				}
 			case *store.SiteState:
 				*savedSiteState = *dest
 			default:

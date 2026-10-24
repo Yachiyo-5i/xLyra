@@ -113,18 +113,19 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
+      {/* 覆盖层：Liquid Glass thick，位于屏幕上部三分之一，类似 Spotlight */}
       <DialogContent
-        className="w-[min(92vw,560px)] overflow-hidden p-0 gap-0"
-        overlayClassName="bg-black/40"
+        className="lg-thick top-[14dvh] flex max-h-[min(72dvh,560px)] w-[min(92vw,640px)] translate-y-0 flex-col overflow-hidden rounded-shell"
+        overlayClassName="bg-black/32 backdrop-blur-0"
         onKeyDown={handleKeyDown}
         onOpenAutoFocus={(e) => {
           e.preventDefault()
           inputRef.current?.focus()
         }}
       >
-        {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-[hsl(var(--glass-divider))] px-4 py-3">
-          <Search className="h-4 w-4 shrink-0 text-foreground/40" />
+        {/* 搜索框：大号、无边框 */}
+        <div className="flex shrink-0 items-center gap-3 border-b border-separator px-5">
+          <Search className="size-5 shrink-0 text-label-3" />
           <input
             ref={inputRef}
             value={query}
@@ -132,28 +133,24 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
               setQuery(e.target.value)
               setActiveIndex(0)
             }}
-            placeholder={t('actions.search') + '...'}
-            className="flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-[hsl(var(--input-placeholder))] md:text-sm"
+            placeholder={t('actions.search') + '…'}
+            className="h-14 flex-1 bg-transparent text-title-3 font-normal text-label outline-none placeholder:text-label-3"
           />
-          <kbd className="hidden sm:inline-flex items-center rounded border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[10px] font-medium text-muted-soft">
-            ESC
+          <kbd className="hidden h-6 items-center rounded-full bg-fill-3 px-2 font-mono text-caption-1 text-label-2 sm:inline-flex">
+            esc
           </kbd>
         </div>
 
-        {/* Results */}
-        <div ref={listRef} className="scrollbar-hidden max-h-[50vh] overflow-auto py-2">
+        {/* 结果：按分组列出，键盘上下选择 */}
+        <div ref={listRef} className="scrollbar-hidden min-h-0 flex-1 overflow-auto p-2">
           {flatItems.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-soft">
-              {t('status.noData')}
-            </div>
+            <div className="px-4 py-10 text-center text-callout text-label-3">{t('status.noData')}</div>
           ) : (
             (() => {
               let flatIdx = -1
               return [...grouped.entries()].map(([section, items]) => (
                 <div key={section}>
-                  <div className="px-4 pt-3 pb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-soft">
-                    {section}
-                  </div>
+                  <div className="px-3 pb-1 pt-3 text-caption-1 text-label-3 first:pt-1">{section}</div>
                   {items.map((item) => {
                     flatIdx++
                     const idx = flatIdx
@@ -165,21 +162,20 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
                         data-active={isActive}
                         type="button"
                         className={cn(
-                          'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors',
-                          isActive
-                            ? 'bg-[hsl(var(--primary)/0.1)] text-foreground'
-                            : 'text-foreground/80 hover:bg-[hsl(var(--surface-subtle))]',
+                          // 面板圆角 24、内边距 8 → 行圆角 16（同心）
+                          'flex min-h-11 w-full items-center gap-3 rounded-card px-3 py-2 text-left transition-colors duration-100',
+                          isActive ? 'bg-fill-3' : 'hover:bg-fill-4',
                         )}
                         onMouseEnter={() => setActiveIndex(idx)}
                         onClick={() => handleSelect(item)}
                       >
-                        <Icon className="h-4 w-4 shrink-0 text-foreground/50" />
+                        <span className={cn('grid size-8 shrink-0 place-items-center rounded-[10px] bg-fill-3', isActive ? 'text-tint' : 'text-label-2')}>
+                          <Icon className="size-4" />
+                        </span>
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{item.label}</div>
+                          <div className="truncate text-body text-label">{item.label}</div>
                           {item.description ? (
-                            <div className="text-xs text-muted-soft truncate">
-                              {item.description}
-                            </div>
+                            <div className="truncate text-footnote text-label-3">{item.description}</div>
                           ) : null}
                         </div>
                       </button>
@@ -191,20 +187,18 @@ export function CommandMenu({ open: openProp, onOpenChange: onOpenChangeProp }: 
           )}
         </div>
 
-        {/* Footer hint */}
-        <div className="flex items-center gap-4 border-t border-[hsl(var(--glass-divider))] px-4 py-2 text-[10px] text-muted-soft">
-          <span className="inline-flex items-center gap-1">
-            <kbd className="rounded border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-1 py-0.5">↑↓</kbd>
-            navigate
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <kbd className="rounded border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-1 py-0.5">↵</kbd>
-            open
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <kbd className="rounded border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-1 py-0.5">esc</kbd>
-            close
-          </span>
+        {/* 底部快捷键提示 */}
+        <div className="hidden shrink-0 items-center gap-4 border-t border-separator px-5 py-2.5 text-caption-1 text-label-3 sm:flex">
+          {[
+            ['↑↓', 'navigate'],
+            ['↵', 'open'],
+            ['esc', 'close'],
+          ].map(([key, label]) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-small bg-fill-3 px-1 font-mono text-label-2">{key}</kbd>
+              {label}
+            </span>
+          ))}
         </div>
       </DialogContent>
     </Dialog>

@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { LoaderCircle, PencilLine, Plus, Search, Trash2 } from 'lucide-react'
+import { LoaderCircle, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ErrorState } from '@/components/common/error-state'
 import { toSlug } from '@/lib/slug'
+import { TableToolbar } from '@/components/common/table-toolbar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Switch } from '@/components/ui/switch'
 import { toast } from '@/lib/toast'
-import { cn } from '@/lib/utils'
 import { downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
 import { listSitesWithOAuth, sitesQueryKeys, type Site } from '@/features/sites/api/sites'
 import { sortSitesByName } from '@/features/sites/lib/site-utils'
@@ -138,7 +139,7 @@ export function SiteGroupsSettingsPage() {
   }
 
   if (groupsQuery.isLoading) {
-    return <p className="text-sm text-muted-soft">{t('siteGroups.loading')}</p>
+    return <p className="text-body text-label-2">{t('siteGroups.loading')}</p>
   }
 
   if (groupsQuery.isError) {
@@ -148,23 +149,25 @@ export function SiteGroupsSettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div className="space-y-1.5">
-        <h3 className="text-lg font-semibold text-foreground">{t('siteGroups.title')}</h3>
-        <p className="text-sm text-muted-soft">{t('siteGroups.description')}</p>
+        <h3 className="text-title-3 text-label">{t('siteGroups.title')}</h3>
+        <p className="text-body text-label-2">{t('siteGroups.description')}</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-0 sm:max-w-sm sm:flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-soft" />
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('siteGroups.search')} className="pl-9" />
-        </div>
-        <Button onClick={startCreate}>
-          <Plus className="h-4 w-4" />
-          {t('siteGroups.actions.create')}
-        </Button>
-      </div>
+      <TableToolbar
+        searchValue={search}
+        onSearchChange={(event) => setSearch(event.target.value)}
+        searchPlaceholder={t('siteGroups.search')}
+        searchClassName="lg:max-w-sm"
+        actions={
+          <Button onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            {t('siteGroups.actions.create')}
+          </Button>
+        }
+      />
 
       {filteredGroups.length ? (
-        <div className="divide-y divide-[hsl(var(--divider))] border-y border-[hsl(var(--divider))]">
+        <div className="mat-thick divide-y divide-separator rounded-card px-5">
           {filteredGroups.map((group) => {
             const groupSites = sortSitesByName(group.sites.map((item) => sitesById.get(item.site_id)).filter(Boolean) as Site[])
             return (
@@ -172,33 +175,33 @@ export function SiteGroupsSettingsPage() {
                 <div className="min-w-0 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex flex-wrap items-center gap-2 pr-1">
-                      <span className="min-w-0 truncate font-medium text-foreground">{group.name}</span>
-                      <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs', group.enabled ? 'bg-emerald-500/12 text-emerald-300' : 'bg-[hsl(var(--surface-subtle))] text-muted-soft')}>
+                      <span className="min-w-0 truncate font-medium text-label">{group.name}</span>
+                      <Badge variant={group.enabled ? 'success' : 'neutral'} className="shrink-0">
                         {group.enabled ? t('siteGroups.enabled') : t('siteGroups.disabled')}
-                      </span>
+                      </Badge>
                     </div>
                     <div className="flex shrink-0 items-start gap-1 md:hidden">
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(group)} title={t('siteGroups.actions.edit')}>
                         <PencilLine className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-500/10 hover:text-red-400" onClick={() => setDeleteTarget(group)} title={t('siteGroups.actions.delete')}>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-danger hover:bg-danger/10 hover:text-danger" onClick={() => setDeleteTarget(group)} title={t('siteGroups.actions.delete')}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                  {group.description ? <p className="text-sm text-muted-soft">{group.description}</p> : null}
+                  {group.description ? <p className="text-body text-label-2">{group.description}</p> : null}
                   <div className="flex flex-wrap gap-1.5">
                     {groupSites.length ? groupSites.slice(0, 6).map((site) => (
-                      <span key={site.id} className="rounded-md bg-[hsl(var(--surface-subtle))] px-2 py-1 text-xs text-muted-soft">{site.name}</span>
-                    )) : <span className="text-xs text-muted-soft">{t('siteGroups.noSites')}</span>}
-                    {groupSites.length > 6 ? <span className="rounded-md bg-[hsl(var(--surface-subtle))] px-2 py-1 text-xs text-muted-soft">+{groupSites.length - 6}</span> : null}
+                      <span key={site.id} className="rounded-control bg-fill-3 px-2 py-1 text-footnote text-label-2">{site.name}</span>
+                    )) : <span className="text-footnote text-label-2">{t('siteGroups.noSites')}</span>}
+                    {groupSites.length > 6 ? <span className="rounded-control bg-fill-3 px-2 py-1 text-footnote text-label-2">+{groupSites.length - 6}</span> : null}
                   </div>
                 </div>
                 <div className="hidden items-start gap-1 md:flex">
                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(group)} title={t('siteGroups.actions.edit')}>
                     <PencilLine className="h-4 w-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-500/10 hover:text-red-400" onClick={() => setDeleteTarget(group)} title={t('siteGroups.actions.delete')}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-danger hover:bg-danger/10 hover:text-danger" onClick={() => setDeleteTarget(group)} title={t('siteGroups.actions.delete')}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -208,12 +211,12 @@ export function SiteGroupsSettingsPage() {
         </div>
       ) : null}
 
-      <Draw open={formOpen} onOpenChange={(open) => { if (!open && !saveMutation.isPending) closeForm() }}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{editingGroup ? t('siteGroups.form.editTitle') : t('siteGroups.form.createTitle')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
+      <Sheet open={formOpen} onOpenChange={(open) => { if (!open && !saveMutation.isPending) closeForm() }}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{editingGroup ? t('siteGroups.form.editTitle') : t('siteGroups.form.createTitle')}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="space-y-4">
             <FormField label={t('siteGroups.form.name')} required>
               <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
             </FormField>
@@ -239,19 +242,19 @@ export function SiteGroupsSettingsPage() {
               onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))}
               label={t('siteGroups.form.enabled')}
             />
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {editingGroup ? t('siteGroups.actions.save') : t('siteGroups.actions.create')}
             </Button>
-            <Button variant="ghost" onClick={closeForm} disabled={saveMutation.isPending}>{t('siteGroups.actions.cancel')}</Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+            <Button variant="secondary" onClick={closeForm} disabled={saveMutation.isPending}>{t('siteGroups.actions.cancel')}</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleteMutation.isPending) setDeleteTarget(null) }}>
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('siteGroups.deleteDialog.title')}</DialogTitle>
           </DialogHeader>
@@ -262,7 +265,7 @@ export function SiteGroupsSettingsPage() {
           </DialogBody>
           <DialogFooter
             className="border-t-0 pt-2"
-            cancel={<Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('siteGroups.actions.cancel')}</Button>}
+            cancel={<Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>{t('siteGroups.actions.cancel')}</Button>}
             confirm={(
               <Button variant="destructive" onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }} disabled={deleteMutation.isPending}>
                 {deleteMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}

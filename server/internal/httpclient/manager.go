@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
 
 	"xlyra/server/internal/config"
@@ -53,6 +55,94 @@ func NewGuardedDialer(timeout time.Duration) *net.Dialer {
 	}
 }
 
+// NewGuardedTransport clones http.DefaultTransport and dials through the SSRF
+// guard. Idle limits and TLS timeouts stay as they are on the default
+// transport. dialTimeout is the TCP dial timeout; zero uses 30s.
+//
+// HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, and the lowercase forms are read here.
+// http.ProxyFromEnvironment caches the first process-wide read, so this builds
+// its own proxy function from that snapshot and keeps environment proxies
+// usable. The proxy host:port values themselves are exempt from the guard.
+// Every other direct dial is still checked, including other loopback and
+// private addresses when HTTP_CLIENT_BLOCK_PRIVATE_NETWORKS is on.
+//
+// Limitation: once a request goes through a proxy, the proxy resolves the
+// target. This guard only sees the direct dial. Account-pool URLs are also
+// limited to https and a manifest hostname allow-list, which cannot be an IP.
+func NewGuardedTransport(dialTimeout time.Duration) *http.Transport {
+	if dialTimeout <= 0 {
+		dialTimeout = 30 * time.Second
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	proxyForURL := httpproxy.FromEnvironment().ProxyFunc()
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		if req == nil || req.URL == nil {
+			return nil, nil
+		}
+		return proxyForURL(req.URL)
+	}
+	allowed := environmentProxyDialAddrs()
+	guarded := NewGuardedDialer(dialTimeout)
+	direct := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if _, ok := allowed[address]; ok {
+			return direct.DialContext(ctx, network, address)
+		}
+		return guarded.DialContext(ctx, network, address)
+	}
+	return transport
+}
+
+// environmentProxyDialAddrs is the exact host:port set dialed for the
+// process proxy variables. Only those addresses skip the guard.
+func environmentProxyDialAddrs() map[string]struct{} {
+	allowed := map[string]struct{}{}
+	for _, key := range []string{
+		"HTTP_PROXY", "http_proxy",
+		"HTTPS_PROXY", "https_proxy",
+		"ALL_PROXY", "all_proxy",
+	} {
+		addr, ok := proxyDialAddr(os.Getenv(key))
+		if !ok {
+			continue
+		}
+		allowed[addr] = struct{}{}
+	}
+	return allowed
+}
+
+func proxyDialAddr(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		parsed, err = url.Parse("http://" + raw)
+		if err != nil || parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
+			return "", false
+		}
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return "", false
+	}
+	port := parsed.Port()
+	if port == "" {
+		switch strings.ToLower(parsed.Scheme) {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		case "socks5", "socks5h":
+			port = "1080"
+		default:
+			return "", false
+		}
+	}
+	return net.JoinHostPort(host, port), true
+}
+
 type ProxyProfile struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -68,12 +158,16 @@ type Profile struct {
 	ProxyID               string
 	RequestTimeout        time.Duration
 	NoRequestTimeout      bool
+	DisableCompression    bool
 	ConnectTimeout        time.Duration
 	ResponseHeaderTimeout time.Duration
 	MaxIdleConns          int
 	MaxIdleConnsPerHost   int
 	MaxConnsPerHost       int
 	IdleConnTimeout       time.Duration
+	// TLSFingerprint selects a browser/runtime TLS ClientHello to imitate.
+	// Empty keeps Go's default handshake.
+	TLSFingerprint string
 }
 
 type Manager struct {
@@ -286,6 +380,7 @@ func normalizeProfile(profile Profile) Profile {
 		profile.IdleConnTimeout = defaults.IdleConnTimeout
 	}
 	profile.ProxyID = strings.TrimSpace(profile.ProxyID)
+	profile.TLSFingerprint = strings.ToLower(strings.TrimSpace(profile.TLSFingerprint))
 	return profile
 }
 
@@ -293,7 +388,10 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 	profile = normalizeProfile(profile)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
-	transport.DialContext = NewGuardedDialer(profile.ConnectTimeout).DialContext
+	transport.DisableCompression = profile.DisableCompression
+	guarded := NewGuardedDialer(profile.ConnectTimeout)
+	transport.DialContext = guarded.DialContext
+	fingerprintTLS := profile.TLSFingerprint == TLSFingerprintClaudeCode
 	if proxyProfile != nil {
 		parsed, err := url.Parse(strings.TrimSpace(proxyProfile.URL))
 		if err != nil {
@@ -301,7 +399,13 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 		}
 		switch strings.ToLower(strings.TrimSpace(proxyProfile.Type)) {
 		case "http", "https":
-			transport.Proxy = http.ProxyURL(parsed)
+			if fingerprintTLS {
+				// DialTLSContext is bypassed when http.Transport.Proxy is set, so
+				// the CONNECT tunnel is established by the dialer itself.
+				transport.DialContext = httpConnectDialer(parsed, guarded)
+			} else {
+				transport.Proxy = http.ProxyURL(parsed)
+			}
 		case "socks5":
 			dialer, err := proxy.SOCKS5("tcp", parsed.Host, proxyAuth(parsed), NewGuardedDialer(profile.ConnectTimeout))
 			if err != nil {
@@ -342,6 +446,12 @@ func newHTTPClient(profile Profile, proxyProfile *ProxyProfile) (*http.Client, e
 	transport.MaxConnsPerHost = profile.MaxConnsPerHost
 	transport.DisableKeepAlives = false
 	transport.ForceAttemptHTTP2 = true
+	if fingerprintTLS {
+		// The imitated hello only offers http/1.1, so keep the transport on HTTP/1.1.
+		transport.ForceAttemptHTTP2 = false
+		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		transport.DialTLSContext = fingerprintedTLSDialer(transport.DialContext)
+	}
 	transport.IdleConnTimeout = profile.IdleConnTimeout
 	transport.TLSHandshakeTimeout = 10 * time.Second
 	transport.ExpectContinueTimeout = 1 * time.Second
@@ -369,9 +479,10 @@ func cacheKey(profile Profile, proxyProfile *ProxyProfile) string {
 	if proxyProfile != nil {
 		proxyPart = strings.Join([]string{proxyProfile.ID, proxyProfile.Type, proxyProfile.URL}, "|")
 	}
-	return fmt.Sprintf("%s|%v|%s|%s|%d|%d|%d|%s|%s",
+	return fmt.Sprintf("%s|%v|%v|%s|%s|%d|%d|%d|%s|%s|%s",
 		profile.RequestTimeout,
 		profile.NoRequestTimeout,
+		profile.DisableCompression,
 		profile.ConnectTimeout,
 		profile.ResponseHeaderTimeout,
 		profile.MaxIdleConns,
@@ -379,6 +490,7 @@ func cacheKey(profile Profile, proxyProfile *ProxyProfile) string {
 		profile.MaxConnsPerHost,
 		profile.IdleConnTimeout,
 		proxyPart,
+		profile.TLSFingerprint,
 	)
 }
 

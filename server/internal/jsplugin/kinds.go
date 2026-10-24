@@ -18,6 +18,7 @@ const (
 	KindModelMetadata   = "model_metadata"
 	KindPricingParse    = "pricing_parse"
 	KindAutomation      = "automation"
+	KindSiteProvider    = "site_provider"
 )
 
 // KindFamily groups kinds that share a driver.
@@ -34,6 +35,9 @@ const (
 	// FamilyEvent kinds are called off the request path when xLyra emits an
 	// event, and answer with actions for xLyra to carry out.
 	FamilyEvent KindFamily = "event"
+	// FamilyProvider kinds declare an API-key site type. Hooks the module exports
+	// are bound to that site type rather than to one site.
+	FamilyProvider KindFamily = "provider"
 )
 
 // Optional protocol hooks.
@@ -60,6 +64,10 @@ const (
 	// an OAuth account), with parameters and targets chosen by an admin. An
 	// object can have several of them.
 	ScopeSubject Scope = "subject"
+	// ScopeSiteType declares a site type. Enabling needs a trusted signature
+	// and a confirmed host list; the plugin then applies to that site type
+	// without a per-site binding.
+	ScopeSiteType Scope = "site_type"
 )
 
 // kindSpec describes one kind: what it exports, how it is called and what it may touch.
@@ -95,6 +103,7 @@ var kindSpecs = []kindSpec{
 	{Name: KindModelMetadata, Family: FamilyOneShot, Hooks: []string{"describeModels"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Scope: ScopeGlobal},
 	{Name: KindPricingParse, Family: FamilyOneShot, Hooks: []string{"parsePricing"}, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "site", Scope: ScopeSite},
 	{Name: KindAutomation, Family: FamilyEvent, Hooks: []string{"handle"}, Timeout: probeHookTimeout, Credential: "none", Connected: true, Scope: ScopeSubject},
+	{Name: KindSiteProvider, Family: FamilyProvider, OptionalHooks: siteProviderOptionalHooks, Timeout: probeHookTimeout, Credential: "api_key", Connected: true, Section: "siteProvider", Scope: ScopeSiteType},
 }
 
 func lookupKind(name string) (kindSpec, bool) {

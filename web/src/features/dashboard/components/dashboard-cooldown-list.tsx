@@ -19,16 +19,16 @@ export function DashboardCooldownList({ items, action, onClearItem, className, c
   const { t } = useTranslation('dashboard')
 
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-lg p-5', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="text-base font-semibold text-foreground">{t('cooldowns.title')}</h3>
-          <p className="text-sm text-muted-soft">{t('cooldowns.description')}</p>
+          <h3 className="text-headline text-label">{t('cooldowns.title')}</h3>
+          <p className="text-footnote text-label-3">{t('cooldowns.description')}</p>
         </div>
         {action}
       </div>
       {items.length ? (
-        <div className="scrollbar-hidden min-h-0 flex-1 divide-y divide-[hsl(var(--glass-divider))] overflow-auto pr-1">
+        <div className="scrollbar-hidden min-h-0 flex-1 divide-y divide-separator overflow-auto pr-1">
           {items.map((item) => compact ? (
             <CompactCooldownItem key={item.id} item={item} onClearItem={onClearItem} />
           ) : (
@@ -46,9 +46,8 @@ export function DashboardCooldownList({ items, action, onClearItem, className, c
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-4 py-5 text-center text-sm text-muted-soft">
-          {t('cooldowns.empty')}
-        </div>
+        // 空状态只留一行淡色文字，不再画一块灰底框
+        <p className="flex flex-1 items-center justify-center py-8 text-center text-footnote text-label-3">{t('cooldowns.empty')}</p>
       )}
     </Card>
   )
@@ -88,11 +87,11 @@ function CooldownScopeBadge({ item }: { item: CooldownItem }) {
 function CooldownText({ item, compact = false }: { item: CooldownItem; compact?: boolean }) {
   return (
     <div className="min-w-0 space-y-1">
-      <p className={cn('text-sm font-medium text-foreground', compact ? 'truncate' : 'break-words')}>
+      <p className={cn('text-body font-medium text-label', compact ? 'truncate' : 'break-words')}>
         {item.name}
-        {item.target ? <span className="text-muted-soft"> / {item.target}</span> : null}
+        {item.target ? <span className="text-label-2"> / {item.target}</span> : null}
       </p>
-      <p className={cn('text-xs text-muted-soft', compact ? 'truncate' : 'break-words')}>{item.reason}</p>
+      <p className={cn('text-footnote text-label-2', compact ? 'truncate' : 'break-words')}>{item.reason}</p>
     </div>
   )
 }
@@ -110,7 +109,7 @@ function CooldownClearButton({
     <Button
       variant="ghost"
       size="sm"
-      className="h-8 shrink-0 px-2 text-muted-soft hover:text-foreground"
+      className="h-8 shrink-0 px-2 text-label-2 hover:text-label"
       onClick={() => onClearItem(item)}
     >
       {t('page.clear')}

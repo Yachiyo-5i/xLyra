@@ -1,0 +1,27 @@
+{
+  "apiVersion": 1,
+  "hostApi": 1,
+  "id": "example.minimal",
+  "kind": "site_provider",
+  "name": "最小站点示例",
+  "description": "最小的 site_provider 示例：非标准模型列表、厂商错误码、删除上游不支持的字段",
+  "version": "1.0.0",
+  "license": "MIT",
+  "siteProvider": {
+    "siteType": "example.minimal/chat",
+    "display": {
+      "name": { "zh": "示例站点", "en": "Example Site" },
+      "subtitle": { "zh": "API Key 站点", "en": "API key site" }
+    },
+    "hosts": ["api.example.com"],
+    "credential": { "model": "api_key" },
+    "protocol": {
+      "kind": "openai_chat",
+      "path": "/v1/chat/completions",
+      "officialBaseURL": "https://api.example.com",
+      "defaultEndpointTypes": ["openai"],
+      "requestParams": { "unsupported": ["logit_bias"] }
+    },
+    "models": { "path": "/api/models", "auth": "bearer" }
+  }
+}

@@ -31,7 +31,9 @@
     "allSites": "すべてのサイトを許可",
     "noSites": "サイトがありません",
     "siteDisabled": "無効",
-    "filterAll": "すべてのモデル"
+    "filterAll": "すべてのモデル",
+    "priority": "ルーティング重み",
+    "modelCopied": "モデル名をコピーしました"
   },
   "table": {
     "headers": {

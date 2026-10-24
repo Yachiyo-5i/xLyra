@@ -1,0 +1,7 @@
+{
+  "name": "vendor rate limit",
+  "hook": "classify",
+  "ctx": { "siteType": "example.minimal/chat" },
+  "input": { "status": 429, "code": "E429", "message": "slow down" },
+  "expect": { "result": { "class": "limited", "reason": "slow down" } }
+}

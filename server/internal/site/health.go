@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,10 +23,12 @@ const siteHealthCooldownDuration = 15 * time.Minute
 const siteHealthDataRetention = 24 * time.Hour
 
 type HealthResult struct {
-	Site     store.Site
-	State    store.SiteHealthState
-	Snapshot store.HealthSnapshot
-	Recent   []store.HealthSnapshot
+	Site       store.Site
+	State      store.SiteHealthState
+	Snapshot   store.HealthSnapshot
+	Recent     []store.HealthSnapshot
+	Skipped    bool
+	SkipReason string
 }
 
 type HealthHourlyBucket struct {
@@ -34,6 +37,13 @@ type HealthHourlyBucket struct {
 	SuccessCount int
 	FailureCount int
 	TotalCount   int
+}
+
+// PluginProviderUnavailable reports that siteType names a plugin provider
+// that is absent from the current snapshot. A slash-free type, including an
+// unknown built-in name, is not this case.
+func PluginProviderUnavailable(siteType string) bool {
+	return pluginProviderUnavailable(siteType)
 }
 
 func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source string) (HealthResult, error) {
@@ -47,12 +57,22 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 	}
 
 	check := s.runSiteHealthCheck(ctx, item)
+	if check.errorType == "provider_unavailable" {
+		return s.providerUnavailableHealthResult(ctx, item, source, check)
+	}
+	// A timeout already classified by the probe must still be stored. The
+	// caller's context is done, so the write uses a context that can reach
+	// the database. Account rows are left untouched.
+	persistCtx := ctx
+	if ctx.Err() != nil && check.errorType == "timeout" {
+		persistCtx = context.WithoutCancel(ctx)
+	}
 	now := time.Now()
 	latencyMS := int64(check.latency / time.Millisecond)
 	metadata, _ := json.Marshal(check.metadata)
 
 	repo := store.NewHealthRepository(s.db.DB())
-	snapshot, err := repo.CreateSnapshot(ctx, store.CreateHealthSnapshotParams{
+	snapshot, err := repo.CreateSnapshot(persistCtx, store.CreateHealthSnapshotParams{
 		SiteID:       item.ID,
 		SiteModelID:  nil,
 		Scope:        "site",
@@ -71,18 +91,18 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 		return HealthResult{}, err
 	}
 
-	recent, err := repo.ListSiteSnapshots(ctx, item.ID, siteHealthRecentLimit)
+	recent, err := repo.ListSiteSnapshots(persistCtx, item.ID, siteHealthRecentLimit)
 	if err != nil {
 		return HealthResult{}, err
 	}
 
 	stateRecent := s.siteHealthSnapshotsForState(item, recent)
-	state, err := repo.UpsertSiteState(ctx, buildSiteHealthStateParams(item.ID, snapshot, stateRecent))
+	state, err := repo.UpsertSiteState(persistCtx, buildSiteHealthStateParams(item.ID, snapshot, stateRecent))
 	if err != nil {
 		return HealthResult{}, err
 	}
 
-	if err := s.syncSiteHealthCooldown(ctx, item.ID, state, snapshot.CheckedAt, source); err != nil {
+	if err := s.syncSiteHealthCooldown(persistCtx, item.ID, state, snapshot.CheckedAt, source); err != nil {
 		return HealthResult{}, err
 	}
 
@@ -91,6 +111,44 @@ func (s *Service) CheckSiteHealth(ctx context.Context, siteID uuid.UUID, source 
 		State:    state,
 		Snapshot: snapshot,
 		Recent:   recent,
+	}, nil
+}
+
+// providerUnavailableHealthResult explains the skip without a failure snapshot,
+// so consecutive failures and the site-health cooldown stay unchanged.
+func (s *Service) providerUnavailableHealthResult(ctx context.Context, item store.Site, source string, check siteHealthCheck) (HealthResult, error) {
+	repo := store.NewHealthRepository(s.db.DB())
+	state, err := repo.GetSiteState(ctx, item.ID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return HealthResult{}, err
+		}
+		state = unknownSiteHealthState(item.ID)
+	}
+	recent, err := repo.ListSiteSnapshots(ctx, item.ID, siteHealthRecentLimit)
+	if err != nil {
+		return HealthResult{}, err
+	}
+	metadata, _ := json.Marshal(check.metadata)
+	return HealthResult{
+		Site:       item,
+		State:      state,
+		Skipped:    true,
+		SkipReason: check.message,
+		Snapshot: store.HealthSnapshot{
+			SiteID:       item.ID,
+			Scope:        "site",
+			Source:       source,
+			Endpoint:     check.endpoint,
+			Method:       check.method,
+			Success:      false,
+			LatencyMS:    sql.NullInt64{Int64: int64(check.latency / time.Millisecond), Valid: true},
+			ErrorType:    sql.NullString{String: check.errorType, Valid: check.errorType != ""},
+			ErrorMessage: sql.NullString{String: check.message, Valid: strings.TrimSpace(check.message) != ""},
+			CheckedAt:    time.Now(),
+			Metadata:     metadata,
+		},
+		Recent: recent,
 	}, nil
 }
 
@@ -260,6 +318,20 @@ func (s *Service) runSiteHealthCheck(ctx context.Context, item store.Site) siteH
 		},
 	}
 
+	if pluginProviderUnavailable(item.SiteType) {
+		check.endpoint = "provider"
+		check.method = "SKIP"
+		check.latency = time.Since(start)
+		check.errorType = "provider_unavailable"
+		check.message = pluginProviderUnavailableDetail(item.SiteType, "health check skipped")
+		check.metadata["skipped"] = true
+		return check
+	}
+
+	if api, ok := s.pluginAccountAPI(item.SiteType); ok {
+		return s.runPluginAccountHealth(ctx, item, api, start, check)
+	}
+
 	module, ok := s.adapters.ModuleForSiteType(item.SiteType)
 	if !ok {
 		check.latency = time.Since(start)
@@ -269,7 +341,12 @@ func (s *Service) runSiteHealthCheck(ctx context.Context, item store.Site) siteH
 	}
 
 	if plugin, ok := s.boundSitePlugin(item, jsplugin.KindCredentialCheck); ok {
-		return s.runPluginHealthCheck(ctx, item, plugin, start, check)
+		return s.runPluginHealthCheck(ctx, item, pluginCredentialValidator{plugin: plugin}, start, check)
+	}
+	if plugin, ok := s.siteTypeHookPlugin(item.SiteType, "check"); ok {
+		return s.runPluginHealthCheck(ctx, item, pluginCredentialValidator{
+			plugin: plugin, hook: "check", resultKind: jsplugin.KindCredentialCheck,
+		}, start, check)
 	}
 
 	if probe, ok := adapter.AsHealthProbe(module); ok {
@@ -442,7 +519,7 @@ func (s *Service) runAPIKeySiteHealthCheck(ctx context.Context, item store.Site,
 	}
 	items := make([]store.GatewayCredential, 0, len(credentials))
 	for _, credential := range credentials {
-		if credential.CredentialType != defaultCredentialType && !strings.HasPrefix(credential.CredentialType, defaultCredentialType+":") {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		if credential.CredentialType == defaultCredentialType && hasTokenScopedCredentials(credentials) {

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useMobileLayout } from '@/hooks/use-media-query'
@@ -60,15 +60,15 @@ export function OAuthCreateDraw({
                   disabled={!item.enabled || generating}
                   onClick={() => onGenerate(item.value)}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
-                    'border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] hover:bg-[hsl(var(--surface-subtle))]',
+                    'flex w-full items-center gap-3 rounded-inner border px-4 py-3 text-left transition-colors',
+                    'border-separator bg-elevated-1 hover:bg-fill-3',
                     (!item.enabled || generating) && 'cursor-not-allowed opacity-55',
                   )}
                 >
-                  <img src={item.iconPath} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" />
+                  <img src={item.iconPath} alt="" className="h-8 w-8 shrink-0 rounded-inner object-contain" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-foreground">{item.label}</div>
-                    <div className="truncate text-xs text-muted-soft">{item.subtitle}</div>
+                    <div className="text-body font-semibold text-label">{item.label}</div>
+                    <div className="truncate text-footnote text-label-2">{item.subtitle}</div>
                   </div>
                   {!item.enabled ? (
                     <Badge variant="neutral">{t('sources.comingSoon')}</Badge>
@@ -85,11 +85,11 @@ export function OAuthCreateDraw({
         </div>
       ) : (
         <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-          <div className="flex max-w-full items-center gap-3 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-4 py-3">
-            <img src={activeSource.iconPath} alt="" className="h-9 w-9 shrink-0 rounded-md object-contain" />
+          <div className="flex max-w-full items-center gap-3 rounded-inner border border-separator bg-fill-3 px-4 py-3">
+            <img src={activeSource.iconPath} alt="" className="h-9 w-9 shrink-0 rounded-inner object-contain" />
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-foreground">{activeSource.label}</div>
-              <div className="truncate text-xs text-muted-soft">{activeSource.subtitle}</div>
+              <div className="text-body font-semibold text-label">{activeSource.label}</div>
+              <div className="truncate text-footnote text-label-2">{activeSource.subtitle}</div>
             </div>
           </div>
 
@@ -108,7 +108,7 @@ export function OAuthCreateDraw({
             )}
           />
 
-          <div className="max-w-full space-y-2 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-4 py-3 text-sm text-muted-soft">
+          <div className="max-w-full space-y-2 rounded-inner border border-separator bg-fill-3 px-4 py-3 text-body text-label-2">
             <div>{t('create.instructions')}</div>
           </div>
 
@@ -118,7 +118,7 @@ export function OAuthCreateDraw({
           />
 
           <div className="max-w-full space-y-2">
-            <div className="text-sm font-medium text-foreground">{t('create.resultUrl')}</div>
+            <div className="text-body font-medium text-label">{t('create.resultUrl')}</div>
             <Input
               value={state.callbackInput}
               onChange={(event) => onStateChange({ ...state, callbackInput: event.target.value })}
@@ -142,7 +142,7 @@ export function OAuthCreateDraw({
 
   const cancelButton = state.authorize ? (
     <Button
-      variant="ghost"
+      variant="secondary"
       onClick={() => onStateChange({ ...DEFAULT_CREATE_STATE })}
       disabled={completePending}
     >
@@ -159,19 +159,19 @@ export function OAuthCreateDraw({
 
   if (isMobile) {
     return (
-      <Draw open={open} onOpenChange={onOpenChange}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{dialogTitle}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="min-w-0 max-w-full space-y-5">
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{dialogTitle}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="min-w-0 max-w-full space-y-5">
             {body}
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             {footer}
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     )
   }
 
@@ -201,8 +201,8 @@ function ReadOnlyField({
 }) {
   return (
     <div className="min-w-0 max-w-full space-y-2 overflow-hidden">
-      <div className="text-sm font-medium text-foreground">{label}</div>
-      <code className="block w-full min-w-0 max-w-full overflow-x-auto rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-2 whitespace-nowrap text-xs text-foreground">
+      <div className="text-body font-medium text-label">{label}</div>
+      <code className="block w-full min-w-0 max-w-full overflow-x-auto rounded-inner border border-separator bg-elevated-1 px-3 py-2 whitespace-nowrap text-footnote text-label">
         {value}
       </code>
       {actions ? (

@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { SquarePen } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronLeft, Menu } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useMobileLayout } from '@/hooks/use-media-query'
 import {
   Select,
   SelectContent,
@@ -18,8 +21,7 @@ import {
 } from '@/features/playground/api/playground'
 import { playgroundModelQueryOptions } from '@/features/playground/api/model-queries'
 import { PlaygroundRail } from '@/features/playground/components/playground-rail'
-import { PlaygroundModeSwitcher } from '@/features/playground/components/playground-mode-switcher'
-import { MobileConversationPicker } from '@/features/playground/components/mobile-conversation-picker'
+import { PlaygroundMobileDrawer } from '@/features/playground/components/playground-mobile-drawer'
 import { ChatView } from '@/features/playground/components/chat-view'
 import { ImageView } from '@/features/playground/components/image-view'
 import {
@@ -62,6 +64,9 @@ function isChatModel(category: string): boolean {
 
 export function PlaygroundWorkspace() {
   const { t } = useTranslation('playground')
+  const navigate = useNavigate()
+  const isMobile = useMobileLayout()
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const [settings, setSettings] = useState<PlaygroundSettings>(() => loadSettings())
   const [conversations, setConversations] = useState<Conversation[]>(() => {
@@ -317,13 +322,90 @@ export function PlaygroundWorkspace() {
   const onSelectSession = isChat ? setActiveId : setActiveImageId
   const onNewSession = isChat ? handleNewConversation : handleNewImageConversation
   const onDeleteSession = isChat ? handleDeleteConversation : handleDeleteImageConversation
+  const activeSessionTitle = sessions.find((session) => session.id === activeSessionId)?.title || t('conversations.untitled')
+
+  const goBack = () => {
+    // 有站内历史就返回上一页，直接打开的则回到仪表盘
+    const historyIndex = (window.history.state as { idx?: number } | null)?.idx ?? 0
+    if (historyIndex > 0) navigate(-1)
+    else navigate('/dashboard')
+  }
+
+  const views = isChat ? (
+    activeConversation ? (
+      <ChatView
+        apiKeyId={effectiveApiKeyId}
+        model={effectiveChatModel}
+        models={chatModels}
+        onModelChange={setChatModel}
+        effort={settings.reasoningEffort}
+        onEffortChange={(next: ReasoningEffort) => setSettings((current) => ({ ...current, reasoningEffort: next }))}
+        conversation={activeConversation}
+        onChange={updateActiveConversation}
+        onImageMode={() => setMode('image')}
+      />
+    ) : null
+  ) : activeImageConversation ? (
+    <ImageView
+      key={activeImageConversation.id}
+      apiKeyId={effectiveApiKeyId}
+      model={effectiveImageModel}
+      models={imageModels}
+      onModelChange={(id) => setSettings((current) => ({ ...current, imageModel: id }))}
+      conversation={activeImageConversation}
+      onChange={updateActiveImageConversation}
+    />
+  ) : null
+
+  const noKeys = !hasKeys && !apiKeysQuery.isLoading
+
+  if (isMobile) {
+    // 移动端：独占整屏，不显示全局顶栏与底部 Tab Bar；
+    // 左上角是返回与会话抽屉，其余操作都在抽屉里
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <header className="mobile-safe-top flex shrink-0 items-center gap-2 px-4 pb-2" style={{ '--mobile-safe-top-extra': '0.75rem' } as CSSProperties}>
+          <Button variant="glass" size="icon" className="size-10" aria-label={t('mobile.back')} onClick={goBack}>
+            <ChevronLeft className="size-5" />
+          </Button>
+          <Button variant="glass" size="icon" className="size-10" aria-label={t('mobile.menu')} onClick={() => setDrawerOpen(true)} disabled={noKeys}>
+            <Menu className="size-5" />
+          </Button>
+          {noKeys ? null : <p className="min-w-0 flex-1 truncate pl-1 text-headline text-label">{activeSessionTitle}</p>}
+        </header>
+        {noKeys ? (
+          <EmptyState title={t('noKeys.title')} description={t('noKeys.description')} />
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {views}
+            {modelsError ? <p className="px-4 pb-2 text-center text-footnote text-danger">{modelsError}</p> : null}
+          </div>
+        )}
+        <PlaygroundMobileDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          mode={mode}
+          onModeChange={setMode}
+          apiKeys={apiKeys}
+          apiKeyId={effectiveApiKeyId}
+          onAPIKeyChange={setApiKeyId}
+          sessions={sessions}
+          activeId={activeSessionId}
+          onSelect={onSelectSession}
+          onNew={onNewSession}
+          onDelete={onDeleteSession}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {!hasKeys && !apiKeysQuery.isLoading ? (
+      {noKeys ? (
         <EmptyState title={t('noKeys.title')} description={t('noKeys.description')} />
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <aside className="hidden w-[264px] shrink-0 border-r border-[hsl(var(--glass-border))] md:block">
+          <aside className="w-[264px] shrink-0 border-r border-separator">
             <PlaygroundRail
               sessions={sessions}
               activeId={activeSessionId}
@@ -336,8 +418,8 @@ export function PlaygroundWorkspace() {
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="shrink-0 border-b border-[hsl(var(--glass-border))]">
-              <div className="hidden items-center px-2 py-2 md:flex">
+            <div className="shrink-0 border-b border-separator">
+              <div className="flex items-center px-2 py-2">
                 <Select value={effectiveApiKeyId ?? undefined} onValueChange={setApiKeyId} disabled={!hasKeys}>
                   <SelectTrigger
                     variant="filter"
@@ -356,61 +438,12 @@ export function PlaygroundWorkspace() {
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="flex items-center gap-2 px-2 py-2 md:hidden">
-                <PlaygroundModeSwitcher value={mode} onChange={setMode} compact />
-                <div className="flex min-w-0 flex-1 items-center gap-1">
-                  <MobileConversationPicker
-                    conversations={sessions}
-                    value={activeSessionId}
-                    onChange={onSelectSession}
-                    onDelete={onDeleteSession}
-                  />
-                  <button
-                    type="button"
-                    onClick={onNewSession}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-soft transition-colors active:bg-[hsl(var(--surface-subtle))] active:text-foreground"
-                    aria-label={t('conversations.new')}
-                    title={t('conversations.new')}
-                  >
-                    <SquarePen className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
             </div>
 
-            {isChat ? (
-              activeConversation ? (
-                <ChatView
-                  apiKeys={apiKeys}
-                  apiKeyId={effectiveApiKeyId}
-                  onAPIKeyChange={setApiKeyId}
-                  model={effectiveChatModel}
-                  models={chatModels}
-                  onModelChange={setChatModel}
-                  effort={settings.reasoningEffort}
-                  onEffortChange={(next: ReasoningEffort) => setSettings((current) => ({ ...current, reasoningEffort: next }))}
-                  conversation={activeConversation}
-                  onChange={updateActiveConversation}
-                  onImageMode={() => setMode('image')}
-                />
-              ) : null
-            ) : activeImageConversation ? (
-              <ImageView
-                key={activeImageConversation.id}
-                apiKeys={apiKeys}
-                apiKeyId={effectiveApiKeyId}
-                onAPIKeyChange={setApiKeyId}
-                model={effectiveImageModel}
-                models={imageModels}
-                onModelChange={(id) => setSettings((current) => ({ ...current, imageModel: id }))}
-                conversation={activeImageConversation}
-                onChange={updateActiveImageConversation}
-              />
-            ) : null}
+            {views}
 
             {modelsError ? (
-              <p className="px-4 pb-2 text-center text-xs text-red-500">{modelsError}</p>
+              <p className="px-4 pb-2 text-center text-footnote text-danger">{modelsError}</p>
             ) : null}
           </div>
         </div>

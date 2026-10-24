@@ -23,9 +23,10 @@ import {
 import type { TimeDisplayMode } from '@/features/api-keys/lib/types'
 
 const API_KEYS_COLUMN_SIZING = {
-  storageKey: 'xlyra:api-keys:table-column-widths:v3',
-  defaultWidths: defaultTableColumnWidths([15, 16, 10, 18, 12, 12, 12, 7, 5]),
-  minimumWidths: [6, 7, 5, 8, 6, 6, 6, 4, 3],
+  storageKey: 'xlyra:api-keys:table-column-widths:v4',
+  // 名称与额度给足宽度（额度可能有 总/周/日 三行），短值列收窄
+  defaultWidths: defaultTableColumnWidths([17, 12, 8, 23, 10, 10, 10, 6, 5]),
+  minimumWidths: [8, 6, 4, 10, 5, 5, 5, 4, 3],
 }
 
 export function DownstreamAPIKeysTable({
@@ -41,6 +42,7 @@ export function DownstreamAPIKeysTable({
   onResetQuota,
   onShowModels,
   onToggleLastUsedMode,
+  className,
 }: {
   apiKeys: DownstreamAPIKey[]
   lastUsedMode: TimeDisplayMode
@@ -54,6 +56,7 @@ export function DownstreamAPIKeysTable({
   onResetQuota: (apiKey: DownstreamAPIKey) => void
   onShowModels: (apiKey: DownstreamAPIKey) => void
   onToggleLastUsedMode: () => void
+  className?: string
 }) {
   const { t, i18n } = useTranslation('api-keys')
 
@@ -64,7 +67,7 @@ export function DownstreamAPIKeysTable({
         header: t('table.headers.key'),
         cell: ({ row }) => (
           <div className="min-w-0 space-y-1">
-            <div className="truncate font-medium text-foreground" title={row.original.name}>
+            <div className="truncate font-medium text-label" title={row.original.name}>
               {row.original.name}
             </div>
             <APIKeyCopyMenu apiKey={row.original} />
@@ -86,27 +89,24 @@ export function DownstreamAPIKeysTable({
           return (
             <button
               type="button"
-              className="inline-flex cursor-pointer flex-col items-center gap-0.5 text-muted-soft transition-colors hover:text-foreground"
+              className="inline-flex cursor-pointer flex-col items-start gap-0.5 text-left text-label-2 transition-colors hover:text-label"
               onClick={() => onShowModels(row.original)}
             >
-              <span className="text-xs tabular-nums">
+              <span className="text-footnote tabular-nums">
                 {formatModelPolicy(row.original, t)}
               </span>
               {showSiteCount && (
-                <span className="text-xs tabular-nums">
+                <span className="text-footnote tabular-nums">
                   {t('table.policy.selectedSites', { count: siteCount })}
                 </span>
               )}
               {showGroupCount && (
-                <span className="text-xs tabular-nums">
+                <span className="text-footnote tabular-nums">
                   {t('table.policy.selectedGroups', { count: groupCount })}
                 </span>
               )}
             </button>
           )
-        },
-        meta: {
-          align: 'center',
         },
       },
       {
@@ -114,11 +114,8 @@ export function DownstreamAPIKeysTable({
         header: t('table.headers.billingMultiplier'),
         cell: ({ row }) => {
           const val = row.original.billing_multiplier
-          if (!val || val === 1) return <span className="text-muted-soft text-sm">×1</span>
-          return <span className="text-sm tabular-nums text-foreground">×{val}</span>
-        },
-        meta: {
-          align: 'center',
+          if (!val || val === 1) return <span className="text-label-2 text-body">×1</span>
+          return <span className="text-body tabular-nums text-label">×{val}</span>
         },
       },
       {
@@ -132,26 +129,22 @@ export function DownstreamAPIKeysTable({
         cell: ({ row }) => {
           const enabled = row.original.rate_limit?.status === 'enabled'
           return (
-            <span className={enabled ? 'text-foreground text-sm tabular-nums' : 'text-muted-soft text-sm'}>
+            <span className={enabled ? 'text-label text-body tabular-nums' : 'text-label-2 text-body'}>
               {formatRateLimitSummary(row.original, t)}
             </span>
           )
         },
-        meta: {
-          align: 'center',
-        },
       },
       {
         id: 'last_used_at',
-        header: () => <button type="button" className="hover:text-foreground transition-colors cursor-pointer" onClick={onToggleLastUsedMode}>{t('table.headers.lastUsed')}</button>,
+        header: () => <button type="button" className="hover:text-label transition-colors cursor-pointer" onClick={onToggleLastUsedMode}>{t('table.headers.lastUsed')}</button>,
         cell: ({ row }) => {
           const val = row.original.last_used_at
-          if (!val) return <span className="text-muted-soft text-sm">-</span>
+          if (!val) return <span className="text-label-2 text-body">-</span>
           const label = lastUsedMode === 'absolute' ? formatDateTime(val) : formatRelativeDateTime(val, now, i18n.language, t)
-          return <button type="button" className="text-muted-soft hover:text-foreground cursor-pointer text-sm tabular-nums" onClick={onToggleLastUsedMode}>{label}</button>
+          return <button type="button" className="text-label-2 hover:text-label cursor-pointer text-body tabular-nums" onClick={onToggleLastUsedMode}>{label}</button>
         },
         meta: {
-          align: 'center',
           resizeLabel: t('table.headers.lastUsed'),
         },
       },
@@ -162,15 +155,12 @@ export function DownstreamAPIKeysTable({
           const expired = isAPIKeyExpired(row.original)
           return (
             <span
-              className={expired ? 'text-sm text-[hsl(var(--destructive))]' : 'text-muted-soft text-sm'}
+              className={expired ? 'text-body text-danger' : 'text-label-2 text-body'}
               title={expired ? t('table.expired') : undefined}
             >
               {row.original.expires_at ? formatDateTime(row.original.expires_at) : t('table.permanent')}
             </span>
           )
-        },
-        meta: {
-          align: 'center',
         },
       },
       {
@@ -211,6 +201,11 @@ export function DownstreamAPIKeysTable({
             />
           )
         },
+        meta: {
+          className: 'table-sticky-end',
+          cellClassName: 'px-2',
+          headerClassName: 'px-2',
+        },
       },
     ],
     [t, i18n.language, deletingKeyId, lastUsedMode, now, onDeleteKey, onEditKey, onResetQuota, onRotateKey, onShowModels, onToggleKey, onToggleLastUsedMode, togglingKeyId],
@@ -219,9 +214,10 @@ export function DownstreamAPIKeysTable({
   return (
     <DataTable
       columnSizing={API_KEYS_COLUMN_SIZING}
-      stickyHeader="page"
+      stickyHeader="container"
       columns={columns}
       data={apiKeys}
+      className={className}
       getRowId={(row) => row.id}
       emptyState={<EmptyState title={t('table.empty.title')} description={t('table.empty.description')} />}
       hideHeaderWhenEmpty

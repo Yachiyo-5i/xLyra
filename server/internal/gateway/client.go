@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"xlyra/server/internal/adapter"
 	"xlyra/server/internal/httpclient"
 	"xlyra/server/internal/site"
 	"xlyra/server/internal/store"
@@ -20,8 +21,12 @@ const (
 )
 
 type upstreamClientProfileRequest struct {
-	Stream          bool
-	ImageGeneration bool
+	Stream             bool
+	ImageGeneration    bool
+	DisableCompression bool
+	// ClaudeCode marks requests to a Claude Code OAuth site, which must present
+	// the TLS fingerprint of the real Claude Code runtime.
+	ClaudeCode bool
 }
 
 func upstreamClientProfileFromSiteConfig(cfg *site.GatewayConfig, proxyID string) httpclient.Profile {
@@ -56,6 +61,7 @@ func upstreamClientProfileFromSiteConfig(cfg *site.GatewayConfig, proxyID string
 
 func upstreamClientProfileForRequest(cfg *site.GatewayConfig, request upstreamClientProfileRequest, proxyID string) httpclient.Profile {
 	config := upstreamClientProfileFromSiteConfig(cfg, proxyID)
+	config.DisableCompression = request.DisableCompression
 	if !request.Stream && (cfg == nil || cfg.ResponseHeaderTimeoutMS == nil) {
 		config.ResponseHeaderTimeout = defaultNonStreamingResponseHeaderTimeout
 	}
@@ -64,6 +70,9 @@ func upstreamClientProfileForRequest(cfg *site.GatewayConfig, request upstreamCl
 		if cfg == nil || cfg.ResponseHeaderTimeoutMS == nil {
 			config.ResponseHeaderTimeout = defaultResponseHeaderTimeoutForRequest(request)
 		}
+	}
+	if request.ClaudeCode {
+		config.TLSFingerprint = httpclient.TLSFingerprintClaudeCode
 	}
 	return config
 }
@@ -99,7 +108,10 @@ func (h Handler) upstreamClientForSite(ctx context.Context, siteID uuid.UUID, re
 	if err != nil {
 		return h.httpClient, nil, nil, err
 	}
-	if cfg == nil && proxyID == "" && !request.Stream {
+	if h.forcedUpstreamClient != nil {
+		return h.forcedUpstreamClient, cfg, requestHeaders, nil
+	}
+	if cfg == nil && proxyID == "" && !request.Stream && !request.ClaudeCode && !request.DisableCompression {
 		return h.httpClient, nil, requestHeaders, nil
 	}
 	client, err := h.clients.Client(upstreamClientProfileForRequest(cfg, request, proxyID))
@@ -107,4 +119,15 @@ func (h Handler) upstreamClientForSite(ctx context.Context, siteID uuid.UUID, re
 		return h.httpClient, nil, nil, err
 	}
 	return client, cfg, requestHeaders, nil
+}
+
+func pluginUpstreamClient(siteType, rawURL string, client *http.Client) (*http.Client, error) {
+	if err := site.CheckPluginHost(siteType, rawURL); err != nil {
+		return nil, err
+	}
+	hosts, ok := site.PluginSiteTypeHosts(siteType)
+	if !ok {
+		return client, nil
+	}
+	return adapter.HTTPClientWithAllowedHosts(client, hosts), nil
 }

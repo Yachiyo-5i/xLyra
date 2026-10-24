@@ -10,6 +10,8 @@ export interface ProbeContext {
   credentialType: string;
   /** Unix time in milliseconds. */
   now: number;
+  /** Non-secret account fields for per-account model sync. Includes the resolved region id when the credential does not store region. Omitted for API-key calls. */
+  account?: Record<string, string>;
 }
 
 export type ProbeMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
@@ -21,6 +23,8 @@ export interface ProbeRequest {
   headers?: Record<string, string>;
   query?: Record<string, string>;
   body?: Json;
+  /** pollLogin only. pending treats a non-JSON body as still waiting and discards it. */
+  onNonJSON?: string;
 }
 
 export interface ProbeResponse {
@@ -37,14 +41,19 @@ export interface ProbeStep {
   response: ProbeResponse;
 }
 
+export type ProbeEntryKind = "balance" | "window" | "package";
+
 export interface ProbeEntry {
   label: string;
+  kind?: ProbeEntryKind;
+  name?: string;
   unit?: string;
   remaining?: number;
   limit?: number;
   used?: number;
   unlimited?: boolean;
   resetAt?: string;
+  expiresAt?: string;
   cashBalance?: number;
   voucherBalance?: number;
   grantedBalance?: number;
@@ -319,6 +328,78 @@ export interface AutomationResult {
   state?: JsonObject;
 }
 
+// ---- site_provider ----
+
+export interface RewritePayloadContext {
+  siteType: string;
+  /** Upstream model name. */
+  model: string;
+  stream: boolean;
+  /** Canonical protocol name, such as openai_chat. */
+  protocol: string;
+}
+
+export interface AccountLoginContext {
+  siteType: string;
+  baseURL: string;
+  /** Login parameters from the admin UI. Not credentials. */
+  params: Record<string, string>;
+  /** Unix time in milliseconds. */
+  now: number;
+}
+
+export type AccountLoginStatus = "pending" | "complete";
+
+export interface AccountLoginResult {
+  /** Must be account_login. */
+  kind: string;
+  status: AccountLoginStatus;
+  verificationURL?: string;
+  userCode?: string;
+  interval?: number;
+  /** Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected. */
+  credential?: Record<string, string>;
+}
+
+export interface AccountCredentialContext {
+  siteType: string;
+  baseURL: string;
+  /** Non-secret credential fields only. Access tokens and other secrets are omitted. */
+  fields: Record<string, string>;
+  /** Unix time in milliseconds. */
+  now: number;
+}
+
+export type AccountRefreshStatus = "ok" | "reauth";
+
+export interface AccountRefreshResult {
+  /** Must be account_refresh. */
+  kind: string;
+  status: AccountRefreshStatus;
+  /** Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected. */
+  credential?: Record<string, string>;
+}
+
+export type AccountSummaryStatus = "ok" | "unavailable" | "reauth";
+
+export interface AccountSummaryResult {
+  /** Must be account_summary. */
+  kind: string;
+  status: AccountSummaryStatus;
+  remark?: string;
+  /** Display text. Stored only when credential.display lists summary.label. */
+  label?: string;
+  entries: ProbeEntry[];
+}
+
+export type PluginKind = "quota_probe" | "protocol" | "model_list" | "credential_check" | "site_detect" | "error_classifier" | "model_metadata" | "pricing_parse" | "automation" | "site_provider";
+
+export interface PluginMeta {
+  apiVersion: number;
+  id: string;
+  kind: PluginKind;
+}
+
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type JsonObject = Record<string, Json>;
 
@@ -383,4 +464,32 @@ declare global {
     info(message: string, fields?: Record<string, any>): void;
     warn(message: string, fields?: Record<string, any>): void;
   };
+}
+
+// ---- site_provider hooks ----
+
+export type SiteProviderProbe = (ctx: ProbeContext, steps: ProbeStep[]) => ProbeDecision;
+export type SiteProviderListModels = (ctx: ProbeContext, steps: ProbeStep[]) => ModelListDecision;
+export type SiteProviderCheck = (ctx: ProbeContext, steps: ProbeStep[]) => CredentialCheckDecision;
+export type SiteProviderClassify = (ctx: ErrorClassifyContext, input: ErrorClassifyInput) => ErrorClassifyResult;
+export type SiteProviderRewritePayload = (ctx: RewritePayloadContext, payload: Record<string, unknown>) => Record<string, unknown>;
+
+export type AccountLoginDecision = SteppedDecision<AccountLoginResult>;
+export type AccountRefreshDecision = SteppedDecision<AccountRefreshResult>;
+export type AccountSummaryDecision = SteppedDecision<AccountSummaryResult>;
+export type SiteProviderStartLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderPollLogin = (ctx: AccountLoginContext, steps: ProbeStep[]) => AccountLoginDecision;
+export type SiteProviderRefreshTokens = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountRefreshDecision;
+export type SiteProviderSummarizeAccount = (ctx: AccountCredentialContext, steps: ProbeStep[]) => AccountSummaryDecision;
+
+export interface SiteProviderHooks {
+  probe?: SiteProviderProbe;
+  listModels?: SiteProviderListModels;
+  check?: SiteProviderCheck;
+  classify?: SiteProviderClassify;
+  rewritePayload?: SiteProviderRewritePayload;
+  startLogin?: SiteProviderStartLogin;
+  pollLogin?: SiteProviderPollLogin;
+  refreshTokens?: SiteProviderRefreshTokens;
+  summarizeAccount?: SiteProviderSummarizeAccount;
 }

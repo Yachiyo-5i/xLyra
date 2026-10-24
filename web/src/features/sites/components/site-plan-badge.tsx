@@ -11,10 +11,8 @@ export function SitePlanBadge({ site, className }: { site: Site; className?: str
   const plan = site.quota_probe?.plan
   if (!plan) return null
   return (
-    <Badge
-      variant="accent"
-      className={cn('shrink-0 px-1.5 py-0 text-[11px] select-none', className)}
-    >
+    // 计费 / 档位信息只是补充说明：中性标签，不用强调色抢过站点名
+    <Badge variant="neutral" className={cn('shrink-0 select-none', className)}>
       {plan}
     </Badge>
   )

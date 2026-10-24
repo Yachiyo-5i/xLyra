@@ -34,7 +34,7 @@ export function RateLimitSettingsPage() {
   })
 
   if (rateLimitsQuery.isLoading) {
-    return <p className="text-muted-soft text-sm">{t('rateLimit.loading')}</p>
+    return <p className="text-label-2 text-body">{t('rateLimit.loading')}</p>
   }
 
   const config = rateLimitsQuery.data?.rate_limit ?? {
@@ -104,15 +104,15 @@ function RateLimitSettingsForm({
   return (
     <div className="max-w-3xl space-y-6">
       <div className="space-y-1.5">
-        <h3 className="text-lg font-semibold text-foreground">{t('rateLimit.title')}</h3>
-        <p className="text-muted-soft text-sm">{t('rateLimit.description')}</p>
+        <h3 className="text-title-3 text-label">{t('rateLimit.title')}</h3>
+        <p className="text-label-2 text-body">{t('rateLimit.description')}</p>
       </div>
 
       <div className="pt-2">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">{t('rateLimit.rateLimit')}</p>
-            <p className="text-muted-soft text-xs leading-5">{t('rateLimit.rateLimitDesc')}</p>
+            <p className="text-body font-medium text-label">{t('rateLimit.rateLimit')}</p>
+            <p className="text-label-2 text-footnote leading-5">{t('rateLimit.rateLimitDesc')}</p>
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} aria-label={t('rateLimit.rateLimit')} />
         </div>
@@ -153,7 +153,7 @@ function RateLimitSettingsForm({
           {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {t('common:actions.save', { ns: 'common' })}
         </Button>
-        <Button variant="outline" onClick={handleReset} disabled={isSaving || isFetching}>
+        <Button variant="secondary" onClick={handleReset} disabled={isSaving || isFetching}>
           <RotateCcw className="h-4 w-4" />
           {t('common:actions.reset', { ns: 'common' })}
         </Button>

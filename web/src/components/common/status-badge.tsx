@@ -1,47 +1,35 @@
 import type { HTMLAttributes } from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { Badge } from '@/components/ui/badge'
+import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-const statusBadgeVariants = cva('', {
-  variants: {
-    status: {
-      healthy: '',
-      success: '',
-      warning: '',
-      error: 'border-[hsl(var(--destructive)/0.25)] bg-[hsl(var(--destructive)/0.12)] text-[hsl(var(--destructive))]',
-      syncing: '',
-      idle: '',
-      disabled: 'opacity-70',
-    },
-  },
-  defaultVariants: {
-    status: 'idle',
-  },
-})
+type Status = 'healthy' | 'success' | 'warning' | 'error' | 'syncing' | 'idle' | 'disabled'
 
-type StatusBadgeProps = HTMLAttributes<HTMLDivElement> &
-  VariantProps<typeof statusBadgeVariants> & {
-    children: string
-  }
+const statusVariant: Record<Status, NonNullable<BadgeProps['variant']>> = {
+  healthy: 'success',
+  success: 'success',
+  warning: 'warning',
+  error: 'danger',
+  syncing: 'info',
+  idle: 'neutral',
+  disabled: 'neutral',
+}
 
-export function StatusBadge({
-  className,
-  status,
-  children,
-  ...props
-}: StatusBadgeProps) {
-  const variant =
-    status === 'healthy' || status === 'success'
-      ? 'success'
-      : status === 'warning'
-        ? 'warning'
-        : status === 'syncing'
-          ? 'accent'
-          : 'neutral'
+type StatusBadgeProps = HTMLAttributes<HTMLDivElement> & {
+  status?: Status | null
+  children: string
+}
+
+/** 状态标签：Badge + 圆点，颜色由状态决定 */
+export function StatusBadge({ className, status, children, ...props }: StatusBadgeProps) {
+  const resolved = status ?? 'idle'
 
   return (
-    <Badge variant={variant} className={cn(statusBadgeVariants({ status }), className)} {...props}>
+    <Badge
+      variant={statusVariant[resolved]}
+      dot
+      className={cn(resolved === 'disabled' && 'text-label-3', resolved === 'syncing' && '[&>span:first-child]:animate-pulse', className)}
+      {...props}
+    >
       {children}
     </Badge>
   )

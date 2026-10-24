@@ -13,7 +13,7 @@ import {
   FileArchive,
   LoaderCircle,
   Play,
-  RefreshCw,
+  RotateCcw,
   Save,
   Trash2,
   Upload,
@@ -355,7 +355,7 @@ export function BackupSettingsPage() {
       />
 
       <div className="max-w-3xl">
-        <Tabs defaultValue="manual" variant="segmented" className="space-y-4 pt-4">
+        <Tabs defaultValue="manual" variant="segmented-accent" className="space-y-4 pt-4">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 shrink-0">
               <TabsList className="w-fit min-w-64 max-w-full">
@@ -379,14 +379,14 @@ export function BackupSettingsPage() {
               </Button>
             </section>
 
-            <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-7">
+            <section className="space-y-4 border-t border-separator pt-7">
               <SectionTitle icon={<Upload className="h-4 w-4" />} title={t('backup.import.title')} />
               <Notice tone="danger" items={[
                 t('backup.import.noticeOverwrite'),
                 t('backup.import.noticePreserved'),
                 t('backup.import.noticeRestart'),
               ]} />
-              <Button variant="destructive" onClick={() => setImportOpen(true)} disabled={Boolean(visibleBackgroundRestoreTask)}>
+              <Button variant="secondary" onClick={() => setImportOpen(true)} disabled={Boolean(visibleBackgroundRestoreTask)}>
                 <DatabaseBackup className="h-4 w-4" />
                 {t('backup.import.action')}
               </Button>
@@ -395,7 +395,7 @@ export function BackupSettingsPage() {
 
           <TabsContent value="automatic" className="space-y-8">
             {automaticQuery.isLoading ? (
-              <p className="text-sm text-muted-soft">{t('backup.automatic.loading')}</p>
+              <p className="text-body text-label-2">{t('backup.automatic.loading')}</p>
             ) : (
               <>
                 <section className="space-y-4">
@@ -447,7 +447,7 @@ export function BackupSettingsPage() {
                       />
                     </FormField>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <ToggleField
                       label={t('backup.automatic.storage.forcePathStyle')}
                       checked={automaticDraft.forcePathStyle}
@@ -469,14 +469,14 @@ export function BackupSettingsPage() {
                       {saveStorageMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       {t('common:actions.save', { ns: 'common' })}
                     </Button>
-                    <Button variant="outline" onClick={() => testAutomaticMutation.mutate()} disabled={!canTestStorage || testAutomaticMutation.isPending}>
+                    <Button variant="secondary" onClick={() => testAutomaticMutation.mutate()} disabled={!canTestStorage || testAutomaticMutation.isPending}>
                       {testAutomaticMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       {t('backup.automatic.testAction')}
                     </Button>
                   </div>
                 </section>
 
-                <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-7">
+                <section className="space-y-4 border-t border-separator pt-7">
                   <SectionTitle icon={<CalendarClock className="h-4 w-4" />} title={t('backup.automatic.schedule.title')} />
                   <div className="grid gap-4 md:grid-cols-2">
                     <ToggleField
@@ -526,60 +526,60 @@ export function BackupSettingsPage() {
                       {saveScheduleMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       {t('common:actions.save', { ns: 'common' })}
                     </Button>
-                    <Button variant="outline" onClick={() => runAutomaticMutation.mutate()} disabled={!savedAutomaticBackupReady || runAutomaticMutation.isPending || Boolean(visibleBackgroundRestoreTask)}>
+                    <Button variant="secondary" onClick={() => runAutomaticMutation.mutate()} disabled={!savedAutomaticBackupReady || runAutomaticMutation.isPending || Boolean(visibleBackgroundRestoreTask)}>
                       {runAutomaticMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                       {t('backup.automatic.runAction')}
                     </Button>
                   </div>
                 </section>
 
-                <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-7">
+                <section className="space-y-4 border-t border-separator pt-7">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <SectionTitle icon={<FileArchive className="h-4 w-4" />} title={t('backup.automatic.files.title')} />
                     <div className="flex flex-wrap items-center gap-2">
                       {visibleBackgroundRestoreTask ? (
-                        <Button variant="outline" size="sm" onClick={() => setRestoreTask(visibleBackgroundRestoreTask)}>
+                        <Button variant="secondary" size="sm" onClick={() => setRestoreTask(visibleBackgroundRestoreTask)}>
                           <DatabaseBackup className="h-4 w-4" />
                           {t('backup.automatic.restoreProgress.viewStatus')}
                         </Button>
                       ) : null}
-                      <Button variant="outline" size="sm" onClick={() => filesQuery.refetch()} disabled={!savedAutomaticBackupReady || filesQuery.isFetching}>
-                        {filesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      <Button variant="secondary" size="sm" onClick={() => filesQuery.refetch()} disabled={!savedAutomaticBackupReady || filesQuery.isFetching}>
+                        {filesQuery.isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                         {t('backup.automatic.files.refresh')}
                       </Button>
                     </div>
                   </div>
                   {!savedAutomaticBackupReady ? (
-                    <div className="rounded-md border border-[hsl(var(--divider))] bg-[hsl(var(--surface-subtle))] px-4 py-6 text-sm text-muted-soft">
+                    <div className="rounded-inner bg-fill-4 px-4 py-6 text-body text-label-2">
                       {t('backup.automatic.files.notReady')}
                     </div>
                   ) : automaticFiles.length === 0 ? (
-                    <div className="rounded-md border border-[hsl(var(--divider))] bg-[hsl(var(--surface-subtle))] px-4 py-6 text-sm text-muted-soft">
+                    <div className="rounded-inner bg-fill-4 px-4 py-6 text-body text-label-2">
                       {filesQuery.isFetching ? t('backup.automatic.files.loading') : t('backup.automatic.files.empty')}
                     </div>
                   ) : (
-                    <div className="overflow-hidden rounded-md border border-[hsl(var(--divider))]">
-                      <div className="divide-y divide-[hsl(var(--divider))]">
+                    <div className="overflow-hidden rounded-card border border-separator">
+                      <div className="divide-y divide-separator">
                         {automaticFiles.map((file) => (
                           <div key={file.key} className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                             <div className="min-w-0">
                               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                <div className="min-w-0 truncate text-sm font-medium text-foreground">{file.filename}</div>
+                                <div className="min-w-0 truncate text-body font-medium text-label">{file.filename}</div>
                                 <AutomaticBackupFileStatus file={file} />
                               </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-soft">
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-footnote text-label-2">
                                 {file.status === 'running' ? null : <span>{formatFileSize(file.size)}</span>}
                                 <span>{formatDateTime(file.last_modified)}</span>
                                 <span className="max-w-full truncate font-mono">{file.key}</span>
-                                {file.error ? <span className="text-[hsl(var(--destructive))]">{file.error}</span> : null}
+                                {file.error ? <span className="text-danger">{file.error}</span> : null}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => setRestoreTarget(file)} disabled={file.status === 'running' || file.status === 'failed' || Boolean(visibleBackgroundRestoreTask)}>
+                              <Button variant="secondary" size="sm" onClick={() => setRestoreTarget(file)} disabled={file.status === 'running' || file.status === 'failed' || Boolean(visibleBackgroundRestoreTask)}>
                                 <DatabaseBackup className="h-4 w-4" />
                                 {t('backup.automatic.files.restore')}
                               </Button>
-                              <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(file)} disabled={file.status === 'running'}>
+                              <Button variant="destructive-soft" size="sm" onClick={() => setDeleteTarget(file)} disabled={file.status === 'running'}>
                                 <Trash2 className="h-4 w-4" />
                                 {t('backup.automatic.files.delete')}
                               </Button>
@@ -622,7 +622,7 @@ export function BackupSettingsPage() {
           </DialogBody>
           <DialogFooter
             cancel={(
-              <Button variant="outline" onClick={closeExportDialog} disabled={exportMutation.isPending}>
+              <Button variant="secondary" onClick={closeExportDialog} disabled={exportMutation.isPending}>
                 {t('common:actions.cancel', { ns: 'common' })}
               </Button>
             )}
@@ -655,15 +655,15 @@ export function BackupSettingsPage() {
               }}
               onClick={() => fileInputRef.current?.click()}
               className={cn(
-                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors',
+                'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-inner border-2 border-dashed px-4 py-8 text-center transition-colors',
                 dragging
-                  ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))]/5'
-                  : 'border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] hover:border-[hsl(var(--accent))]/50 hover:bg-[hsl(var(--surface-subtle))]',
+                  ? 'border-tint bg-tint/5'
+                  : 'border-separator bg-fill-4 hover:border-tint/50 hover:bg-fill-3',
               )}
             >
-              <Upload className="h-8 w-8 text-muted-soft" />
-              <div className="text-sm font-medium text-foreground">{t('backup.import.dropzone')}</div>
-              <div className="text-xs text-muted-soft">{t('backup.import.fileHint')}</div>
+              <Upload className="h-8 w-8 text-label-2" />
+              <div className="text-body font-medium text-label">{t('backup.import.dropzone')}</div>
+              <div className="text-footnote text-label-2">{t('backup.import.fileHint')}</div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -677,16 +677,16 @@ export function BackupSettingsPage() {
             </div>
 
             {importFile ? (
-              <div className="flex items-center gap-3 rounded-md border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] px-3 py-2">
-                <FileArchive className="h-4 w-4 shrink-0 text-muted-soft" />
+              <div className="flex items-center gap-3 rounded-control border border-separator bg-fill-4 px-3 py-2">
+                <FileArchive className="h-4 w-4 shrink-0 text-label-2" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-foreground">{importFile.name}</div>
-                  <div className="text-xs text-muted-soft">{formatFileSize(importFile.size)}</div>
+                  <div className="truncate text-body text-label">{importFile.name}</div>
+                  <div className="text-footnote text-label-2">{formatFileSize(importFile.size)}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setImportFile(null)}
-                  className="shrink-0 rounded p-1 text-muted-soft transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+                  className="shrink-0 rounded p-1 text-label-2 transition-colors hover:bg-fill-3 hover:text-label"
                   aria-label={t('backup.import.removeFile')}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -705,7 +705,7 @@ export function BackupSettingsPage() {
           </DialogBody>
           <DialogFooter
             cancel={(
-              <Button variant="outline" onClick={closeImportDialog}>
+              <Button variant="secondary" onClick={closeImportDialog}>
                 {t('common:actions.cancel', { ns: 'common' })}
               </Button>
             )}
@@ -767,7 +767,7 @@ export function BackupSettingsPage() {
 
 function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+    <div className="flex items-center gap-2 text-headline text-label">
       {icon}
       <span>{title}</span>
     </div>
@@ -776,10 +776,10 @@ function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
 
 function Notice({ items, tone = 'default' }: { items: string[]; tone?: 'default' | 'danger' }) {
   return (
-    <div className="rounded-md border border-[hsl(var(--divider))] bg-[hsl(var(--surface-subtle))] px-4 py-3">
+    <div className="rounded-inner bg-fill-4 px-4 py-3">
       <div className="flex gap-3">
-        <AlertTriangle className={tone === 'danger' ? 'mt-0.5 h-4 w-4 shrink-0 text-red-500' : 'mt-0.5 h-4 w-4 shrink-0 text-primary'} />
-        <ul className="space-y-1 text-xs leading-5 text-muted-soft">
+        <AlertTriangle className={tone === 'danger' ? 'mt-0.5 h-4 w-4 shrink-0 text-danger' : 'mt-0.5 h-4 w-4 shrink-0 text-tint'} />
+        <ul className="space-y-1 text-footnote leading-5 text-label-2">
           {items.map((item) => <li key={item}>{item}</li>)}
         </ul>
       </div>
@@ -830,14 +830,14 @@ function ConfirmDialog({
   const { t } = useTranslation('settings')
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onCancel() }}>
-      <DialogContent className="w-[min(92vw,520px)]">
+      <DialogContent presentation="center" className="w-[min(92vw,520px)]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter
           cancel={(
-            <Button variant="outline" onClick={onCancel} disabled={pending}>
+            <Button variant="secondary" onClick={onCancel} disabled={pending}>
               {t('common:actions.cancel', { ns: 'common' })}
             </Button>
           )}

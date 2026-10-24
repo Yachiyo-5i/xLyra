@@ -89,7 +89,7 @@ export RELAY_KEY=sk-...
 xlyra-plugin run --key-env RELAY_KEY --base-url https://relay.example
 ```
 
-密钥从环境变量读取，只写进请求头，插件看不到。输出会列出实际发出的请求和最终结果。目前 `run` 只支持额度探测插件。
+密钥从环境变量读取，只写进请求头，插件看不到。输出会列出实际发出的请求和最终结果。`run` 支持会向站点取数据的类型：`quota_probe`、`model_list`、`credential_check`、`site_detect`。`site_provider` 要加 `--hook probe`、`--hook listModels` 或 `--hook check`。`classify` 和 `rewritePayload` 用 `test`。账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 既不能 `run`，也不能放进样本。详见[命令行工具](./cli.md#run)。
 
 ## 6. 打包与签名
 

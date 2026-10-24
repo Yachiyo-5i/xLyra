@@ -334,10 +334,10 @@ func TestGatewayCredentialCountsFilterStateMetaAndCooldowns(t *testing.T) {
 func TestGatewayCredentialHelperPredicates(t *testing.T) {
 	t.Parallel()
 
-	if !gatewayAPIKeyCredentialType("api_key") || !gatewayAPIKeyCredentialType("api_key:1") {
+	if !store.IsAPIKeyCredentialType("api_key") || !store.IsAPIKeyCredentialType("api_key:1") {
 		t.Fatal("api_key credential types should be accepted")
 	}
-	if gatewayAPIKeyCredentialType("oauth_bearer") {
+	if store.IsAPIKeyCredentialType("oauth_bearer") {
 		t.Fatal("oauth_bearer should not be treated as API key credential")
 	}
 	if !gatewayCredentialUsable(store.SiteCredential{Meta: store.JSON(`{"enabled":"true"}`)}) {
@@ -492,6 +492,55 @@ func TestGatewayModelCredentialCountsExcludesFailedGrokSSO(t *testing.T) {
 	)
 	if counts[modelID] != 0 {
 		t.Fatalf("failed Grok credential count = %d, want 0", counts[modelID])
+	}
+}
+
+func TestGatewayModelCredentialCountsIncludesPluginAccount(t *testing.T) {
+	credentialID := uuid.New()
+	modelID := uuid.New()
+	siteID := uuid.New()
+	credentialType := store.NewAccountCredentialType("acme.example/chat", uuid.New())
+	binding := []store.SiteAPIKeyModel{{
+		SiteID:           siteID,
+		SiteCredentialID: credentialID,
+		SiteModelID:      uuid.NullUUID{UUID: modelID, Valid: true},
+		Available:        true,
+		Enabled:          true,
+	}}
+	credential := store.SiteCredential{
+		ID:             credentialID,
+		SiteID:         siteID,
+		CredentialType: credentialType,
+		Meta:           store.JSON(`{"enabled":true}`),
+	}
+	counts := gatewayModelCredentialCounts(binding, []store.SiteCredential{credential}, map[uuid.UUID]store.SiteAPIKeyState{}, nil)
+	if counts[modelID] != 1 {
+		t.Fatalf("plugin account credential count = %d, want 1", counts[modelID])
+	}
+
+	reauth := map[uuid.UUID]store.SiteAPIKeyState{
+		credentialID: {SiteCredentialID: credentialID, Enabled: true, SyncStatus: "reauth_required"},
+	}
+	if counts = gatewayModelCredentialCounts(binding, []store.SiteCredential{credential}, reauth, nil); counts[modelID] != 0 {
+		t.Fatalf("plugin account reauth count = %d, want 0", counts[modelID])
+	}
+	grok := credential
+	grok.CredentialType = "grok_sso:" + uuid.NewString()
+	if counts = gatewayModelCredentialCounts(binding, []store.SiteCredential{grok}, reauth, nil); counts[modelID] != 0 {
+		t.Fatalf("grok reauth count = %d, want 0", counts[modelID])
+	}
+	apiKey := credential
+	apiKey.CredentialType = "api_key"
+	if counts = gatewayModelCredentialCounts(binding, []store.SiteCredential{apiKey}, reauth, nil); counts[modelID] != 1 {
+		t.Fatalf("api key reauth count = %d, want 1", counts[modelID])
+	}
+	unparsed := credential
+	unparsed.CredentialType = "account:x"
+	if !gatewayModelCredentialStateUsable(unparsed, reauth[credentialID], true) {
+		t.Fatal("unparseable account prefix should keep api-key state rules")
+	}
+	if counts = gatewayModelCredentialCounts(binding, []store.SiteCredential{unparsed}, reauth, nil); counts[modelID] != 0 {
+		t.Fatalf("unparseable account prefix count = %d, want 0", counts[modelID])
 	}
 }
 

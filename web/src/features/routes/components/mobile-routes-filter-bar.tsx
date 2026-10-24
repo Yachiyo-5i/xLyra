@@ -1,12 +1,8 @@
-import { useState } from 'react'
-import { Filter, LoaderCircle, RotateCcw, Search, X } from 'lucide-react'
+import { LoaderCircle, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Draw, DrawBody, DrawContent, DrawFooter, DrawHeader, DrawTitle, DrawTrigger } from '@/components/ui/draw'
-import { Input } from '@/components/ui/input'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
-import { FilterColumn, SortColumn } from '@/features/routes/components/route-filter-sidebar'
 import type { FilterItem, SortMode } from '@/features/routes/lib/types'
 
 type MobileRoutesFilterBarProps = {
@@ -47,7 +43,6 @@ export function MobileRoutesFilterBar({
   onRefresh,
 }: MobileRoutesFilterBarProps) {
   const { t } = useTranslation('routes')
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const hasFilters = Boolean(search.trim() || selectedBrand !== 'all' || selectedSite)
   const selectedSiteItem = siteItems.find((item) => item.key === selectedSite)
   const allModelsCount = brandItems.find((item) => item.key === 'all')?.count ?? 0
@@ -62,68 +57,25 @@ export function MobileRoutesFilterBar({
     onSiteChange(null)
   }
 
+  // 移动端筛选区：搜索 + 刷新，下面一行是排序 / 品牌 / 站点三个 filter 胶囊
   return (
-    <section className="space-y-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
-        <label className="relative min-w-0">
-          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
-          <Input
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={t('workspace.search')}
-            className="h-10 pl-10"
-          />
-        </label>
-
-        <Draw open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <DrawTrigger asChild>
-            <Button type="button" variant={hasFilters ? 'secondary' : 'outline'} size="icon" aria-label={t('mobile.filters')}>
-              <Filter className="h-4 w-4" />
-            </Button>
-          </DrawTrigger>
-          <DrawContent className="max-h-[82vh]">
-            <DrawHeader className="py-4">
-              <DrawTitle>{t('mobile.filters')}</DrawTitle>
-            </DrawHeader>
-            <DrawBody className="space-y-5 px-4 py-4">
-              <FilterColumn
-                title={t('workspace.brand')}
-                items={brandItems}
-                selectedKey={selectedBrand}
-                onSelect={onBrandChange}
-              />
-              <FilterColumn
-                title={t('workspace.site')}
-                items={siteSelectItems}
-                selectedKey={selectedSite ?? 'all'}
-                onSelect={(key) => onSiteChange(key === 'all' ? null : key)}
-              />
-              <SortColumn value={sortMode} onChange={onSortModeChange} />
-            </DrawBody>
-            <DrawFooter className="grid grid-cols-2 gap-2 px-4">
-              <Button type="button" variant="outline" onClick={clearFilters} disabled={!hasFilters}>
-                <X className="h-4 w-4" />
-                {t('mobile.clear')}
-              </Button>
-              <Button type="button" onClick={() => setDrawerOpen(false)}>{t('mobile.done')}</Button>
-            </DrawFooter>
-          </DrawContent>
-        </Draw>
-
+    <MobileFilterBar
+      search={{ value: search, onChange: (event) => onSearchChange(event.target.value), placeholder: t('workspace.search') }}
+      actions={
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="icon"
+          className="rounded-full"
           aria-label={t('workspace.refresh')}
           disabled={isFetching}
           onClick={onRefresh}
         >
-          {isFetching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+          {isFetching ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
         </Button>
-      </div>
-
-      <div className={cn('grid items-center gap-2', hasFilters ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1')}>
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5">
+      }
+      filters={
+        <>
           <Select value={sortMode} onValueChange={(value) => onSortModeChange(value as SortMode)}>
             <SelectTrigger variant="filter" filterLabel={t('sort.title')} active={sortMode !== 'default'}>
               <SelectValue />
@@ -162,14 +114,15 @@ export function MobileRoutesFilterBar({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        {hasFilters ? (
-          <Button type="button" variant="outline" size="sm" className="h-10 shrink-0 px-2.5" onClick={clearFilters}>
-            <X className="h-4 w-4" />
-            {t('mobile.clear')}
-          </Button>
-        ) : null}
-      </div>
-    </section>
+        </>
+      }
+      summary={
+        hasFilters ? (
+          <button type="button" className="ml-auto text-label-2 transition-colors active:text-label" onClick={clearFilters}>
+            {t('common:list.clearFilters')}
+          </button>
+        ) : undefined
+      }
+    />
   )
 }

@@ -30,7 +30,7 @@ describe('response model mismatch badge', () => {
     expect(markup).toContain('>requested-model</span>')
     expect(markup).toContain('>returned-model</span>')
     expect(markup).toContain('title="上游响应模型与请求及路由模型均不一致，可能已换模型：returned-model"')
-    expect(markup).toContain('var(--destructive)')
+    expect(markup).toContain('bg-danger/16')
   })
 
   it.each([undefined, null, '', '  ', 'requested-model', ' requested-model '])('hides absent or matching response model %s', (model) => {
@@ -68,12 +68,12 @@ describe('response model mismatch badge', () => {
       model: { canonical_model: 'deepseek-v4-flash', upstream_model: 'deepseek-v4-flash-0731' },
       upstream_response_model: 'z-ai/deepseek-v4-flash',
     })
-    expect(markup).toContain('badge-warning-bg')
-    expect(markup).not.toContain('var(--destructive)')
+    expect(markup).toContain('bg-warning/16')
+    expect(markup).not.toContain('bg-danger/16')
   })
 
   it.each(['requested-model-20260921', 'Requested-Model'])('compares full names without alias or case normalization: %s', (model) => {
-    expect(renderModel({ model: { canonical_model: null, upstream_model: null }, upstream_response_model: model })).toContain('var(--destructive)')
+    expect(renderModel({ model: { canonical_model: null, upstream_model: null }, upstream_response_model: model })).toContain('bg-danger/16')
   })
 
   it.each([
@@ -82,13 +82,13 @@ describe('response model mismatch badge', () => {
     ['provider-a/glm-5.3-flash', 'provider-b/glm-5.3-flash'],
   ])('uses a gold badge for namespace differences: %s to %s', (requested, response) => {
     const markup = renderModel({ requested_model: requested, upstream_response_model: response })
-    expect(markup).toContain('badge-warning-bg')
-    expect(markup).not.toContain('var(--destructive)')
+    expect(markup).toContain('bg-warning/16')
+    expect(markup).not.toContain('bg-danger/16')
     expect(markup).toContain('上游响应模型仅厂商前缀不同')
   })
 
   it.each(['z-ai/glm-5.3', 'z-ai/glm-5.3-pro', 'z-ai/glm-5.2-flash', 'z-ai/'])('keeps differing variants and versions red: %s', (response) => {
-    expect(renderModel({ requested_model: 'glm-5.3-flash', upstream_response_model: response })).toContain('var(--destructive)')
+    expect(renderModel({ requested_model: 'glm-5.3-flash', upstream_response_model: response })).toContain('bg-danger/16')
   })
 
   it('treats a dated model suffix as the same catalog model', () => {
@@ -97,13 +97,13 @@ describe('response model mismatch badge', () => {
       model: { canonical_model: 'glm-5.3-flash', upstream_model: 'glm-5.3-flash-20260921' },
       upstream_response_model: 'z-ai/glm-5.3-flash-20260921',
     })
-    expect(markup).toContain('badge-warning-bg')
-    expect(markup).not.toContain('var(--destructive)')
+    expect(markup).toContain('bg-warning/16')
+    expect(markup).not.toContain('bg-danger/16')
   })
 
   it.each([false, true])('places muted reasoning beside the requested model (inline=%s)', (inline) => {
     const markup = renderModel({ reasoning_effort: 'high' }, inline)
-    expect(markup).toMatch(/items-baseline[^>]*><span[^>]*>requested-model<\/span><span[^>]*text-\[10px\][^>]*font-normal[^>]*text-muted-soft[^>]*>high<\/span>/)
+    expect(markup).toMatch(/items-baseline[^>]*><span[^>]*>requested-model<\/span><span[^>]*text-\[10px\][^>]*font-normal[^>]*text-label-2[^>]*>high<\/span>/)
     expect(markup).toContain('title="推理强度: high"')
   })
 })

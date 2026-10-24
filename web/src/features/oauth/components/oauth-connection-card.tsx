@@ -4,7 +4,7 @@ import { Download, FlaskConical, KeyRound, LoaderCircle, Pencil, RotateCcw, Tras
 import { useTranslation } from 'react-i18next'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { CardAction, CardFooter, CardHeading, CardMetric, CardMetrics, ItemCard } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import {
   getOAuthConnection,
@@ -14,14 +14,13 @@ import {
 import {
   connectionStatusLabel,
   formatOAuthUpdatedAt,
-  formatUsage,
+  formatUsageParts,
   getOAuthSources,
   oauthConnectionEffectiveStatus,
   oauthConnectionEnableBlockedByStatus,
   oauthConnectionErrorMessage,
   oauthEnabledModelCount,
   oauthRefreshWarning,
-  planBadgeVariant,
   providerLabel,
   type OAuthUpdatedAtDisplayMode,
 } from '@/features/oauth/lib/oauth-utils'
@@ -50,6 +49,7 @@ export function OAuthConnectionCard({
   updatedAtMode,
   now,
   onUpdatedAtModeChange,
+  compact = false,
 }: {
   item: OAuthConnectionListItem
   groupLabel: string
@@ -67,6 +67,8 @@ export function OAuthConnectionCard({
   updatedAtMode: OAuthUpdatedAtDisplayMode
   now: number
   onUpdatedAtModeChange: (mode: OAuthUpdatedAtDisplayMode) => void
+  /** 移动端：指标两列、内边距更紧凑 */
+  compact?: boolean
 }) {
   const { t, i18n } = useTranslation('oauth')
   const queryClient = useQueryClient()
@@ -106,52 +108,55 @@ export function OAuthConnectionCard({
     ])
   }
 
-  return (
-    <div className="flex flex-col gap-3 overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel))] p-4">
-      <div className="flex min-h-0 min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          {source?.iconPath ? <img src={source.iconPath} alt="" className="h-10 w-10 shrink-0 rounded-md object-contain" /> : null}
-          <div className="min-w-0 space-y-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="truncate text-base font-semibold text-foreground">{providerLabel(connection.provider)}</span>
-              {planType ? <Badge variant={planBadgeVariant(planType)} className="shrink-0">{planType}</Badge> : null}
-              <StatusBadge status={effectiveStatus === 'connected' ? 'healthy' : effectiveStatus === 'error' ? 'error' : 'warning'}>
-                {connectionStatusLabel(effectiveStatus, t)}
-              </StatusBadge>
-              {refreshWarning ? (
-                <OAuthRefreshWarningBadge label={t('card.nonRefreshable')} message={refreshWarning} />
-              ) : null}
-            </div>
-            <div className="truncate text-xs text-muted-soft">{connection.email ?? connection.account_id ?? '-'}</div>
-          </div>
-        </div>
-        <div className="shrink-0">
-          {routeEnabled !== null && boundSite?.id ? (
-            <Switch
-              checked={routeEnabled}
-              disabled={toggling || enableBlocked}
-              onCheckedChange={(checked) => {
-                if (checked && enableBlocked) return
-                onToggleEnabled(checked)
-              }}
-            />
-          ) : null}
-        </div>
-      </div>
+  const usage = formatUsageParts(connection.site?.usage)
+  const actionsBusy = refreshing || toggling
 
-      <div className="grid grid-cols-3 gap-3">
-        <CompactInfo label={t('card.site')} value={connection.site?.name ?? '-'} />
-        <CompactInfo label={t('card.group')} value={groupLabel} />
-        <CompactInfoButton
+  return (
+    <ItemCard className={compact ? undefined : 'p-5'}>
+      <CardHeading
+        leading={source?.iconPath ? <img src={source.iconPath} alt="" className="size-9 shrink-0 rounded-inner object-contain" /> : null}
+        title={providerLabel(connection.provider)}
+        tags={(
+          <>
+            {planType ? <Badge variant="neutral" className="shrink-0">{planType}</Badge> : null}
+            <StatusBadge
+              status={effectiveStatus === 'connected' ? 'healthy' : effectiveStatus === 'error' ? 'error' : 'warning'}
+              className="shrink-0"
+            >
+              {connectionStatusLabel(effectiveStatus, t)}
+            </StatusBadge>
+            {refreshWarning ? (
+              <OAuthRefreshWarningBadge label={t('card.nonRefreshable')} message={refreshWarning} />
+            ) : null}
+          </>
+        )}
+        meta={<span title={connection.email ?? connection.account_id ?? undefined}>{connection.email ?? connection.account_id ?? '-'}</span>}
+        trailing={routeEnabled !== null && boundSite?.id ? (
+          <Switch
+            checked={routeEnabled}
+            disabled={toggling || enableBlocked}
+            onCheckedChange={(checked) => {
+              if (checked && enableBlocked) return
+              onToggleEnabled(checked)
+            }}
+          />
+        ) : null}
+      />
+
+      {/* 指标在上（桌面 3×2，移动端 2×3），额度在下 */}
+      <CardMetrics columns={compact ? 2 : 3}>
+        <CardMetric label={t('card.site')} value={connection.site?.name ?? '-'} />
+        <CardMetric label={t('card.group')} value={groupLabel} />
+        <CardMetric
           label={t('card.usage')}
-          value={formatUsage(connection.site?.usage)}
+          value={usage.main}
+          secondary={usage.secondary}
           disabled={!connection.site_id && !boundSite?.id}
           title={t('card.actions.usageSplit')}
-          ariaLabel={t('card.actions.usageSplit')}
           onClick={onOpenUsageSplit}
         />
-        <CompactInfo label={t('card.weight')} value={connection.site?.routing_priority != null ? connection.site.routing_priority.toFixed(1) : '-'} />
-        <CompactInfoButton
+        <CardMetric label={t('card.weight')} value={connection.site?.routing_priority != null ? connection.site.routing_priority.toFixed(1) : '-'} />
+        <CardMetric
           label={t('card.models')}
           value={detailQuery.isError ? t('card.modelsFailed') : detailQuery.isLoading ? t('card.modelsLoading') : t('card.modelsCount', { count: enabledModelCount })}
           disabled={!boundSite?.id}
@@ -159,96 +164,65 @@ export function OAuthConnectionCard({
             if (boundSite?.id) setModelsSite(boundSite)
           }}
         />
-        <CompactInfoButton
+        <CardMetric
           label={t('card.updatedAt')}
           value={updatedAtLabel}
           title={updatedAtMode === 'relative' ? t('card.updatedAtMode.showAbsolute') : t('card.updatedAtMode.showRelative')}
-          ariaLabel={updatedAtMode === 'relative' ? t('card.updatedAtMode.showAbsolute') : t('card.updatedAtMode.showRelative')}
           onClick={() => onUpdatedAtModeChange(nextUpdatedAtMode)}
         />
-      </div>
+      </CardMetrics>
 
       {effectiveStatus !== 'connected' && connectionError ? (
-        <div className="py-1">
-          <OAuthErrorPreview label={t('card.errorInfo')} message={connectionError} />
-        </div>
+        <OAuthErrorPreview label={t('card.errorInfo')} message={connectionError} />
       ) : (
-          <QuotaPanel
-            connectionId={connection.id}
-            provider={connection.provider}
-            quota={quota}
-            estimate={detail?.quota_estimate}
-            loading={detailQuery.isLoading}
-            resetCreditsData={detail?.reset_credits}
-          />
+        <QuotaPanel
+          connectionId={connection.id}
+          provider={connection.provider}
+          quota={quota}
+          estimate={detail?.quota_estimate}
+          loading={detailQuery.isLoading}
+          resetCreditsData={detail?.reset_credits}
+        />
       )}
 
-      <div className="flex items-center justify-end gap-1 border-t border-[hsl(var(--glass-divider))] pt-2">
+      <CardFooter>
         {effectiveStatus === 'reconnect_required' ? (
-          <Button
-            className="size-9 shrink-0 p-0"
-            size="icon"
-            variant="ghost"
-            disabled={refreshing || toggling || !boundSite?.id}
+          <CardAction
+            label={t('card.actions.reconnect')}
+            className="text-warning hover:text-warning"
+            disabled={actionsBusy || !boundSite?.id}
             onClick={onReconnect}
-            title={t('card.actions.reconnect')}
           >
-            <KeyRound className="h-4 w-4" />
-          </Button>
+            <KeyRound />
+          </CardAction>
         ) : null}
-        <Button
-          className="size-9 shrink-0 p-0"
-          size="icon"
-          variant="ghost"
-          disabled={refreshing || toggling}
-          onClick={onRefresh}
-          title={t('card.actions.refresh')}
-        >
-          {refreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-        </Button>
+        <CardAction label={t('card.actions.refresh')} disabled={actionsBusy} onClick={onRefresh}>
+          {refreshing ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+        </CardAction>
         {connection.provider === 'codex' ? (
-          <Button
-            className="size-9 shrink-0 p-0"
-            size="icon"
-            variant="ghost"
-            disabled={exporting || toggling}
-            onClick={onExport}
-            title={t('card.actions.export')}
-          >
-            {exporting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          </Button>
+          <CardAction label={t('card.actions.export')} disabled={exporting || toggling} onClick={onExport}>
+            {exporting ? <LoaderCircle className="animate-spin" /> : <Download />}
+          </CardAction>
         ) : null}
-        <Button
-          className="size-9 shrink-0 p-0"
-          size="icon"
-          variant="ghost"
-          disabled={!boundSite || refreshing || toggling}
+        <CardAction
+          label={t('card.actions.test')}
+          disabled={!boundSite || actionsBusy}
           onClick={() => { if (boundSite) onOpenTest(boundSite) }}
-          title={t('card.actions.test')}
         >
-          <FlaskConical className="h-4 w-4" />
-        </Button>
-        <Button
-          className="size-9 shrink-0 p-0"
-          size="icon"
-          variant="ghost"
-          disabled={!connection.site || toggling}
-          onClick={() => setEditOpen(true)}
-          title={t('card.actions.edit')}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          className="size-9 shrink-0 p-0 text-red-400 hover:text-red-300"
-          size="icon"
-          variant="ghost"
+          <FlaskConical />
+        </CardAction>
+        <CardAction label={t('card.actions.edit')} disabled={!connection.site || toggling} onClick={() => setEditOpen(true)}>
+          <Pencil />
+        </CardAction>
+        <CardAction
+          label={t('card.actions.delete')}
+          className="text-danger hover:text-danger"
           disabled={deleting || toggling}
           onClick={onDelete}
-          title={t('card.actions.delete')}
         >
-          {deleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-        </Button>
-      </div>
+          {deleting ? <LoaderCircle className="animate-spin" /> : <Trash2 />}
+        </CardAction>
+      </CardFooter>
 
       <SiteModelsDraw
         site={modelsSite}
@@ -272,57 +246,6 @@ export function OAuthConnectionCard({
           ])
         }}
       />
-    </div>
-  )
-}
-
-function CompactInfo({
-  label,
-  value,
-  title,
-}: {
-  label: string
-  value: string
-  title?: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs text-muted-soft">{label}</div>
-      <div className="truncate text-sm font-medium text-foreground" title={title ?? value}>
-        {value || '-'}
-      </div>
-    </div>
-  )
-}
-
-function CompactInfoButton({
-  ariaLabel,
-  disabled,
-  label,
-  onClick,
-  title,
-  value,
-}: {
-  ariaLabel?: string
-  disabled?: boolean
-  label: string
-  onClick: () => void
-  title?: string
-  value: string
-}) {
-  return (
-    <button
-      type="button"
-      className="min-w-0 text-left disabled:cursor-not-allowed disabled:opacity-60"
-      disabled={disabled}
-      title={title}
-      aria-label={ariaLabel}
-      onClick={onClick}
-    >
-      <div className="text-xs text-muted-soft">{label}</div>
-      <div className="truncate text-sm font-medium text-foreground transition-colors hover:text-primary" title={value}>
-        {value || '-'}
-      </div>
-    </button>
+    </ItemCard>
   )
 }

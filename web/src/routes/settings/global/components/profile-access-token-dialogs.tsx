@@ -31,23 +31,23 @@ export function CreatedAccessTokenDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(92vw,560px)] overflow-hidden">
+      <DialogContent presentation="center" className="w-[min(92vw,560px)] overflow-hidden">
         <DialogHeader>
           <div className="space-y-1.5">
             <DialogTitle>{t('profile.accessToken.createdDialog.title')}</DialogTitle>
-            <p className="text-muted-soft text-sm">{t('profile.accessToken.createdDialog.description')}</p>
+            <p className="text-label-2 text-body">{t('profile.accessToken.createdDialog.description')}</p>
           </div>
         </DialogHeader>
         <DialogBody className="space-y-4">
           <FormField>
             <div className="flex gap-2">
-              <Input readOnly className="font-mono text-xs" value={token ?? ''} />
+              <Input readOnly className="font-mono text-footnote" value={token ?? ''} />
               <Button
                 variant="secondary"
                 disabled={!token}
                 className={
                   copied
-                    ? 'border-[hsl(var(--badge-success-border))] bg-[hsl(var(--badge-success-bg))] text-[hsl(var(--badge-success-text))] hover:bg-[hsl(var(--badge-success-bg))]'
+                    ? 'border-success/30 bg-success/16 text-success hover:bg-success/16'
                     : undefined
                 }
                 onClick={onCopy}
@@ -82,11 +82,11 @@ export function DeleteAccessTokenDialog({
         onOpenChange(nextOpen)
       }}
     >
-      <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+      <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('profile.accessToken.deleteDialog.title')}</DialogTitle>
         </DialogHeader>
-        <DialogBody className="text-sm text-muted-soft">
+        <DialogBody className="text-body text-label-2">
           {t('profile.accessToken.deleteDialog.description')}
         </DialogBody>
         <DialogFooter

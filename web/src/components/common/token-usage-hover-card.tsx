@@ -40,7 +40,7 @@ export function TokenUsageHoverCard({ children, columns, labels, disabled = fals
       content={
         <div className={cn('grid items-center gap-x-5 gap-y-2 tabular-nums', columns.length > 1 ? 'grid-cols-[minmax(0,1fr)_auto_auto]' : 'grid-cols-[minmax(0,1fr)_auto]')}>
           {columns.length > 1 ? <span /> : null}
-          {columns.length > 1 ? columns.map((column, index) => <strong key={`${column.label ?? ''}-${index}`} className="text-right font-medium text-muted-soft">{column.label}</strong>) : null}
+          {columns.length > 1 ? columns.map((column, index) => <strong key={`${column.label ?? ''}-${index}`} className="text-right font-medium text-label-2">{column.label}</strong>) : null}
           <UsageRow label={labels.total} values={columns.map(({ usage }) => formatInteger(usage.total))} />
           <UsageRow label={labels.input} values={columns.map(({ usage }) => formatInteger(usage.input))} />
           <UsageRow label={labels.output} values={columns.map(({ usage }) => formatInteger(usage.output))} />
@@ -57,7 +57,7 @@ export function TokenUsageHoverCard({ children, columns, labels, disabled = fals
 function UsageRow({ label, values }: { label: string; values: string[] }) {
   return (
     <>
-      <span className="text-muted-soft">{label}</span>
+      <span className="text-label-2">{label}</span>
       {values.map((value, index) => <strong key={`${value}-${index}`} className="text-right font-semibold">{value}</strong>)}
     </>
   )

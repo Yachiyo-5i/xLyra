@@ -1,6 +1,4 @@
-import { useResolvedTheme } from '@/hooks/theme-context'
 import { cn } from '@/lib/utils'
-import { resolveThemedIconPath } from '@/components/common/brand-utils'
 
 export function BrandMark({
   iconPath,
@@ -19,10 +17,9 @@ export function BrandMark({
   transparent?: boolean
   size?: 'xs' | 'sm' | 'md'
 }) {
-  const resolvedMode = useResolvedTheme()
-  const boxClassName = size === 'xs' ? 'h-4 w-4 rounded-sm' : size === 'sm' ? 'h-6 w-6 rounded-md' : 'h-11 w-11 rounded-md'
+  const boxClassName = size === 'xs' ? 'h-4 w-4 rounded-sm' : size === 'sm' ? 'h-6 w-6 rounded-control' : 'h-11 w-11 rounded-control'
   const imageClassName = size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-4 w-4' : 'h-7 w-7'
-  const textClassName = size === 'xs' ? 'text-[8px]' : size === 'sm' ? 'text-[11px]' : 'text-sm font-semibold'
+  const textClassName = size === 'xs' ? 'text-[8px]' : size === 'sm' ? 'text-[11px]' : 'text-headline'
   const text = fallbackText ?? fallback.slice(0, 1).toUpperCase()
 
   return (
@@ -32,19 +29,19 @@ export function BrandMark({
         transparent
           ? 'bg-transparent'
           : highlightedFallback
-            ? '[background-color:hsl(var(--primary)/0.18)] text-primary'
-            : 'bg-[hsl(var(--surface-subtle))]',
+            ? 'bg-tint/18 text-tint'
+            : 'bg-fill-3',
         boxClassName,
       )}
     >
       {iconPath ? (
         <img
-          src={resolveThemedIconPath(iconPath, label, resolvedMode)}
+          src={iconPath}
           alt={label}
           className={cn('object-contain', imageClassName)}
         />
       ) : (
-        <span className={cn(highlightedFallback ? 'text-primary' : 'text-foreground', textClassName)}>{text}</span>
+        <span className={cn(highlightedFallback ? 'text-tint' : 'text-label', textClassName)}>{text}</span>
       )}
     </span>
   )

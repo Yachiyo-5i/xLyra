@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func float64FromAny(value any) (float64, bool) {
@@ -107,6 +108,18 @@ func anySliceFromAny(value any) []any {
 func anyString(value any) string {
 	text, _ := value.(string)
 	return strings.TrimSpace(text)
+}
+
+func canonicalRFC3339(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return ""
+	}
+	return parsed.Format(time.RFC3339)
 }
 
 func defaultString(value string, fallback string) string {

@@ -19,7 +19,8 @@ import (
 )
 
 type Service struct {
-	db *store.Store
+	db             *store.Store
+	siteTypeFilter func(siteType string) bool
 }
 
 type CandidateQuery struct {
@@ -144,6 +145,25 @@ func NewService(db *store.Store) *Service {
 	return &Service{db: db}
 }
 
+// SetSiteTypeFilter installs an optional predicate consulted while building
+// route candidates and, through SiteTypeAllowed, downstream model lists.
+// A nil filter keeps every site type, which is the historical behavior.
+func (s *Service) SetSiteTypeFilter(filter func(siteType string) bool) {
+	if s == nil {
+		return
+	}
+	s.siteTypeFilter = filter
+}
+
+// SiteTypeAllowed reports whether siteType may be offered to a downstream
+// request. A nil service or a nil filter allows every type.
+func (s *Service) SiteTypeAllowed(siteType string) bool {
+	if s == nil || s.siteTypeFilter == nil {
+		return true
+	}
+	return s.siteTypeFilter(siteType)
+}
+
 func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (CandidateList, error) {
 	modelKey := strings.TrimSpace(query.ModelKey)
 	if modelKey == "" {
@@ -180,6 +200,9 @@ func (s *Service) Candidates(ctx context.Context, query CandidateQuery) (Candida
 		}
 
 		if !row.SiteEnabled || row.SiteStatus != "active" {
+			continue
+		}
+		if !s.SiteTypeAllowed(row.SiteType) {
 			continue
 		}
 		if row.SiteModelStatus != "active" {

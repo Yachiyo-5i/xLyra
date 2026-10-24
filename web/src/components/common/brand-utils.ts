@@ -1,32 +1,6 @@
-export function resolveThemedIconPath(
-  iconPath: string,
-  label: string | undefined,
-  resolvedMode: 'light' | 'dark',
-): string {
-  if (isOpenAIIcon(iconPath, label)) {
-    return resolvedMode === 'light' ? '/brand-icons/openai-light.png' : '/brand-icons/openai.png'
-  }
-  if (resolvedMode === 'light') {
-    return lightBrandIconPaths[iconPath] ?? iconPath
-  }
-  return iconPath
-}
-
-const lightBrandIconPaths: Record<string, string> = {
-  '/brand-icons/bytedance-dark.png': '/brand-icons/bytedance-light.png',
-  '/brand-icons/vidu-dark.png': '/brand-icons/vidu-light.png',
-  '/brand-icons/stepfun-dark.png': '/brand-icons/stepfun-light.png',
-  '/brand-icons/alibaba-dark.png': '/brand-icons/alibaba-light.png',
-  '/brand-icons/baai-dark.png': '/brand-icons/baai-light.png',
-  '/brand-icons/flux-dark.png': '/brand-icons/flux-light.png',
-  '/brand-icons/hunyuan-dark.png': '/brand-icons/hunyuan-light.png',
-  '/brand-icons/sensenova-dark.png': '/brand-icons/sensenova-light.png',
-  '/brand-icons/typesafe-dark.png': '/brand-icons/typesafe-light.png',
-}
-
-export function siteTypeIconPath(siteType: string, resolvedMode: 'light' | 'dark' = 'dark'): string | undefined {
+export function siteTypeIconPath(siteType: string): string | undefined {
   const type = siteType.trim().toLowerCase()
-  if (type === 'openai' || type === 'openai_compatible') return resolveThemedIconPath('/brand-icons/openai.png', 'OpenAI', resolvedMode)
+  if (type === 'openai' || type === 'openai_compatible') return '/brand-icons/openai.png'
   if (type === 'anthropic') return '/brand-icons/anthropic.png'
   if (type === 'google_gemini') return '/brand-icons/google.png'
   if (type === 'grok') return '/brand-icons/grok.png'
@@ -42,7 +16,7 @@ export function siteTypeIconPath(siteType: string, resolvedMode: 'light' | 'dark
   if (type === 'codex') return '/oauth-icons/codex.svg'
   if (type === 'antigravity') return '/oauth-icons/antigravity.png'
   if (type === 'claude_code') return '/oauth-icons/claudecode.png'
-  if (type === 'typesafe') return resolveThemedIconPath('/brand-icons/typesafe-dark.png', 'TypeSafe', resolvedMode)
+  if (type === 'typesafe') return '/brand-icons/typesafe-dark.png'
   return undefined
 }
 
@@ -61,6 +35,3 @@ export function buildModelGlyph(name: string): string {
   return '?'
 }
 
-function isOpenAIIcon(iconPath: string, label: string | undefined) {
-  return label === 'OpenAI' || iconPath.includes('/brand-icons/openai')
-}

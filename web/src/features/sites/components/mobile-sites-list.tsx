@@ -1,14 +1,15 @@
 import { ChevronDown, FlaskConical, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react'
-import { forwardRef, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { CardAction, CardFooter, CardHeading, CardMetric, CardMetrics, ItemCard } from '@/components/ui/card'
 import { HoverDetails } from '@/components/common/hover-details'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { SiteBalanceDetailsContent } from '@/features/sites/components/site-balance-cell'
 import { SiteHealthBadge } from '@/features/sites/components/site-health-badge'
 import { SitePlanBadge } from '@/features/sites/components/site-plan-badge'
+import { ProviderUnavailableBadge } from '@/features/sites/components/provider-unavailable-badge'
+import { SiteTypeBadge } from '@/features/sites/components/site-type-badge'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import type { Site, SiteAPIKey, SiteModel, SiteTypeInfo } from '@/features/sites/api/sites'
 import {
   formatCompactTokens,
@@ -16,7 +17,8 @@ import {
   formatRelativeDateTime,
   formatRoutingPriority,
   formatSiteBalance,
-  formatSiteTypeLabel,
+  isAccountLoginSiteType,
+  siteAccountCounts,
   isOAuthSite,
   isSub2APIQuotaSite,
   isSiteEnableBlockedByAbnormalState,
@@ -52,10 +54,9 @@ export function MobileSitesList({
   onDelete,
   onOpenModels,
   onOpenAPIKeys,
-  onOpenGrokAccounts,
+  onOpenAccounts,
   onOpenTest,
   onOpenUsageSplit,
-  resolvedMode,
   siteTypes,
   className,
 }: {
@@ -78,10 +79,9 @@ export function MobileSitesList({
   onDelete: (site: Site) => void
   onOpenModels: (site: Site) => void
   onOpenAPIKeys: (site: Site) => void
-  onOpenGrokAccounts: (site: Site) => void
+  onOpenAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
-  resolvedMode: 'light' | 'dark'
   siteTypes: SiteTypeInfo[]
   className?: string
 }) {
@@ -116,10 +116,9 @@ export function MobileSitesList({
             onDelete={onDelete}
             onOpenModels={onOpenModels}
             onOpenAPIKeys={onOpenAPIKeys}
-            onOpenGrokAccounts={onOpenGrokAccounts}
+            onOpenAccounts={onOpenAccounts}
             onOpenTest={onOpenTest}
             onOpenUsageSplit={onOpenUsageSplit}
-            resolvedMode={resolvedMode}
             siteTypes={siteTypes}
           />
         </div>
@@ -153,10 +152,9 @@ function MobileSiteCard({
   onDelete,
   onOpenModels,
   onOpenAPIKeys,
-  onOpenGrokAccounts,
+  onOpenAccounts,
   onOpenTest,
   onOpenUsageSplit,
-  resolvedMode,
   siteTypes,
 }: {
   site: Site
@@ -175,17 +173,16 @@ function MobileSiteCard({
   onDelete: (site: Site) => void
   onOpenModels: (site: Site) => void
   onOpenAPIKeys: (site: Site) => void
-  onOpenGrokAccounts: (site: Site) => void
+  onOpenAccounts: (site: Site) => void
   onOpenTest: (site: Site) => void
   onOpenUsageSplit: (site: Site) => void
-  resolvedMode: 'light' | 'dark'
   siteTypes: SiteTypeInfo[]
 }) {
   const { t, i18n } = useTranslation('sites')
   const oauth = isOAuthSite(site)
-  const icon = siteTypeIcon(site.site_type, siteTypes, resolvedMode) || site.icon_url
+  const icon = siteTypeIcon(site.site_type, siteTypes) || site.icon_url
   const modelCount = siteModelsDisplayCount(site, models, apiKeys)
-  const isGrok = site.site_type === 'grok'
+  const isGrok = isAccountLoginSiteType(site.site_type, siteTypes)
   const keyInfo = oauth || isGrok ? null : { enabled: apiKeys.filter((key) => key.enabled).length, total: apiKeys.length || site.api_key_count || 0 }
   const usage = site.usage
   const totalTokens = usage?.total_tokens ?? 0
@@ -196,96 +193,102 @@ function MobileSiteCard({
   const updatedLabel = updatedAtMode === 'absolute'
     ? formatDateTime(updatedValue, i18n.language)
     : formatRelativeDateTime(updatedValue, now, i18n.language, t)
-  const statusBadge = <SiteHealthBadge site={site} validation={validation} className="shrink-0 px-1.5 py-0 text-[11px]" />
+  const statusBadge = <SiteHealthBadge site={site} validation={validation} className="shrink-0" />
   const enableBlocked = isSiteEnableBlockedByAbnormalState(site, validation)
 
   return (
-    <article className="rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-elevated))] p-3 shadow-[var(--button-secondary-shadow)]">
-      <div className="flex items-start gap-3">
-        {icon ? <img src={icon} alt="" className={cn('mt-0.5 h-8 w-8 shrink-0 rounded-lg object-contain', siteTypeIconClassName(site.site_type))} /> : null}
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="min-w-0 truncate text-base font-semibold text-foreground">{site.name}</h3>
-            <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[11px]">{formatSiteTypeLabel(site.site_type, siteTypes)}</Badge>
+    // 站点卡片：名字独占标题行，标签放到下一行可换行，名字不再被挤成「h…」
+    <ItemCard>
+      <CardHeading
+        leading={(
+          <SiteTypeIcon
+            src={icon}
+            name={site.name}
+            empty="hidden"
+            muted={site.provider_status === 'unavailable'}
+            className="mt-0.5 size-8 shrink-0 rounded-inner"
+            imageClassName={siteTypeIconClassName(site.site_type)}
+          />
+        )}
+        title={site.name}
+        tags={(
+          <>
+            <SiteTypeBadge siteType={site.site_type} siteTypes={siteTypes} />
+            <ProviderUnavailableBadge status={site.provider_status} />
             <SitePlanBadge site={site} />
             {statusBadge}
-          </div>
-          <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs">
-            <div className="min-w-0 flex-1 truncate text-muted-soft">
-              {oauth ? (
-                siteAccountEmail(site)
-              ) : site.base_url ? (
-                <a href={site.base_url} target="_blank" rel="noreferrer noopener" className="transition-colors hover:text-foreground">{site.base_url}</a>
-              ) : '-'}
-            </div>
-          </div>
-        </div>
-        <Switch
-          checked={site.enabled}
-          disabled={isToggling || enableBlocked}
-          aria-label={t('table.ariaLabels.toggle', { name: site.name })}
-          onCheckedChange={() => {
-            if (enableBlocked) return
-            onToggleEnabled(site)
-          }}
-        />
-      </div>
+          </>
+        )}
+        meta={oauth ? (
+          siteAccountEmail(site)
+        ) : site.base_url ? (
+          <a href={site.base_url} target="_blank" rel="noreferrer noopener" className="transition-colors hover:text-label">{site.base_url}</a>
+        ) : '-'}
+        trailing={(
+          <Switch
+            checked={site.enabled}
+            disabled={isToggling || enableBlocked}
+            aria-label={t('table.ariaLabels.toggle', { name: site.name })}
+            onCheckedChange={() => {
+              if (enableBlocked) return
+              onToggleEnabled(site)
+            }}
+          />
+        )}
+      />
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+      <CardMetrics columns={3}>
         <MobileSiteBalance site={site} apiKeys={apiKeys} />
-        <MobileMetric label={t('table.headers.priority')} value={formatRoutingPriority(site.routing_priority)} />
-        <MobileMetricButton
+        <CardMetric label={t('table.headers.priority')} value={formatRoutingPriority(site.routing_priority)} />
+        <CardMetric
           label={t('table.headers.usage')}
-          value={usage ? `${formatCompactTokens(totalTokens, false)} / ${costPrefix}${cost.toFixed(2)}` : '-'}
+          value={usage ? formatCompactTokens(totalTokens, false) : '-'}
+          secondary={usage ? `${costPrefix}${cost.toFixed(2)}` : undefined}
           onClick={() => onOpenUsageSplit(site)}
         />
-        <MobileMetricButton
+        <CardMetric
           label={t('table.headers.models')}
           value={t('table.resources.models', { count: modelCount })}
           onClick={() => onOpenModels(site)}
         />
         {isGrok ? (
-          <MobileMetricButton
+          <CardMetric
             label={t('table.headers.accounts')}
-            value={t('table.resources.accounts', { count: site.grok_account_count ?? site.api_key_count ?? 0 })}
-            onClick={() => onOpenGrokAccounts(site)}
+            value={t('table.resources.accounts', siteAccountCounts(site))}
+            onClick={() => onOpenAccounts(site)}
           />
         ) : keyInfo ? (
-          <MobileMetricButton
+          <CardMetric
             label={t('table.headers.apiKeys')}
             value={t('table.resources.keys', { enabled: keyInfo.enabled, total: keyInfo.total })}
             onClick={() => onOpenAPIKeys(site)}
           />
         ) : (
-          <MobileMetric label={t('table.headers.apiKeys')} value="-" />
+          <CardMetric label={t('table.headers.apiKeys')} value="-" />
         )}
-        <button
-          type="button"
-          className="min-w-0 px-2 py-2 text-left transition-colors hover:text-primary"
+        <CardMetric
+          label={t('table.headers.updatedAt')}
+          value={updatedLabel}
           title={updatedAtMode === 'absolute' ? t('table.updatedAtMode.showRelative') : t('table.updatedAtMode.showAbsolute')}
-          aria-label={updatedAtMode === 'absolute' ? t('table.updatedAtMode.showRelative') : t('table.updatedAtMode.showAbsolute')}
           onClick={() => onUpdatedAtModeChange(updatedAtMode === 'absolute' ? 'relative' : 'absolute')}
-        >
-          <span className="block text-[11px] text-muted-soft">{t('table.headers.updatedAt')}</span>
-          <span className="mt-1 block truncate font-medium text-foreground tabular-nums">{updatedLabel}</span>
-        </button>
-      </div>
+        />
+      </CardMetrics>
 
-      <div className="mt-3 flex items-center justify-end gap-1 border-t border-[hsl(var(--glass-divider))] pt-2">
-        <Button size="icon" variant="ghost" className="h-9 w-9" disabled={isRefreshing || isToggling} onClick={() => onRefresh(site.id)} aria-label={t('table.ariaLabels.refresh', { name: site.name })}>
-          {isRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-        </Button>
-        <Button size="icon" variant="ghost" className="h-9 w-9" disabled={isRefreshing || isToggling} onClick={() => onOpenTest(site)} aria-label={t('table.ariaLabels.test', { name: site.name })}>
-          <FlaskConical className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-9 w-9" disabled={isToggling} onClick={() => onEdit(site)} aria-label={t('table.ariaLabels.edit', { name: site.name })}>
-          <PencilLine className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-9 w-9 text-red-400 hover:text-red-300" disabled={isDeleting || isToggling} onClick={() => onDelete(site)} aria-label={t('table.ariaLabels.delete', { name: site.name })}>
-          {isDeleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-        </Button>
-      </div>
-    </article>
+      <CardFooter>
+        <CardAction label={t('table.ariaLabels.refresh', { name: site.name })} disabled={isRefreshing || isToggling} onClick={() => onRefresh(site.id)}>
+          {isRefreshing ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+        </CardAction>
+        <CardAction label={t('table.ariaLabels.test', { name: site.name })} disabled={isRefreshing || isToggling} onClick={() => onOpenTest(site)}>
+          <FlaskConical />
+        </CardAction>
+        <CardAction label={t('table.ariaLabels.edit', { name: site.name })} disabled={isToggling} onClick={() => onEdit(site)}>
+          <PencilLine />
+        </CardAction>
+        <CardAction label={t('table.ariaLabels.delete', { name: site.name })} className="text-danger hover:text-danger" disabled={isDeleting || isToggling} onClick={() => onDelete(site)}>
+          {isDeleting ? <LoaderCircle className="animate-spin" /> : <Trash2 />}
+        </CardAction>
+      </CardFooter>
+    </ItemCard>
   )
 }
 
@@ -296,7 +299,7 @@ function MobileSiteBalance({ site, apiKeys }: { site: Site; apiKeys: SiteAPIKey[
     || (isSub2APIQuotaSite(site) && apiKeys.length > 0)
 
   if (!hasDetails) {
-    return <MobileMetric label={t('table.headers.balance')} value={value} />
+    return <CardMetric label={t('table.headers.balance')} value={value} />
   }
 
   return (
@@ -305,45 +308,26 @@ function MobileSiteBalance({ site, apiKeys }: { site: Site; apiKeys: SiteAPIKey[
       title={`${site.name} · ${t('table.headers.balance')}`}
       content={<SiteBalanceDetailsContent site={site} apiKeys={apiKeys} />}
     >
-      <MobileMetricButton label={t('table.headers.balance')} value={value} />
+      <CardMetric interactive label={t('table.headers.balance')} value={value} />
     </HoverDetails>
   )
 }
-
-function MobileMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 px-2 py-2">
-      <span className="block text-[11px] text-muted-soft">{label}</span>
-      <span className="mt-1 block truncate font-medium text-foreground tabular-nums" title={value}>{value}</span>
-    </div>
-  )
-}
-
-const MobileMetricButton = forwardRef<HTMLButtonElement, Omit<ComponentPropsWithoutRef<'button'>, 'children'> & { label: string; value: string }>(
-  ({ label, value, className, ...props }, ref) => (
-    <button ref={ref} type="button" className={cn('min-w-0 px-2 py-2 text-left transition-colors hover:text-primary', className)} {...props}>
-      <span className="block text-[11px] text-muted-soft">{label}</span>
-      <span className="mt-1 block truncate font-medium text-foreground tabular-nums" title={value}>{value}</span>
-    </button>
-  ),
-)
-MobileMetricButton.displayName = 'MobileMetricButton'
 
 function MobileAbnormalToggle({ count, collapsed, onToggle }: { count: number; collapsed: boolean; onToggle: () => void }) {
   const { t } = useTranslation('sites')
 
   return (
     <div>
-      <div className="mb-3 border-t border-[hsl(var(--glass-border))]" />
+      <div className="mb-3 border-t border-separator" />
       <button
         type="button"
-        className="flex w-full items-center gap-2 rounded-lg bg-[hsl(var(--surface-subtle)/0.6)] px-3 py-2.5 text-left text-sm text-muted-soft transition-colors hover:text-foreground"
+        className="flex w-full items-center gap-2 rounded-inner bg-fill-4 px-3 py-2.5 text-left text-body text-label-2 transition-colors hover:text-label"
         onClick={onToggle}
       >
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', collapsed && '-rotate-90')} />
         <span className="font-medium">
           {t('page.abnormalSites')}
-          <span className="ml-2 text-xs opacity-60">({count})</span>
+          <span className="ml-2 text-footnote opacity-60">({count})</span>
         </span>
       </button>
     </div>

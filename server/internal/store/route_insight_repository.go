@@ -286,7 +286,7 @@ func configuredRouteChannelCount(_ SiteModel, site Site, apiKeyModels []SiteAPIK
 		count := 0
 		for _, apiKeyModel := range apiKeyModels {
 			credential := credentials[apiKeyModel.SiteCredentialID]
-			if apiKeyModel.Available && credential.ID != uuid.Nil && isModelBoundCredentialType(credential.CredentialType) {
+			if apiKeyModel.Available && credential.ID != uuid.Nil && IsModelBoundCredentialType(credential.CredentialType) {
 				count++
 			}
 		}
@@ -327,7 +327,7 @@ func modelAvailableKeyCount(model SiteModel, site Site, apiKeyModels []SiteAPIKe
 	now := time.Now()
 	for _, apiKeyModel := range apiKeyModels {
 		credential, ok := credentials[apiKeyModel.SiteCredentialID]
-		if !ok || credential.ID == uuid.Nil || credential.SiteID != site.ID || !isModelBoundCredentialType(credential.CredentialType) {
+		if !ok || credential.ID == uuid.Nil || credential.SiteID != site.ID || !IsModelBoundCredentialType(credential.CredentialType) {
 			continue
 		}
 		state := states[apiKeyModel.SiteCredentialID]
@@ -362,7 +362,7 @@ func siteFallbackCredentialCount(siteID uuid.UUID, credentials []SiteCredential,
 	count := 0
 	now := time.Now()
 	for _, credential := range credentials {
-		if !isAPIKeyCredentialType(credential.CredentialType) || !credentialUsable(credential) || credentialCooling(cooldowns, siteID, uuid.Nil, credential.ID) {
+		if !IsAPIKeyCredentialType(credential.CredentialType) || !credentialUsable(credential) || credentialCooling(cooldowns, siteID, uuid.Nil, credential.ID) {
 			continue
 		}
 		state := states[credential.ID]

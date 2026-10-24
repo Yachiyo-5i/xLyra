@@ -34,16 +34,16 @@ type RequestsTableProps = {
 }
 
 const requestTableHeaders = [
-  { id: 'expand', label: 'table.headers.expand', className: 'px-4 py-3 font-medium' },
-  { id: 'time', label: 'table.headers.time', className: 'px-4 py-3 font-medium' },
-  { id: 'model', label: 'table.headers.model', className: 'px-4 py-3 font-medium' },
-  { id: 'api-key', label: 'table.headers.apiKey', className: 'px-4 py-3 font-medium' },
-  { id: 'site', label: 'table.headers.site', className: 'px-4 py-3 font-medium' },
-  { id: 'status', label: 'table.headers.status', className: 'px-1 py-3 font-medium text-center' },
-  { id: 'latency', label: 'table.headers.latency', className: 'px-4 py-3 font-medium' },
-  { id: 'input', label: 'table.headers.input', className: 'px-4 py-3 font-medium text-right' },
-  { id: 'output', label: 'table.headers.output', className: 'px-4 py-3 font-medium text-right' },
-  { id: 'cost', label: 'table.headers.cost', className: 'px-4 py-3 font-medium text-right' },
+  { id: 'expand', label: 'table.headers.expand', className: 'px-4 py-2' },
+  { id: 'time', label: 'table.headers.time', className: 'px-4 py-2' },
+  { id: 'model', label: 'table.headers.model', className: 'px-4 py-2' },
+  { id: 'api-key', label: 'table.headers.apiKey', className: 'px-4 py-2' },
+  { id: 'site', label: 'table.headers.site', className: 'px-4 py-2' },
+  { id: 'status', label: 'table.headers.status', className: 'px-4 py-2' },
+  { id: 'latency', label: 'table.headers.latency', className: 'px-4 py-2' },
+  { id: 'input', label: 'table.headers.input', className: 'px-4 py-2 text-right' },
+  { id: 'output', label: 'table.headers.output', className: 'px-4 py-2 text-right' },
+  { id: 'cost', label: 'table.headers.cost', className: 'px-4 py-2 text-right' },
 ] as const
 
 export function RequestsTable({
@@ -65,25 +65,22 @@ export function RequestsTable({
   }
 
   return (
-    <div
-      ref={scrollContainerRef}
-      className={cn('rounded-lg', className)}
-    >
+    <div ref={scrollContainerRef} className={className}>
       <table ref={tableRef} className="w-full table-fixed border-collapse text-left">
         <colgroup>
           {sizing.widths.map((width, index) => (
             <col key={requestTableHeaders[index].id} style={{ width: `${width}%` }} />
           ))}
         </colgroup>
-        <DataTableHeader sticky="page">
-          <tr className="text-faint text-xs uppercase tracking-[0.16em]">
+        <DataTableHeader sticky="container">
+          <tr className="text-footnote font-semibold text-label-2">
             {requestTableHeaders.map((header, index) => {
               const boundaryIndex = index - 1
               const canResize = boundaryIndex >= 0
               const headerLabel = t(header.label)
               const resizerColumnLabel = canResize ? t(requestTableHeaders[boundaryIndex].label) : ''
               return (
-                <th key={header.id} className={cn('relative', header.id === 'status' && 'overflow-hidden', header.className)}>
+                <th key={header.id} className={cn('relative h-9 whitespace-nowrap', header.className)}>
                   {header.id === 'expand' ? <span className="sr-only">{headerLabel}</span> : headerLabel}
                   {canResize ? (
                     <TableColumnResizeHandle sizing={sizing} index={boundaryIndex} label={resizerColumnLabel} />
@@ -104,73 +101,73 @@ export function RequestsTable({
             return (
               <Fragment key={item.id}>
                 <tr
-                  className="cursor-pointer border-t border-[hsl(var(--glass-divider))] [&>td]:transition-colors hover:[&>td]:bg-[hsl(var(--surface-subtle))] hover:[&>td:first-child]:rounded-l-md hover:[&>td:last-child]:rounded-r-md"
+                  className="cursor-pointer border-t border-separator [&>td]:transition-colors hover:[&>td]:bg-fill-4"
                   onClick={() => onExpandedIdChange(expanded ? null : item.id)}
                 >
                       <td className="px-4 py-4 align-middle">
                         {expanded ? (
-                          <ChevronDown className="text-muted-soft h-4 w-4" />
+                          <ChevronDown className="text-label-2 h-4 w-4" />
                         ) : (
-                          <ChevronRight className="text-muted-soft h-4 w-4" />
+                          <ChevronRight className="text-label-2 h-4 w-4" />
                         )}
                       </td>
-                      <td className="px-4 py-4 align-middle text-sm text-foreground">
+                      <td className="px-4 py-4 align-middle text-body text-label">
                         {formatDateTime(item.created_at, i18n.language)}
                       </td>
                       <td className="px-4 py-4 align-middle">
-                        <RequestModelMapping item={item} className="text-sm font-medium text-foreground" />
+                        <RequestModelMapping item={item} className="text-body font-medium text-label" />
                       </td>
                       <td className="px-4 py-4 align-middle">
                         <div className="flex min-w-0 items-center gap-2">
                           {item.is_test ? (
-                            <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-xs">
+                            <Badge variant="secondary" className="shrink-0">
                               {t('table.test')}
                             </Badge>
                           ) : (
-                            <div className="truncate text-sm text-foreground" title={item.api_key.name ?? '-'}>
+                            <div className="truncate text-body text-label" title={item.api_key.name ?? '-'}>
                               {item.api_key.name ?? '-'}
                             </div>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-4 align-middle">
-                        <div className="truncate text-sm text-foreground" title={item.site.name ?? '-'}>
+                        <div className="truncate text-body text-label" title={item.site.name ?? '-'}>
                           {item.site.name ?? '-'}
                         </div>
                       </td>
-                      <td className="overflow-hidden px-1 py-4 align-middle text-center">
-                        <div className="flex flex-col items-center gap-1 text-xs leading-4">
-                          <div className="flex flex-wrap items-center justify-center gap-1.5">
-                            <StatusBadge status={item.success ? 'healthy' : 'error'} className="shrink-0 px-2 py-0.5 text-xs leading-4">
+                      <td className="overflow-hidden px-4 py-4 align-middle">
+                        <div className="flex flex-col items-start gap-1 text-footnote leading-4">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <StatusBadge status={item.success ? 'healthy' : 'error'} className="shrink-0">
                               {item.success ? t('table.success') : t('table.failure')}
                             </StatusBadge>
                             <Badge
                               variant={requestResponseModeVariant(item)}
-                              className="shrink-0 px-2 py-0.5 text-xs font-medium tracking-wide"
+                              className="shrink-0"
                             >
                               {requestResponseModeLabel(item, t)}
                             </Badge>
                           </div>
-                          <div className="flex shrink-0 items-center gap-1.5 text-xs">
+                          <div className="flex shrink-0 items-center gap-1.5 text-footnote">
                             {requestHasFailover(item) ? (
                               <Badge
                                 variant="neutral"
-                                className={cn(requestFailoverBadgeClassName, 'px-2 py-0.5 text-xs leading-4 tracking-normal')}
+                                className={requestFailoverBadgeClassName}
                               >
                                 {t('table.failover')}
                               </Badge>
                             ) : null}
-                            <span className="text-muted-soft">{item.upstream_status_code ?? item.status_code ?? '-'}</span>
+                            <span className="text-label-2">{item.upstream_status_code ?? item.status_code ?? '-'}</span>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-4 align-middle">
                         <RequestTiming item={item} />
                       </td>
-                      <td className="px-4 py-4 align-middle text-right text-sm text-foreground">
+                      <td className="px-4 py-4 align-middle text-right text-body text-label">
                         <div>{formatInteger(item.usage.prompt_tokens)}</div>
                         {(hasCacheRead || hasCacheWrite) ? (
-                          <div className="text-muted-soft whitespace-nowrap text-xs">
+                          <div className="text-label-2 whitespace-nowrap text-footnote">
                             {hasCacheRead && hasCacheWrite
                               ? t('table.cacheReadWrite', { read: formatTokenCompact(cacheTokens), write: formatTokenCompact(cacheWriteTokens) })
                               : hasCacheRead
@@ -180,10 +177,10 @@ export function RequestsTable({
                           </div>
                         ) : null}
                       </td>
-                      <td className="px-4 py-4 align-middle text-right text-sm text-foreground">
+                      <td className="px-4 py-4 align-middle text-right text-body text-label">
                         {formatInteger(item.usage.completion_tokens)}
                       </td>
-                      <td className="px-4 py-4 align-middle text-right text-sm text-foreground">
+                      <td className="whitespace-nowrap px-4 py-4 align-middle text-right text-body tabular-nums text-label">
                         {formatCurrency(item.usage.estimated_cost, item.usage.currency)}
                       </td>
                 </tr>

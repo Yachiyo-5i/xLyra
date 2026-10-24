@@ -28,12 +28,15 @@ type QuotaProbeEntry struct {
 	GrantedBalance  *float64 `json:"granted_balance,omitempty"`
 	ToppedUpBalance *float64 `json:"topped_up_balance,omitempty"`
 	Label           string   `json:"label"`
+	Kind            string   `json:"kind,omitempty"`
+	Name            string   `json:"name,omitempty"`
 	Unit            string   `json:"unit,omitempty"`
 	Remaining       *float64 `json:"remaining,omitempty"`
 	Limit           *float64 `json:"limit,omitempty"`
 	Used            *float64 `json:"used,omitempty"`
 	Unlimited       bool     `json:"unlimited,omitempty"`
 	ResetAt         *string  `json:"reset_at,omitempty"`
+	ExpiresAt       *string  `json:"expires_at,omitempty"`
 }
 
 type QuotaProbeResult struct {
@@ -50,7 +53,7 @@ type QuotaProbeResult struct {
 func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Site {
 	probeType := QuotaProbeTypeFromConfig(GatewayConfigFromSiteMeta(item.Meta))
 	if probeType == "" {
-		probeType = defaultQuotaProbeTypeForSite(item)
+		probeType = s.defaultQuotaProbeTypeForSite(item)
 	}
 	if probeType == "" {
 		return item
@@ -75,9 +78,11 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	var summaryEntries []QuotaProbeEntry
 	plan := ""
 	var expiresAt *string
+	aggregateMode := explicitPluginQuotaAggregate(item.SiteType)
+	var aggregateItems []QuotaProbeEntry
 
 	for _, credential := range credentials {
-		if !quotaProbeCredentialEligible(credential.CredentialType) {
+		if !store.IsAPIKeyCredentialType(credential.CredentialType) {
 			continue
 		}
 		probed++
@@ -113,6 +118,9 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 				summaryEntries = result.Entries
 			}
 			if entry, ok := quotaProbeSummaryEntry(probeType, result); ok {
+				if aggregateMode == "sum" || aggregateMode == "min" {
+					aggregateItems = append(aggregateItems, entry)
+				}
 				if minEntry == nil || *entry.Remaining < *minEntry.Remaining {
 					copied := entry
 					minEntry = &copied
@@ -140,6 +148,9 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	if probed == 0 {
 		return item
 	}
+	if aggregateMode == "none" {
+		return s.removeQuotaProbeSummary(ctx, item)
+	}
 	summary["credential_count"] = probed
 	summary["ok_count"] = okCount
 	if okCount == 0 {
@@ -148,7 +159,27 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 	} else {
 		summary["status"] = "ok"
 	}
-	if minEntry != nil {
+	// manifest 显式写了 sum/min 才改道；没写则走下面的历史最小剩余。
+	if aggregateMode == "sum" || aggregateMode == "min" {
+		summary["aggregate"] = aggregateMode
+		if rollup, ok := AggregateQuota(aggregateMode, aggregateItems); ok {
+			if rollup.Remaining != nil {
+				summary["remaining_min"] = *rollup.Remaining
+			}
+			if rollup.Unit != "" {
+				summary["unit"] = rollup.Unit
+			}
+			if rollup.Limit != nil {
+				summary["limit"] = *rollup.Limit
+			}
+			if rollup.Used != nil {
+				summary["used"] = *rollup.Used
+			}
+			if rollup.ResetAt != nil {
+				summary["reset_at"] = *rollup.ResetAt
+			}
+		}
+	} else if minEntry != nil {
 		summary["remaining_min"] = *minEntry.Remaining
 		summary["unit"] = minEntry.Unit
 		if minEntry.Limit != nil {
@@ -176,6 +207,20 @@ func (s *Service) runQuotaProbes(ctx context.Context, item store.Site) store.Sit
 
 	meta := siteMetaMap(item)
 	meta[siteMetaQuotaProbeSummary] = summary
+	updated, err := store.NewSiteRepository(s.db.DB()).UpdateMeta(ctx, item.ID, store.JSON(jsonBytes(meta)))
+	if err != nil {
+		return item
+	}
+	return updated
+}
+
+// removeQuotaProbeSummary drops a site rollup. aggregate none does not write one.
+func (s *Service) removeQuotaProbeSummary(ctx context.Context, item store.Site) store.Site {
+	meta := siteMetaMap(item)
+	if _, ok := meta[siteMetaQuotaProbeSummary]; !ok {
+		return item
+	}
+	delete(meta, siteMetaQuotaProbeSummary)
 	updated, err := store.NewSiteRepository(s.db.DB()).UpdateMeta(ctx, item.ID, store.JSON(jsonBytes(meta)))
 	if err != nil {
 		return item
@@ -343,16 +388,13 @@ func codingPlanQuotaCooldownDeadline(result QuotaProbeResult, now time.Time) (ti
 	return deadline, windows
 }
 
-func quotaProbeCredentialEligible(credentialType string) bool {
-	return credentialType == "api_key" || strings.HasPrefix(credentialType, "api_key:")
-}
-
 // defaultQuotaProbeTypeForSite 给未显式配置 quota_probe 的站点类型提供默认探测。
 // 只有指向官方站点的才默认开启：Kimi Code 官方站（api.kimi.com）、GLM Code 官方站
 // （open.bigmodel.cn / api.z.ai）有 Coding Plan 额度接口，DeepSeek 官方站
 // （api.deepseek.com）有余额接口；指向中转/镜像的站点不默认探测，避免对未实现
-// 额度接口的第三方端点持续报错。
-func defaultQuotaProbeTypeForSite(item store.Site) string {
+// 额度接口的第三方端点持续报错。已启用且导出 probe 的插件站点类型返回该类型
+// 字符串（小写，含 /）。调用方仍让站点显式配置优先于本函数。
+func (s *Service) defaultQuotaProbeTypeForSite(item store.Site) string {
 	switch item.SiteType {
 	case "kimi_code":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "api.kimi.com") {
@@ -369,6 +411,13 @@ func defaultQuotaProbeTypeForSite(item store.Site) string {
 	case "deepseek":
 		if quotaProbeBaseURLOfficial(item.BaseURL, "api.deepseek.com") {
 			return QuotaProbeTypeDeepSeek
+		}
+	}
+	if strings.Contains(item.SiteType, "/") {
+		if _, ok := s.siteTypeHookPlugin(item.SiteType, "probe"); ok {
+			if registered, found := LookupPluginSiteType(item.SiteType); found {
+				return registered.Descriptor.SiteType
+			}
 		}
 	}
 	return ""

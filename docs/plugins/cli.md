@@ -13,10 +13,10 @@ xlyra-plugin --version
 ## init
 
 ```bash
-xlyra-plugin init [--kind quota_probe|protocol] [--id ID] [--name NAME] <dir>
+xlyra-plugin init [--kind KIND] [--id ID] [--name NAME] <dir>
 ```
 
-在 `dir` 里创建新工程（目录必须不存在或为空）。`--kind` 默认 `quota_probe`，可以是 `xlyra-plugin kinds` 列出的任意一种；每种类型的模板都带有可直接通过的示例样本。`--id` 默认由目录名推导，不合规会报错并提示用 `--id`。生成的工程可以直接 `test` 通过。
+在 `dir` 里创建新工程（目录必须不存在或为空）。`--kind` 默认 `quota_probe`，可以是 `xlyra-plugin kinds` 列出的任意一种，包括 `site_provider`。除 `site_provider` 外，每种类型的模板都带有可直接通过的示例样本。`site_provider` 的模板没有样本，空样本的包也可以 `test` 通过。`--id` 默认由目录名推导，不合规会报错并提示用 `--id`。`--name` 不写则用 id。生成的工程可以直接 `test` 通过。
 
 ## kinds
 
@@ -53,16 +53,19 @@ xlyra-plugin test [--watch] [dir]
 ## run
 
 ```bash
-xlyra-plugin run --key-env VAR [--base-url URL] [--site-type T] [--credential-type C] [dir]
+xlyra-plugin run --key-env VAR [--base-url URL] [--site-type T] [--credential-type C] [--hook HOOK] [dir]
 ```
 
-对真实站点发一次额度探测。
+对真实站点发一次分步调用。
 
-- `--key-env`：存放密钥的环境变量名，**必填**。密钥只会写进 `Authorization` 头，插件看不到。
-- `--base-url`：站点地址，会按清单的 `baseURLMode` 整理；省略则使用 `defaultBaseURL`。
+- `--key-env`：存放密钥的环境变量名。会向站点带密钥的类型**必填**。密钥只会写进 `Authorization` 头，插件看不到。
+- `--base-url`：站点地址，会按清单的 `baseURLMode` 整理；省略则使用 `defaultBaseURL`。`site_provider` 没有 `baseURLMode`，按 `as_is` 整理，省略时用 `officialBaseURL`。
+- `--site-type`：传给插件的 `ctx.siteType`，默认 `custom`。
+- `--credential-type`：传给插件的 `ctx.credentialType`，默认 `api_key`。
+- `--hook`：只用于 `site_provider`，必填，取值 `probe`、`listModels` 或 `check`。`classify` 和 `rewritePayload` 不支持 `run`，用 `test`。账号池的 `startLogin`、`pollLogin`、`refreshTokens`、`summarizeAccount` 既不能 `run`，也不能放进样本。其它 kind 写了 `--hook` 会报错。
 - 实际发出的每个请求会打印到标准错误，插件的日志也会打印，最终结果以 JSON 输出到标准输出。
 
-支持会向站点取数据的类型：`quota_probe`、`model_list`、`credential_check`、`site_detect`。`site_detect` 不带凭据，不需要 `--key-env`，请求也不会有 `Authorization` 头。`protocol` 和一次性函数类型请用 `test` 验证。
+支持会向站点取数据的类型：`quota_probe`、`model_list`、`credential_check`、`site_detect`，以及 `site_provider` 的三个分步钩子。`site_detect` 不带凭据，不需要 `--key-env`，请求也不会有 `Authorization` 头。`protocol`、一次性函数，以及 `site_provider` 的 `classify` / `rewritePayload` 请用 `test` 验证。本地 `run` 只做同源限制，不套用 `site_provider` 的主机白名单。
 
 ## pack
 

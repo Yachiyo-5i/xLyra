@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -29,6 +30,11 @@ const (
 	canonicalStreamEventCompleted       canonicalStreamEventType = "completed"
 	canonicalStreamEventIncomplete      canonicalStreamEventType = "incomplete"
 	canonicalStreamEventError           canonicalStreamEventType = "error"
+	// Native web search: SearchCall is emitted once per hosted search with its
+	// queries (and sources when known); Citation attaches a url citation to the
+	// text produced so far.
+	canonicalStreamEventSearchCall canonicalStreamEventType = "web_search_call"
+	canonicalStreamEventCitation   canonicalStreamEventType = "citation"
 )
 
 type canonicalStreamEvent struct {
@@ -55,6 +61,9 @@ type canonicalStreamEvent struct {
 	ToolCallName           string
 	ToolCallArgumentsDelta string
 	ToolCallMetadata       map[string]any
+	SearchQueries          []string
+	SearchSources          []canonicalCitation
+	Citation               canonicalCitation
 }
 
 type canonicalStreamOptions struct {
@@ -253,6 +262,11 @@ func proxyCanonicalStream(ctx context.Context, w http.ResponseWriter, resp *http
 				}
 			}
 			events, decodeErr := decoder.DecodeLine(line)
+			for _, decoded := range events {
+				if decoded.Type == canonicalStreamEventSearchCall {
+					capture.webSearchRequests++
+				}
+			}
 			if decodeErr != nil {
 				if flushErr := flushPreOutput(); flushErr != nil {
 					return capture, headersWritten, flushErr
@@ -429,6 +443,9 @@ func (d *openAIChatStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEven
 				Delta: delta,
 			})
 		}
+		for _, citation := range canonicalCitationsFromResponsesAnnotations(choice.Delta.Annotations) {
+			events = append(events, canonicalStreamEvent{Type: canonicalStreamEventCitation, Citation: citation})
+		}
 		if reasoning := firstNonEmptyGatewayString(choice.Delta.ReasoningContent, choice.Delta.Thinking); strings.TrimSpace(reasoning) != "" {
 			events = append(events, canonicalStreamEvent{
 				Type:          canonicalStreamEventReasoningDelta,
@@ -536,7 +553,11 @@ func (d *openAIResponsesStreamDecoder) DecodeLine(line []byte) ([]canonicalStrea
 		}
 		return nil, nil
 	case "response.output_text.annotation.added":
-		return []canonicalStreamEvent{{Type: canonicalStreamEventAnnotationAdded, Annotation: event.Annotation}}, nil
+		events := []canonicalStreamEvent{{Type: canonicalStreamEventAnnotationAdded, Annotation: event.Annotation}}
+		for _, citation := range canonicalCitationsFromResponsesAnnotations([]any{event.Annotation}) {
+			events = append(events, canonicalStreamEvent{Type: canonicalStreamEventCitation, Citation: citation})
+		}
+		return events, nil
 	case "response.reasoning_summary_text.delta", "response.reasoning_text.delta", "response.reasoning_delta", "response.reasoning_summary.delta",
 		"response.reasoning.encrypted_content.delta", "response.reasoning.encrypted_content.done":
 		return []canonicalStreamEvent{{
@@ -546,6 +567,19 @@ func (d *openAIResponsesStreamDecoder) DecodeLine(line []byte) ([]canonicalStrea
 			ReasoningEventName: event.Type,
 		}}, nil
 	case "response.output_item.added", "response.output_item.done":
+		if event.Item != nil && event.Item.Type == "web_search_call" && event.Type == "response.output_item.done" {
+			events, err := responsesAdvancedStreamEvent(data, event)
+			if err != nil {
+				return nil, err
+			}
+			queries, sources := webSearchFromResponsesAction(event.Item.Action)
+			return append(events, canonicalStreamEvent{
+				Type:          canonicalStreamEventSearchCall,
+				ToolCallID:    event.Item.ID,
+				SearchQueries: queries,
+				SearchSources: sources,
+			}), nil
+		}
 		if event.Item == nil || event.Item.Type != "function_call" {
 			return responsesAdvancedStreamEvent(data, event)
 		}
@@ -666,6 +700,8 @@ type antigravityStreamDecoder struct {
 	createdAt            int64
 	createdSent          bool
 	textualToolUseBuffer strings.Builder
+	streamedText         strings.Builder
+	groundingEmitted     bool
 }
 
 func (d *antigravityStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEvent, error) {
@@ -714,6 +750,22 @@ func (d *antigravityStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEve
 			CreatedAt: d.createdAt,
 			Delta:     text,
 		})
+	}
+	d.streamedText.WriteString(text)
+	d.streamedText.WriteString(flushBufferedText)
+	if !d.groundingEmitted {
+		if item, citations := webSearchItemsFromGemini(root, d.streamedText.String()); item != nil {
+			d.groundingEmitted = true
+			events = append(events, canonicalStreamEvent{
+				Type:          canonicalStreamEventSearchCall,
+				ToolCallID:    item.ID,
+				SearchQueries: item.SearchQueries,
+				SearchSources: item.SearchSources,
+			})
+			for _, citation := range citations {
+				events = append(events, canonicalStreamEvent{Type: canonicalStreamEventCitation, Citation: citation})
+			}
+		}
 	}
 	for _, thinking := range antigravityGeminiThinking(root) {
 		events = append(events, canonicalStreamEvent{
@@ -814,6 +866,24 @@ type anthropicMessagesStreamDecoder struct {
 	toolIDByIndex   map[int]string
 	toolNameByIndex map[int]string
 	thinkingByIndex map[int]bool
+	searchByIndex   map[int]*anthropicSearchStreamState
+	pendingSearch   *canonicalStreamEvent
+}
+
+type anthropicSearchStreamState struct {
+	ID    string
+	Input strings.Builder
+}
+
+// withPendingSearch prepends a buffered search call (still waiting for its
+// result block) to events once any other content arrives.
+func (d *anthropicMessagesStreamDecoder) withPendingSearch(events []canonicalStreamEvent) []canonicalStreamEvent {
+	if d.pendingSearch == nil {
+		return events
+	}
+	pending := *d.pendingSearch
+	d.pendingSearch = nil
+	return append([]canonicalStreamEvent{pending}, events...)
 }
 
 // mergeAnthropicStreamUsage folds an incremental Anthropic usage snapshot into
@@ -836,11 +906,28 @@ func mergeAnthropicStreamUsage(current, delta gatewayUsage) gatewayUsage {
 	if delta.CompletionTokens > 0 {
 		current.CompletionTokens = delta.CompletionTokens
 	}
+	if delta.WebSearchRequests > 0 {
+		current.WebSearchRequests = delta.WebSearchRequests
+	}
 	current.TotalTokens = 0
 	return current.normalized()
 }
 
 func (d *anthropicMessagesStreamDecoder) DecodeLine(line []byte) ([]canonicalStreamEvent, error) {
+	events, err := d.decodeLine(line)
+	if err != nil || d.pendingSearch == nil {
+		return events, err
+	}
+	// Keep the search call buffered only while the next block is its result.
+	for _, event := range events {
+		if event.Type != canonicalStreamEventSearchCall {
+			return d.withPendingSearch(events), nil
+		}
+	}
+	return events, nil
+}
+
+func (d *anthropicMessagesStreamDecoder) decodeLine(line []byte) ([]canonicalStreamEvent, error) {
 	data, _, ok := sseDataFromLine(line)
 	if !ok {
 		return nil, nil
@@ -862,7 +949,20 @@ func (d *anthropicMessagesStreamDecoder) DecodeLine(line []byte) ([]canonicalStr
 		d.toolNameByIndex = map[int]string{}
 		d.thinkingByIndex = map[int]bool{}
 	}
+	if d.searchByIndex == nil {
+		d.searchByIndex = map[int]*anthropicSearchStreamState{}
+	}
 	switch event.Type {
+	case "content_block_stop":
+		if state := d.searchByIndex[event.Index]; state != nil {
+			delete(d.searchByIndex, event.Index)
+			pending := canonicalStreamEvent{Type: canonicalStreamEventSearchCall, ToolCallID: state.ID}
+			if query := anthropicWebSearchQuery(json.RawMessage(state.Input.String())); query != "" {
+				pending.SearchQueries = []string{query}
+			}
+			d.pendingSearch = &pending
+		}
+		return nil, nil
 	case "message_start":
 		d.responseID = strings.TrimSpace(anyString(event.Message["id"]))
 		d.model = strings.TrimSpace(anyString(event.Message["model"]))
@@ -890,6 +990,21 @@ func (d *anthropicMessagesStreamDecoder) DecodeLine(line []byte) ([]canonicalStr
 				ReasoningEventName: "content_block_start",
 				ReasoningIndex:     event.Index,
 			}}, nil
+		case "server_tool_use":
+			if strings.TrimSpace(anyString(event.ContentBlock["name"])) == "web_search" {
+				d.searchByIndex[event.Index] = &anthropicSearchStreamState{ID: strings.TrimSpace(anyString(event.ContentBlock["id"]))}
+			}
+			return nil, nil
+		case "web_search_tool_result":
+			result := canonicalStreamEvent{Type: canonicalStreamEventSearchCall, ToolCallID: strings.TrimSpace(anyString(event.ContentBlock["tool_use_id"]))}
+			if d.pendingSearch != nil && d.pendingSearch.ToolCallID == result.ToolCallID {
+				result.SearchQueries = d.pendingSearch.SearchQueries
+				d.pendingSearch = nil
+			}
+			if raw, err := json.Marshal(event.ContentBlock["content"]); err == nil {
+				result.SearchSources = anthropicWebSearchSources(raw)
+			}
+			return []canonicalStreamEvent{result}, nil
 		case "tool_use":
 			callID := strings.TrimSpace(anyString(event.ContentBlock["id"]))
 			name := strings.TrimSpace(anyString(event.ContentBlock["name"]))
@@ -924,8 +1039,19 @@ func (d *anthropicMessagesStreamDecoder) DecodeLine(line []byte) ([]canonicalStr
 				ReasoningEventName: event.Type,
 				ReasoningIndex:     event.Index,
 			}}, nil
+		case "citations_delta":
+			citation, _ := event.Delta["citation"].(map[string]any)
+			out := []canonicalStreamEvent{}
+			for _, parsed := range anthropicCitationsToCanonical([]map[string]any{citation}) {
+				out = append(out, canonicalStreamEvent{Type: canonicalStreamEventCitation, Citation: parsed})
+			}
+			return out, nil
 		case "input_json_delta":
 			partialJSON, _ := event.Delta["partial_json"].(string)
+			if state := d.searchByIndex[event.Index]; state != nil {
+				state.Input.WriteString(partialJSON)
+				return nil, nil
+			}
 			return []canonicalStreamEvent{{
 				Type:                   canonicalStreamEventToolCallDelta,
 				ToolCallIndex:          event.Index,
@@ -1030,6 +1156,26 @@ func (e *openAIChatStreamEncoder) EncodeEvent(event canonicalStreamEvent) error 
 	case canonicalStreamEventAdvanced:
 		appendStreamAnnotation(e.capture, advancedStreamAnnotation(event))
 		return nil
+	case canonicalStreamEventSearchCall:
+		// Chat completions has no representation for the search call itself;
+		// the citations carry the useful result.
+		return nil
+	case canonicalStreamEventCitation:
+		if event.Citation.URL == "" || isGrokSite(e.options.Candidate.Site.SiteType) {
+			return nil
+		}
+		if err := e.sendStartIfNeeded(); err != nil {
+			return err
+		}
+		return e.writeChunk(map[string]any{
+			"id":      responseIDOrFallback(e.responseID),
+			"object":  "chat.completion.chunk",
+			"created": e.createdAt,
+			"model":   e.model,
+			"choices": []map[string]any{{"index": 0, "delta": map[string]any{
+				"annotations": chatAnnotationsFromCitations([]canonicalCitation{event.Citation}, ""),
+			}}},
+		})
 	case canonicalStreamEventAnnotationAdded:
 		appendStreamAnnotation(e.capture, event.Annotation)
 		if isGrokSite(e.options.Candidate.Site.SiteType) {
@@ -1221,22 +1367,38 @@ func (e *openAIChatStreamEncoder) writeChunk(chunk map[string]any) error {
 }
 
 type openAIResponsesStreamEncoder struct {
-	options       canonicalStreamOptions
-	w             http.ResponseWriter
-	capture       *streamCaptureState
-	responseID    string
-	model         string
-	createdAt     int64
-	responseSent  bool
-	textStarted   bool
-	textBuffer    strings.Builder
-	completed     bool
-	sequence      int
-	textOutputIdx int
-	contentIndex  int
-	nextOutputIdx int
-	toolCalls     map[string]*responsesStreamToolCallState
-	toolCallOrder []string
+	options            canonicalStreamOptions
+	w                  http.ResponseWriter
+	capture            *streamCaptureState
+	responseID         string
+	model              string
+	createdAt          int64
+	responseSent       bool
+	textStarted        bool
+	textBuffer         strings.Builder
+	completed          bool
+	sequence           int
+	textOutputIdx      int
+	contentIndex       int
+	nextOutputIdx      int
+	toolCalls          map[string]*responsesStreamToolCallState
+	toolCallOrder      []string
+	reasoningText      strings.Builder
+	reasoningSignature strings.Builder
+	reasoningItem      map[string]any
+	reasoningOutputIdx int
+	reasoningIndexed   bool
+	reasoningClosed    bool
+	// Native web search.
+	searchCalls     []*responsesStreamSearchState
+	citations       []canonicalCitation
+	sawNativeSearch bool
+}
+
+type responsesStreamSearchState struct {
+	ID          string
+	OutputIndex int
+	Item        map[string]any
 }
 
 type responsesStreamToolCallState struct {
@@ -1289,6 +1451,10 @@ func (e *openAIResponsesStreamEncoder) EncodeEvent(event canonicalStreamEvent) e
 		return e.sendReasoningEvent(event)
 	case canonicalStreamEventAdvanced:
 		return e.sendAdvancedEvent(event)
+	case canonicalStreamEventSearchCall:
+		return e.sendSearchCall(event)
+	case canonicalStreamEventCitation:
+		return e.sendCitation(event)
 	case canonicalStreamEventAnnotationAdded:
 		appendStreamAnnotation(e.capture, event.Annotation)
 		if isGrokSite(e.options.Candidate.Site.SiteType) {
@@ -1503,6 +1669,20 @@ func (e *openAIResponsesStreamEncoder) sendReasoningEvent(event canonicalStreamE
 		appendStreamAnnotation(e.capture, redactedReasoningAnnotation(event))
 		return nil
 	}
+	switch event.ReasoningKind {
+	case "thinking_signature":
+		e.reasoningSignature.WriteString(event.Delta)
+	case "encrypted_reasoning":
+	default:
+		if event.Delta != "" {
+			e.reasoningText.WriteString(event.Delta)
+			if !e.reasoningIndexed && strings.TrimSpace(e.reasoningText.String()) != "" {
+				e.reasoningOutputIdx = e.nextOutputIdx
+				e.nextOutputIdx++
+				e.reasoningIndexed = true
+			}
+		}
+	}
 	if err := e.sendResponseStartIfNeeded(); err != nil {
 		return err
 	}
@@ -1522,6 +1702,10 @@ func (e *openAIResponsesStreamEncoder) sendReasoningEvent(event canonicalStreamE
 }
 
 func (e *openAIResponsesStreamEncoder) sendAdvancedEvent(event canonicalStreamEvent) error {
+	if event.AdvancedKind == "web_search" {
+		// The upstream already speaks native Responses search events.
+		e.sawNativeSearch = true
+	}
 	if !advancedEventPassthroughAllowed(canonicalProtocolOpenAIResponses, event.AdvancedKind) {
 		appendStreamAnnotation(e.capture, advancedStreamAnnotation(event))
 		return nil
@@ -1568,6 +1752,9 @@ func (e *openAIResponsesStreamEncoder) sendTerminalResponse(status string, compl
 	if err := e.sendResponseStartIfNeeded(); err != nil {
 		return err
 	}
+	if err := e.finishReasoningItem(); err != nil {
+		return err
+	}
 	if e.textStarted {
 		e.sequence++
 		if err := e.writeEvent("response.output_text.done", map[string]any{
@@ -1587,7 +1774,7 @@ func (e *openAIResponsesStreamEncoder) sendTerminalResponse(status string, compl
 			"item_id":         "msg_" + e.responseID,
 			"output_index":    e.textOutputIdx,
 			"content_index":   e.contentIndex,
-			"part":            map[string]any{"type": "output_text", "text": e.textBuffer.String(), "annotations": []any{}},
+			"part":            map[string]any{"type": "output_text", "text": e.textBuffer.String(), "annotations": e.annotationsPayload()},
 		}); err != nil {
 			return err
 		}
@@ -1601,7 +1788,7 @@ func (e *openAIResponsesStreamEncoder) sendTerminalResponse(status string, compl
 				"type":    "message",
 				"status":  "completed",
 				"role":    "assistant",
-				"content": []any{map[string]any{"type": "output_text", "text": e.textBuffer.String(), "annotations": []any{}}},
+				"content": []any{map[string]any{"type": "output_text", "text": e.textBuffer.String(), "annotations": e.annotationsPayload()}},
 			},
 		}); err != nil {
 			return err
@@ -1721,15 +1908,66 @@ func (e *openAIResponsesStreamEncoder) writeEvent(event string, payload map[stri
 	return nil
 }
 
+func (e *openAIResponsesStreamEncoder) finishReasoningItem() error {
+	if e.reasoningClosed {
+		return nil
+	}
+	e.reasoningClosed = true
+	item := responsesReasoningItem([]canonicalThinkingBlock{{
+		Thinking:  e.reasoningText.String(),
+		Signature: e.reasoningSignature.String(),
+	}})
+	if item == nil {
+		return nil
+	}
+	if !e.reasoningIndexed {
+		e.reasoningOutputIdx = e.nextOutputIdx
+		e.nextOutputIdx++
+		e.reasoningIndexed = true
+	}
+	if err := e.sendResponseStartIfNeeded(); err != nil {
+		return err
+	}
+	item["id"] = responsesItemIDForType("reasoning", "", nonEmptyString(e.responseID, "reasoning"))
+	item["status"] = "completed"
+	e.reasoningItem = item
+	added := clonePayload(item)
+	added["status"] = "in_progress"
+	e.sequence++
+	if err := e.writeEvent("response.output_item.added", map[string]any{
+		"type":            "response.output_item.added",
+		"sequence_number": e.sequence,
+		"output_index":    e.reasoningOutputIdx,
+		"item":            added,
+	}); err != nil {
+		return err
+	}
+	e.sequence++
+	return e.writeEvent("response.output_item.done", map[string]any{
+		"type":            "response.output_item.done",
+		"sequence_number": e.sequence,
+		"output_index":    e.reasoningOutputIdx,
+		"item":            item,
+	})
+}
+
 func (e *openAIResponsesStreamEncoder) responsePayload(status string, usage completionUsage) map[string]any {
 	output := []any{}
+	if (status == "completed" || status == "incomplete") && e.reasoningItem != nil {
+		output = append(output, e.reasoningItem)
+	}
+	if status == "completed" || status == "incomplete" {
+		for _, call := range e.searchCalls {
+			output = append(output, call.Item)
+		}
+	}
 	if (status == "completed" || status == "incomplete") && e.textStarted {
 		output = append(output, map[string]any{
 			"id":      "msg_" + e.responseID,
 			"type":    "message",
 			"status":  "completed",
 			"role":    "assistant",
-			"content": []any{map[string]any{"type": "output_text", "text": e.textBuffer.String(), "annotations": []any{}}},
+			"content": []any{map[string]any{"type": "output_text", "text": e.textBuffer.String(), "annotations": e.annotationsPayload()}},
 		})
 	}
 	if status == "completed" || status == "incomplete" {
@@ -1770,6 +2008,85 @@ func (e *openAIResponsesStreamEncoder) responsePayload(status string, usage comp
 		"output":             output,
 		"usage":              responsesUsagePayload(usage),
 	}
+}
+
+func (e *openAIResponsesStreamEncoder) annotationsPayload() []any {
+	return responsesAnnotationsFromCitations(e.citations, e.textBuffer.String())
+}
+
+func (e *openAIResponsesStreamEncoder) sendSearchCall(event canonicalStreamEvent) error {
+	if e.sawNativeSearch {
+		return nil
+	}
+	for _, existing := range e.searchCalls {
+		if event.ToolCallID != "" && existing.ID == event.ToolCallID {
+			return nil
+		}
+	}
+	if err := e.sendResponseStartIfNeeded(); err != nil {
+		return err
+	}
+	fallback := fmt.Sprintf("%s_ws_%d", e.responseID, len(e.searchCalls))
+	itemID := responsesItemIDForType("web_search_call", event.ToolCallID, fallback)
+	canonical := canonicalOutputItem{Status: "completed", SearchQueries: event.SearchQueries, SearchSources: event.SearchSources}
+	state := &responsesStreamSearchState{
+		ID:          event.ToolCallID,
+		OutputIndex: e.nextOutputIdx,
+		Item:        responsesWebSearchCallItem(canonical, itemID),
+	}
+	e.nextOutputIdx++
+	e.searchCalls = append(e.searchCalls, state)
+	inProgress := map[string]any{"id": itemID, "type": "web_search_call", "status": "in_progress"}
+	e.sequence++
+	if err := e.writeEvent("response.output_item.added", map[string]any{
+		"type": "response.output_item.added", "sequence_number": e.sequence,
+		"output_index": state.OutputIndex, "item": inProgress,
+	}); err != nil {
+		return err
+	}
+	for _, name := range []string{"response.web_search_call.in_progress", "response.web_search_call.searching", "response.web_search_call.completed"} {
+		e.sequence++
+		if err := e.writeEvent(name, map[string]any{
+			"type": name, "sequence_number": e.sequence,
+			"output_index": state.OutputIndex, "item_id": itemID,
+		}); err != nil {
+			return err
+		}
+	}
+	e.sequence++
+	return e.writeEvent("response.output_item.done", map[string]any{
+		"type": "response.output_item.done", "sequence_number": e.sequence,
+		"output_index": state.OutputIndex, "item": state.Item,
+	})
+}
+
+func (e *openAIResponsesStreamEncoder) sendCitation(event canonicalStreamEvent) error {
+	citation := event.Citation
+	if citation.URL == "" {
+		return nil
+	}
+	if !citation.HasRange {
+		citation.HasRange = true
+		citation.StartIndex = 0
+		citation.EndIndex = utf8.RuneCountInString(e.textBuffer.String())
+	}
+	e.citations = append(e.citations, citation)
+	if !e.textStarted || isGrokSite(e.options.Candidate.Site.SiteType) {
+		return nil
+	}
+	e.sequence++
+	return e.writeEvent("response.output_text.annotation.added", map[string]any{
+		"type":             "response.output_text.annotation.added",
+		"sequence_number":  e.sequence,
+		"item_id":          "msg_" + e.responseID,
+		"output_index":     e.textOutputIdx,
+		"content_index":    e.contentIndex,
+		"annotation_index": len(e.citations) - 1,
+		"annotation": map[string]any{
+			"type": "url_citation", "url": citation.URL, "title": citation.Title,
+			"start_index": citation.StartIndex, "end_index": citation.EndIndex,
+		},
+	})
 }
 
 func (e *openAIResponsesStreamEncoder) isCustomTool(name string) bool {
@@ -1852,6 +2169,10 @@ func (e *anthropicMessagesStreamEncoder) EncodeEvent(event canonicalStreamEvent)
 	case canonicalStreamEventAnnotationAdded:
 		appendStreamAnnotation(e.capture, event.Annotation)
 		return nil
+	case canonicalStreamEventSearchCall:
+		return e.sendSearchCall(event)
+	case canonicalStreamEventCitation:
+		return e.sendCitation(event)
 	case canonicalStreamEventUsage:
 		if event.Usage.TotalTokens > 0 || event.Usage.PromptTokens > 0 || event.Usage.CompletionTokens > 0 {
 			e.capture.usage = event.Usage
@@ -1975,6 +2296,83 @@ func (e *anthropicMessagesStreamEncoder) sendMessageStartIfNeeded() error {
 			"stop_sequence": nil,
 			"usage":         anthropicUsagePayload(gatewayUsage{PromptTokens: e.capture.usage.PromptTokens, CachedPromptTokens: e.capture.usage.CachedPromptTokens, CacheCreationInputTokens: e.capture.usage.CacheCreationInputTokens}),
 		},
+	})
+}
+
+func (e *anthropicMessagesStreamEncoder) closeTextIfOpen() error {
+	if !e.textStarted {
+		return nil
+	}
+	if err := e.writeEvent("content_block_stop", map[string]any{"type": "content_block_stop", "index": e.textIndex}); err != nil {
+		return err
+	}
+	e.textStarted = false
+	return nil
+}
+
+func (e *anthropicMessagesStreamEncoder) sendSearchCall(event canonicalStreamEvent) error {
+	if err := e.sendMessageStartIfNeeded(); err != nil {
+		return err
+	}
+	if err := e.stopThinkingIfOpen(); err != nil {
+		return err
+	}
+	if err := e.closeTextIfOpen(); err != nil {
+		return err
+	}
+	callID := strings.TrimSpace(event.ToolCallID)
+	if !strings.HasPrefix(callID, "srvtoolu_") {
+		callID = "srvtoolu_" + strings.TrimPrefix(strings.TrimPrefix(nonEmptyString(callID, uuid.NewString()), "ws_"), "resp_")
+	}
+	useIndex := e.nextIndex
+	e.nextIndex++
+	if err := e.writeEvent("content_block_start", map[string]any{
+		"type": "content_block_start", "index": useIndex,
+		"content_block": map[string]any{"type": "server_tool_use", "id": callID, "name": "web_search", "input": map[string]any{}},
+	}); err != nil {
+		return err
+	}
+	input, _ := json.Marshal(map[string]any{"query": strings.Join(event.SearchQueries, "; ")})
+	if err := e.writeEvent("content_block_delta", map[string]any{
+		"type": "content_block_delta", "index": useIndex,
+		"delta": map[string]any{"type": "input_json_delta", "partial_json": string(input)},
+	}); err != nil {
+		return err
+	}
+	if err := e.writeEvent("content_block_stop", map[string]any{"type": "content_block_stop", "index": useIndex}); err != nil {
+		return err
+	}
+	results := make([]any, 0, len(event.SearchSources))
+	for _, source := range event.SearchSources {
+		results = append(results, map[string]any{
+			"type": "web_search_result", "url": source.URL, "title": source.Title,
+			"encrypted_content": "", "page_age": nil,
+		})
+	}
+	resultIndex := e.nextIndex
+	e.nextIndex++
+	if err := e.writeEvent("content_block_start", map[string]any{
+		"type": "content_block_start", "index": resultIndex,
+		"content_block": map[string]any{"type": "web_search_tool_result", "tool_use_id": callID, "content": results},
+	}); err != nil {
+		return err
+	}
+	return e.writeEvent("content_block_stop", map[string]any{"type": "content_block_stop", "index": resultIndex})
+}
+
+func (e *anthropicMessagesStreamEncoder) sendCitation(event canonicalStreamEvent) error {
+	// Anthropic carries citations on the open text block; without one there
+	// is nothing to attach to.
+	if !e.textStarted || event.Citation.URL == "" {
+		return nil
+	}
+	citations := anthropicCitationsFromCanonical([]canonicalCitation{event.Citation})
+	if len(citations) == 0 {
+		return nil
+	}
+	return e.writeEvent("content_block_delta", map[string]any{
+		"type": "content_block_delta", "index": e.textIndex,
+		"delta": map[string]any{"type": "citations_delta", "citation": citations[0]},
 	})
 }
 

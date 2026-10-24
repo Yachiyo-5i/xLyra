@@ -254,7 +254,7 @@ export function SiteModelsDraw({
           type="button"
           size="icon"
           variant="ghost"
-          className="h-6 w-6 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+          className="h-6 w-6 text-danger hover:bg-danger/10 hover:text-danger"
           disabled={deleteMutation.isPending}
           title={t('models.delete.action')}
           aria-label={t('models.delete.ariaLabel', { name: model.upstream_model_name || model.display_name })}
@@ -411,7 +411,7 @@ export function SiteModelsDraw({
           </DialogHeader>
           <DialogBody className="space-y-5 px-6 py-6">
             <div className="space-y-2.5">
-              <span className="block text-sm font-medium text-foreground">{t('models.add.upstreamName')}</span>
+              <span className="block text-body font-medium text-label">{t('models.add.upstreamName')}</span>
               <Input
                 value={upstreamModelName}
                 onChange={(event) => setUpstreamModelName(event.target.value)}
@@ -419,7 +419,7 @@ export function SiteModelsDraw({
               />
             </div>
             <div className="space-y-2.5">
-              <span className="block text-sm font-medium text-foreground">{t('models.add.canonicalModel')}</span>
+              <span className="block text-body font-medium text-label">{t('models.add.canonicalModel')}</span>
               <Select value={canonicalModelId} onValueChange={setCanonicalModelId}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('models.add.canonicalPlaceholder')} />
@@ -438,7 +438,7 @@ export function SiteModelsDraw({
               </Select>
             </div>
             <div className="space-y-2.5">
-              <span className="block text-sm font-medium text-foreground">{t('models.add.endpointTypes')}</span>
+              <span className="block text-body font-medium text-label">{t('models.add.endpointTypes')}</span>
               <MultiSelect
                 value={endpointTypes}
                 options={MANUAL_ENDPOINT_TYPE_OPTIONS}
@@ -450,7 +450,7 @@ export function SiteModelsDraw({
             </div>
             {showCredentialPicker ? (
               <div className="space-y-2.5">
-                <span className="block text-sm font-medium text-foreground">{t('models.add.apiKeys')}</span>
+                <span className="block text-body font-medium text-label">{t('models.add.apiKeys')}</span>
                 <MultiSelect
                   value={siteCredentialIds}
                   options={credentialOptions}
@@ -461,15 +461,15 @@ export function SiteModelsDraw({
                 />
               </div>
             ) : null}
-            <label className="flex min-h-12 items-center justify-between gap-4 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-field))] px-4">
-              <span className="text-sm font-medium text-foreground">{t('models.add.enabled')}</span>
+            <label className="flex min-h-12 items-center justify-between gap-4 rounded-inner border border-separator bg-fill-3 px-4">
+              <span className="text-body font-medium text-label">{t('models.add.enabled')}</span>
               <Switch checked={enabled} onCheckedChange={setEnabled} aria-label={t('models.add.enabled')} />
             </label>
           </DialogBody>
           <DialogFooter
             className="gap-4 px-6 py-5"
             cancel={(
-              <Button type="button" variant="ghost" onClick={() => { resetAddForm(); setAddOpen(false) }}>
+              <Button type="button" variant="secondary" onClick={() => { resetAddForm(); setAddOpen(false) }}>
                 {t('models.add.cancel')}
               </Button>
             )}
@@ -489,7 +489,7 @@ export function SiteModelsDraw({
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(nextOpen) => {
         if (!nextOpen && !deleteMutation.isPending) setDeleteTarget(null)
       }}>
-        <DialogContent
+        <DialogContent presentation="center"
           overlayClassName="z-[60]"
           size="sm"
           className="z-[60]"
@@ -507,7 +507,7 @@ export function SiteModelsDraw({
           <DialogFooter
             className="border-t-0 pt-2"
             cancel={(
-              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+              <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
                 {t('models.delete.cancel')}
               </Button>
             )}
@@ -589,7 +589,7 @@ export function SiteModelsDraw({
           <DialogBody className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="shrink-0 space-y-3 pb-4">
               <div className="relative min-w-0">
-                <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+                <Search className="text-label/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -627,7 +627,7 @@ export function SiteModelsDraw({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {modelsQuery.isLoading || apiKeysQuery.isLoading ? (
-                <p className="py-10 text-center text-sm text-muted-soft">{t('components:modelsDraw.loading')}</p>
+                <p className="py-10 text-center text-body text-label-2">{t('components:modelsDraw.loading')}</p>
               ) : keyGroups.length ? (
                 keyGroups.map((group) => {
                   const keyName = group.apiKey.name || t('apiKeys.defaultKey')
@@ -636,12 +636,12 @@ export function SiteModelsDraw({
                     <section key={group.apiKey.id}>
                       <button
                         type="button"
-                        className="sticky top-0 z-10 flex w-full items-center gap-2 bg-[hsl(var(--dialog-surface))] py-2.5 pl-3 pr-3 text-left backdrop-blur-[40px] backdrop-saturate-150"
+                        className="sticky top-0 z-10 flex w-full items-center gap-2 bg-elevated-2 py-2.5 pl-3 pr-3 text-left backdrop-blur-[40px] backdrop-saturate-150"
                         aria-expanded={!collapsed}
                         aria-label={collapsed ? t('models.expandKey', { name: keyName }) : t('models.collapseKey', { name: keyName })}
                         onClick={() => toggleKeyGroup(group.apiKey.id)}
                       >
-                        <span className="min-w-0 truncate font-medium text-foreground">{keyName}</span>
+                        <span className="min-w-0 truncate font-medium text-label">{keyName}</span>
                         {group.apiKey.enabled ? null : (
                           <Badge variant="warning">{t('models.keyDisabled')}</Badge>
                         )}
@@ -653,13 +653,13 @@ export function SiteModelsDraw({
                         <APIKeySyncBadge apiKey={group.apiKey} />
                         <ChevronDown
                           className={cn(
-                            'ml-auto h-4 w-4 shrink-0 text-muted-soft transition-transform',
+                            'ml-auto h-4 w-4 shrink-0 text-label-2 transition-transform',
                             collapsed && '-rotate-90',
                           )}
                         />
                       </button>
                       {collapsed ? null : (
-                        <table className="w-full table-fixed border-collapse text-left text-sm">
+                        <table className="w-full table-fixed border-collapse text-left text-body">
                           <tbody>
                             {group.models.map((model) => {
                               const pending = keyModelPendingId === `${group.apiKey.id}:${model.name}`
@@ -669,7 +669,7 @@ export function SiteModelsDraw({
                                 && deleteMutation.variables?.modelId === model.siteModel.id,
                               )
                               return (
-                                <tr key={`${group.apiKey.id}:${model.name}`} className="border-t border-[hsl(var(--glass-divider))] first:border-t-0">
+                                <tr key={`${group.apiKey.id}:${model.name}`} className="border-t border-separator first:border-t-0">
                                   <td className="min-w-0 px-1 py-3">
                                     <div className="flex min-w-0 items-center gap-2">
                                       {manualManageActive && model.siteModel && isManualSiteModel(model.siteModel) ? (
@@ -677,7 +677,7 @@ export function SiteModelsDraw({
                                           type="button"
                                           size="icon"
                                           variant="ghost"
-                                          className="h-6 w-6 shrink-0 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                                          className="h-6 w-6 shrink-0 text-danger hover:bg-danger/10 hover:text-danger"
                                           disabled={deleteMutation.isPending}
                                           title={t('models.delete.action')}
                                           aria-label={t('models.delete.ariaLabel', { name: model.name })}
@@ -695,7 +695,7 @@ export function SiteModelsDraw({
                                       />
                                       <button
                                         type="button"
-                                        className="block min-w-0 max-w-full cursor-pointer truncate text-left font-medium text-foreground"
+                                        className="block min-w-0 max-w-full cursor-pointer truncate text-left font-medium text-label"
                                         title={t('components:modelsDraw.copyName')}
                                         onClick={() => copyToClipboard(model.name, t('components:modelsDraw.copied'), t('components:modelsDraw.copyFailed'))}
                                       >
@@ -728,7 +728,7 @@ export function SiteModelsDraw({
                   )
                 })
               ) : (
-                <p className="py-10 text-center text-sm text-muted-soft">{t('components:modelsDraw.noModels')}</p>
+                <p className="py-10 text-center text-body text-label-2">{t('components:modelsDraw.noModels')}</p>
               )}
             </div>
           </DialogBody>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpCircle, Bot, LoaderCircle, RefreshCw, Save, Search, ServerCog, Settings2 } from 'lucide-react'
+import { ArrowUpCircle, Bot, LoaderCircle, RotateCcw, Save, Search, ServerCog, Settings2 } from 'lucide-react'
 import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph, siteTypeIconPath } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Draw, DrawBody, DrawContent, DrawDescription, DrawFooter, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SiteModelScopePicker, type SiteModelScopePatch, type SiteModelScopePolicy } from '@/features/api-keys/components/site-model-scope-picker'
@@ -26,7 +26,7 @@ import { toast } from '@/lib/toast'
 type ScopeView = 'sites' | 'models'
 
 /** Component status indicator: dot + label (healthy / unhealthy / unreachable / unknown). */
-function StatusIndicator({ state, className = 'text-sm' }: { state?: string | null; className?: string }) {
+function StatusIndicator({ state, className = 'text-body' }: { state?: string | null; className?: string }) {
   const { t } = useTranslation(['settings'])
   const tone = statusToneClass(state)
   const text = state === 'healthy'
@@ -37,7 +37,7 @@ function StatusIndicator({ state, className = 'text-sm' }: { state?: string | nu
         ? t('settings:agent.status.stateUnreachable')
         : t('settings:agent.status.stateUnknown')
   return (
-    <span className={`flex items-center gap-2 font-medium text-foreground ${className}`}>
+    <span className={`flex items-center gap-2 font-medium text-label ${className}`}>
       <span className={`inline-block h-2 w-2 rounded-full ${tone}`} />
       {text}
     </span>
@@ -45,10 +45,10 @@ function StatusIndicator({ state, className = 'text-sm' }: { state?: string | nu
 }
 
 function statusToneClass(state?: string | null): string {
-  if (state === 'healthy') return 'bg-emerald-500'
-  if (state === 'unhealthy') return 'bg-red-500'
-  if (state === 'unreachable') return 'bg-amber-500'
-  return 'bg-foreground/30'
+  if (state === 'healthy') return 'bg-success'
+  if (state === 'unhealthy') return 'bg-danger'
+  if (state === 'unreachable') return 'bg-warning'
+  return 'bg-label-3'
 }
 
 /** Header status lights for Runner / Agent; a hover card shows both states. */
@@ -57,17 +57,17 @@ function HeaderStatusLights({ health }: { health: AgentHealth | null }) {
     <div className="group relative">
       <div className="flex cursor-default items-center gap-4">
         {(['runner', 'agent'] as const).map((key) => (
-          <span key={key} className="flex items-center gap-1.5 text-xs text-muted-soft">
+          <span key={key} className="flex items-center gap-1.5 text-footnote text-label-2">
             <span className={`inline-block h-2 w-2 rounded-full ${statusToneClass(health?.[key])}`} />
             {key === 'runner' ? 'Runner' : 'Agent'}
           </span>
         ))}
       </div>
-      <div className="pointer-events-none invisible absolute right-0 top-full z-30 mt-2 w-44 rounded-xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--dialog-surface))] p-3 opacity-0 shadow-[var(--shadow-dialog)] backdrop-blur-[40px] transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+      <div className="pointer-events-none invisible absolute right-0 top-full z-30 mt-2 w-44 lg-regular rounded-card p-3 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
         {(['runner', 'agent'] as const).map((key) => (
-          <div key={key} className="flex items-center justify-between gap-3 text-xs first:mt-0 mt-2">
-            <span className="text-muted-soft">{key === 'runner' ? 'Runner' : 'Agent'}</span>
-            <StatusIndicator state={health?.[key]} className="text-xs" />
+          <div key={key} className="flex items-center justify-between gap-3 text-footnote first:mt-0 mt-2">
+            <span className="text-label-2">{key === 'runner' ? 'Runner' : 'Agent'}</span>
+            <StatusIndicator state={health?.[key]} className="text-footnote" />
           </div>
         ))}
       </div>
@@ -248,7 +248,7 @@ export function AgentSettingsPage() {
 
   if (runtime.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-soft">
+      <div className="flex items-center gap-2 text-body text-label-2">
         <LoaderCircle className="h-4 w-4 animate-spin" />
         {t('settings:agent.loading')}
       </div>
@@ -276,8 +276,8 @@ export function AgentSettingsPage() {
         actions={(
           <>
             <HeaderStatusLights health={health.data ?? null} />
-            <Button variant="outline" size="sm" onClick={() => void refreshStatus()} disabled={refreshingStatus}>
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshingStatus ? 'animate-spin' : ''}`} />
+            <Button variant="secondary" size="sm" onClick={() => void refreshStatus()} disabled={refreshingStatus}>
+              <RotateCcw className={`h-3.5 w-3.5 ${refreshingStatus ? 'animate-spin' : ''}`} />
               {t('settings:agent.status.refresh')}
             </Button>
           </>
@@ -286,22 +286,22 @@ export function AgentSettingsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="p-5">
-          <div className="flex items-center gap-2 text-sm text-muted-soft">
+          <div className="flex items-center gap-2 text-body text-label-2">
             <ServerCog className="h-4 w-4" />
             Runner
           </div>
           {/* Fixed-height action slot keeps the card stable when actions appear/disappear. */}
           <div className="mt-3 flex h-9 items-center justify-between gap-3">
-            <span className="text-lg font-semibold text-foreground">{health.data?.version ?? '—'}</span>
+            <span className="text-title-3 text-label">{health.data?.version ?? '—'}</span>
           </div>
         </Card>
         <Card className="p-5">
-          <div className="flex items-center gap-2 text-sm text-muted-soft">
+          <div className="flex items-center gap-2 text-body text-label-2">
             <Bot className="h-4 w-4" />
             Agent
           </div>
           <div className="mt-3 flex h-9 items-center justify-between gap-3">
-            <span className="flex min-w-0 items-center gap-2 text-lg font-semibold text-foreground">
+            <span className="flex min-w-0 items-center gap-2 text-title-3 text-label">
               {agentVersionText}
               {versionInfo?.update_available && versionInfo.latest && !upgrading ? (
                 <Badge variant="info">{t('settings:agent.upgrade.available', { version: versionInfo.latest })}</Badge>
@@ -309,17 +309,17 @@ export function AgentSettingsPage() {
             </span>
             {versionInfo?.managed ? (
               upgrading || upgrade.isPending ? (
-                <Button size="sm" variant="outline" disabled>
+                <Button size="sm" variant="secondary" disabled>
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                   {t('settings:agent.upgrade.upgrading')}
                 </Button>
               ) : upgradeState?.status === 'failed' ? (
-                <Button size="sm" variant="outline" onClick={openUpgradeConfirm} title={upgradeState.error}>
+                <Button size="sm" variant="secondary" onClick={openUpgradeConfirm} title={upgradeState.error}>
                   <ArrowUpCircle className="h-3.5 w-3.5" />
                   {t('settings:agent.upgrade.retry')}
                 </Button>
               ) : versionInfo.update_available ? (
-                <Button size="sm" variant="outline" onClick={openUpgradeConfirm}>
+                <Button size="sm" variant="secondary" onClick={openUpgradeConfirm}>
                   <ArrowUpCircle className="h-3.5 w-3.5" />
                   {t('settings:agent.upgrade.action')}
                 </Button>
@@ -329,10 +329,10 @@ export function AgentSettingsPage() {
         </Card>
       </div>
 
-      <section className="space-y-5 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-5 border-t border-separator pt-6">
         <div>
-          <h4 className="text-base font-semibold text-foreground">{t('settings:agent.runner.title')}</h4>
-          <p className="mt-1 text-sm text-muted-soft">{t('settings:agent.runner.description')}</p>
+          <h4 className="text-headline text-label">{t('settings:agent.runner.title')}</h4>
+          <p className="mt-1 text-body text-label-2">{t('settings:agent.runner.description')}</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <FormField label={t('settings:agent.runner.urlLabel')}>
@@ -340,7 +340,7 @@ export function AgentSettingsPage() {
               value={effectiveRunnerURL}
               onChange={(event) => setRunnerURL(event.target.value)}
               placeholder={t('settings:agent.runner.urlPlaceholder')}
-              className="font-mono text-xs"
+              className="font-mono text-footnote"
             />
           </FormField>
           <FormField
@@ -353,13 +353,13 @@ export function AgentSettingsPage() {
               onChange={(event) => setRunnerToken(event.target.value)}
               placeholder={runtime.data?.runner_token_configured ? t('settings:agent.runner.tokenReplacePlaceholder') : t('settings:agent.runner.tokenPlaceholder')}
               autoComplete="new-password"
-              className="font-mono text-xs"
+              className="font-mono text-footnote"
             />
           </FormField>
         </div>
         <div className="flex justify-end gap-3">
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={() => setClearRunnerOpen(true)}
             disabled={clearRunner.isPending || (!runtime.data?.runner_base_url && !runtime.data?.runner_token_configured && !runnerURL && !runnerToken)}
             className="text-destructive hover:text-destructive"
@@ -373,42 +373,42 @@ export function AgentSettingsPage() {
         </div>
       </section>
 
-      <section className="space-y-5 border-t border-[hsl(var(--divider))] pt-6">
+      <section className="space-y-5 border-t border-separator pt-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h4 className="text-base font-semibold text-foreground">{t('settings:agent.scope.title')}</h4>
-            <p className="mt-1 text-sm text-muted-soft">{t('settings:agent.scope.description')}</p>
+            <h4 className="text-headline text-label">{t('settings:agent.scope.title')}</h4>
+            <p className="mt-1 text-body text-label-2">{t('settings:agent.scope.description')}</p>
           </div>
-          <Button variant="outline" onClick={() => setScopeOpen(true)}>
+          <Button variant="secondary" onClick={() => setScopeOpen(true)}>
             <Settings2 className="h-4 w-4" />
             {t('settings:agent.scope.configure')}
           </Button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="cursor-pointer p-5" role="button" tabIndex={0} onClick={() => openView('sites')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openView('sites') } }}>
-            <p className="text-sm text-muted-soft">{t('settings:agent.scope.availableSites')}</p>
-            <p className="mt-2 text-lg font-semibold text-foreground">
+            <p className="text-body text-label-2">{t('settings:agent.scope.availableSites')}</p>
+            <p className="mt-2 text-title-3 text-label">
               {effectiveSitePolicy === 'allow_all' ? t('settings:agent.status.allSites') : t('settings:agent.status.siteCount', { count: selectedSiteIDs.length })}
             </p>
-            <p className="mt-1 text-xs text-muted-soft">{t('settings:agent.scope.availableSitesHint')}</p>
+            <p className="mt-1 text-footnote text-label-2">{t('settings:agent.scope.availableSitesHint')}</p>
           </Card>
           <Card className="cursor-pointer p-5" role="button" tabIndex={0} onClick={() => openView('models')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openView('models') } }}>
-            <p className="text-sm text-muted-soft">{t('settings:agent.scope.availableModels')}</p>
-            <p className="mt-2 text-lg font-semibold text-foreground">
+            <p className="text-body text-label-2">{t('settings:agent.scope.availableModels')}</p>
+            <p className="mt-2 text-title-3 text-label">
               {effectiveModelPolicy === 'allow_all' ? t('settings:agent.status.allModels') : t('settings:agent.status.modelCount', { count: scope.validSelectedSiteModelCount })}
             </p>
-            <p className="mt-1 text-xs text-muted-soft">{t('settings:agent.scope.availableModelsHint')}</p>
+            <p className="mt-1 text-footnote text-label-2">{t('settings:agent.scope.availableModelsHint')}</p>
           </Card>
         </div>
       </section>
 
-      <Draw open={scopeOpen} onOpenChange={setScopeOpen}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{t('settings:agent.scope.title')}</DrawTitle>
-            <DrawDescription>{t('settings:agent.scope.description')}</DrawDescription>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
+      <Sheet open={scopeOpen} onOpenChange={setScopeOpen}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{t('settings:agent.scope.title')}</SheetTitle>
+            <SheetDescription>{t('settings:agent.scope.description')}</SheetDescription>
+          </SheetHeader>
+          <SheetBody className="space-y-4">
             <SiteModelScopePicker
               scope={scope}
               sitesLoading={sitesQuery.isLoading}
@@ -420,27 +420,27 @@ export function AgentSettingsPage() {
               siteModelIds={storedSiteModelIDs}
               onChange={handleScopeChange}
             />
-          </DrawBody>
-          <DrawFooter>
+          </SheetBody>
+          <SheetFooter>
             <Button onClick={() => saveScope.mutate()} disabled={saveScope.isPending || (effectiveSitePolicy === 'allow_list' && scope.siteModelsLoading)}>
               {saveScope.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {saveScope.isPending ? t('settings:agent.saving') : t('settings:agent.save')}
             </Button>
-            <Button variant="ghost" onClick={() => setScopeOpen(false)} disabled={saveScope.isPending}>
+            <Button variant="secondary" onClick={() => setScopeOpen(false)} disabled={saveScope.isPending}>
               {t('settings:agent.scope.cancel')}
             </Button>
-          </DrawFooter>
-        </DrawContent>
-      </Draw>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      <Draw open={scopeView !== null} onOpenChange={(open) => { if (!open) setScopeView(null) }}>
-        <DrawContent side="right" onOpenAutoFocus={(event) => event.preventDefault()}>
-          <DrawHeader>
-            <DrawTitle>{scopeView === 'sites' ? t('settings:agent.scope.availableSites') : t('settings:agent.scope.availableModels')}</DrawTitle>
-          </DrawHeader>
-          <DrawBody className="space-y-4">
+      <Sheet open={scopeView !== null} onOpenChange={(open) => { if (!open) setScopeView(null) }}>
+        <SheetContent onOpenAutoFocus={(event) => event.preventDefault()}>
+          <SheetHeader>
+            <SheetTitle>{scopeView === 'sites' ? t('settings:agent.scope.availableSites') : t('settings:agent.scope.availableModels')}</SheetTitle>
+          </SheetHeader>
+          <SheetBody className="space-y-4">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-label/40" />
               <Input
                 value={viewSearch}
                 onChange={(event) => setViewSearch(event.target.value)}
@@ -448,10 +448,10 @@ export function AgentSettingsPage() {
                 className="pl-9"
               />
             </div>
-            <div className="overflow-y-auto rounded-lg border border-[hsl(var(--glass-border))]">
+            <div className="overflow-y-auto rounded-inner border border-separator">
               {scopeView === 'sites' ? (
                 viewSites.length ? viewSites.map((site) => (
-                  <div key={site.site_id} className="flex items-center gap-3 border-t border-[hsl(var(--glass-divider))] px-4 py-3 first:border-t-0">
+                  <div key={site.site_id} className="flex items-center gap-3 border-t border-separator px-4 py-3 first:border-t-0">
                     <BrandMark
                       iconPath={siteTypeIconPath(site.site_type)}
                       label={formatSiteTypeLabel(site.site_type)}
@@ -459,10 +459,10 @@ export function AgentSettingsPage() {
                       fallbackText={buildModelGlyph(site.site_name)}
                       size="sm"
                     />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={site.site_name}>{site.site_name}</span>
+                    <span className="min-w-0 flex-1 truncate text-body font-medium text-label" title={site.site_name}>{site.site_name}</span>
                     <Badge variant="neutral" className="max-w-[40%] truncate">{formatSiteTypeLabel(site.site_type)}</Badge>
                   </div>
-                )) : <div className="py-10 text-center text-sm text-muted-soft">{t('settings:agent.scope.noSites')}</div>
+                )) : <div className="py-10 text-center text-body text-label-2">{t('settings:agent.scope.noSites')}</div>
               ) : (
                 viewModels.length ? viewModels.map(({ site, model }) => {
                   const canonical = model.canonical_model_id ? canonicalById.get(model.canonical_model_id) : undefined
@@ -470,7 +470,7 @@ export function AgentSettingsPage() {
                     ? canonicalModelIconInfo(canonical, model.display_name || model.upstream_model_name)
                     : modelNameIconInfo([model.display_name, model.upstream_model_name, model.model_key], model.model_key || model.upstream_model_name)
                   return (
-                    <div key={model.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-[hsl(var(--glass-divider))] px-4 py-3 first:border-t-0">
+                    <div key={model.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-separator px-4 py-3 first:border-t-0">
                       <div className="flex min-w-0 items-center gap-3">
                         <BrandMark
                           iconPath={icon.iconPath}
@@ -481,7 +481,7 @@ export function AgentSettingsPage() {
                         />
                         <button
                           type="button"
-                          className="min-w-0 max-w-full truncate bg-transparent p-0 text-left text-sm font-medium text-foreground"
+                          className="min-w-0 max-w-full truncate bg-transparent p-0 text-left text-body font-medium text-label"
                           title={model.upstream_model_name}
                           onClick={() => copyToClipboard(model.model_key || model.upstream_model_name, t('components:modelsDraw.copied'), t('components:modelsDraw.copyFailed'))}
                         >
@@ -491,12 +491,12 @@ export function AgentSettingsPage() {
                       <Badge variant="neutral" className="max-w-full truncate" title={site.site_name}>{site.site_name}</Badge>
                     </div>
                   )
-                }) : <div className="py-10 text-center text-sm text-muted-soft">{t('settings:agent.scope.noModels')}</div>
+                }) : <div className="py-10 text-center text-body text-label-2">{t('settings:agent.scope.noModels')}</div>
               )}
             </div>
-          </DrawBody>
-        </DrawContent>
-      </Draw>
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={clearRunnerOpen} onOpenChange={(open) => { if (!open) setClearRunnerOpen(false) }}>
         <DialogContent className="w-[min(92vw,440px)]">
@@ -506,7 +506,7 @@ export function AgentSettingsPage() {
           </DialogHeader>
           <DialogFooter
             cancel={(
-              <Button variant="outline" onClick={() => setClearRunnerOpen(false)} disabled={clearRunner.isPending}>
+              <Button variant="secondary" onClick={() => setClearRunnerOpen(false)} disabled={clearRunner.isPending}>
                 {t('settings:agent.runner.clearCancel')}
               </Button>
             )}
@@ -533,7 +533,7 @@ export function AgentSettingsPage() {
           </DialogHeader>
           <DialogFooter
             cancel={(
-              <Button variant="outline" onClick={() => setUpgradeDialog(null)}>
+              <Button variant="secondary" onClick={() => setUpgradeDialog(null)}>
                 {t('settings:agent.upgrade.cancel')}
               </Button>
             )}

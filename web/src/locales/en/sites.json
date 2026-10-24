@@ -33,7 +33,10 @@
       "refreshPartialDescFallback": "Some sites failed to refresh",
       "statusFailed": "Failed to update site status",
       "syncQueued": "Saved and syncing in the background"
-    }
+    },
+    "count": "{{count}} sites",
+    "clearFilters": "Clear filters",
+    "typeFilter": "Type"
   },
   "table": {
     "headers": {
@@ -91,16 +94,20 @@
     "resources": {
       "models": "{{count}} Models",
       "keys": "{{enabled}}/{{total}} Keys",
-      "accounts": "{{count}} Accounts"
+      "accounts": "{{valid}}/{{total}} Accounts"
     },
     "updatedAtMode": {
       "showAbsolute": "Switch to absolute time",
       "showRelative": "Switch to relative time"
-    }
+    },
+    "providerUnavailable": "Provider plugin disabled",
+    "providerUnavailableHint": "This site type comes from a plugin that is disabled or uninstalled. Site data is kept, but the site is not routed."
   },
   "form": {
     "createTitle": "Add Site",
+    "backToProviders": "Back to providers",
     "editTitle": "Edit Site",
+    "pluginTag": "Plugin",
     "sections": {
       "basic": "Basic Info",
       "connection": "Connection",
@@ -216,7 +223,8 @@
       "addHeader": "Add Header",
       "removeHeader": "Remove Header"
     },
-    "grokDeviceHint": "Grok accounts are added after the site is created — open the site's account panel and sign in with the xAI device flow."
+    "grokDeviceHint": "Grok accounts are added after the site is created — open the site's account panel and sign in with the xAI device flow.",
+    "accountLoginHint": "Accounts are added after the site is created — open the site's account panel and finish signing in."
   },
   "apiKeys": {
     "title": "API Key",
@@ -256,7 +264,11 @@
       "deleted": "API key deleted",
       "updateFailed": "API key update failed",
       "updated": "Updated",
-      "modelToggleFailed": "Model toggle failed"
+      "modelToggleFailed": "Model toggle failed",
+      "refreshedAll": "All keys refreshed",
+      "refreshAllPartial": "Some keys failed to refresh",
+      "refreshAllPartialDesc": "{{count}} keys failed to refresh: {{message}}",
+      "refreshAllFailed": "Refreshing the keys failed"
     },
     "deleteDialog": {
       "title": "Delete Apikey",
@@ -287,6 +299,92 @@
       "unknown": "Not synced",
       "pending": "Waiting to sync",
       "syncing": "Syncing"
+    }
+  },
+  "accountModels": {
+    "available": "Available models",
+    "backToAccounts": "Back to accounts",
+    "cancel": "Cancel",
+    "save": "Save",
+    "protocol": {
+      "title": "Model protocols",
+      "configure": "Configure protocols",
+      "configureLabel": "Configure protocols for {{name}}",
+      "description": "Choose which upstream protocols this account may use for the model.",
+      "namedDescription": "Choose which upstream protocols this account may use for {{name}}.",
+      "modeInherit": "Using the site's default protocols",
+      "modeAllowlist": "Using only the checked protocols",
+      "modeDisabled": "All protocols are disabled",
+      "empty": "This model has no configurable protocols"
+    }
+  },
+  "accounts": {
+    "title": "Accounts",
+    "add": "Add account",
+    "import": "Import accounts",
+    "loading": "Loading accounts",
+    "empty": "No accounts",
+    "unnamed": "Account",
+    "refresh": "Refresh account",
+    "refreshAll": "Refresh all",
+    "reauthorize": "Reauthorize account",
+    "delete": "Delete account",
+    "toggleLabel": "Toggle {{name}}",
+    "cancel": "Cancel",
+    "toast": {
+      "created": "Account created",
+      "updateFailed": "Failed to update account",
+      "updated": "Account updated",
+      "deleteFailed": "Failed to delete account",
+      "deleted": "Account deleted",
+      "refreshed": "Account refreshed",
+      "refreshFailed": "Failed to refresh account",
+      "refreshedAll": "All accounts refreshed",
+      "refreshAllPartial": "Some accounts failed to refresh",
+      "refreshAllPartialDesc": "{{count}} account(s) failed to refresh",
+      "refreshAllFailed": "Failed to refresh accounts"
+    },
+    "deleteDialog": {
+      "title": "Delete account",
+      "confirm": "Delete {{name}}? Its status, quota, and model associations will also be removed.",
+      "delete": "Delete"
+    },
+    "login": {
+      "title": "Add account",
+      "reauthTitle": "Reauthorize account",
+      "starting": "Preparing sign-in…",
+      "instructions": "Finish authorization in the page that opened. If it did not open, use the button below.",
+      "authorize": "Open authorization page",
+      "waiting": "Waiting for approval…"
+    },
+    "sync": {
+      "synced": "Synced",
+      "failed": "Failed",
+      "reauthRequired": "Reauthorization required",
+      "stale": "Using last synced models",
+      "partial": "Partial",
+      "unknown": "Not synced"
+    },
+    "regionDialog": {
+      "title": "Choose a region",
+      "description": "Choose the account region. Sign-in continues at that region's address.",
+      "continue": "Continue"
+    },
+    "importDialog": {
+      "title": "Import accounts",
+      "dropzone": "Drop JSON files here, or click to choose",
+      "hint": "Upload account JSON for this site type. The server parses it.",
+      "selectedCount": "{{count}} file(s) selected",
+      "import": "Import",
+      "importWithCount": "Import {{count}} file(s)",
+      "cancel": "Cancel",
+      "done": "Done",
+      "summary": "{{total}} accounts, {{imported}} imported, {{failed}} failed",
+      "imported": "Imported",
+      "failed": "Failed",
+      "unnamed": "Unnamed account",
+      "toastDone": "Account import finished",
+      "toastFailed": "Account import failed"
     }
   },
   "grokAccounts": {
@@ -337,6 +435,7 @@
       "unknown": "Not synced"
     }
   },
+
   "test": {
     "title": "{{name}} Model Test",
     "headers": {
@@ -416,6 +515,15 @@
       "deleteFailed": "Model deletion failed",
       "deleteSuccess": "Model deleted"
     }
+  },
+
+  "quotaEntries": {
+    "allowance": "Plan allowance",
+    "credits": "Credits",
+    "balance": "Balance",
+    "resetsOn": "resets {{date}}",
+    "expiresOn": "expires {{date}}",
+    "unknown": "Quota not synced yet — refresh the account"
   },
   "utils": {
     "justNow": "just now"

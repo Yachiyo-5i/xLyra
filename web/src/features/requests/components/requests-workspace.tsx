@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ErrorState } from '@/components/common/error-state'
 import { PageHeader } from '@/components/common/page-header'
+import { Card } from '@/components/ui/card'
 import type { TokenUsageBreakdown } from '@/components/common/token-usage-hover-card'
 import { PaginationControls } from '@/components/ui/pagination'
 import { listDownstreamAPIKeys, listDownstreamAPIKeysIncludingInternal, downstreamAPIKeyQueryKeys } from '@/features/api-keys/api/api-keys'
@@ -164,7 +165,7 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
       disabled={requestsQuery.isFetching}
       showPageSize={!isMobile}
       showDetails={!isMobile}
-      className={isMobile ? 'mt-3 justify-end border-t border-[hsl(var(--glass-divider))] pb-2 pt-3' : 'mt-auto flex-none justify-end border-t border-[hsl(var(--glass-divider))] pt-3'}
+      className={isMobile ? 'mt-3 justify-end border-t border-separator pb-2 pt-3' : 'flex-none justify-end border-t border-separator px-4 py-2.5'}
     />
   )
 
@@ -179,49 +180,7 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
           />
         </div>
 
-        <div className="sticky top-0 z-20 -mx-1">
-          <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-            <RequestsMobileFilterBar
-              filters={filters}
-              sites={sites}
-              apiKeys={apiKeys}
-              autoRefresh={autoRefresh}
-              isFetching={requestsQuery.isFetching || requestSummaryQuery.isFetching}
-              totalCost={totalCost}
-              tokenUsage={tokenUsage}
-              totalCostSupported={totalCostSupported}
-              totalCostLoading={totalCostLoading}
-              currency={requestSummary?.currency}
-              rateLimitUsage={rateLimitUsage}
-              onFiltersChange={handleFiltersChange}
-              onAutoRefreshChange={handleAutoRefreshChange}
-              onRefresh={refreshRequests}
-            />
-          </div>
-        </div>
-
-        <div ref={tableScrollRef}>
-          <RequestsMobileList
-            items={items}
-            expandedId={expandedId}
-            onExpandedIdChange={setExpandedId}
-          />
-          {showPagination ? pagination : null}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-full flex-col">
-      <div className="flex-none space-y-6 pb-5">
-        <PageHeader
-          eyebrow={t('page.eyebrow')}
-          title={t('page.title')}
-          description={t('page.description')}
-        />
-
-        <RequestsFilterBar
+        <RequestsMobileFilterBar
           filters={filters}
           sites={sites}
           apiKeys={apiKeys}
@@ -237,16 +196,55 @@ export function RequestsWorkspace({ initialSearch = '' }: { initialSearch?: stri
           onAutoRefreshChange={handleAutoRefreshChange}
           onRefresh={refreshRequests}
         />
-      </div>
 
-      <RequestsTable
-        items={items}
-        expandedId={expandedId}
-        onExpandedIdChange={setExpandedId}
-        scrollContainerRef={tableScrollRef}
+        <div ref={tableScrollRef}>
+          <RequestsMobileList
+            items={items}
+            expandedId={expandedId}
+            onExpandedIdChange={setExpandedId}
+          />
+          {showPagination ? pagination : null}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
+      <PageHeader
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
       />
 
-      {showPagination ? pagination : null}
+      <RequestsFilterBar
+        filters={filters}
+        sites={sites}
+        apiKeys={apiKeys}
+        autoRefresh={autoRefresh}
+        isFetching={requestsQuery.isFetching || requestSummaryQuery.isFetching}
+        totalCost={totalCost}
+        tokenUsage={tokenUsage}
+        totalCostSupported={totalCostSupported}
+        totalCostLoading={totalCostLoading}
+        currency={requestSummary?.currency}
+        rateLimitUsage={rateLimitUsage}
+        onFiltersChange={handleFiltersChange}
+        onAutoRefreshChange={handleAutoRefreshChange}
+        onRefresh={refreshRequests}
+      />
+
+      {/* 表格放进厚材质卡片，自身滚动、表头吸顶；分页固定在卡片底部 */}
+      <Card material="thick" className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <RequestsTable
+          items={items}
+          expandedId={expandedId}
+          onExpandedIdChange={setExpandedId}
+          scrollContainerRef={tableScrollRef}
+          className="scrollbar-hidden min-h-0 flex-1 overflow-auto [&_table]:min-w-[880px]"
+        />
+        {showPagination ? pagination : null}
+      </Card>
     </div>
   )
 }

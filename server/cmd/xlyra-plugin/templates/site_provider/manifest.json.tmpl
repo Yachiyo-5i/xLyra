@@ -1,0 +1,26 @@
+{
+  "apiVersion": 1,
+  "hostApi": 1,
+  "id": "{{.ID}}",
+  "kind": "site_provider",
+  "name": "{{.Name}}",
+  "description": "API key site type for {{.Name}}",
+  "version": "0.1.0",
+  "license": "MIT",
+  "siteProvider": {
+    "siteType": "{{.ID}}/example",
+    "display": {
+      "name": { "zh": "{{.Name}}", "en": "{{.Name}}" },
+      "subtitle": { "zh": "API Key 站点", "en": "API key site" }
+    },
+    "hosts": ["api.example.com"],
+    "credential": { "model": "api_key" },
+    "protocol": {
+      "kind": "openai_chat",
+      "path": "/v1/chat/completions",
+      "officialBaseURL": "https://api.example.com",
+      "defaultEndpointTypes": ["openai"]
+    },
+    "models": { "path": "/v1/models", "auth": "bearer" }
+  }
+}

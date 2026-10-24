@@ -53,12 +53,13 @@ export function Checkbox({
       disabled={disabled}
       onClick={handleToggle}
       className={cn(
-        'inline-flex size-4 shrink-0 items-center justify-center rounded-[5px] border border-[hsl(var(--glass-border-strong))] bg-[hsl(var(--surface-field))] text-transparent transition-[background-color,border-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:pointer-events-none disabled:opacity-50',
-        isChecked && 'border-primary bg-primary text-primary-foreground',
+        // 未选中：描边方框；选中：强调色实底 + 深色勾
+        'inline-flex size-[var(--check-size)] shrink-0 items-center justify-center rounded-[6px] border-[1.5px] border-white/30 bg-fill-4 text-transparent transition-[background-color,border-color,color,transform] duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint/55 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-40',
+        isChecked && 'border-tint bg-tint text-tint-foreground',
         className,
       )}
     >
-      <Check className="size-3" />
+      <Check className="size-[calc(var(--check-size)*0.72)]" strokeWidth={3} />
     </button>
   )
 
@@ -68,14 +69,14 @@ export function Checkbox({
     <label
       htmlFor={inputId}
       className={cn(
-        'flex cursor-pointer items-start gap-3 rounded-lg text-sm text-foreground',
-        disabled && 'cursor-not-allowed opacity-50',
+        'flex cursor-pointer items-start gap-3 text-body text-label',
+        disabled && 'cursor-not-allowed opacity-40',
       )}
     >
-      <span className="mt-1">{control}</span>
-      <span className="space-y-0.5">
-        {label ? <span className="block font-medium">{label}</span> : null}
-        {description ? <span className="text-muted-soft block">{description}</span> : null}
+      <span className="flex h-[1lh] items-center">{control}</span>
+      <span className="min-w-0 space-y-0.5">
+        {label ? <span className="block">{label}</span> : null}
+        {description ? <span className="block text-footnote text-label-2">{description}</span> : null}
       </span>
     </label>
   )

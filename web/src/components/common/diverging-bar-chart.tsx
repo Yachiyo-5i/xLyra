@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { chartColors } from '@/components/charts/chart-theme'
 import { cn } from '@/lib/utils'
 
 export type DivergingBarDatum = {
@@ -45,8 +46,8 @@ export function DivergingBarChart({
   data,
   positiveLabel = 'Positive',
   negativeLabel = 'Negative',
-  positiveColor = 'hsl(324 86% 58%)',
-  negativeColor = 'hsl(211 96% 52%)',
+  positiveColor = chartColors[5],
+  negativeColor = chartColors[0],
   barSize = 4,
   barCategoryGap = 0,
   targetBarWidth,
@@ -122,7 +123,7 @@ export function DivergingBarChart({
   }
 
   return (
-    <div ref={rootRef} className={cn('relative rounded-lg bg-[hsl(var(--surface-panel))] p-3', className)}>
+    <div ref={rootRef} className={cn('relative rounded-inner bg-fill-4 p-3', className)}>
       <div style={{ height }}>
         <svg
           className="block h-full w-full overflow-hidden"
@@ -136,7 +137,7 @@ export function DivergingBarChart({
             x2={Math.max(containerWidth, 1)}
             y1={baseline}
             y2={baseline}
-            stroke="hsl(var(--glass-border-strong))"
+            stroke="var(--label-quaternary)"
             strokeOpacity={0.86}
             vectorEffect="non-scaling-stroke"
           />
@@ -171,13 +172,13 @@ export function DivergingBarChart({
 
       {activeTooltip ? (
         <div
-          className="pointer-events-none absolute z-10 rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel)/0.94)] px-2.5 py-2 text-xs text-foreground shadow-[0_16px_40px_rgb(0_0_0/0.16)] backdrop-blur"
+          className="lg-regular pointer-events-none absolute z-10 rounded-inner px-3 py-2 text-footnote text-label"
           style={{
             left: Math.min(activeTooltip.x + 12, Math.max(12, containerWidth - 132)),
             top: Math.max(8, activeTooltip.y - 48),
           }}
         >
-          <p className="mb-1 text-muted-soft">{activeTooltip.point.label}</p>
+          <p className="mb-1 text-label-2">{activeTooltip.point.label}</p>
           <div className="space-y-0.5">
             <p>{positiveLabel} {valueFormatter(activeTooltip.point.positiveValue)}</p>
             <p>{negativeLabel} {valueFormatter(activeTooltip.point.negativeValue)}</p>

@@ -30,7 +30,7 @@ func ReasoningEffortSpecForModel(modelKey string) *ReasoningEffortInfo {
 	_, def := matchModelSpec(config.Models, modelKey)
 	spec := def.ReasoningEffort
 	if spec == nil {
-		if providerDef, ok := config.Providers[normalizeSpecKey(def.Provider)]; ok {
+		if providerDef, ok := providerSpecByKey(def.Provider); ok {
 			spec = providerDef.ReasoningEffort
 		}
 	}

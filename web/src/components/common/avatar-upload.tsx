@@ -48,7 +48,7 @@ export function AvatarUpload({
 
   return (
     <div className="flex items-center gap-4">
-      <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] text-sm font-semibold text-foreground">
+      <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-inner border border-separator bg-fill-3 text-headline text-label">
         {value ? <img src={value} alt="" className="h-full w-full object-cover" /> : initials}
       </div>
       <div className="flex flex-wrap gap-2">

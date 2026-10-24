@@ -37,7 +37,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
   const Chevron = expanded ? ChevronDown : ChevronRight
 
   return (
-    <Card className="overflow-hidden rounded-lg p-0">
+    <Card className="overflow-hidden p-0">
       <button
         type="button"
         onClick={onToggle}
@@ -59,7 +59,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
               <div
-                className="truncate text-base font-semibold text-foreground cursor-pointer hover:opacity-80 transition-opacity"
+                className="truncate text-headline text-label cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation()
                   copyToClipboard(model.model_key, t('card.copied'))
@@ -67,16 +67,16 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
               >
                 {model.model_key}
               </div>
-              <div className="text-muted-soft text-sm">{model.brand}</div>
+              <div className="text-label-2 text-body">{model.brand}</div>
             </div>
-            <Chevron className="mt-1 h-4 w-4 shrink-0 text-muted-soft" />
+            <Chevron className="mt-1 h-4 w-4 shrink-0 text-label-2" />
           </div>
 
           <div className="flex flex-wrap gap-2">
             {model.supportedSites.map((site) => (
               <span
                 key={`${model.id}-${site.siteId}`}
-                className="inline-flex items-center rounded-full bg-[hsl(var(--surface-subtle))] px-2.5 py-1 text-xs font-medium text-muted-soft"
+                className="inline-flex items-center rounded-full bg-fill-3 px-2.5 py-1 text-footnote font-medium text-label-2"
               >
                 {site.siteName}
               </span>
@@ -86,10 +86,10 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
       </button>
 
       {expanded ? (
-        <div className="border-t border-[hsl(var(--glass-divider))] px-5 py-4">
-          <div className="overflow-hidden rounded-md border border-[hsl(var(--glass-border))]">
-            <table className="min-w-full table-fixed border-collapse text-left text-sm">
-              <thead className="bg-[hsl(var(--surface-subtle))] text-faint text-xs uppercase tracking-[0.16em]">
+        <div className="border-t border-separator px-5 py-4">
+          <div className="overflow-hidden rounded-control border border-separator">
+            <table className="min-w-full table-fixed border-collapse text-left text-body">
+              <thead className="bg-fill-3 text-footnote font-semibold text-label-2">
                 <tr>
                   <th className="w-[10%] px-4 py-3 font-medium">
                     {t('card.headers.site')}
@@ -142,14 +142,14 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                   return rows.map((pricing) => (
                     <tr
                       key={`${model.id}-${site.siteId}-${pricing.id}`}
-                      className="border-t border-[hsl(var(--glass-divider))]"
+                      className="border-t border-separator"
                     >
                       <td className="px-4 py-3">
                         <div className="truncate font-medium">
                           {site.siteName}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         <div
                           className="truncate"
                           title={pricing.modelName || site.upstreamName}
@@ -157,7 +157,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                           {pricing.modelName || site.upstreamName || '--'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         {isNewAPISite(site.siteType)
                           ? pricing.groupName || '--'
                           : '-'}
@@ -165,7 +165,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                       <td className="px-4 py-3 text-center">
                         <APIKeyCell pricing={pricing} t={t} />
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         <div className="space-y-1">
                           {(pricing.supportedEndpointTypes ?? site.supportedEndpointTypes).length
                             ? (pricing.supportedEndpointTypes ?? site.supportedEndpointTypes).map(
@@ -178,7 +178,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                             : '--'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         {formatPricingValue(
                           pricing.inputValue ?? pricing.perRequestValue,
                           pricing.billingType,
@@ -186,7 +186,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                           t,
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         {formatPricingValue(
                           pricing.outputValue ?? pricing.audioOutputValue,
                           pricing.billingType,
@@ -194,7 +194,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                           t,
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         {formatPricingValue(
                           pricing.cacheInputValue,
                           pricing.billingType,
@@ -203,7 +203,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                         )}
                       </td>
                       <td
-                        className="px-4 py-3 text-muted-soft"
+                        className="px-4 py-3 text-label-2"
                         title={cacheWriteTooltip(pricing, t)}
                       >
                         {formatPricingValue(
@@ -213,7 +213,7 @@ export function ModelCard({ model, expanded, onToggle }: ModelCardProps) {
                           t,
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-soft">
+                      <td className="px-4 py-3 text-label-2">
                         {formatGroupRatio(pricing.groupRatio)}
                       </td>
                     </tr>
@@ -241,7 +241,7 @@ function APIKeyCell({
       <div className="flex min-w-0 items-center">
         <Badge
           variant={enabled ? 'success' : 'warning'}
-          className="max-w-full border-transparent px-2 py-0.5 text-xs tracking-normal"
+          className="max-w-full border-transparent px-2 py-0.5 text-footnote tracking-normal"
           title={pricing.apiKeyName}
         >
           <span className="truncate">{pricing.apiKeyName}</span>
@@ -264,7 +264,7 @@ function KeyGroupStatusBadge({
   t: TFunction
 }) {
   if (!status) {
-    return <span className="text-muted-soft">--</span>
+    return <span className="text-label-2">--</span>
   }
 
   const variant =
@@ -277,7 +277,7 @@ function KeyGroupStatusBadge({
   return (
     <Badge
       variant={variant}
-      className="justify-center border-transparent px-2 py-0.5 text-xs tabular-nums tracking-normal"
+      className="justify-center border-transparent px-2 py-0.5 text-footnote tabular-nums tracking-normal"
       title={t(tooltipKey, { enabled: status.enabled, total: status.total })}
     >
       {status.enabled}/{status.total}

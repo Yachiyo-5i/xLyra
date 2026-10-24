@@ -11,11 +11,13 @@ var probeMethods = map[string]struct{}{
 }
 
 // ProbeContext is the credential-free object passed to a quota probe hook.
+// Account is set only for an account-pool per-account listModels call.
 type ProbeContext struct {
-	SiteType       string `ts:"siteType"`
-	BaseURL        string `ts:"baseURL"`
-	CredentialType string `ts:"credentialType"`
-	Now            int64  `ts:"now,doc=Unix time in milliseconds."`
+	SiteType       string            `ts:"siteType"`
+	BaseURL        string            `ts:"baseURL"`
+	CredentialType string            `ts:"credentialType"`
+	Now            int64             `ts:"now,doc=Unix time in milliseconds."`
+	Account        map[string]string `ts:"account,optional,doc=Non-secret account fields for per-account model sync. Includes the resolved region id when the credential does not store region. Omitted for API-key calls."`
 }
 
 // ProbeStep is one finished HTTP exchange, shown back to the plugin.
@@ -25,12 +27,17 @@ type ProbeStep struct {
 }
 
 // ProbeRequest is a plugin-authored HTTP request before the host joins the URL.
+// OnNonJSON is read only while pollLogin is running. "pending" treats a body
+// that is not one JSON object as still waiting. The body is discarded and is
+// not shown to the plugin. Every other hook ignores the field and still
+// refuses a non-JSON body when secret paths are set.
 type ProbeRequest struct {
-	Method  string            `ts:"method,type=ProbeMethod"`
-	Path    string            `ts:"path,doc=Path under the site base URL. Absolute URLs are rejected."`
-	Headers map[string]string `ts:"headers,optional"`
-	Query   map[string]string `ts:"query,optional"`
-	Body    any               `ts:"body,optional,type=Json"`
+	Method    string            `ts:"method,type=ProbeMethod"`
+	Path      string            `ts:"path,doc=Path under the site base URL. Absolute URLs are rejected."`
+	Headers   map[string]string `ts:"headers,optional"`
+	Query     map[string]string `ts:"query,optional"`
+	Body      any               `ts:"body,optional,type=Json"`
+	OnNonJSON string            `ts:"onNonJSON,optional,doc=pollLogin only. pending treats a non-JSON body as still waiting and discards it."`
 }
 
 // ProbeResponse is the HTTP result shown to the plugin. JSON is nil when the body is not JSON.
@@ -42,15 +49,21 @@ type ProbeResponse struct {
 	Error   string            `ts:"error,optional"`
 }
 
+// ProbeEntryKinds are the values of an entry's kind. Empty means unspecified.
+var ProbeEntryKinds = []string{"balance", "window", "package"}
+
 // ProbeEntry is one quota window. Field names match the hook contract.
 type ProbeEntry struct {
 	Label           string   `ts:"label"`
+	Kind            string   `ts:"kind,optional,type=ProbeEntryKind"`
+	Name            string   `ts:"name,optional"`
 	Unit            string   `ts:"unit,optional"`
 	Remaining       *float64 `ts:"remaining"`
 	Limit           *float64 `ts:"limit"`
 	Used            *float64 `ts:"used"`
 	Unlimited       bool     `ts:"unlimited,optional"`
 	ResetAt         string   `ts:"resetAt,optional"`
+	ExpiresAt       string   `ts:"expiresAt,optional"`
 	CashBalance     *float64 `ts:"cashBalance"`
 	VoucherBalance  *float64 `ts:"voucherBalance"`
 	GrantedBalance  *float64 `ts:"grantedBalance"`
@@ -76,12 +89,16 @@ type Decision struct {
 }
 
 func (pc ProbeContext) asMap() map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"siteType":       pc.SiteType,
 		"baseURL":        pc.BaseURL,
 		"credentialType": pc.CredentialType,
 		"now":            pc.Now,
 	}
+	if len(pc.Account) > 0 {
+		out["account"] = pc.Account
+	}
+	return out
 }
 
 func stepsAsValue(steps []ProbeStep) []any {
@@ -112,6 +129,9 @@ func stepsAsValue(steps []ProbeStep) []any {
 		}
 		if step.Request.Body != nil {
 			request["body"] = step.Request.Body
+		}
+		if step.Request.OnNonJSON != "" {
+			request["onNonJSON"] = step.Request.OnNonJSON
 		}
 		out[i] = map[string]any{"request": request, "response": response}
 	}
@@ -174,7 +194,7 @@ func decodeRequest(value any) (ProbeRequest, error) {
 	}
 	for key := range object {
 		switch key {
-		case "method", "path", "headers", "query", "body":
+		case "method", "path", "headers", "query", "body", "onNonJSON":
 		default:
 			return ProbeRequest{}, shapeError("request: unknown field %q", key)
 		}
@@ -210,7 +230,14 @@ func decodeRequest(value any) (ProbeRequest, error) {
 			return ProbeRequest{}, shapeError("request.body: expected object, array, or string")
 		}
 	}
-	return ProbeRequest{Method: method, Path: path, Headers: headers, Query: query, Body: body}, nil
+	onNonJSON, err := optionalString(object["onNonJSON"], "request.onNonJSON")
+	if err != nil {
+		return ProbeRequest{}, err
+	}
+	if onNonJSON != "" && onNonJSON != "pending" {
+		return ProbeRequest{}, shapeError("request.onNonJSON: unsupported value %q", onNonJSON)
+	}
+	return ProbeRequest{Method: method, Path: path, Headers: headers, Query: query, Body: body, OnNonJSON: onNonJSON}, nil
 }
 
 func decodeResult(value any) (ProbeResult, error) {
@@ -272,7 +299,7 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	path := fmt.Sprintf("result.entries[%d]", index)
 	for key := range object {
 		switch key {
-		case "label", "unit", "remaining", "limit", "used", "unlimited", "resetAt",
+		case "label", "kind", "name", "unit", "remaining", "limit", "used", "unlimited", "resetAt", "expiresAt",
 			"cashBalance", "voucherBalance", "grantedBalance", "toppedUpBalance":
 		default:
 			return ProbeEntry{}, shapeError("%s: unknown field %q", path, key)
@@ -282,11 +309,26 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 	if !ok || strings.TrimSpace(label) == "" {
 		return ProbeEntry{}, shapeError("%s.label: expected string", path)
 	}
+	kind, err := optionalString(object["kind"], path+".kind")
+	if err != nil {
+		return ProbeEntry{}, err
+	}
+	if kind != "" && !contains(ProbeEntryKinds, kind) {
+		return ProbeEntry{}, shapeError("%s.kind: %q is not one of %s", path, kind, strings.Join(ProbeEntryKinds, ","))
+	}
+	name, err := optionalString(object["name"], path+".name")
+	if err != nil {
+		return ProbeEntry{}, err
+	}
 	unit, err := optionalString(object["unit"], path+".unit")
 	if err != nil {
 		return ProbeEntry{}, err
 	}
 	resetAt, err := optionalString(object["resetAt"], path+".resetAt")
+	if err != nil {
+		return ProbeEntry{}, err
+	}
+	expiresAt, err := optionalString(object["expiresAt"], path+".expiresAt")
 	if err != nil {
 		return ProbeEntry{}, err
 	}
@@ -327,9 +369,80 @@ func decodeEntry(value any, index int) (ProbeEntry, error) {
 		return ProbeEntry{}, err
 	}
 	return ProbeEntry{
-		Label: label, Unit: unit, Remaining: remaining, Limit: limit, Used: used, Unlimited: unlimited,
-		ResetAt: resetAt, CashBalance: cash, VoucherBalance: voucher, GrantedBalance: granted, ToppedUpBalance: topped,
+		Label: label, Kind: kind, Name: name, Unit: unit, Remaining: remaining, Limit: limit, Used: used, Unlimited: unlimited,
+		ResetAt: resetAt, ExpiresAt: expiresAt, CashBalance: cash, VoucherBalance: voucher, GrantedBalance: granted, ToppedUpBalance: topped,
 	}, nil
+}
+
+// Account-pool hook result kinds. These are not plugin kinds: a site_provider
+// package returns them from startLogin, pollLogin, refreshTokens, and
+// summarizeAccount. Token values never appear in these payloads.
+const (
+	KindAccountLogin   = "account_login"
+	KindAccountRefresh = "account_refresh"
+	KindAccountSummary = "account_summary"
+)
+
+// AccountLoginStatuses are the account_login status values.
+var AccountLoginStatuses = []string{"pending", "complete"}
+
+// AccountRefreshStatuses are the account_refresh status values.
+// reauth means the grant is dead. A transport failure is not this status.
+var AccountRefreshStatuses = []string{"ok", "reauth"}
+
+// AccountSummaryStatuses are the account_summary status values.
+// reauth is a successful result that tells the host to mark the credential
+// reauth_required. It is not a hook error.
+var AccountSummaryStatuses = []string{"ok", "unavailable", "reauth"}
+
+// AccountLoginContext is the credential-free object passed to startLogin and
+// pollLogin. It carries login UI parameters only, never tokens.
+type AccountLoginContext struct {
+	SiteType string            `ts:"siteType"`
+	BaseURL  string            `ts:"baseURL"`
+	Params   map[string]string `ts:"params,doc=Login parameters from the admin UI. Not credentials."`
+	Now      int64             `ts:"now,doc=Unix time in milliseconds."`
+}
+
+// AccountLoginResult is the account_login hook result.
+// Credential values for secret fields must be {{secret.<field>}} naming a
+// SecretBag field. A raw token in this object is rejected.
+type AccountLoginResult struct {
+	Kind            string            `ts:"kind,doc=Must be account_login." enum:"account_login"`
+	Status          string            `ts:"status,type=AccountLoginStatus" enum:"pending,complete"`
+	VerificationURL string            `ts:"verificationURL,optional"`
+	UserCode        string            `ts:"userCode,optional"`
+	Interval        *int              `ts:"interval,optional"`
+	Credential      map[string]string `ts:"credential,optional,doc=Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected." max:"16"`
+}
+
+// AccountCredentialContext is the object passed to refreshTokens and
+// summarizeAccount. Fields are non-secret credential fields only.
+type AccountCredentialContext struct {
+	SiteType string            `ts:"siteType"`
+	BaseURL  string            `ts:"baseURL"`
+	Fields   map[string]string `ts:"fields,doc=Non-secret credential fields only. Access tokens and other secrets are omitted."`
+	Now      int64             `ts:"now,doc=Unix time in milliseconds."`
+}
+
+// AccountRefreshResult is the account_refresh hook result.
+// Credential uses the same {{secret.<field>}} rule as account_login.
+type AccountRefreshResult struct {
+	Kind       string            `ts:"kind,doc=Must be account_refresh." enum:"account_refresh"`
+	Status     string            `ts:"status,type=AccountRefreshStatus" enum:"ok,reauth"`
+	Credential map[string]string `ts:"credential,optional,doc=Secret fields are {{secret.<field>}} bag references. Non-secret fields are plain strings. Token values are rejected." max:"16"`
+}
+
+// AccountSummaryResult is the account_summary hook result.
+// entries use the quota probe entry shape. remark and label must not contain
+// secrets; the host scrubs them anyway. label is stored only when
+// credential.display lists summary.label.
+type AccountSummaryResult struct {
+	Kind    string       `ts:"kind,doc=Must be account_summary." enum:"account_summary"`
+	Status  string       `ts:"status,type=AccountSummaryStatus" enum:"ok,unavailable,reauth"`
+	Remark  string       `ts:"remark,optional"`
+	Label   string       `ts:"label,optional,doc=Display text. Stored only when credential.display lists summary.label."`
+	Entries []ProbeEntry `ts:"entries"`
 }
 
 func optionalString(value any, path string) (string, error) {

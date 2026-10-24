@@ -34,6 +34,7 @@ func TestCuratedEndpointTypesUseGenerationRule(t *testing.T) {
 		{"gpt-image-3", []string{"openai-image"}},
 		{"text-embedding-3-large", []string{"openai-embedding"}},
 		{"claude-sonnet-4-6", []string{"anthropic-messages"}},
+		{"jev-1.13-free", []string{"typesafe-systemone"}},
 		{"gpt-4o", []string{"openai"}},
 		{"gpt-3.5-turbo", []string{"openai"}},
 		{"o3-mini", []string{"openai"}},
@@ -125,6 +126,11 @@ func TestUsesModelNameEndpointInferencePreservesSpecializedChannels(t *testing.T
 	for _, siteType := range []string{"openai", "xlyra", "anthropic", "grok"} {
 		if !UsesModelNameEndpointInference(siteType) {
 			t.Errorf("UsesModelNameEndpointInference(%q) = false, want true", siteType)
+		}
+	}
+	for _, siteType := range []string{"acme.example/chat", " ACME.EXAMPLE/Chat ", "plugin.example/claude"} {
+		if UsesModelNameEndpointInference(siteType) {
+			t.Errorf("UsesModelNameEndpointInference(%q) = true, want false", siteType)
 		}
 	}
 }

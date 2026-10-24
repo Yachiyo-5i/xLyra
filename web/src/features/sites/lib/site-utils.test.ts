@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Site, SiteQuotaProbeEntry } from '@/features/sites/api/sites'
-import { accountBalanceDetails, formatAccountBalance, formatCompactTokens, formatDateTime, formatSiteBalance, isSiteAbnormal, normalizedSiteTypeFilter, siteBalanceDetails, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
+import type { Site, SiteAccountCapabilities, SiteQuotaProbeEntry, SiteTypeInfo } from '@/features/sites/api/sites'
+import { accountBalanceDetails, accountQuotaEntries, formatAccountBalance, formatCompactTokens, formatDateTime, formatQuotaEntryAmount, formatQuotaProbeBalance, formatSiteBalance, formatSiteTypeLabel, isAccountLoginSiteType, isSiteAbnormal, legacyGrokQuotaEntries, normalizedSiteTypeFilter, quotaEntryKind, siteAccountCounts, siteBalanceDetails, siteTypeColor, siteTypeIcon, sortSitesForDisplay, sub2APIKeyQuotaDetails } from '@/features/sites/lib/site-utils'
 
 function siteWithSyncState(failureClass: 'unknown' | 'limited' | 'transient' | 'credential_invalid'): Site {
   return {
@@ -253,5 +253,227 @@ describe('Moonshot balance formatting', () => {
       { label: 'voucherBalance', value: available > 0 ? '¥2.50' : '¥0.00' },
     ])
     expect(accountBalanceDetails(entries).filter((detail) => detail.label === 'accountBalance')).toEqual([{ label: 'accountBalance', value: amount }])
+  })
+})
+
+describe('grok billing summary', () => {
+  it('shows the remaining plan allowance as a percent', () => {
+    const site = {
+      id: 's1',
+      site_type: 'grok',
+      quota_probe: { probe_type: 'grok', status: 'ok', remaining_min: 95, limit: 100, unit: 'percent' },
+    } as unknown as Parameters<typeof formatSiteBalance>[0]
+    expect(formatSiteBalance(site)).toBe('95%')
+  })
+})
+
+describe('generic credits and percent quota summary', () => {
+  function summarySite(probeType: string, unit: 'credits' | 'percent' | 'usd', remaining: number, limit: number, used: number): Site {
+    return {
+      ...siteWithSyncState('unknown'),
+      site_type: probeType,
+      quota_probe: { probe_type: probeType, status: 'ok', remaining_min: remaining, limit, used, unit },
+    }
+  }
+
+  it('formats a non-builtin credits probe as remaining over limit', () => {
+    const acme = summarySite('acme.example/chat', 'credits', 1999, 2000, 1)
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('1,999 / 2,000')
+    expect(siteBalanceDetails(acme)).toEqual([
+      { label: 'accountBalance', value: '1,999 credits' },
+      { label: 'totalLimit', value: '2,000 credits' },
+    ])
+  })
+
+  it('formats a non-builtin percent probe the same as grok', () => {
+    const grok = summarySite('grok', 'percent', 95, 100, 5)
+    const acme = summarySite('acme', 'percent', 95, 100, 5)
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe(formatQuotaProbeBalance(grok.quota_probe))
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('95%')
+    expect(siteBalanceDetails(acme)).toEqual(siteBalanceDetails(grok))
+    expect(siteBalanceDetails(acme)).toEqual([{ label: 'accountBalance', value: '95%' }])
+  })
+
+  it('keeps usd amounts on the currency path', () => {
+    const acme = summarySite('acme', 'usd', 12.5, 100, 1)
+    expect(formatQuotaProbeBalance(acme.quota_probe)).toBe('$12.50')
+    expect(siteBalanceDetails(acme)).toEqual([{ label: 'accountBalance', value: '$12.50' }])
+  })
+})
+
+describe('siteAccountCounts', () => {
+  it('shows valid accounts out of the stored total even when site state counts reset to zero', () => {
+    expect(siteAccountCounts({ account_count: 1, valid_account_count: 0, api_key_count: 0 })).toEqual({ valid: 0, total: 1 })
+    expect(siteAccountCounts({ account_count: 3, valid_account_count: 2 })).toEqual({ valid: 2, total: 3 })
+  })
+
+  it('falls back to the cached count and treats those accounts as valid', () => {
+    expect(siteAccountCounts({ api_key_count: 2 })).toEqual({ valid: 2, total: 2 })
+    expect(siteAccountCounts({})).toEqual({ valid: 0, total: 0 })
+  })
+
+  it('never reports more valid accounts than total', () => {
+    expect(siteAccountCounts({ account_count: 1, valid_account_count: 5 })).toEqual({ valid: 1, total: 1 })
+  })
+})
+
+describe('quotaEntryKind', () => {
+  it('uses an explicit kind', () => {
+    expect(quotaEntryKind({ kind: 'package', label: 'balance' })).toBe('package')
+    expect(quotaEntryKind({ kind: 'balance' })).toBe('balance')
+    expect(quotaEntryKind({ kind: 'window', label: 'usage' })).toBe('window')
+    expect(quotaEntryKind({ kind: 'other', label: 'balance' })).toBeUndefined()
+  })
+
+  it('infers kind from the label when kind is absent', () => {
+    expect(quotaEntryKind({ label: 'balance' })).toBe('balance')
+    expect(quotaEntryKind({ label: 'Balance' })).toBe('balance')
+    for (const label of ['five_hour', 'weekly', 'daily', 'monthly', '5h', 'WEEKLY']) {
+      expect(quotaEntryKind({ label })).toBe('window')
+    }
+    expect(quotaEntryKind({ label: 'usage' })).toBeUndefined()
+    expect(quotaEntryKind({ label: 'package' })).toBeUndefined()
+    expect(quotaEntryKind({})).toBeUndefined()
+  })
+})
+
+describe('formatQuotaEntryAmount', () => {
+  it('formats percent, credits, currency, and plain numbers', () => {
+    expect(formatQuotaEntryAmount({ unit: 'percent', remaining: 85.7 }, 'remaining')).toBe('85.7%')
+    expect(formatQuotaEntryAmount({ unit: 'percent', limit: 100 }, 'limit')).toBe('100%')
+    expect(formatQuotaEntryAmount({ unit: 'credits', remaining: 1999 }, 'remaining')).toBe('1,999')
+    expect(formatQuotaEntryAmount({ unit: 'credits', remaining: 499.5 }, 'remaining')).toBe('500')
+    expect(formatQuotaEntryAmount({ unit: 'usd', remaining: 12.5 }, 'remaining')).toBe('$12.50')
+    expect(formatQuotaEntryAmount({ unit: 'CNY', used: 3 }, 'used')).toBe('¥3.00')
+    expect(formatQuotaEntryAmount({ remaining: 12.5 }, 'remaining')).toBe('12.5')
+    expect(formatQuotaEntryAmount({ unit: 'tokens', remaining: 12 }, 'remaining')).toBe('12')
+    expect(formatQuotaEntryAmount({ unit: 'percent' }, 'remaining')).toBe('')
+  })
+})
+
+describe('legacy quota entries', () => {
+  it('synthesizes a Grok window from the old percent fields', () => {
+    expect(legacyGrokQuotaEntries({
+      quota_known: true,
+      remaining_percent: 95,
+      used_percent: 5,
+      quota_product: 'GrokBuild',
+      billing_period_end: '2026-10-19T17:04:45Z',
+    })).toEqual([{
+      label: 'usage',
+      kind: 'window',
+      unit: 'percent',
+      name: 'GrokBuild',
+      remaining: 95,
+      used: 5,
+      limit: 100,
+      reset_at: '2026-10-19T17:04:45Z',
+    }])
+  })
+
+  it('returns no Grok entries when the quota is unknown', () => {
+    expect(legacyGrokQuotaEntries({ quota_known: false, remaining_percent: 95, quota_product: 'GrokBuild' })).toEqual([])
+  })
+})
+
+function catalogEntry(siteType: string, accounts?: SiteAccountCapabilities): SiteTypeInfo {
+  return {
+    site_type: siteType,
+    display_name: siteType,
+    subtitle: '',
+    credential_key: 'key',
+    credential_type: 'api_key',
+    requires_base_url: false,
+    show_in_create_dialog: true,
+    accounts,
+  }
+}
+
+const deviceAccounts: SiteAccountCapabilities = {
+  login_kind: 'oauth2_device_code',
+  supports_import: false,
+  supports_regions: false,
+}
+
+const pollAccounts: SiteAccountCapabilities = {
+  login_kind: 'custom_poll',
+  supports_import: true,
+  supports_regions: true,
+}
+
+describe('isAccountLoginSiteType', () => {
+  it('is true when the catalog lists accounts for the type', () => {
+    const catalog = [catalogEntry('grok', deviceAccounts), catalogEntry('plugin', pollAccounts)]
+    expect(isAccountLoginSiteType('grok', catalog)).toBe(true)
+    expect(isAccountLoginSiteType('plugin', catalog)).toBe(true)
+  })
+
+  it('is false when the catalog lists the type without accounts', () => {
+    const catalog = [catalogEntry('openai'), catalogEntry('grok')]
+    expect(isAccountLoginSiteType('openai', catalog)).toBe(false)
+    expect(isAccountLoginSiteType('grok', catalog)).toBe(false)
+  })
+
+  it('falls back to grok when the catalog is missing or does not list the type', () => {
+    expect(isAccountLoginSiteType('grok')).toBe(true)
+    expect(isAccountLoginSiteType('grok', null)).toBe(true)
+    expect(isAccountLoginSiteType('grok', [])).toBe(true)
+    expect(isAccountLoginSiteType('grok', [catalogEntry('openai')])).toBe(true)
+  })
+
+  it('treats credential_type account as an account-login site when accounts is omitted', () => {
+    const info = { ...catalogEntry('acme.pool/chat'), credential_type: 'account' as const }
+    expect(isAccountLoginSiteType('acme.pool/chat', [info])).toBe(true)
+  })
+
+  it('is false for an unknown type', () => {
+    expect(isAccountLoginSiteType('plugin')).toBe(false)
+    expect(isAccountLoginSiteType('openai')).toBe(false)
+    expect(isAccountLoginSiteType(null)).toBe(false)
+    expect(isAccountLoginSiteType('plugin', [catalogEntry('openai')])).toBe(false)
+  })
+})
+
+describe('plugin site type fallback', () => {
+  const pluginType = 'acme.example/chat'
+  const info: SiteTypeInfo = {
+    site_type: pluginType,
+    display_name: '示例',
+    subtitle: '示例站点',
+    credential_key: 'api_key',
+    credential_type: 'api_key',
+    requires_base_url: true,
+    show_in_create_dialog: true,
+    icon_url: '',
+    plugin_id: 'acme.example',
+    provider_status: 'enabled',
+  }
+
+  it('uses a neutral color and no icon when a plugin site type has no local mapping', () => {
+    expect(() => {
+      siteTypeColor(pluginType)
+      siteTypeIcon(pluginType)
+      siteTypeIcon(pluginType, [info])
+      formatSiteTypeLabel(pluginType, [info])
+    }).not.toThrow()
+    expect(siteTypeColor(pluginType)).toBeNull()
+    expect(siteTypeColor('openai')).toBe('#10a37f')
+    expect(siteTypeIcon(pluginType)).toBeNull()
+    expect(siteTypeIcon(pluginType, [info])).toBeNull()
+    expect(siteTypeIcon(pluginType, [{ ...info, icon_url: 'https://cdn.example/icon.webp' }])).toBe('https://cdn.example/icon.webp')
+    expect(formatSiteTypeLabel(pluginType)).toBe(pluginType)
+    expect(formatSiteTypeLabel(pluginType, [info])).toBe('示例')
+  })
+})
+
+describe('accountQuotaEntries', () => {
+  const fallback = [{ label: 'usage', kind: 'window' as const, unit: 'percent', remaining: 2, limit: 100 }]
+
+  it('prefers stored entries and falls back when they are missing', () => {
+    const entries = [{ label: 'usage', kind: 'window' as const, unit: 'percent', remaining: 1, limit: 100 }]
+    expect(accountQuotaEntries(entries, fallback)).toBe(entries)
+    expect(accountQuotaEntries([], fallback)).toEqual(fallback)
+    expect(accountQuotaEntries(undefined, fallback)).toEqual(fallback)
+    expect(accountQuotaEntries(null, fallback)).toEqual(fallback)
   })
 })

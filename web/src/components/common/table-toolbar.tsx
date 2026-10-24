@@ -15,6 +15,10 @@ type TableToolbarProps = {
   className?: string
 }
 
+/**
+ * 表格上方的筛选工具条：搜索框 + 筛选胶囊 + 右侧的计数与次要操作。
+ * 内容层元素，不用玻璃；控件之间间距 8，与表格容器之间 12。
+ */
 export function TableToolbar({
   searchValue,
   onSearchChange,
@@ -28,25 +32,25 @@ export function TableToolbar({
 }: TableToolbarProps) {
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center">
           <label className={cn('relative min-w-0 flex-1', searchClassName)}>
-            <Search className="text-muted-soft pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-label-3" />
             <Input
-              className="pl-10"
+              className="pl-9"
               value={searchValue}
               onChange={onSearchChange}
               placeholder={searchPlaceholder}
             />
           </label>
           {filters ? (
-            <div className={cn('grid gap-3 md:grid-flow-col md:auto-cols-fr', filtersClassName)}>
+            <div className={cn('grid gap-2 md:grid-flow-col md:auto-cols-fr', filtersClassName)}>
               {filters}
             </div>
           ) : null}
         </div>
         {(meta || actions) ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-footnote text-label-3">
             {meta}
             {actions}
           </div>

@@ -57,6 +57,7 @@ xLyra 反复调用 `probe(ctx, steps)`，每次只能返回下面三者之一，
 | `headers` | 可选，字符串到字符串。`Authorization`、`Cookie` 等会被丢弃，xLyra 会自己写入鉴权头 |
 | `query` | 可选，字符串到字符串。`path` 里也可以带 `?a=b` |
 | `body` | 可选，对象、数组或字符串。GET/HEAD 请求不发送。对象和数组按 JSON 发送，默认加 `Content-Type: application/json` |
+| `onNonJSON` | 可选，只能是 `pending`。只有账号池的 `pollLogin` 会遵守：响应不是单个 JSON 对象时当成 pending，正文不交给插件。额度探测和其它钩子忽略它，声明了 `secretPaths` 时非 JSON 仍然失败 |
 
 出现不认识的字段会报 `js_shape_error`。
 
@@ -75,10 +76,13 @@ xLyra 反复调用 `probe(ctx, steps)`，每次只能返回下面三者之一，
 | 字段 | 说明 |
 | --- | --- |
 | `label` | 必填，非空字符串，如 `balance`、`five_hour`、`weekly` |
-| `unit` | 可选，如 `usd`、`percent` |
+| `kind` | 可选，`balance`、`window` 或 `package`。不填或空字符串表示未指定，其他值会报 `js_shape_error`。与上面 result 的 `kind` 不是同一个字段 |
+| `name` | 可选，展示用名称，如套餐名 |
+| `unit` | 可选，如 `usd`、`percent`、`credits` |
 | `remaining`、`limit`、`used` | 可选，数字 |
 | `unlimited` | 可选，布尔值 |
 | `resetAt` | 可选，重置时间字符串 |
+| `expiresAt` | 可选，该条额度整体的到期时间 |
 | `cashBalance`、`voucherBalance`、`grantedBalance`、`toppedUpBalance` | 可选，数字，余额拆分用 |
 
 数字字段必须是数字类型，不能是数字字符串；上游返回字符串数字时，请自己用 `Number()` 转换并检查 `Number.isFinite`。

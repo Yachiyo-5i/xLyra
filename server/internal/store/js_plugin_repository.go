@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -331,4 +332,45 @@ func (r JSPluginRepository) DeleteTrustedKey(ctx context.Context, id uuid.UUID) 
 
 func EnabledPluginCompileError(pluginID, version string, err error) error {
 	return fmt.Errorf("compile %s@%s: %w", pluginID, version, err)
+}
+
+// BumpCatalogGeneration advances the shared catalog counter. A missing row is inserted.
+func (r JSPluginRepository) BumpCatalogGeneration(ctx context.Context) (int64, error) {
+	generation, err := scanCatalogGeneration(r.db.WithContext(ctx).Raw(`
+		UPDATE js_plugin_catalog_state
+		SET generation = generation + 1, updated_at = NOW()
+		WHERE id = 1
+		RETURNING generation`))
+	if err == nil && generation > 0 {
+		return generation, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, err
+	}
+	generation, err = scanCatalogGeneration(r.db.WithContext(ctx).Raw(`
+		INSERT INTO js_plugin_catalog_state (id, generation)
+		VALUES (1, 1)
+		ON CONFLICT (id) DO UPDATE
+		SET generation = js_plugin_catalog_state.generation + 1, updated_at = NOW()
+		RETURNING generation`))
+	if err != nil {
+		return 0, err
+	}
+	return generation, nil
+}
+
+// CatalogGeneration reads the shared catalog counter. A missing row reads as 0.
+func (r JSPluginRepository) CatalogGeneration(ctx context.Context) (int64, error) {
+	var generation int64
+	err := r.db.WithContext(ctx).Raw(`SELECT generation FROM js_plugin_catalog_state WHERE id = 1`).Scan(&generation).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	return generation, err
+}
+
+func scanCatalogGeneration(tx *gorm.DB) (int64, error) {
+	var generation int64
+	err := tx.Row().Scan(&generation)
+	return generation, err
 }

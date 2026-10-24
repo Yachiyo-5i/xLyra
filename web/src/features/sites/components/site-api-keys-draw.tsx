@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LoaderCircle,
   PencilLine,
-  RefreshCw,
+  RotateCcw,
   Settings2,
   Trash2,
 } from 'lucide-react'
@@ -26,13 +26,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Draw,
-  DrawBody,
-  DrawContent,
-  DrawFooter,
-  DrawHeader,
-  DrawTitle,
-} from '@/components/ui/draw'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
@@ -75,6 +75,7 @@ import { formatEndpointTypeLabel, upstreamEndpointTypes } from '@/features/model
 import {
   SiteAPIKeyFormFields,
 } from '@/features/sites/components/site-api-key-form'
+import { AccountHeaderActions } from '@/features/sites/components/account-dialogs'
 import {
   DEFAULT_API_KEY_FORM_DRAFT,
   parseSiteAPIKeyForm,
@@ -472,6 +473,48 @@ export function SiteAPIKeysDraw({
       return left.id.localeCompare(right.id)
     },
   )
+  // There is no batch endpoint: refresh the enabled keys one after another. Disabled
+  // keys are skipped so a bulk refresh never re-enables a key that was turned off.
+  const refreshAllMutation = useMutation({
+    mutationFn: async () => {
+      if (!site) throw new Error('site required')
+      let failed = 0
+      let firstMessage = ''
+      for (const item of items.filter((key) => key.enabled)) {
+        try {
+          const result = await refreshSiteAPIKey(site.id, item.id)
+          if (result.api_key.message) {
+            failed += 1
+            firstMessage ||= result.api_key.message
+          }
+        } catch (error) {
+          failed += 1
+          firstMessage ||= error instanceof Error ? error.message : String(error)
+        }
+      }
+      return { failed, firstMessage }
+    },
+    onSuccess: async ({ failed, firstMessage }) => {
+      await queryClient.invalidateQueries({ queryKey })
+      if (site) {
+        await queryClient.invalidateQueries({ queryKey: sitesQueryKeys.models(site.id) })
+      }
+      await queryClient.invalidateQueries({ queryKey: [...sitesQueryKeys.all, 'canonical-models'] })
+      await queryClient.invalidateQueries({ queryKey: [...sitesQueryKeys.all, 'routes-matrix'] })
+      await queryClient.invalidateQueries({ queryKey: routeQueryKeys.all })
+      await invalidatePricingViews()
+      if (failed > 0) {
+        toast.warning(t('apiKeys.toast.refreshAllPartial'), {
+          description: t('apiKeys.toast.refreshAllPartialDesc', { count: failed, message: firstMessage }),
+        })
+      } else {
+        toast.success(t('apiKeys.toast.refreshedAll'))
+      }
+    },
+    onError: (error) =>
+      toast.error(t('apiKeys.toast.refreshAllFailed'), { description: error.message }),
+  })
+
   const protocolOptions = (() => {
     const siteModel = siteModelsQuery.data?.items.find((item) => item.id === modelProtocolTarget?.site_model_id)
     const siteTypes = endpointTypesFromCapabilities(siteModel?.capabilities)
@@ -542,20 +585,26 @@ export function SiteAPIKeysDraw({
     onOpenChange(next)
   }
 
-  const headerActions = canAddAPIKey ? (
-    <Button size="sm" onClick={() => setAddingAPIKey(true)}>
-      {t('apiKeys.add')}
-    </Button>
-  ) : null
+  const enabledKeys = items.filter((item) => item.enabled)
+  const headerActions = (
+    <AccountHeaderActions
+      addLabel={t('apiKeys.add')}
+      onAdd={canAddAPIKey ? () => setAddingAPIKey(true) : undefined}
+      refreshAllLabel={t('apiKeys.refreshAll')}
+      refreshingAll={refreshAllMutation.isPending}
+      refreshAllDisabled={enabledKeys.length === 0}
+      onRefreshAll={() => refreshAllMutation.mutate()}
+    />
+  )
 
   const listBody = (
     <>
       {apiKeysQuery.isLoading ? (
-        <p className="text-muted-soft text-center text-sm py-10">
+        <p className="text-label-2 text-center text-body py-10">
           {t('apiKeys.loading')}
         </p>
       ) : items.length ? (
-        <div className={isMobile ? 'space-y-3' : 'divide-y divide-[hsl(var(--glass-divider))]'}>
+        <div className="divide-y divide-separator">
           {items.map((item) => {
             const ensureSKPrefix = site ? isNewAPISite(site) : false
                   const displayKey = formatAPIKeyValue(item.key, {
@@ -608,11 +657,11 @@ export function SiteAPIKeysDraw({
             return (
               <div
                 key={item.id}
-                className={isMobile ? 'section-soft space-y-3 rounded-lg p-4' : 'space-y-3 py-4 first:pt-0 last:pb-0'}
+                className="space-y-3 py-4 first:pt-0 last:pb-0"
               >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="truncate font-medium text-sm text-foreground">
+                          <span className="truncate font-medium text-body text-label">
                             {item.name || t('apiKeys.defaultKey')}
                           </span>
                           {item.group ? (
@@ -643,7 +692,7 @@ export function SiteAPIKeysDraw({
                         />
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-soft">
+                      <div className="flex flex-wrap items-center gap-2 text-footnote text-label-2">
                         {site?.supports_multiple_api_keys ? (
                           <>
                             <Badge variant="neutral">
@@ -671,7 +720,7 @@ export function SiteAPIKeysDraw({
 
                       <button
                         type="button"
-                        className="block w-full cursor-pointer rounded-md bg-[hsl(var(--surface-field))] px-3 py-2 text-left font-mono text-xs text-foreground truncate hover:bg-[hsl(var(--surface-soft-hover))] transition-colors"
+                        className="block w-full cursor-pointer rounded-control bg-fill-3 px-3 py-2 text-left font-mono text-footnote text-label truncate hover:bg-fill-2 transition-colors"
                         title={
                           canCopy
                             ? t('apiKeys.copyTooltip')
@@ -708,10 +757,10 @@ export function SiteAPIKeysDraw({
                         {displayKey}
                       </button>
 
-                      <div className="flex items-center justify-between text-xs text-muted-soft">
+                      <div className="flex items-center justify-between text-footnote text-label-2">
                         <div className="flex min-w-0 flex-wrap items-center gap-3">
                           {probeFailed ? (
-                            <span className="text-red-400" title={probe?.error}>
+                            <span className="text-danger" title={probe?.error}>
                               {t('apiKeys.quotaProbeFailed')}
                             </span>
                           ) : balanceDetails.length > 0 ? (
@@ -719,7 +768,7 @@ export function SiteAPIKeysDraw({
                               {balanceDetails.map((detail, index) => (
                                 <div key={`${detail.label}-${index}`} className="contents">
                                   <span>{t(`table.quotaDetails.${detail.label}`)}</span>
-                                  <span className="text-foreground tabular-nums">{detail.value}</span>
+                                  <span className="text-label tabular-nums">{detail.value}</span>
                                 </div>
                               ))}
                             </div>
@@ -732,7 +781,7 @@ export function SiteAPIKeysDraw({
                           )}
                           <button
                             type="button"
-                            className="hover:text-foreground cursor-pointer"
+                            className="hover:text-label cursor-pointer"
                             onClick={() => setModelsAPIKey(item)}
                           >
                             {item.models.length} {t('apiKeys.modelsTitle')}
@@ -743,7 +792,7 @@ export function SiteAPIKeysDraw({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 text-xs"
+                              className="h-7 text-footnote"
                               onClick={() => {
                                 setEditingAPIKey(item)
                                 setSecretInput('')
@@ -799,13 +848,13 @@ export function SiteAPIKeysDraw({
                             refreshMutation.variables?.apiKeyId === item.id ? (
                               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                              <RefreshCw className="h-3.5 w-3.5" />
+                              <RotateCcw className="h-3.5 w-3.5" />
                             )}
                           </Button>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                            className="h-7 w-7 text-danger hover:bg-danger/10 hover:text-danger"
                             disabled={deleteMutation.isPending}
                             title={t('apiKeys.delete')}
                             aria-label={t('apiKeys.deleteLabel', {
@@ -822,7 +871,7 @@ export function SiteAPIKeysDraw({
           })}
         </div>
       ) : (
-        <p className="text-muted-soft text-center text-sm py-10">
+        <p className="text-label-2 text-center text-body py-10">
           {t('apiKeys.noKey')}
         </p>
       )}
@@ -947,7 +996,7 @@ export function SiteAPIKeysDraw({
 
   const secretForm = (
     <>
-      <span className="block text-sm font-medium">ApiKey</span>
+      <span className="block text-body font-medium">ApiKey</span>
       <Input
         value={secretInput}
         autoComplete="off"
@@ -995,17 +1044,17 @@ export function SiteAPIKeysDraw({
   return (
     <>
       {isMobile ? (
-        <Draw open={open} onOpenChange={handleMainOpenChange}>
-          <DrawContent side="right">
-            <DrawHeader className="flex items-center justify-between gap-3">
-              <DrawTitle>{t('apiKeys.title')}</DrawTitle>
+        <Sheet open={open} onOpenChange={handleMainOpenChange}>
+          <SheetContent>
+            <SheetHeader className="flex items-center justify-between gap-2">
+              <SheetTitle>{t('apiKeys.title')}</SheetTitle>
               {headerActions}
-            </DrawHeader>
-            <DrawBody>
+            </SheetHeader>
+            <SheetBody>
               {listBody}
-            </DrawBody>
-          </DrawContent>
-        </Draw>
+            </SheetBody>
+          </SheetContent>
+        </Sheet>
       ) : (
         <Dialog open={open} onOpenChange={handleMainOpenChange}>
           <DialogContent
@@ -1127,7 +1176,7 @@ export function SiteAPIKeysDraw({
           if (!next && !deleteMutation.isPending) setDeletingAPIKey(null)
         }}
       >
-        <DialogContent
+        <DialogContent presentation="center"
           size="sm"
           overlayClassName={isMobile ? undefined : 'z-[60]'}
           className={isMobile ? undefined : 'z-[60]'}
@@ -1148,7 +1197,7 @@ export function SiteAPIKeysDraw({
             className="border-t-0 pt-2"
             cancel={(
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => setDeletingAPIKey(null)}
                 disabled={deleteMutation.isPending}
               >
@@ -1272,17 +1321,17 @@ export function SiteAPIKeysDraw({
                 <button
                   key={model.id}
                   type="button"
-                  className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${selected ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'}`}
+                  className={`w-full rounded-inner px-3 py-2.5 text-left transition-colors ${selected ? 'bg-fill-3' : 'hover:bg-fill-3'}`}
                   onClick={() => setSelectedSiteModel(model)}
                 >
-                  <div className="truncate text-sm font-medium text-foreground">{model.display_name || model.upstream_model_name}</div>
+                  <div className="truncate text-body font-medium text-label">{model.display_name || model.upstream_model_name}</div>
                   {model.display_name && model.display_name !== model.upstream_model_name ? (
-                    <div className="truncate text-xs text-muted-soft">{model.upstream_model_name}</div>
+                    <div className="truncate text-footnote text-label-2">{model.upstream_model_name}</div>
                   ) : null}
                 </button>
               )
             }) : (
-              <p className="py-8 text-center text-sm text-muted-soft">{t('apiKeys.addSiteModelEmpty')}</p>
+              <p className="py-8 text-center text-body text-label-2">{t('apiKeys.addSiteModelEmpty')}</p>
             )}
           </DialogBody>
           <DialogFooter
@@ -1336,7 +1385,7 @@ export function SiteAPIKeysDraw({
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-            <p className="text-sm text-muted-soft">
+            <p className="text-body text-label-2">
               {modelProtocolMode === 'disabled'
                 ? t('apiKeys.protocol.modeDisabled')
                 : modelProtocolMode === 'allowlist'
@@ -1344,7 +1393,7 @@ export function SiteAPIKeysDraw({
                   : t('apiKeys.protocol.modeInherit')}
             </p>
             {protocolOptions.length ? (
-              <div className="divide-y divide-[hsl(var(--glass-divider))]">
+              <div className="divide-y divide-separator">
                 {protocolOptions.map((endpointType) => {
                   const checked = modelProtocolTypes.includes(endpointType)
                   return (
@@ -1362,8 +1411,8 @@ export function SiteAPIKeysDraw({
                       }}
                     >
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium text-foreground">{formatEndpointTypeLabel(endpointType)}</span>
-                        <span className="block text-xs text-muted-soft">{endpointType}</span>
+                        <span className="block text-body font-medium text-label">{formatEndpointTypeLabel(endpointType)}</span>
+                        <span className="block text-footnote text-label-2">{endpointType}</span>
                       </span>
                       <Checkbox
                         checked={checked}
@@ -1376,12 +1425,12 @@ export function SiteAPIKeysDraw({
                 })}
               </div>
             ) : (
-              <p className="text-sm text-muted-soft">{t('apiKeys.protocol.empty')}</p>
+              <p className="text-body text-label-2">{t('apiKeys.protocol.empty')}</p>
             )}
           </DialogBody>
           <DialogFooter
             cancel={(
-              <Button variant="ghost" onClick={() => setModelProtocolTarget(null)}>
+              <Button variant="secondary" onClick={() => setModelProtocolTarget(null)}>
                 {t('apiKeys.cancel')}
               </Button>
             )}
@@ -1428,15 +1477,15 @@ function NestedDraw({
   onOpenChange: (open: boolean) => void
 }) {
   return (
-    <Draw open={open} onOpenChange={onOpenChange}>
-      <DrawContent side="right">
-        <DrawHeader>
-          <DrawTitle>{title}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className={bodyClassName}>{children}</DrawBody>
-        <DrawFooter>{footer}</DrawFooter>
-      </DrawContent>
-    </Draw>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
+        </SheetHeader>
+        <SheetBody className={bodyClassName}>{children}</SheetBody>
+        <SheetFooter>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -1494,7 +1543,7 @@ function APIKeySyncStatusBadge({ apiKey }: { apiKey: SiteAPIKey }) {
       message={message}
       description={apiKey.name || t('apiKeys.defaultKey')}
     >
-      <Badge variant="outline" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
+      <Badge variant="secondary" className={`shrink-0 px-1.5 py-0 text-[10px] ${syncBadge.className}`}>
         {syncBadge.label(t)}
       </Badge>
     </ErrorDetails>
@@ -1508,37 +1557,37 @@ function apiKeySyncBadge(status?: string | null): {
   switch ((status || '').toLowerCase()) {
     case 'synced':
       return {
-        className: 'border-emerald-500/40 text-emerald-400',
+        className: 'border-success/40 text-success',
         label: (t) => t('apiKeys.sync.synced'),
       }
     case 'failed':
       return {
-        className: 'border-red-500/40 text-red-400',
+        className: 'border-danger/40 text-danger',
         label: (t) => t('apiKeys.sync.failed'),
       }
     case 'partial':
       return {
-        className: 'border-amber-500/40 text-amber-400',
+        className: 'border-warning/40 text-warning',
         label: (t) => t('apiKeys.sync.partial'),
       }
     case 'stale':
       return {
-        className: 'border-red-500/40 text-red-400',
+        className: 'border-danger/40 text-danger',
         label: (t) => t('apiKeys.sync.stale'),
       }
     case 'pending':
       return {
-        className: 'border-sky-500/40 text-sky-400',
+        className: 'border-info/40 text-info',
         label: (t) => t('apiKeys.sync.pending'),
       }
     case 'syncing':
       return {
-        className: 'border-sky-500/40 text-sky-400',
+        className: 'border-info/40 text-info',
         label: (t) => t('apiKeys.sync.syncing'),
       }
     default:
       return {
-        className: 'text-muted-soft',
+        className: 'text-label-2',
         label: (t) => t('apiKeys.sync.unknown'),
       }
   }

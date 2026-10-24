@@ -56,13 +56,13 @@ function SubPanel<T extends string>({
   const content = (
     <div
       className={cn(
-        'glass-panel-strong max-h-[min(60vh,24rem)] min-w-[10rem] overflow-y-auto overscroll-contain rounded-xl p-1.5 shadow-[var(--shadow-dialog)]',
+        'lg-regular max-h-[min(60vh,24rem)] min-w-[10rem] overflow-y-auto overscroll-contain rounded-card p-1.5',
         mobile && 'w-52 max-w-[calc(100vw-1.5rem)]',
         className,
       )}
     >
       {items.length === 0 && emptyLabel ? (
-        <p className="px-2.5 py-1.5 text-xs text-muted-soft">{emptyLabel}</p>
+        <p className="px-2.5 py-1.5 text-footnote text-label-2">{emptyLabel}</p>
       ) : null}
       {items.map((item) => (
         <button
@@ -70,15 +70,15 @@ function SubPanel<T extends string>({
           type="button"
           onClick={() => onSelect(item.value)}
           className={cn(
-            'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors',
+            'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-footnote transition-colors',
             item.value === selected
-              ? 'text-foreground'
-              : 'text-muted-soft hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
+              ? 'text-label'
+              : 'text-label-2 hover:bg-fill-3 hover:text-label',
           )}
         >
           {item.icon}
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          {item.value === selected ? <Check className="h-3.5 w-3.5 shrink-0 text-primary" /> : null}
+          {item.value === selected ? <Check className="h-3.5 w-3.5 shrink-0 text-tint" /> : null}
         </button>
       ))}
     </div>
@@ -121,11 +121,11 @@ function PickerRow({
           type="button"
           onMouseEnter={openPanel}
           onMouseLeave={closePanel}
-          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors hover:bg-[hsl(var(--surface-subtle))]"
+          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-footnote transition-colors hover:bg-fill-3"
         >
-          <span className="flex-1 text-left text-muted-soft">{label}</span>
-          <span className="max-w-[7rem] truncate text-foreground">{value}</span>
-          <ChevronRight className="h-3 w-3 shrink-0 text-muted-soft opacity-60" />
+          <span className="flex-1 text-left text-label-2">{label}</span>
+          <span className="max-w-[7rem] truncate text-label">{value}</span>
+          <ChevronRight className="h-3 w-3 shrink-0 text-label-2 opacity-60" />
         </button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
@@ -234,7 +234,7 @@ export function ModelParameterPicker<T extends string>({
           type="button"
           disabled={disabled}
           className={cn(
-            'inline-flex h-8 w-max max-w-none items-center justify-end gap-1 rounded-full px-2.5 text-xs font-medium text-muted-soft outline-none transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] disabled:opacity-50',
+            'inline-flex h-8 w-max max-w-none items-center justify-end gap-1 rounded-full px-2.5 text-footnote font-medium text-label-2 outline-none transition-colors hover:bg-fill-3 hover:text-label focus-visible:ring-2 focus-visible:ring-tint/40 disabled:opacity-50',
             triggerClassName,
           )}
         >
@@ -246,7 +246,7 @@ export function ModelParameterPicker<T extends string>({
               transparent={modelIconTransparent}
             />
           ) : null}
-          <span className="shrink-0 whitespace-nowrap text-foreground">{modelLabel}</span>
+          <span className="shrink-0 whitespace-nowrap text-label">{modelLabel}</span>
           <span className="shrink-0 opacity-60">· {selectedParameter?.label ?? parameterValue}</span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
         </button>
@@ -258,7 +258,7 @@ export function ModelParameterPicker<T extends string>({
           sideOffset={8}
           collisionPadding={12}
           onClick={(event) => event.stopPropagation()}
-          className={cn('glass-panel-strong z-[130] w-52 rounded-xl p-1.5 shadow-[var(--shadow-dialog)]', panelClassName)}
+          className={cn('lg-regular z-[130] w-52 rounded-card p-1.5', panelClassName)}
         >
           {panelRenderer ? panelRenderer(panelChildren, 'panel') : panelChildren}
         </PopoverPrimitive.Content>

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { EllipsisVertical, LoaderCircle } from 'lucide-react'
+import { EllipsisVertical, LoaderCircle, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export type VersionMenuItem = {
   key: string
   label: string
+  /** 文字前的图标，每一项都应该带，菜单才整齐 */
+  icon: LucideIcon
   onSelect: () => void
   disabled?: boolean
   destructive?: boolean
@@ -28,7 +30,7 @@ export function JSPluginVersionMenu({
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-foreground/60 hover:text-foreground" aria-label={label}>
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-label/60 hover:text-label" aria-label={label}>
           {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <EllipsisVertical className="h-4 w-4" />}
         </Button>
       </PopoverPrimitive.Trigger>
@@ -38,7 +40,7 @@ export function JSPluginVersionMenu({
           sideOffset={6}
           collisionPadding={16}
           onOpenAutoFocus={(event) => event.preventDefault()}
-          className="z-[120] min-w-32 overflow-hidden rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--dialog-surface))] py-1 shadow-[var(--shadow-dialog)] backdrop-blur-xl"
+          className="z-[120] min-w-32 overflow-hidden lg-regular rounded-inner py-1"
         >
           {items.map((item) => (
             <button
@@ -49,10 +51,11 @@ export function JSPluginVersionMenu({
                 setOpen(false)
                 item.onSelect()
               }}
-              className={`flex w-full items-center px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[hsl(var(--surface-subtle))] disabled:cursor-not-allowed disabled:opacity-40 ${
-                item.destructive ? 'text-[hsl(var(--destructive))]' : 'text-foreground'
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-body font-medium transition-colors hover:bg-fill-3 disabled:cursor-not-allowed disabled:opacity-40 ${
+                item.destructive ? 'text-danger' : 'text-label'
               }`}
             >
+              <item.icon className="size-4 shrink-0" aria-hidden="true" />
               {item.label}
             </button>
           ))}

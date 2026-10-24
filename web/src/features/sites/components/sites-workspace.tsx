@@ -10,8 +10,10 @@ import { LoaderCircle, Plus, RotateCcw, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
+import { MobileFilterBar } from '@/components/common/mobile-filter-bar'
 import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogBody,
@@ -41,6 +43,7 @@ import {
   updateSiteEnabled,
   type Site,
   type SiteAPIKey,
+  type SiteAccountCapabilities,
   type SiteModel,
   type SiteTypeInfo,
 } from '@/features/sites/api/sites'
@@ -61,7 +64,7 @@ import { fetchSystemProxyConfig } from '@/features/settings/api/settings'
 import { ChannelSplitDialog } from '@/features/usage/components/channel-split-dialog'
 import type { ChannelSplitTarget } from '@/features/usage/api/channel-split'
 import { SiteAPIKeysDraw } from '@/features/sites/components/site-api-keys-draw'
-import { GrokAccountsDraw } from '@/features/sites/components/grok-accounts-draw'
+import { AccountProviderDraw } from '@/features/sites/components/account-provider-draw'
 import {
   SiteCreateDialog,
   type SiteCreateSubmitInput,
@@ -70,6 +73,7 @@ import { SiteCreateSheet } from '@/features/sites/components/site-create-sheet'
 import { SiteModelTestSheet } from '@/features/sites/components/site-model-test-sheet'
 import { SiteModelsDraw } from '@/features/sites/components/site-models-draw'
 import { MobileSitesList } from '@/features/sites/components/mobile-sites-list'
+import { SiteTypeIcon } from '@/features/sites/components/site-type-icon'
 import { SitesTable } from '@/features/sites/components/sites-table'
 import {
   mergeListSite,
@@ -82,6 +86,7 @@ import {
 import {
   formatSiteTypeLabel,
   isSiteAbnormal,
+  isAccountLoginSiteType,
   isSiteEnableBlockedByAbnormalState,
   isOAuthSite,
   normalizedSiteTypeFilter,
@@ -97,7 +102,6 @@ import type {
   ValidationSnapshot,
 } from '@/features/sites/lib/types'
 import { useMobileLayout } from '@/hooks/use-media-query'
-import { useResolvedTheme } from '@/hooks/theme-context'
 
 const EMPTY_SITES: Site[] = []
 const EMPTY_MODELS: SiteModel[] = []
@@ -119,14 +123,30 @@ function siteURLTarget(params: URLSearchParams) {
   }
 }
 
+function accountCapabilities(site: Site | null, siteTypes: readonly SiteTypeInfo[]): SiteAccountCapabilities | null {
+  if (!site) return null
+  const listed = siteTypes.find((item) => item.site_type.trim().toLowerCase() === site.site_type.trim().toLowerCase())
+  if (listed) return listed.accounts ?? null
+  if (site.site_type === 'grok') {
+    return { login_kind: 'oauth2_device_code', supports_import: false, supports_regions: false }
+  }
+  return null
+}
+
+function opensAccountDrawer(site: Site, panel: string, siteTypes: readonly SiteTypeInfo[]) {
+  if (!isAccountLoginSiteType(site.site_type, siteTypes)) return false
+  if (panel === 'accounts' || panel === 'api_keys') return true
+  if (panel === 'grok_accounts') return site.site_type === 'grok'
+  return false
+}
+
 export function SitesWorkspace({
   initialSearch = '',
 }: {
   initialSearch?: string
 }) {
   const queryClient = useQueryClient()
-  const { t } = useTranslation('sites')
-  const resolvedMode = useResolvedTheme()
+  const { t, i18n } = useTranslation('sites')
   const isMobile = useMobileLayout()
   const [initialURLTarget] = useState(() =>
     siteURLTarget(new URLSearchParams(initialSearch)),
@@ -141,7 +161,7 @@ export function SitesWorkspace({
   const [modelsSite, setModelsSite] = useState<Site | null>(null)
   const [testSite, setTestSite] = useState<Site | null>(null)
   const [apiKeysSite, setAPIKeysSite] = useState<Site | null>(null)
-  const [grokAccountsSite, setGrokAccountsSite] = useState<Site | null>(null)
+  const [accountsSite, setAccountsSite] = useState<Site | null>(null)
   const [usageSplitTarget, setUsageSplitTarget] =
     useState<ChannelSplitTarget | null>(null)
   const [urlAPIKeysOpen, setURLAPIKeysOpen] = useState(true)
@@ -231,8 +251,8 @@ export function SitesWorkspace({
     })),
   })
   const sitesWithAPIKeys = useMemo(
-    () => sites.filter((site) => !isOAuthSite(site) && site.site_type !== 'grok'),
-    [sites],
+    () => sites.filter((site) => !isOAuthSite(site) && !isAccountLoginSiteType(site.site_type, siteTypesQuery.data?.items)),
+    [sites, siteTypesQuery.data?.items],
   )
   const siteAPIKeyQueries = useQueries({
     queries: sitesWithAPIKeys.map((site) => ({
@@ -383,19 +403,20 @@ export function SitesWorkspace({
 
   const filterTabs = useMemo(() => {
     const seen = new Set<string>()
-    const tabs: { value: string; label: string; icon: string | null }[] = []
+    const tabs: { value: string; label: string; icon: string | null; muted: boolean }[] = []
     for (const site of sites) {
       const key = normalizedSiteTypeFilter(site.site_type)
       if (seen.has(key)) continue
       seen.add(key)
       tabs.push({
         value: key,
-        label: formatSiteTypeLabel(site.site_type, siteTypes),
-        icon: siteTypeIcon(site.site_type, siteTypes, resolvedMode),
+        label: formatSiteTypeLabel(site.site_type, siteTypes, i18n.language),
+        icon: siteTypeIcon(site.site_type, siteTypes) || site.icon_url || null,
+        muted: site.provider_status === 'unavailable',
       })
     }
     return tabs
-  }, [resolvedMode, siteTypes, sites])
+  }, [i18n.language, siteTypes, sites])
 
   const filteredSites = useMemo(() => {
     const keyword = effectiveSearch.trim().toLowerCase()
@@ -580,7 +601,7 @@ export function SitesWorkspace({
         queryKey: [...sitesQueryKeys.detail(result.site.id), 'api-keys'],
       })
       await queryClient.invalidateQueries({
-        queryKey: [...sitesQueryKeys.detail(result.site.id), 'grok-accounts'],
+        queryKey: sitesQueryKeys.accounts(result.site.id),
       })
       await queryClient.invalidateQueries({
         queryKey: sitesQueryKeys.models(result.site.id),
@@ -820,11 +841,10 @@ export function SitesWorkspace({
     onDelete: (site: Site) => setDeleteTargetSite(site),
     onOpenModels: setModelsSite,
     onOpenAPIKeys: setAPIKeysSite,
-    onOpenGrokAccounts: setGrokAccountsSite,
+    onOpenAccounts: setAccountsSite,
     onOpenTest: setTestSite,
     onOpenUsageSplit: (site: Site) =>
       setUsageSplitTarget({ type: 'site', id: site.id }),
-    resolvedMode,
     siteTypes,
   }
 
@@ -839,12 +859,13 @@ export function SitesWorkspace({
         placeholder={t('page.search')}
         className="pl-10"
       />
-      <Search className="text-foreground/40 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
+      <Search className="text-label-3 pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2" />
     </div>
   )
 
   const tabControls = (
-    <div className="min-w-0 overflow-x-auto">
+    // 类型较多时横向滚动：右侧淡出提示还有更多，末尾留白让最后一项能完整滑出
+    <div className="scrollbar-hidden min-w-0 overflow-x-auto pr-8 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)]">
       <Tabs value={effectiveTypeTab} onValueChange={setTypeTab}>
         <TabsList className="inline-flex w-max">
           <TabsTrigger value="all">{t('page.all')}</TabsTrigger>
@@ -852,13 +873,13 @@ export function SitesWorkspace({
             <TabsTrigger key={tab.value} value={tab.value}>
               <span className="flex items-center gap-1.5">
                 {tab.icon ? (
-                  <img
+                  <SiteTypeIcon
                     src={tab.icon}
-                    alt=""
-                    className={cn(
-                      'h-4 w-4 rounded object-contain',
-                      siteTypeIconClassName(tab.value),
-                    )}
+                    name={tab.label}
+                    empty="hidden"
+                    muted={tab.muted}
+                    className="h-4 w-4 shrink-0 rounded"
+                    imageClassName={siteTypeIconClassName(tab.value)}
                   />
                 ) : null}
                 {tab.label}
@@ -886,7 +907,7 @@ export function SitesWorkspace({
       }
       action={
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => {
             sitesQuery.refetch()
             void Promise.all(siteAPIKeyQueries.map((query) => query.refetch()))
@@ -900,10 +921,13 @@ export function SitesWorkspace({
     isMobile ? (
       <MobileSitesList {...tableProps} />
     ) : (
-      <SitesTable
-        {...tableProps}
-        className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1120px]"
-      />
+      // 表格放在 thick 卡片里，卡片占满剩余高度，表格在内部滚动
+      <Card material="thick" className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <SitesTable
+          {...tableProps}
+          className="min-h-0 flex-1 [&>div]:scrollbar-hidden [&>div]:h-full [&>div]:overflow-auto [&_table]:min-w-[1120px]"
+        />
+      </Card>
     )
   ) : (
     <EmptyState
@@ -924,37 +948,59 @@ export function SitesWorkspace({
         />
       </div>
 
-      <div className="sticky top-0 z-20 -mx-1">
-        <div className="rounded-2xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--card)/0.22)] p-2 shadow-[0_18px_38px_rgba(0,0,0,0.10)] backdrop-blur-[32px] backdrop-saturate-150">
-          <div className="flex items-center gap-2">
-            {searchControl}
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-10 w-10 shrink-0 bg-[hsl(var(--card)/0.34)] backdrop-blur-[24px] hover:bg-[hsl(var(--card)/0.46)]"
-              onClick={() => refreshAllMutation.mutate()}
-              disabled={refreshAllMutation.isPending}
-              aria-label={t('page.refreshAll')}
-            >
-              {refreshAllMutation.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <RotateCcw className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          <div className="mt-2">{tabControls}</div>
-        </div>
-      </div>
+      {/* 移动端筛选区：不吸顶、不套方框 */}
+      <MobileFilterBar
+        search={{
+          value: effectiveSearch,
+          onChange: (event) => {
+            setURLSiteFilterActive(false)
+            setSearch(event.target.value)
+          },
+          placeholder: t('page.search'),
+        }}
+        actions={
+          <Button
+            variant="secondary"
+            size="icon"
+            className="rounded-full"
+            onClick={() => refreshAllMutation.mutate()}
+            disabled={refreshAllMutation.isPending}
+            aria-label={t('page.refreshAll')}
+          >
+            {refreshAllMutation.isPending ? <LoaderCircle className="animate-spin" /> : <RotateCcw />}
+          </Button>
+        }
+        // 站点页只有「类型」一个分类维度：用与桌面一致的横条（可横向滑动、右侧渐隐），一点即切
+        segments={tabControls}
+        summary={
+          <>
+            <span className="tabular-nums">{t('page.count', { count: filteredSites.length })}</span>
+            {effectiveSearch || effectiveTypeTab !== 'all' ? (
+              <button
+                type="button"
+                className="text-label-2 transition-colors active:text-label"
+                onClick={() => {
+                  setURLSiteFilterActive(false)
+                  setSearch('')
+                  setTypeTab('all')
+                }}
+              >
+                {t('page.clearFilters')}
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {content}
 
+      {/* 悬浮添加按钮：56 强调色圆形，停在 Tab Bar 上方并留出间距 */}
       <Button
-        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] right-5 z-20 h-12 w-12 rounded-full p-0 shadow-[0_18px_34px_rgba(15,23,42,0.22)]"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] right-5 z-20 size-14 rounded-full p-0 shadow-[0_12px_32px_rgb(0_0_0/0.45)] [&_svg]:size-6"
         onClick={openCreateSheet}
         aria-label={t('page.addSite')}
       >
-        <Plus className="h-5 w-5" />
+        <Plus />
       </Button>
     </div>
   ) : (
@@ -1032,6 +1078,11 @@ export function SitesWorkspace({
     },
   }
 
+  const urlAccountsSite = urlAPIKeysOpen && urlTargetSite && opensAccountDrawer(urlTargetSite, initialURLTarget.panel, siteTypes)
+    ? urlTargetSite
+    : null
+  const activeAccountsSite = accountsSite ?? urlAccountsSite
+
   return (
     <div className={isMobile ? 'min-h-full' : 'h-full min-h-0 overflow-hidden'}>
       {layout}
@@ -1075,7 +1126,7 @@ export function SitesWorkspace({
           apiKeysSite ??
           (urlAPIKeysOpen &&
           initialURLTarget.panel === 'api_keys' &&
-          urlTargetSite?.site_type !== 'grok'
+          !isAccountLoginSiteType(urlTargetSite?.site_type, siteTypes)
             ? urlTargetSite
             : null)
         }
@@ -1087,18 +1138,15 @@ export function SitesWorkspace({
         }}
       />
 
-      <GrokAccountsDraw
-        site={
-          grokAccountsSite ??
-          (urlAPIKeysOpen &&
-          urlTargetSite?.site_type === 'grok' &&
-          ['api_keys', 'grok_accounts'].includes(initialURLTarget.panel)
-            ? urlTargetSite
-            : null)
-        }
+      <AccountProviderDraw
+        key={activeAccountsSite?.id ?? 'accounts'}
+        site={activeAccountsSite}
+        capabilities={accountCapabilities(activeAccountsSite, siteTypes)}
+        iconURL={activeAccountsSite ? siteTypeIcon(activeAccountsSite.site_type, siteTypes) || activeAccountsSite.icon_url || null : null}
+        typeLabel={activeAccountsSite ? formatSiteTypeLabel(activeAccountsSite.site_type, siteTypes, i18n.language) : null}
         onOpenChange={(open) => {
           if (!open) {
-            setGrokAccountsSite(null)
+            setAccountsSite(null)
             setURLAPIKeysOpen(false)
           }
         }}
@@ -1125,11 +1173,11 @@ export function SitesWorkspace({
           if (!next && !isDeleteTargetPending) setDeleteTargetSite(null)
         }}
       >
-        <DialogContent className="w-[min(92vw,520px)] overflow-hidden">
+        <DialogContent presentation="center" className="w-[min(92vw,520px)] overflow-hidden">
           <DialogHeader className="border-b-0 pb-2">
             <DialogTitle>{t('page.deleteDialog.title')}</DialogTitle>
           </DialogHeader>
-          <DialogBody className="pt-0 text-sm text-muted-soft">
+          <DialogBody className="pt-0 text-body text-label-2">
             <DialogDescription className="mt-0">
               {deleteTargetSite
                 ? t('page.deleteDialog.confirm', {
@@ -1142,7 +1190,7 @@ export function SitesWorkspace({
             className="border-t-0 pt-2"
             cancel={(
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => setDeleteTargetSite(null)}
                 disabled={isDeleteTargetPending}
               >

@@ -31,7 +31,9 @@
     "allSites": "允许全部站点",
     "noSites": "暂无站点",
     "siteDisabled": "停用",
-    "filterAll": "全部模型"
+    "filterAll": "全部模型",
+    "priority": "路由权重",
+    "modelCopied": "模型名已复制"
   },
   "table": {
     "headers": {

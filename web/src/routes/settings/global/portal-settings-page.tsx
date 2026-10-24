@@ -101,31 +101,31 @@ export function PortalSettingsPage() {
   }
 
   if (portalQuery.isLoading) {
-    return <p className="text-muted-soft text-sm">{t('portal.loading')}</p>
+    return <p className="text-label-2 text-body">{t('portal.loading')}</p>
   }
 
   return (
     <div className="max-w-4xl space-y-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-2">
       <div className="space-y-1.5">
-        <h3 className="text-lg font-semibold text-foreground">{t('portal.title')}</h3>
-        <p className="text-muted-soft text-sm">{t('portal.description')}</p>
+        <h3 className="text-title-3 text-label">{t('portal.title')}</h3>
+        <p className="text-label-2 text-body">{t('portal.description')}</p>
       </div>
 
       <section className="space-y-4">
         <div className="flex items-center gap-3">
-          <h4 className="text-sm font-semibold text-foreground">{t('portal.enabled.title')}</h4>
+          <h4 className="text-headline text-label">{t('portal.enabled.title')}</h4>
           <Switch
             checked={draft.enabled}
             onCheckedChange={(enabled) => patchDraft({ enabled })}
             aria-label={t('portal.enabled.title')}
           />
         </div>
-        <p className="text-muted-soft text-sm">{t('portal.enabled.desc')}</p>
+        <p className="text-label-2 text-body">{t('portal.enabled.desc')}</p>
 
         {draft.enabled ? (
           <div className="space-y-2 pt-1">
-            <p className="text-sm font-medium text-foreground">{t('portal.link.title')}</p>
-            <p className="text-muted-soft text-xs">{t('portal.link.desc')}</p>
+            <p className="text-body font-medium text-label">{t('portal.link.title')}</p>
+            <p className="text-label-2 text-footnote">{t('portal.link.desc')}</p>
             <div className="flex items-center gap-2">
               <Input value={portalLink} readOnly spellCheck={false} className="font-mono" onFocus={(event) => event.target.select()} />
               <Button
@@ -141,8 +141,8 @@ export function PortalSettingsPage() {
         ) : null}
       </section>
 
-      <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
-        <h4 className="text-sm font-semibold text-foreground">{t('portal.modules.title')}</h4>
+      <section className="space-y-4 border-t border-separator pt-6">
+        <h4 className="text-headline text-label">{t('portal.modules.title')}</h4>
         <div className="space-y-3">
           <ToggleRow
             label={t('portal.modules.summary')}
@@ -192,9 +192,9 @@ export function PortalSettingsPage() {
       </section>
 
       {draft.show_requests ? (
-        <section className="space-y-4 border-t border-[hsl(var(--divider))] pt-6">
-          <h4 className="text-sm font-semibold text-foreground">{t('portal.dimensions.title')}</h4>
-          <p className="text-muted-soft text-sm">{t('portal.dimensions.desc')}</p>
+        <section className="space-y-4 border-t border-separator pt-6">
+          <h4 className="text-headline text-label">{t('portal.dimensions.title')}</h4>
+          <p className="text-label-2 text-body">{t('portal.dimensions.desc')}</p>
           <div className="grid gap-3 md:grid-cols-2">
             {dimensionKeys.map((key) => (
               <ToggleRow
@@ -209,12 +209,12 @@ export function PortalSettingsPage() {
         </section>
       ) : null}
 
-      <div className="flex items-center gap-3 border-t border-[hsl(var(--divider))] pt-6">
+      <div className="flex items-center gap-3 border-t border-separator pt-6">
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {t('common:actions.save', { ns: 'common' })}
         </Button>
-        <Button variant="outline" onClick={handleReset} disabled={saveMutation.isPending || portalQuery.isFetching}>
+        <Button variant="secondary" onClick={handleReset} disabled={saveMutation.isPending || portalQuery.isFetching}>
           <RotateCcw className="h-4 w-4" />
           {t('common:actions.reset', { ns: 'common' })}
         </Button>
@@ -232,10 +232,10 @@ type ToggleRowProps = {
 
 function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-[hsl(var(--divider))] px-4 py-3">
+    <div className="flex items-start justify-between gap-4 rounded-inner bg-fill-4 px-4 py-3">
       <div className="min-w-0 space-y-0.5">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-muted-soft text-xs">{description}</p>
+        <p className="text-body font-medium text-label">{label}</p>
+        <p className="text-label-2 text-footnote">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </div>

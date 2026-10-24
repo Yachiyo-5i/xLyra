@@ -33,11 +33,11 @@ type ContributionMonthLabel = {
 }
 
 const contributionLevelClasses: Record<ApiKeyContributionDay['level'], string> = {
-  0: 'bg-[hsl(var(--surface-subtle)/0.42)] border-[hsl(var(--glass-border))]',
-  1: 'bg-[hsl(var(--primary)/0.18)] border-[hsl(var(--primary)/0.16)]',
-  2: 'bg-[hsl(var(--primary)/0.34)] border-[hsl(var(--primary)/0.24)]',
-  3: 'bg-[hsl(var(--primary)/0.58)] border-[hsl(var(--primary)/0.32)]',
-  4: 'bg-[hsl(var(--primary)/0.86)] border-[hsl(var(--primary)/0.42)]',
+  0: 'bg-fill-4 border-separator',
+  1: 'bg-tint/18 border-tint/16',
+  2: 'bg-tint/34 border-tint/24',
+  3: 'bg-tint/58 border-tint/32',
+  4: 'bg-tint/86 border-tint/42',
 }
 
 const contributionLegendLevels: ApiKeyContributionDay['level'][] = [0, 1, 2, 3, 4]
@@ -76,21 +76,21 @@ export function ApiKeyContributionsPanel({
   return (
     <Card
       className={cn(
-        'flex h-full min-h-0 flex-col rounded-lg p-5 [--contribution-gap:5px] [--contribution-size:23px]',
+        'flex h-full min-h-0 flex-col p-5 [--contribution-gap:5px] [--contribution-size:23px]',
         className,
       )}
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h3 className="text-base font-semibold text-foreground">{t('contributions.title')}</h3>
-          <p className="text-sm text-muted-soft">{t('contributions.description')}</p>
+          <h3 className="text-headline text-label">{t('contributions.title')}</h3>
+          <p className="text-footnote text-label-3">{t('contributions.description')}</p>
         </div>
         <Select value={selectedKeyId} onValueChange={onSelectedKeyChange} disabled={!hasKeys}>
           <SelectTrigger
             variant="filter"
             filterLabel={t('contributions.apiKeyFilter')}
             active={hasKeys}
-            className="h-8 max-w-[9.5rem] gap-1 rounded-md px-2.5 text-xs [&>svg]:h-3.5 [&>svg]:w-3.5"
+            className="max-w-[12rem]"
           >
             <SelectValue placeholder={t('contributions.apiKeyFilter')} />
           </SelectTrigger>
@@ -120,7 +120,7 @@ export function ApiKeyContributionsPanel({
           <div className="h-full pb-1">
             <div className="grid min-h-0 grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-x-2">
               <div className="pt-6">
-                <div className="flex flex-col text-xs text-faint" style={{ gap: 'var(--contribution-gap)' }}>
+                <div className="flex flex-col text-footnote text-label-3" style={{ gap: 'var(--contribution-gap)' }}>
                   <span style={{ height: 'var(--contribution-size)' }} />
                   <span className="flex items-center" style={{ height: 'var(--contribution-size)' }}>{t('contributions.weekdays.mon')}</span>
                   <span style={{ height: 'var(--contribution-size)' }} />
@@ -133,7 +133,7 @@ export function ApiKeyContributionsPanel({
               <div ref={scrollAreaRef} className="scrollbar-hidden min-w-0 overflow-x-auto overflow-y-visible">
                 <div className="w-max">
                   <div
-                    className="mb-1 grid text-xs leading-5 text-faint"
+                    className="mb-1 grid text-footnote leading-5 text-label-3"
                     style={{ gridTemplateColumns: `repeat(${gridColumns}, var(--contribution-size))`, columnGap: 'var(--contribution-gap)' }}
                   >
                     {monthLabels.map((item) => (
@@ -169,7 +169,7 @@ export function ApiKeyContributionsPanel({
                         cost: formatDashboardCurrency(day.cost, day.currency, 4),
                       })}
                       className={cn(
-                        'rounded-[4px] border transition-[border-color,filter,transform] duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring-soft))] active:scale-95',
+                        'rounded-[4px] border transition-[border-color,filter,transform] duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tint/40 active:scale-95',
                         contributionLevelClasses[day.level],
                       )}
                       style={{ width: 'var(--contribution-size)', height: 'var(--contribution-size)' }}
@@ -182,7 +182,7 @@ export function ApiKeyContributionsPanel({
                 </div>
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-end gap-1.5 text-[11px] leading-none text-faint">
+            <div className="mt-3 flex items-center justify-end gap-1.5 text-caption-1 leading-none text-label-3">
               <span>{t('contributions.legendLess')}</span>
               {contributionLegendLevels.map((level) => (
                 <span
@@ -195,14 +195,14 @@ export function ApiKeyContributionsPanel({
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-soft">
+          <div className="flex h-full items-center justify-center px-4 text-center text-body text-label-2">
             {t('contributions.empty')}
           </div>
         )}
 
         {activeDay ? (
           <div
-            className="pointer-events-none absolute z-10 min-w-[10rem] rounded-lg border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-panel)/0.88)] px-3 py-2 text-xs text-foreground shadow-[0_16px_40px_rgb(0_0_0/0.16)] backdrop-blur-[14px]"
+            className="lg-regular pointer-events-none absolute z-10 min-w-[10rem] rounded-inner px-3 py-2 text-footnote text-label"
             style={{
               left: `min(max(${activeDay.x}px, 5.5rem), calc(100% - 5.5rem))`,
               top: Math.max(8, activeDay.y - 76),
@@ -212,11 +212,11 @@ export function ApiKeyContributionsPanel({
             <div className="mb-1 flex items-center justify-between gap-3">
               <p className="font-medium">{activeDay.day.date}</p>
               {contributions.selectedKey ? (
-                <span className="max-w-[8rem] truncate text-[11px] font-medium text-muted-soft">{contributions.selectedKey.name}</span>
+                <span className="max-w-[8rem] truncate text-caption-1 font-medium text-label-2">{contributions.selectedKey.name}</span>
               ) : null}
             </div>
-            <p className="text-muted-soft">{t('contributions.tooltipCost', { value: formatDashboardCurrency(activeDay.day.cost, activeDay.day.currency, 4) })}</p>
-            <p className="text-muted-soft">{t('contributions.tooltipTokens', { value: formatDashboardTokens(activeDay.day.tokens) })}</p>
+            <p className="text-label-2">{t('contributions.tooltipCost', { value: formatDashboardCurrency(activeDay.day.cost, activeDay.day.currency, 4) })}</p>
+            <p className="text-label-2">{t('contributions.tooltipTokens', { value: formatDashboardTokens(activeDay.day.tokens) })}</p>
           </div>
         ) : null}
         </div>
@@ -228,8 +228,8 @@ export function ApiKeyContributionsPanel({
 function ContributionStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-medium leading-4 text-muted-soft">{label}</p>
-      <p className="mt-0.5 text-xl font-semibold tabular-nums leading-tight text-foreground">{value}</p>
+      <p className="text-caption-1 font-medium leading-4 text-label-2">{label}</p>
+      <p className="mt-0.5 text-xl font-semibold tabular-nums leading-tight text-label">{value}</p>
     </div>
   )
 }

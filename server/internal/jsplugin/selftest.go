@@ -8,9 +8,13 @@ import (
 	"strings"
 )
 
-// Fixture is one recorded probe conversation.
+// Fixture is one recorded sample. Hook selects the export for a site_provider
+// sample; other kinds leave it empty.
 type Fixture struct {
-	Name      string             `json:"name"`
+	Name string `json:"name"`
+	Hook string `json:"hook,omitempty"`
+	// File is the package path, such as fixtures/ok.json. It is not part of the sample JSON.
+	File      string             `json:"-"`
 	Ctx       fixtureContext     `json:"ctx"`
 	Responses []FixtureResponse  `json:"responses"`
 	Expect    fixtureExpectation `json:"expect"`
@@ -40,8 +44,11 @@ type fixtureContext struct {
 	Now            int64  `json:"now"`
 	// Inputs and State stand in for what the admin picked and the binding's
 	// saved state in an automation fixture.
-	Inputs map[string]any `json:"inputs"`
-	State  map[string]any `json:"state"`
+	Inputs   map[string]any `json:"inputs"`
+	State    map[string]any `json:"state"`
+	Model    string         `json:"model"`
+	Stream   bool           `json:"stream"`
+	Protocol string         `json:"protocol"`
 }
 
 type FixtureResponse struct {
@@ -71,14 +78,22 @@ type fixtureExpectation struct {
 	ParseError map[string]any `json:"parseError"`
 }
 
-// SelfTest runs the package fixtures inside the sandbox.
+// SelfTest runs the package fixtures inside the sandbox. A site_provider with
+// no samples still passes: enabling the package is enough.
 func (p *Plugin) SelfTest(ctx context.Context) error {
 	if len(p.fixtures) == 0 {
+		if p.Manifest.Kind == KindSiteProvider {
+			return nil
+		}
 		return fmt.Errorf("%s: no fixtures", p.Manifest.ID)
 	}
 	for _, fixture := range p.fixtures {
 		if err := p.RunFixture(ctx, fixture); err != nil {
-			return fmt.Errorf("%s fixture %q: %w", p.Manifest.ID, fixture.Name, err)
+			name := fixture.Name
+			if name == "" {
+				name = fixture.File
+			}
+			return fmt.Errorf("%s fixture %q: %w", p.Manifest.ID, name, err)
 		}
 	}
 	return nil
@@ -87,6 +102,12 @@ func (p *Plugin) SelfTest(ctx context.Context) error {
 // RunFixture runs one fixture and returns the first mismatch. The developer
 // CLI uses it to report fixtures one by one; SelfTest stops at the first failure.
 func (p *Plugin) RunFixture(ctx context.Context, fixture Fixture) error {
+	if err := p.checkFixtureHook(fixture); err != nil {
+		return err
+	}
+	if p.Manifest.Kind == KindSiteProvider {
+		return p.runSiteProviderFixture(ctx, fixture)
+	}
 	switch p.Manifest.Kind {
 	case KindQuotaProbe:
 		return p.runProbeFixture(ctx, fixture)
@@ -104,6 +125,90 @@ func (p *Plugin) RunFixture(ctx context.Context, fixture Fixture) error {
 		return p.runOneShotFixture(ctx, fixture)
 	}
 	return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
+}
+
+func fixtureRef(fixture Fixture) string {
+	if fixture.File != "" {
+		return fixture.File
+	}
+	if fixture.Name != "" {
+		return fixture.Name
+	}
+	return "fixture"
+}
+
+// checkFixtureHook enforces the site_provider hook field. Other kinds reject a hook.
+func (p *Plugin) checkFixtureHook(fixture Fixture) error {
+	ref := fixtureRef(fixture)
+	if p.Manifest.Kind != KindSiteProvider {
+		if fixture.Hook != "" {
+			return fmt.Errorf("%s: hook is not allowed for %s fixtures", ref, p.Manifest.Kind)
+		}
+		return nil
+	}
+	if fixture.Hook == "" {
+		return fmt.Errorf("%s: hook is required", ref)
+	}
+	switch fixture.Hook {
+	case "probe", "listModels", "check", "classify", "rewritePayload":
+	default:
+		return fmt.Errorf("%s: unknown hook %q", ref, fixture.Hook)
+	}
+	if !p.HasHook(fixture.Hook) {
+		return fmt.Errorf("%s: hook %q is not exported", ref, fixture.Hook)
+	}
+	return nil
+}
+
+func (p *Plugin) runSiteProviderFixture(ctx context.Context, fixture Fixture) error {
+	switch fixture.Hook {
+	case "probe":
+		return p.runProbeFixture(ctx, fixture)
+	case "listModels":
+		return p.runSteppedFixtureHook(ctx, fixture, "listModels", KindModelList)
+	case "check":
+		return p.runSteppedFixtureHook(ctx, fixture, "check", KindCredentialCheck)
+	case "classify":
+		return p.runClassifyFixture(ctx, fixture)
+	case "rewritePayload":
+		return p.runRewritePayloadFixture(ctx, fixture)
+	default:
+		return fmt.Errorf("%s: unknown hook %q", fixtureRef(fixture), fixture.Hook)
+	}
+}
+
+func (p *Plugin) runClassifyFixture(ctx context.Context, fixture Fixture) error {
+	var in ErrorClassifyInput
+	if err := decodeFixtureInput(fixture.Input, &in); err != nil {
+		return err
+	}
+	result, err := p.CallErrorClassifyHook(ctx, "classify", ErrorClassifyContext{SiteType: fixture.Ctx.SiteType}, in)
+	return compareOneShot(result, err, fixture)
+}
+
+func (p *Plugin) runRewritePayloadFixture(ctx context.Context, fixture Fixture) error {
+	payload, err := rewriteFixturePayload(fixture.Input)
+	if err != nil {
+		return err
+	}
+	result, err := p.CallRewritePayload(ctx, "rewritePayload", RewritePayloadContext{
+		SiteType: fixture.Ctx.SiteType,
+		Model:    fixture.Ctx.Model,
+		Stream:   fixture.Ctx.Stream,
+		Protocol: fixture.Ctx.Protocol,
+	}, payload)
+	return compareOneShot(result, err, fixture)
+}
+
+func rewriteFixturePayload(input any) (map[string]any, error) {
+	if input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+	object, ok := input.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("input must be an object")
+	}
+	return object, nil
 }
 
 func (p *Plugin) runProbeFixture(ctx context.Context, fixture Fixture) error {
@@ -218,6 +323,12 @@ func resultMap(result *ProbeResult) map[string]any {
 	entries := make([]any, len(result.Entries))
 	for i, entry := range result.Entries {
 		item := map[string]any{"label": entry.Label}
+		if entry.Kind != "" {
+			item["kind"] = entry.Kind
+		}
+		if entry.Name != "" {
+			item["name"] = entry.Name
+		}
 		if entry.Unit != "" {
 			item["unit"] = entry.Unit
 		}
@@ -235,6 +346,9 @@ func resultMap(result *ProbeResult) map[string]any {
 		}
 		if entry.ResetAt != "" {
 			item["resetAt"] = entry.ResetAt
+		}
+		if entry.ExpiresAt != "" {
+			item["expiresAt"] = entry.ExpiresAt
 		}
 		if entry.CashBalance != nil {
 			item["cashBalance"] = *entry.CashBalance

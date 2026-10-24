@@ -73,14 +73,6 @@
     "logoutSuccess": "ログアウトしました",
     "logoutFailed": "ログアウトに失敗しました"
   },
-  "theme": {
-    "modeLight": "ライト",
-    "modeDark": "ダーク",
-    "modeSystem": "システム",
-    "baseDefault": "デフォルト",
-    "displayDark": "ダーク",
-    "displayLight": "ライト"
-  },
   "brands": {
     "otherBrand": "その他のブランド",
     "all": "すべて"
@@ -97,5 +89,9 @@
   "notFound": {
     "title": "ページが見つかりません",
     "description": "お探しのページは存在しないか、削除された可能性があります。"
+  },
+  "list": {
+    "count": "{{count}} 件",
+    "clearFilters": "絞り込みを解除"
   }
 }

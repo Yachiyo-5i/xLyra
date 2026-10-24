@@ -9,7 +9,7 @@
   </p>
   <p>
     <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License" />
-    <img src="https://img.shields.io/badge/backend-Go%201.26.5+-00ADD8.svg" alt="Backend" />
+    <img src="https://img.shields.io/badge/backend-Go%201.26.10+-00ADD8.svg" alt="Backend" />
     <img src="https://img.shields.io/badge/frontend-React%2019-61DAFB.svg" alt="Frontend" />
     <img src="https://img.shields.io/badge/database-PostgreSQL%2017-336791.svg" alt="Database" />
     <a href="https://hub.docker.com/r/yachiiiiyo/xlyra"><img src="https://img.shields.io/docker/pulls/yachiiiiyo/xlyra.svg" alt="Docker Pulls" /></a>
@@ -274,7 +274,7 @@ Common environment variables:
 
 ## Local Development
 
-Local development requires Go 1.26.5, Node.js 24, and a running PostgreSQL 17 instance. The example below connects to `127.0.0.1:5432` with database `xlyra`, user `postgres`, and password `postgres`; environment variables can override these values.
+Local development requires Go 1.26.10, Node.js 24, and a running PostgreSQL 17 instance. The example below connects to `127.0.0.1:5432` with database `xlyra`, user `postgres`, and password `postgres`; environment variables can override these values.
 
 Install frontend dependencies:
 

@@ -32,9 +32,9 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 			continue
 		}
 		total++
-		secret, probeErr := s.resolveHealthProbeCredential(ctx, item, credential)
+		secret, probeSite, probeErr := s.resolveHealthProbeCredential(ctx, item, credential, adapterSite)
 		if probeErr == nil {
-			models, healthErr := probe.ProbeHealth(ctx, adapterSite, secret)
+			models, healthErr := probe.ProbeHealth(ctx, probeSite, secret)
 			probeErr = healthErr
 			if probeErr == nil && len(models) == 0 {
 				probeErr = fmt.Errorf("health probe returned no models")
@@ -43,8 +43,8 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 		if probeErr != nil {
 			status := "failed"
 			if isGrok {
-				s.recordGrokRefreshFailure(ctx, credential.Credential, probeErr)
-				status = grokRefreshFailureStatus(probeErr)
+				s.recordAccountRefreshFailure(ctx, credential.Credential, probeErr, shouldReauthorizeGrokCredential)
+				status = accountRefreshFailureStatus(probeErr, shouldReauthorizeGrokCredential)
 			}
 			results = append(results, healthProbeCredentialResult(credential, status, probeErr.Error()))
 			continue
@@ -53,11 +53,12 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 		results = append(results, healthProbeCredentialResult(credential, "ok", ""))
 	}
 
-	if isGrok {
+	if IsAccountLoginSite(item.SiteType) {
 		check.metadata["accounts"] = results
 		check.metadata["accounts_total"] = total
 		check.metadata["accounts_passed"] = passed
 		check.success, check.errorType, check.message = grokHealthOutcome(len(credentials), total, passed)
+		check.message = accountPoolHealthMessage(item.SiteType, check.message)
 	} else {
 		check.metadata["credentials"] = results
 		check.metadata["credentials_total"] = total
@@ -68,15 +69,18 @@ func (s *Service) runCredentialHealthProbe(ctx context.Context, item store.Site,
 	return check
 }
 
-func (s *Service) resolveHealthProbeCredential(ctx context.Context, item store.Site, credential APIKeyCredential) (string, error) {
+// resolveHealthProbeCredential returns the token to probe with and the site
+// config to probe against.
+func (s *Service) resolveHealthProbeCredential(ctx context.Context, item store.Site, credential APIKeyCredential, site adapter.SiteConfig) (string, adapter.SiteConfig, error) {
 	if CredentialTypeForSiteType(item.SiteType) == "grok_sso" {
-		return s.oauth.EnsureGrokAccessToken(ctx, credential.Credential.ID)
+		token, err := s.oauth.EnsureGrokAccessToken(ctx, credential.Credential.ID)
+		return token, site, err
 	}
 	secret := strings.TrimSpace(credential.Secret)
 	if secret == "" {
-		return "", fmt.Errorf("health probe credential is empty")
+		return "", site, fmt.Errorf("health probe credential is empty")
 	}
-	return secret, nil
+	return secret, site, nil
 }
 
 func healthProbeOutcome(credentialCount, enabledTested, passed int) (bool, string, string) {
@@ -90,6 +94,13 @@ func healthProbeOutcome(credentialCount, enabledTested, passed int) (bool, strin
 	default:
 		return true, "", fmt.Sprintf("ok (%d/%d credentials healthy)", passed, enabledTested)
 	}
+}
+
+func accountPoolHealthMessage(siteType, message string) string {
+	if isGrokSiteType(siteType) {
+		return message
+	}
+	return strings.ReplaceAll(message, "grok ", "")
 }
 
 // grokHealthOutcome derives the site-level verdict from per-account results: the

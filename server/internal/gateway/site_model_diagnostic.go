@@ -177,10 +177,11 @@ func (h Handler) TestSiteModel(ctx context.Context, input SiteModelTestInput) (S
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return SiteModelTestResult{}, fmt.Errorf("read site model endpoint override: %w", err)
 	}
-	endpointTypes := store.ResolveSiteModelEndpointPolicy(canonical, model, override).SupportedEndpointTypes
-	if len(endpointTypes) == 0 {
-		return SiteModelTestResult{}, siteModelTestError(http.StatusBadRequest, "model_test_protocol_unavailable", "model has no enabled protocols")
+	endpointPolicy, err := store.ResolveSiteModelEndpointPolicyForSite(canonical, model, override, site.SiteType, site.BaseURL)
+	if err != nil {
+		return SiteModelTestResult{}, fmt.Errorf("resolve site model endpoint policy: %w", err)
 	}
+	endpointTypes := endpointPolicy.SupportedEndpointTypes
 	candidate := routeengine.Candidate{
 		Site: routeengine.CandidateSite{
 			ID:              site.ID,
@@ -198,6 +199,9 @@ func (h Handler) TestSiteModel(ctx context.Context, input SiteModelTestInput) (S
 			MatchSource:            model.MatchSource,
 			MatchConfidence:        model.MatchConfidence,
 		},
+	}
+	if len(candidate.Model.SupportedEndpointTypes) == 0 {
+		return SiteModelTestResult{}, siteModelTestError(http.StatusBadRequest, "model_test_protocol_unavailable", "model has no enabled protocols")
 	}
 
 	var selectedCredential *store.GatewayCredential
@@ -320,10 +324,48 @@ func (h Handler) forwardSiteModelTestRequest(
 	result.pricingGroup = selectedPricing.GroupName
 	result.pricing = selectedPricing
 
-	payload, err := protocol.BuildUpstreamPayload(request, candidate)
+	var headerVars map[string]string
+	pluginBaseURL := ""
+	if selectedCredential != nil && pluginAccountPoolCredential(candidate.Site.SiteType, selectedCredential.Credential.CredentialType) {
+		resolved, failure := (pluginAccountCredentialResolver{}).Resolve(ctx, h, candidate, *selectedCredential, upstreamKey, accountID)
+		if failure != nil {
+			if failure.MarkReauth {
+				message := "plugin account credential failed"
+				if failure.Err != nil {
+					message = failure.Err.Error()
+				}
+				h.markAccountCredentialReauthRequired(ctx, selectedCredential.Credential, message)
+			}
+			result.statusCode = http.StatusBadGateway
+			result.errorType = failure.ErrorType
+			if failure.Err != nil {
+				result.errorMessage = failure.Err.Error()
+			}
+			result.latencyMS = time.Since(startedAt).Milliseconds()
+			result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+			return result
+		}
+		upstreamKey = resolved.Key
+		if resolved.AccountID != "" {
+			accountID = resolved.AccountID
+		}
+		pluginBaseURL = resolved.BaseURL
+		headerVars = resolved.HeaderVars
+	}
+
+	payload, err := buildGatewayUpstreamPayload(protocol, request, candidate)
 	if err != nil {
 		result.statusCode = http.StatusBadRequest
 		result.errorType = "request_encode_failed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
+	payload, err = applyProviderRewrite(ctx, candidate, protocol, payload)
+	if err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "plugin_rewrite_failed"
 		result.errorMessage = err.Error()
 		result.latencyMS = time.Since(startedAt).Milliseconds()
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
@@ -335,8 +377,10 @@ func (h Handler) forwardSiteModelTestRequest(
 		upstreamStream = true
 	}
 	upstreamProfileRequest := upstreamClientProfileRequest{
-		Stream:          upstreamStream,
-		ImageGeneration: isCodexImageGenerationRequest(candidate, request, payload) || (isGrokSite(candidate.Site.SiteType) && request.DownstreamPath == gatewayEndpointImagesGenerations),
+		Stream:             upstreamStream,
+		ImageGeneration:    isCodexImageGenerationRequest(candidate, request, payload) || (isGrokSite(candidate.Site.SiteType) && request.DownstreamPath == gatewayEndpointImagesGenerations),
+		ClaudeCode:         isClaudeCodeSite(candidate.Site.SiteType),
+		DisableCompression: isOpenCodeZenSite(candidate),
 	}
 	upstreamClient, siteConfig, requestHeaders, err := h.upstreamClientForSite(ctx, candidate.Site.ID, upstreamProfileRequest)
 	if err != nil {
@@ -347,7 +391,7 @@ func (h Handler) forwardSiteModelTestRequest(
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
 		return result
 	}
-	claudeCodeSessionID := applyGatewayClientImpersonationPayload(payload, siteConfig, protocol, request, candidate)
+	claudeCodeSessionID := applyGatewayClientImpersonationPayloadForAccount(payload, siteConfig, protocol, request, candidate, accountID)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		result.statusCode = http.StatusBadRequest
@@ -358,7 +402,11 @@ func (h Handler) forwardSiteModelTestRequest(
 		return result
 	}
 
-	endpoint := protocol.UpstreamPath(candidate.Site.BaseURL)
+	upstreamBaseURL := candidate.Site.BaseURL
+	if pluginBaseURL != "" {
+		upstreamBaseURL = pluginBaseURL
+	}
+	endpoint := protocol.UpstreamPath(upstreamBaseURL)
 	result.upstreamPath = endpointPath(endpoint)
 	result.upstreamURL = endpoint
 	req, err := newUpstreamHTTPRequest(ctx, protocol, endpoint, body)
@@ -396,9 +444,34 @@ func (h Handler) forwardSiteModelTestRequest(
 	if isClaudeCodeSite(candidate.Site.SiteType) {
 		applyClaudeCodeOAuthGatewayHeaders(req, upstreamKey)
 	}
+	if isOpenCodeZenSite(candidate) {
+		applyOpenCodeGoGatewayHeaders(req, request, upstreamKey)
+	}
+	if err := applyPluginRequestHeaders(req, candidate.Site.SiteType, headerVars, upstreamKey, upstreamBaseURL); err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "plugin_header_template_failed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
 	if err := signUpstreamRequest(req, protocol, body, upstreamKey); err != nil {
 		result.statusCode = http.StatusBadGateway
 		result.errorType = "upstream_sign_failed"
+		result.errorMessage = err.Error()
+		result.latencyMS = time.Since(startedAt).Milliseconds()
+		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)
+		return result
+	}
+
+	upstreamURL := ""
+	if req.URL != nil {
+		upstreamURL = req.URL.String()
+	}
+	upstreamClient, err = pluginUpstreamClient(candidate.Site.SiteType, upstreamURL, upstreamClient)
+	if err != nil {
+		result.statusCode = http.StatusBadGateway
+		result.errorType = "upstream_host_not_allowed"
 		result.errorMessage = err.Error()
 		result.latencyMS = time.Since(startedAt).Milliseconds()
 		result.requestLogID = h.recordAttempt(ctx, requestID, uuid.Nil, canonicalModelID, candidate, result, nil)

@@ -87,21 +87,21 @@ export function AnalyticsUserRanking({ className, usage, metric }: AnalyticsUser
             return (
               <div key={item.key} className="flex min-w-0 flex-col gap-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted-soft">
+                  <span className="shrink-0 text-caption-1 tabular-nums text-label-2">
                     {index + 1}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={item.label}>
+                  <span className="min-w-0 flex-1 truncate text-body text-label" title={item.label}>
                     {item.label}
                   </span>
                   {/* 右侧合并为一个 span：数值 · 占比（延迟指标无占比），间距稳定 */}
-                  <span className="shrink-0 text-xs tabular-nums text-muted-soft">
+                  <span className="shrink-0 text-footnote tabular-nums text-label-2">
                     {metric !== 'latency'
                       ? `${formatValue(value)} · ${formatPercent(pct, 1)}`
                       : formatValue(value)}
                   </span>
                 </div>
                 {/* 进度条宽度与文字行完全一致，无额外缩进 */}
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-fill-3">
                   <div
                     className="h-full rounded-full"
                     style={{ width: `${barWidth}%`, backgroundColor: color }}
@@ -112,7 +112,7 @@ export function AnalyticsUserRanking({ className, usage, metric }: AnalyticsUser
           })}
         </div>
       ) : (
-        <div className="flex h-full items-center justify-center text-sm text-muted-soft">
+        <div className="flex h-full items-center justify-center text-body text-label-2">
           {t('ranking.empty')}
         </div>
       )}

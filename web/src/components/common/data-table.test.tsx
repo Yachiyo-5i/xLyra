@@ -56,7 +56,7 @@ describe('DataTable shared column sizing and header', () => {
     expect(html).not.toContain('<colgroup>')
     expect(html).not.toContain('sticky')
     expect(html).toContain('overflow-x-auto')
-    expect(html).toContain('surface-subtle')
+    expect(html).toContain('bg-elevated-2/60')
   })
 
   it('preserves custom group rows and empty states with sizing enabled', () => {

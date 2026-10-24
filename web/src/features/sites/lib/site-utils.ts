@@ -1,6 +1,7 @@
 import { siteTypeIconPath } from '@/components/common/brand-utils'
 import { localeFromLanguage as dateTimeLocale } from '@/lib/locale'
 import type { Site, SiteAPIKey, SiteAPIKeyModel, SiteModel, SiteQuotaProbeEntry, SiteQuotaProbeResult, SiteQuotaProbeSummary, SiteTypeInfo, SiteValidationResult } from '@/features/sites/api/sites'
+import { siteTypeDisplayName } from '@/features/sites/lib/localized-site-type-text'
 import type { SiteUpdatedAtDisplayMode } from '@/features/sites/lib/types'
 
 const UPDATED_AT_MODE_KEY = 'xlyra:sites:updated-at-display-mode'
@@ -79,9 +80,12 @@ export function isSiteEnableBlockedByAbnormalState(site: Site, validationOverrid
   return !site.enabled && isSiteAbnormal(site, validationOverride)
 }
 
-export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[]): string {
-  const fromAPI = siteTypes?.find((siteTypeInfo) => siteTypeInfo.site_type === siteType)?.display_name
-  if (fromAPI) return fromAPI
+export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[], language?: string): string {
+  const info = siteTypes?.find((siteTypeInfo) => siteTypeInfo.site_type === siteType)
+  if (info) {
+    const fromAPI = language ? siteTypeDisplayName(info, language) : info.display_name
+    if (fromAPI) return fromAPI
+  }
   const t = siteType.trim().toLowerCase()
   if (t === 'codex') return 'Codex OAuth'
   if (t === 'antigravity') return 'Antigravity OAuth'
@@ -102,12 +106,85 @@ export function formatSiteTypeLabel(siteType: string, siteTypes?: SiteTypeInfo[]
   return siteType
 }
 
-export function siteTypeIcon(siteType: string, siteTypes?: SiteTypeInfo[], resolvedMode: 'light' | 'dark' = 'dark'): string | null {
-  const iconPath = siteTypeIconPath(siteType, resolvedMode)
+export function siteTypeIcon(siteType: string, siteTypes?: SiteTypeInfo[]): string | null {
+  const iconPath = siteTypeIconPath(siteType)
   if (iconPath) return iconPath
   const fromAPI = siteTypes?.find((siteTypeInfo) => siteTypeInfo.site_type === siteType)?.icon_url
   if (fromAPI) return fromAPI
   return null
+}
+
+/**
+ * 站点类型的品牌色：取自各自 logo 的主色。
+ * logo 本身是黑 / 白 / 灰的（Grok、OpenCode、TypeSafe）返回 null，徽标用中性色；
+ * OpenAI、Kimi、智谱的 logo 是单色，用它们对外一贯的品牌色。
+ */
+export function siteTypeColor(siteType: string): string | null {
+  const type = siteType.trim().toLowerCase()
+  if (type === 'openai' || type === 'openai_compatible' || type === 'codex') return '#10a37f'
+  if (type === 'anthropic') return '#de7b54'
+  if (type === 'claude_code') return '#d87656'
+  if (type === 'google_gemini') return '#4285f4'
+  if (type === 'antigravity') return '#5983b9'
+  if (type === 'deepseek') return '#4c6afd'
+  if (type === 'minimax') return '#f4406c'
+  if (type === 'xiaomi_mimo') return '#ff6b04'
+  if (type === 'moonshot' || type === 'kimi_code') return '#1783ff'
+  if (type === 'zhipu' || type === 'glm_code') return '#3859ff'
+  if (type === 'newapi') return '#878ce5'
+  if (type === 'xlyra') return '#5d8cc8'
+  return null
+}
+
+/**
+ * 通过「账号登录」接入、在站点下管理多账号的站点类型（Grok 设备授权，以及声明了 accounts 的插件）。
+ * 这类站点没有上游 API Key，资源列显示账号数，并使用账号抽屉。
+ * 目录里已有该类型时看 accounts 是否下发，credential_type 为 account 时同样算账号池；目录未加载或没有该类型时，仍按 grok 识别。
+ */
+export function isAccountLoginSiteType(
+  siteType: string | null | undefined,
+  siteTypes?: readonly SiteTypeInfo[] | null,
+): boolean {
+  const type = (siteType ?? '').trim().toLowerCase()
+  const listed = siteTypes?.find((item) => item.site_type.trim().toLowerCase() === type)
+  if (listed) {
+    if (listed.accounts !== undefined) return true
+    return listed.credential_type === 'account'
+  }
+  return type === 'grok'
+}
+
+/** Grok keeps its existing drawer. Every other account-login type is a plugin pool. */
+export function isBuiltinAccountSite(siteType: string | null | undefined) {
+  return (siteType ?? '').trim().toLowerCase() === 'grok'
+}
+
+/**
+ * 账号登录站点的「有效 / 总数」。后端按已存账号统计；旧响应缺少该字段时，
+ * 退回站点状态里的账号数，并视为全部有效。
+ */
+export function siteAccountCounts(site: Pick<Site, 'account_count' | 'valid_account_count' | 'api_key_count'>): { valid: number; total: number } {
+  const total = Math.max(site.account_count ?? site.api_key_count ?? 0, 0)
+  const valid = Math.min(Math.max(site.valid_account_count ?? total, 0), total)
+  return { valid, total }
+}
+
+export type SiteTypeIconState =
+  | { kind: 'image'; src: string }
+  | { kind: 'letter'; text: string }
+  | { kind: 'hidden' }
+
+/** Image when `src` is usable, the first character when it is missing or failed, or nothing. */
+export function resolveSiteTypeIcon(
+  src: string | null | undefined,
+  failed: boolean,
+  empty: 'letter' | 'hidden',
+  name: string,
+): SiteTypeIconState {
+  const trimmed = src?.trim() ?? ''
+  if (trimmed && !failed) return { kind: 'image', src: trimmed }
+  if (!trimmed && empty === 'hidden') return { kind: 'hidden' }
+  return { kind: 'letter', text: name.trim().charAt(0) || '?' }
 }
 
 export function siteTypeIconClassName(siteType: string): string | undefined {
@@ -227,6 +304,65 @@ function formatProbePercent(value: number) {
   return `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(Math.max(rounded, 0))}%`
 }
 
+/** Credit quotas are a count; show whole numbers. */
+function formatCreditAmount(value: number) {
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(Math.max(value, 0))
+}
+
+const QUOTA_WINDOW_LABELS = new Set(['five_hour', 'weekly', 'daily', 'monthly', '5h'])
+
+export function quotaEntryKind(entry: { kind?: string; label?: string }): SiteQuotaProbeEntry['kind'] {
+  if (entry.kind === 'balance' || entry.kind === 'window' || entry.kind === 'package') return entry.kind
+  if (entry.kind) return undefined
+  const label = entry.label?.trim().toLowerCase()
+  if (label === 'balance') return 'balance'
+  if (label && QUOTA_WINDOW_LABELS.has(label)) return 'window'
+  return undefined
+}
+
+export function formatQuotaEntryAmount(
+  entry: Pick<SiteQuotaProbeEntry, 'unit' | 'remaining' | 'limit' | 'used'>,
+  field: 'remaining' | 'limit' | 'used',
+): string {
+  const value = entry[field]
+  if (typeof value !== 'number' || !Number.isFinite(value)) return ''
+  const unit = entry.unit?.trim().toLowerCase() ?? ''
+  if (unit === 'percent') return formatProbePercent(value)
+  if (unit === 'credits') return formatCreditAmount(value)
+  if (/^[a-z]{3}$/.test(unit)) return formatBalanceAmount(value, unit)
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value)
+}
+
+type GrokQuotaSource = {
+  quota_known?: boolean
+  remaining_percent?: number | null
+  used_percent?: number | null
+  quota_product?: string
+  billing_period_end?: string
+}
+
+export function legacyGrokQuotaEntries(account: GrokQuotaSource): SiteQuotaProbeEntry[] {
+  if (!account.quota_known) return []
+  const entry: SiteQuotaProbeEntry = {
+    label: 'usage',
+    kind: 'window',
+    unit: 'percent',
+    remaining: account.remaining_percent ?? 0,
+    limit: 100,
+  }
+  if (typeof account.used_percent === 'number') entry.used = account.used_percent
+  if (account.quota_product) entry.name = account.quota_product
+  if (account.billing_period_end) entry.reset_at = account.billing_period_end
+  return [entry]
+}
+
+export function accountQuotaEntries(
+  entries: SiteQuotaProbeEntry[] | null | undefined,
+  fallback: SiteQuotaProbeEntry[] = [],
+): SiteQuotaProbeEntry[] {
+  return entries && entries.length > 0 ? entries : fallback
+}
+
 export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | undefined) {
   if (!probe) return undefined
   if (probe.probe_type === 'deepseek' || probe.probe_type === 'moonshot') {
@@ -235,6 +371,16 @@ export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | un
   if (probe.probe_type === 'kimi' || probe.probe_type === 'glm') {
     return formatFiveHourWeeklyQuotaBalance(probe)
   }
+  const unit = probe.unit?.trim().toLowerCase() ?? ''
+  if (unit === 'credits') {
+    if (typeof probe.remaining_min !== 'number') return undefined
+    const remaining = formatCreditAmount(probe.remaining_min)
+    return typeof probe.limit === 'number' ? `${remaining} / ${formatCreditAmount(probe.limit)}` : remaining
+  }
+  if (unit === 'percent') {
+    if (typeof probe.remaining_min !== 'number') return undefined
+    return formatProbePercent(probe.remaining_min)
+  }
   if (typeof probe.remaining_min !== 'number') {
     if (probe.unlimited !== true) return undefined
     if (typeof probe.used_total === 'number') {
@@ -242,9 +388,6 @@ export function formatQuotaProbeBalance(probe: SiteQuotaProbeSummary | null | un
       return `${prefix}${formatProbeAmount(probe.used_total)} / ∞${suffix}`
     }
     return '∞'
-  }
-  if (isQuotaProbePercent(probe)) {
-    return formatProbePercent(probe.remaining_min)
   }
   const { prefix, suffix } = quotaProbeCurrency(probe.unit)
   const remaining = formatProbeAmount(Math.max(probe.remaining_min, 0))
@@ -339,6 +482,17 @@ export function siteBalanceDetails(site: Site, language?: string): SiteBalanceDe
     if (probeType === 'deepseek' || probeType === 'moonshot') return accountBalanceDetails(probe.entries)
     if (probeType === 'kimi' || probeType === 'glm') {
       return fiveHourWeeklyQuotaDetails(probe, language)
+    }
+    const unit = probe.unit?.trim().toLowerCase() ?? ''
+    if (unit === 'credits') {
+      if (typeof probe.remaining_min !== 'number') return []
+      const rows: SiteBalanceDetail[] = [{ label: 'accountBalance', value: `${formatCreditAmount(probe.remaining_min)} credits` }]
+      if (typeof probe.limit === 'number') rows.push({ label: 'totalLimit', value: `${formatCreditAmount(probe.limit)} credits` })
+      return rows
+    }
+    if (unit === 'percent') {
+      if (typeof probe.remaining_min !== 'number') return []
+      return [{ label: 'accountBalance', value: formatProbePercent(Math.max(probe.remaining_min, 0)) }]
     }
     const { prefix, suffix } = quotaProbeCurrency(probe.unit)
     const amount = (value: number) => `${prefix}${formatProbeAmount(value)}${suffix}`

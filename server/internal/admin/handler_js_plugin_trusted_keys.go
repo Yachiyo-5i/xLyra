@@ -20,6 +20,9 @@ func (h Handler) ListJSPluginTrustedKeys(w http.ResponseWriter, r *http.Request)
 	}
 	rows, err := h.jsPlugins.ListTrustedKeys(r.Context())
 	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
 		h.logError("list js plugin trusted keys failed", "error", err)
 		h.writeError(w, r, http.StatusInternalServerError, "js_plugin_trusted_keys_failed", "failed to list trusted keys")
 		return

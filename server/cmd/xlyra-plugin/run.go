@@ -25,11 +25,18 @@ const (
 // environment variable and only used in the Authorization header; the plugin
 // never sees it, same as on the server.
 func runRun(args []string) {
+	if err := executeRun(args); err != nil {
+		fatal(err)
+	}
+}
+
+func executeRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	baseURL := fs.String("base-url", "", "site base URL (default: manifest quotaProbe.defaultBaseURL)")
 	keyEnv := fs.String("key-env", "", "environment variable holding the API key (not needed for site_detect)")
 	siteType := fs.String("site-type", "custom", "ctx.siteType passed to the plugin")
 	credType := fs.String("credential-type", "api_key", "ctx.credentialType passed to the plugin")
+	hook := fs.String("hook", "", "site_provider hook to run: probe, listModels, or check. classify and rewritePayload are covered by test, not run")
 	_ = fs.Parse(args)
 	dir := "."
 	if fs.NArg() > 0 {
@@ -37,45 +44,100 @@ func runRun(args []string) {
 	}
 	built, err := buildProject(dir)
 	if err != nil {
-		fatal(err)
+		return err
 	}
 	_, pkg, plugin, err := built.assemble()
 	if err != nil {
-		fatal(err)
+		return err
 	}
 	kind := pkg.Manifest.Kind
+	if kind == jsplugin.KindSiteProvider {
+		return runSiteProvider(plugin, pkg, *hook, *keyEnv, *baseURL, *siteType, *credType)
+	}
+	if *hook != "" {
+		return fmt.Errorf("--hook is only for site_provider plugins, not %q", kind)
+	}
 	spec := findKind(kind)
 	if spec == nil || spec.Family != jsplugin.FamilyStepped {
-		fatal(fmt.Errorf("run supports the kinds that fetch from a site (quota_probe, model_list, credential_check, site_detect), not %q", kind))
+		return fmt.Errorf("run supports the kinds that fetch from a site (quota_probe, model_list, credential_check, site_detect), not %q", kind)
 	}
+	return runSteppedPlugin(steppedCaller(plugin, kind), pkg, spec.Credential, *keyEnv, *baseURL, *siteType, *credType)
+}
+
+func runSiteProvider(plugin *jsplugin.Plugin, pkg jsplugin.Package, hook, keyEnv, baseURL, siteType, credType string) error {
+	info := findKind(jsplugin.KindSiteProvider)
+	names := []string(nil)
+	if info != nil {
+		names = info.OptionalHooks
+	}
+	exported := exportedHooks(plugin, names)
+	if hook == "" {
+		return fmt.Errorf("--hook is required for site_provider; exported hooks: %s. run supports probe, listModels, check; classify and rewritePayload are covered by xlyra-plugin test", formatHookList(exported))
+	}
+	switch hook {
+	case "classify", "rewritePayload":
+		return fmt.Errorf("run does not drive %s; use xlyra-plugin test", hook)
+	case "probe", "listModels", "check":
+	default:
+		return fmt.Errorf("unknown hook %q; run supports probe, listModels, check", hook)
+	}
+	if !plugin.HasHook(hook) {
+		return fmt.Errorf("hook %q is not exported; exported hooks: %s", hook, formatHookList(exported))
+	}
+	credential := "api_key"
+	if info != nil && info.Credential != "" {
+		credential = info.Credential
+	}
+	return runSteppedPlugin(siteProviderCaller(plugin, hook), pkg, credential, keyEnv, baseURL, siteType, credType)
+}
+
+func formatHookList(hooks []string) string {
+	if len(hooks) == 0 {
+		return "none"
+	}
+	return strings.Join(hooks, ", ")
+}
+
+func exportedHooks(plugin *jsplugin.Plugin, names []string) []string {
+	var out []string
+	for _, name := range names {
+		if plugin.HasHook(name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func runSteppedPlugin(call stepCaller, pkg jsplugin.Package, credential, keyEnv, baseURL, siteType, credType string) error {
 	// site_detect talks to public endpoints only, so it takes no key.
 	secret := ""
-	if spec.Credential == "api_key" {
-		if *keyEnv == "" {
-			fatal(fmt.Errorf("--key-env is required"))
+	if credential == "api_key" {
+		if keyEnv == "" {
+			return fmt.Errorf("--key-env is required")
 		}
-		if secret = os.Getenv(*keyEnv); secret == "" {
-			fatal(fmt.Errorf("environment variable %s is empty", *keyEnv))
+		if secret = os.Getenv(keyEnv); secret == "" {
+			return fmt.Errorf("environment variable %s is empty", keyEnv)
 		}
 	}
 	mode, defaultBase := pkg.Manifest.BaseURLSettings()
-	canonical, err := canonicalBase(mode, defaultBase, *baseURL)
+	canonical, err := canonicalBase(mode, defaultBase, baseURL)
 	if err != nil {
-		fatal(err)
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	result, err := driveSteps(ctx, steppedCaller(plugin, kind), jsplugin.ProbeContext{
-		SiteType:       *siteType,
+	result, err := driveSteps(ctx, call, jsplugin.ProbeContext{
+		SiteType:       siteType,
 		BaseURL:        canonical,
-		CredentialType: *credType,
+		CredentialType: credType,
 		Now:            time.Now().UnixMilli(),
 	}, secret)
 	if err != nil {
-		fatal(err)
+		return err
 	}
 	out, _ := json.MarshalIndent(result, "", "  ")
 	fmt.Fprintln(os.Stdout, string(out))
+	return nil
 }
 
 func findKind(name string) *jsplugin.KindInfo {
@@ -108,6 +170,29 @@ func steppedCaller(plugin *jsplugin.Plugin, kind string) stepCaller {
 			return outcome, err
 		}
 		decision, err := plugin.CallStepped(ctx, probeCtx, steps)
+		outcome := stepOutcome{Request: decision.Request, Error: decision.Error, Logs: decision.Logs}
+		if decision.Result != nil {
+			outcome.Result = jsplugin.ResultToMap(decision.Result)
+		}
+		return outcome, err
+	}
+}
+
+func siteProviderCaller(plugin *jsplugin.Plugin, hook string) stepCaller {
+	return func(ctx context.Context, probeCtx jsplugin.ProbeContext, steps []jsplugin.ProbeStep) (stepOutcome, error) {
+		if hook == "probe" {
+			decision, err := plugin.CallProbe(ctx, probeCtx, steps)
+			outcome := stepOutcome{Request: decision.Request, Error: decision.Error, Logs: decision.Logs}
+			if decision.Result != nil {
+				outcome.Result = resultMap(decision.Result)
+			}
+			return outcome, err
+		}
+		resultKind := jsplugin.KindModelList
+		if hook == "check" {
+			resultKind = jsplugin.KindCredentialCheck
+		}
+		decision, err := plugin.CallSteppedHook(ctx, hook, resultKind, probeCtx, steps)
 		outcome := stepOutcome{Request: decision.Request, Error: decision.Error, Logs: decision.Logs}
 		if decision.Result != nil {
 			outcome.Result = jsplugin.ResultToMap(decision.Result)
@@ -282,11 +367,20 @@ func resultMap(result *jsplugin.ProbeResult) map[string]any {
 	entries := make([]map[string]any, 0, len(result.Entries))
 	for _, entry := range result.Entries {
 		item := map[string]any{"label": entry.Label}
+		if entry.Kind != "" {
+			item["kind"] = entry.Kind
+		}
+		if entry.Name != "" {
+			item["name"] = entry.Name
+		}
 		if entry.Unit != "" {
 			item["unit"] = entry.Unit
 		}
 		if entry.ResetAt != "" {
 			item["resetAt"] = entry.ResetAt
+		}
+		if entry.ExpiresAt != "" {
+			item["expiresAt"] = entry.ExpiresAt
 		}
 		if entry.Unlimited {
 			item["unlimited"] = true

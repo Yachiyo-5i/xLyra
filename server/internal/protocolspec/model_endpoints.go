@@ -3,6 +3,7 @@ package protocolspec
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -28,6 +29,15 @@ var (
 	modelEndpointRegistryData modelEndpointRegistry
 	modelEndpointRegistryErr  error
 )
+
+func IsOpenCodeZenBaseURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || !strings.EqualFold(parsed.Hostname(), "opencode.ai") {
+		return false
+	}
+	path := strings.Trim(strings.TrimSpace(parsed.Path), "/")
+	return path == "zen" || strings.HasPrefix(path, "zen/")
+}
 
 func ResolveModelEndpointTypes(provider string, model string) ([]string, bool, error) {
 	registry, err := loadModelEndpointRegistry()

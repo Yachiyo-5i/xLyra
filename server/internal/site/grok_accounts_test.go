@@ -87,6 +87,67 @@ func TestGrokAccountFromStoreReturnsMaskedDataOnly(t *testing.T) {
 	}
 }
 
+func TestGrokAccountFromStoreEntries(t *testing.T) {
+	t.Parallel()
+
+	credentialID := uuid.New()
+	credential := store.SiteCredential{
+		ID:             credentialID,
+		CredentialType: "grok_sso:" + uuid.NewString(),
+		MaskedSecret:   "sens...oken",
+		Meta:           store.JSON(`{"enabled":true,"tier":"premium"}`),
+	}
+	withEntries := store.SiteAPIKeyState{
+		SiteCredentialID: credentialID,
+		Usage: store.JSON(`{
+			"quota_status":"ok","unit":"percent","used":5,"remaining":95,
+			"period_end":"2026-10-19T17:04:45Z","period_type":"USAGE_PERIOD_TYPE_WEEKLY","product":"GrokBuild",
+			"entries":[{"label":"usage","kind":"window","name":"GrokBuild","unit":"percent","limit":100,"used":5,"remaining":95,"reset_at":"2026-10-19T17:04:45Z"}]
+		}`),
+	}
+	account, ok := grokAccountFromStore(credential, withEntries, nil)
+	if !ok {
+		t.Fatal("grokAccountFromStore() ok = false")
+	}
+	if !account.QuotaKnown || account.QuotaProduct != "GrokBuild" || account.PeriodEnd != "2026-10-19T17:04:45Z" || account.PeriodType != "USAGE_PERIOD_TYPE_WEEKLY" {
+		t.Fatalf("existing quota fields = %#v", account)
+	}
+	if len(account.Entries) != 1 || account.Entries[0].Label != "usage" || account.Entries[0].Kind != "window" || account.Entries[0].Name != "GrokBuild" || account.Entries[0].Unit != "percent" {
+		t.Fatalf("entries = %#v", account.Entries)
+	}
+	if account.Entries[0].Limit == nil || *account.Entries[0].Limit != 100 || account.Entries[0].Used == nil || *account.Entries[0].Used != 5 || account.Entries[0].Remaining == nil || *account.Entries[0].Remaining != 95 {
+		t.Fatalf("entry numbers = %#v", account.Entries[0])
+	}
+	if account.Entries[0].ResetAt == nil || *account.Entries[0].ResetAt != "2026-10-19T17:04:45Z" {
+		t.Fatalf("reset_at = %#v", account.Entries[0].ResetAt)
+	}
+
+	without := store.SiteAPIKeyState{
+		SiteCredentialID: credentialID,
+		Usage:            store.JSON(`{"quota_status":"ok","unit":"percent","used":5,"remaining":95,"period_end":"2026-10-19T17:04:45Z","period_type":"weekly","product":"GrokBuild"}`),
+	}
+	account, ok = grokAccountFromStore(credential, without, nil)
+	if !ok || !account.QuotaKnown || account.QuotaProduct != "GrokBuild" || account.Entries != nil {
+		t.Fatalf("old usage = %#v ok=%v", account, ok)
+	}
+	encoded, err := json.Marshal(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), `"entries"`) {
+		t.Fatalf("entries must be omitted: %s", encoded)
+	}
+
+	broken := store.SiteAPIKeyState{
+		SiteCredentialID: credentialID,
+		Usage:            store.JSON(`{"quota_status":"ok","unit":"percent","used":5,"remaining":95,"period_end":"2026-10-19T17:04:45Z","product":"GrokBuild","entries":{"label":"usage"}}`),
+	}
+	account, ok = grokAccountFromStore(credential, broken, nil)
+	if !ok || !account.QuotaKnown || account.QuotaProduct != "GrokBuild" || account.Entries != nil {
+		t.Fatalf("bad entries must not drop existing fields: %#v ok=%v", account, ok)
+	}
+}
+
 func TestGrokAccountFromStoreImageModelShowsUpstreamName(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +175,7 @@ func TestGrokAccountFromStoreImageModelShowsUpstreamName(t *testing.T) {
 	}
 }
 
-func TestDeleteGrokAccountRelationsCleansDynamicState(t *testing.T) {
+func TestDeleteAccountRelationsCleansDynamicState(t *testing.T) {
 	t.Parallel()
 
 	siteID := uuid.New()
@@ -136,8 +197,8 @@ func TestDeleteGrokAccountRelationsCleansDynamicState(t *testing.T) {
 			tx.Statement.RowsAffected = 1
 		},
 	})
-	if err := deleteGrokAccountRelations(context.Background(), db, siteID, credentialID); err != nil {
-		t.Fatalf("deleteGrokAccountRelations() error = %v", err)
+	if err := deleteAccountRelations(context.Background(), db, siteID, credentialID); err != nil {
+		t.Fatalf("deleteAccountRelations() error = %v", err)
 	}
 	for _, key := range []string{"cooldown", "model", "state", "credential"} {
 		if deleted[key] != 1 {

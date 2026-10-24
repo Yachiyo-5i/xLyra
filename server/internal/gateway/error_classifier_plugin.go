@@ -9,6 +9,7 @@ import (
 
 	"xlyra/server/internal/jsplugin"
 	routeengine "xlyra/server/internal/router"
+	sitepkg "xlyra/server/internal/site"
 	"xlyra/server/internal/upstream"
 )
 
@@ -19,50 +20,79 @@ const (
 	errorClassifierWait = 250 * time.Millisecond
 )
 
-// applyErrorClassifierPlugin lets the error_classifier plugin bound to the
-// candidate's site correct the default classification of an upstream error.
+// applyErrorClassifierPlugin lets the error_classifier bound to the candidate,
+// or the site type's classify hook, correct the default classification of an
+// upstream error.
 //
 // The plugin sees only the status and the code, type and message the default
 // classifier already read from the body. It can pick a class and nothing else:
 // cooldown length, retry timing and routing are still computed here from the
-// class. A verdict of "unknown", a missing plugin or any failure leaves the
-// default classification untouched.
+// class. A verdict of "unknown", an unrecognized class, a missing plugin or
+// any failure leaves the default classification untouched. A bound
+// error_classifier wins over the site type hook.
 func applyErrorClassifierPlugin(candidate routeengine.Candidate, statusCode int, failure upstream.Failure) upstream.Failure {
-	pluginID := candidate.Site.ErrorClassifierPlugin
-	if pluginID == "" {
-		return failure
-	}
-	registry := jsplugin.DefaultCatalog().Registry()
-	if registry == nil {
-		return failure
-	}
-	plugin, ok := registry.ByPluginID(pluginID)
-	if !ok || plugin.Manifest.Kind != jsplugin.KindErrorClassifier {
+	plugin, pluginID := classifyPlugin(candidate)
+	if plugin == nil {
 		return failure
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), errorClassifierWait)
 	defer cancel()
-	verdict, err := plugin.CallErrorClassify(ctx,
-		jsplugin.ErrorClassifyContext{SiteType: candidate.Site.SiteType},
-		jsplugin.ErrorClassifyInput{
-			Status:  statusCode,
-			Code:    failure.Code,
-			Type:    failure.Type,
-			Message: clipMessage(failure.Message, errorClassifierMessageLimit),
-		})
+	classifyCtx := jsplugin.ErrorClassifyContext{SiteType: candidate.Site.SiteType}
+	input := jsplugin.ErrorClassifyInput{
+		Status:  statusCode,
+		Code:    failure.Code,
+		Type:    failure.Type,
+		Message: clipMessage(failure.Message, errorClassifierMessageLimit),
+	}
+	var (
+		verdict jsplugin.ErrorClassifyResult
+		err     error
+	)
+	if plugin.Manifest.Kind == jsplugin.KindSiteProvider {
+		verdict, err = plugin.CallErrorClassifyHook(ctx, "classify", classifyCtx, input)
+	} else {
+		verdict, err = plugin.CallErrorClassify(ctx, classifyCtx, input)
+	}
 	if breaker := jsplugin.DefaultCatalog().Breaker(); breaker != nil {
-		breaker.RecordProtocolCall(plugin, err != nil, isInterruption(err))
+		if plugin.Manifest.Kind == jsplugin.KindSiteProvider {
+			breaker.RecordProbeResult(plugin, err == nil)
+		} else {
+			breaker.RecordProtocolCall(plugin, err != nil, isInterruption(err))
+		}
 	}
 	if err != nil {
 		slog.Default().Warn("error_classifier plugin failed", "plugin_id", pluginID, "site_id", candidate.Site.ID, "error", err)
 		return failure
 	}
-	if verdict.Class == string(upstream.FailureUnknown) {
+	switch upstream.FailureClass(verdict.Class) {
+	case upstream.FailureLimited, upstream.FailureSubscriptionLimit, upstream.FailureTransient, upstream.FailureCredentialInvalid:
+		failure.Class = upstream.FailureClass(verdict.Class)
+		failure.Reason = strings.TrimSpace(verdict.Reason)
+		return failure
+	default:
 		return failure
 	}
-	failure.Class = upstream.FailureClass(verdict.Class)
-	failure.Reason = strings.TrimSpace(verdict.Reason)
-	return failure
+}
+
+// classifyPlugin resolves the classifier for one candidate. A bound
+// error_classifier wins. Otherwise a plugin site type's classify hook is used.
+// Built-in site types (no "/") are not looked up.
+func classifyPlugin(candidate routeengine.Candidate) (*jsplugin.Plugin, string) {
+	if pluginID := candidate.Site.ErrorClassifierPlugin; pluginID != "" {
+		if registry := jsplugin.DefaultCatalog().Registry(); registry != nil {
+			if plugin, ok := registry.ByPluginID(pluginID); ok && plugin.Manifest.Kind == jsplugin.KindErrorClassifier {
+				return plugin, pluginID
+			}
+		}
+	}
+	if !strings.Contains(candidate.Site.SiteType, "/") {
+		return nil, ""
+	}
+	plugin, ok := sitepkg.ProviderHookPlugin(jsplugin.DefaultCatalog().Registry(), candidate.Site.SiteType, "classify")
+	if !ok {
+		return nil, ""
+	}
+	return plugin, plugin.Manifest.ID
 }
 
 func isInterruption(err error) bool {

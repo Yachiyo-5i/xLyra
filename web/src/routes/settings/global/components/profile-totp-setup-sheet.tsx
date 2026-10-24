@@ -48,13 +48,13 @@ export function ProfileTOTPSetupSheet({
           <SheetTitle>{t('profile.totp.setupSheet.title')}</SheetTitle>
         </SheetHeader>
         <SheetBody className="space-y-5">
-          <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-3 gap-2 text-footnote">
             {steps.map((item, index) => (
               <div
                 key={item}
-                className="rounded-lg bg-[hsl(var(--surface-subtle))] px-3 py-2 text-muted-soft"
+                className="rounded-inner bg-fill-3 px-3 py-2 text-label-2"
               >
-                <span className="mr-1 font-semibold text-foreground">{index + 1}</span>
+                <span className="mr-1 font-semibold text-label">{index + 1}</span>
                 {item}
               </div>
             ))}
@@ -62,9 +62,9 @@ export function ProfileTOTPSetupSheet({
 
           {setupPending ? (
             <div className="space-y-4">
-              <div className="mx-auto h-[216px] w-[216px] animate-pulse rounded-lg bg-[hsl(var(--surface-subtle))]" />
-              <div className="h-10 animate-pulse rounded-md bg-[hsl(var(--surface-subtle))]" />
-              <div className="h-10 animate-pulse rounded-md bg-[hsl(var(--surface-subtle))]" />
+              <div className="mx-auto h-[216px] w-[216px] animate-pulse rounded-inner bg-fill-3" />
+              <div className="h-10 animate-pulse rounded-control bg-fill-3" />
+              <div className="h-10 animate-pulse rounded-control bg-fill-3" />
             </div>
           ) : setup ? (
             <div className="space-y-5">
@@ -93,7 +93,7 @@ export function ProfileTOTPSetupSheet({
               </FormField>
             </div>
           ) : (
-            <div className="rounded-lg bg-[hsl(var(--surface-subtle))] px-4 py-3 text-sm text-muted-soft">
+            <div className="rounded-inner bg-fill-3 px-4 py-3 text-body text-label-2">
               {t('profile.totp.setupSheet.noQRCode')}
             </div>
           )}

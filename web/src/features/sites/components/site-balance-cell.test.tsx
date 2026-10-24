@@ -82,10 +82,9 @@ describe('GLM quota details', () => {
           onDelete={noop}
           onOpenModels={noop}
           onOpenAPIKeys={noop}
-          onOpenGrokAccounts={noop}
+          onOpenAccounts={noop}
           onOpenTest={noop}
           onOpenUsageSplit={noop}
-          resolvedMode="light"
           siteTypes={[]}
         />
       </I18nextProvider>,
@@ -179,10 +178,9 @@ describe('DeepSeek balance details', () => {
           onDelete={noop}
           onOpenModels={noop}
           onOpenAPIKeys={noop}
-          onOpenGrokAccounts={noop}
+          onOpenAccounts={noop}
           onOpenTest={noop}
           onOpenUsageSplit={noop}
-          resolvedMode="light"
           siteTypes={[]}
         />
       </I18nextProvider>,
@@ -272,10 +270,9 @@ describe('Moonshot balance details', () => {
           onDelete={noop}
           onOpenModels={noop}
           onOpenAPIKeys={noop}
-          onOpenGrokAccounts={noop}
+          onOpenAccounts={noop}
           onOpenTest={noop}
           onOpenUsageSplit={noop}
-          resolvedMode="light"
           siteTypes={[]}
         />
       </I18nextProvider>,

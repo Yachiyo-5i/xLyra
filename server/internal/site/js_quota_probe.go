@@ -17,24 +17,41 @@ import (
 )
 
 func (s *Service) probeQuota(ctx context.Context, client *http.Client, probeType, siteType, credentialType, baseURL, secret string) QuotaProbeResult {
-	registry := s.activeJSRegistry()
-	if registry == nil {
+	if s.activeJSRegistry() == nil && !strings.Contains(probeType, "/") {
 		return quotaProbeUnavailable("js plugin registry is not available")
 	}
 	if !jsplugin.HeapLimitAvailable() {
 		return quotaProbeUnavailable("js plugin allocation budget is not available")
 	}
-	var plugin *jsplugin.Plugin
-	var ok bool
-	if strings.HasPrefix(probeType, QuotaProbePluginPrefix) {
-		plugin, ok = registry.ByPluginID(strings.TrimPrefix(probeType, QuotaProbePluginPrefix))
-	} else {
-		plugin, ok = registry.ByProbeType(probeType)
-	}
+	plugin, ok := s.quotaProbePlugin(probeType, siteType)
 	if !ok {
+		if s.activeJSRegistry() == nil {
+			return quotaProbeUnavailable("js plugin registry is not available")
+		}
 		return quotaProbeUnavailable(fmt.Sprintf("quota probe %q is not loaded", probeType))
 	}
 	return probeQuotaJS(ctx, client, plugin, siteType, credentialType, baseURL, secret)
+}
+
+// quotaProbePlugin selects the probe implementation. An explicit plugin: id
+// stays on that package. A probe type that contains "/" is a plugin site type
+// and uses that site's probe hook, never the built-in probe registry.
+func (s *Service) quotaProbePlugin(probeType, siteType string) (*jsplugin.Plugin, bool) {
+	if strings.HasPrefix(probeType, QuotaProbePluginPrefix) {
+		registry := s.activeJSRegistry()
+		if registry == nil {
+			return nil, false
+		}
+		return registry.ByPluginID(strings.TrimPrefix(probeType, QuotaProbePluginPrefix))
+	}
+	if strings.Contains(probeType, "/") {
+		return s.siteTypeHookPlugin(siteType, "probe")
+	}
+	registry := s.activeJSRegistry()
+	if registry == nil {
+		return nil, false
+	}
+	return registry.ByProbeType(probeType)
 }
 
 // probeQuota runs a built-in quota probe plugin. Tests use this entry point.
@@ -158,7 +175,8 @@ func probeQuotaJS(ctx context.Context, client *http.Client, plugin *jsplugin.Plu
 			return result
 		}
 		if decision.Result != nil {
-			return quotaResultFromJS(result, decision.Result)
+			result = quotaResultFromJS(result, decision.Result)
+			return result
 		}
 		if decision.Request == nil {
 			result.Error = jsplugin.KindShape + ": probe return value: expected exactly one of request, result, error"
@@ -166,6 +184,15 @@ func probeQuotaJS(ctx context.Context, client *http.Client, plugin *jsplugin.Plu
 		}
 		if step == jsplugin.MaxProbeSteps-1 {
 			result.Error = "probe exceeded 6 steps"
+			return result
+		}
+		target, resolveErr := jsplugin.ResolveProbeURL(canonical, decision.Request.Path, decision.Request.Query)
+		if resolveErr != nil {
+			result.Error = (&jsplugin.CallError{Kind: jsplugin.KindURLRejected, Detail: resolveErr.Error()}).Error()
+			return result
+		}
+		if hostErr := CheckPluginHost(siteType, target); hostErr != nil {
+			result.Error = hostErr.Error()
 			return result
 		}
 		response, err := doProbeHTTP(ctx, &httpClient, canonical, secret, decision.Request)
@@ -194,6 +221,8 @@ func quotaResultFromJS(result QuotaProbeResult, parsed *jsplugin.ProbeResult) Qu
 	for _, entry := range parsed.Entries {
 		converted := QuotaProbeEntry{
 			Label:           entry.Label,
+			Kind:            entry.Kind,
+			Name:            entry.Name,
 			Unit:            entry.Unit,
 			Remaining:       entry.Remaining,
 			Limit:           entry.Limit,
@@ -207,6 +236,10 @@ func quotaResultFromJS(result QuotaProbeResult, parsed *jsplugin.ProbeResult) Qu
 		if entry.ResetAt != "" {
 			reset := entry.ResetAt
 			converted.ResetAt = &reset
+		}
+		if entry.ExpiresAt != "" {
+			expires := entry.ExpiresAt
+			converted.ExpiresAt = &expires
 		}
 		entries = append(entries, converted)
 	}
@@ -302,11 +335,11 @@ func encodeProbeBody(body any) ([]byte, error) {
 }
 
 func canonicalQuotaBase(plugin *jsplugin.Plugin, baseURL string) (string, error) {
-	mode := plugin.Manifest.QuotaProbe.BaseURLMode
+	mode, defaultBase := plugin.Manifest.BaseURLSettings()
 	if mode == "" {
 		mode = "as_is"
 	}
-	return canonicalFromMode(mode, plugin.Manifest.QuotaProbe.DefaultBaseURL, baseURL)
+	return canonicalFromMode(mode, defaultBase, baseURL)
 }
 
 type redirectRejectedError struct {

@@ -24,7 +24,7 @@ export function OAuthProxySelect({
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium text-foreground">{t('edit.fields.proxy')}</div>
+      <div className="text-body font-medium text-label">{t('edit.fields.proxy')}</div>
       <Select value={value || 'direct'} onValueChange={onChange} disabled={disabled || systemProxyQuery.isLoading}>
         <SelectTrigger>
           <SelectValue />
@@ -38,7 +38,7 @@ export function OAuthProxySelect({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-xs leading-5 text-muted-soft">{t('edit.fields.proxyDesc')}</p>
+      <p className="text-footnote leading-5 text-label-2">{t('edit.fields.proxyDesc')}</p>
     </div>
   )
 }

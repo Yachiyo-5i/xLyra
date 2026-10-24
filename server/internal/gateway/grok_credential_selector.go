@@ -25,11 +25,11 @@ func grokCredentialCandidates(credentials []store.GatewayCredential, states []st
 	}
 	result := make([]grokCredentialCandidate, 0, len(credentials))
 	for _, credential := range credentials {
-		if !strings.HasPrefix(credential.Credential.CredentialType, "grok_sso:") {
+		if !strings.HasPrefix(credential.Credential.CredentialType, store.CredentialPrefixGrok) {
 			continue
 		}
 		state, hasState := statesByCredentialID[credential.Credential.ID]
-		if !grokCredentialUsable(credential.Credential, state, hasState) {
+		if !accountCredentialUsable(credential.Credential, state, hasState) {
 			continue
 		}
 		remainingQuota := int64(0)
@@ -43,7 +43,7 @@ func grokCredentialCandidates(credentials []store.GatewayCredential, states []st
 	return result
 }
 
-func grokCredentialUsable(credential store.SiteCredential, state store.SiteAPIKeyState, hasState bool) bool {
+func accountCredentialUsable(credential store.SiteCredential, state store.SiteAPIKeyState, hasState bool) bool {
 	if !gatewayCredentialUsable(credential) {
 		return false
 	}
@@ -57,27 +57,27 @@ func grokCredentialUsable(credential store.SiteCredential, state store.SiteAPIKe
 	return true
 }
 
-func shouldMarkGrokCredentialSyncFailed(result gatewayAttemptResult) bool {
+func shouldMarkAccountCredentialSyncFailed(result gatewayAttemptResult) bool {
 	if result.errorType != "upstream_http_error" {
 		return false
 	}
 	return result.upstreamStatusCode == http.StatusUnauthorized
 }
 
-func (h Handler) markGrokCredentialSyncFailed(ctx context.Context, credential store.SiteCredential, result gatewayAttemptResult) {
-	if h.db == nil || credential.ID == uuid.Nil || !shouldMarkGrokCredentialSyncFailed(result) {
+func (h Handler) markAccountCredentialSyncFailed(ctx context.Context, credential store.SiteCredential, provider string, result gatewayAttemptResult) {
+	if h.db == nil || credential.ID == uuid.Nil || !shouldMarkAccountCredentialSyncFailed(result) {
 		return
 	}
-	message := fmt.Sprintf("grok upstream returned status %d", result.upstreamStatusCode)
-	h.markGrokCredentialReauthRequired(ctx, credential, message)
+	message := fmt.Sprintf("%s upstream returned status %d", provider, result.upstreamStatusCode)
+	h.markAccountCredentialReauthRequired(ctx, credential, message)
 }
 
-func (h Handler) markGrokCredentialReauthRequired(ctx context.Context, credential store.SiteCredential, message string) {
+func (h Handler) markAccountCredentialReauthRequired(ctx context.Context, credential store.SiteCredential, message string) {
 	if h.db == nil || credential.ID == uuid.Nil {
 		return
 	}
 	err := h.db.WithinTx(ctx, func(tx store.Tx) error {
-		meta, err := disabledGrokCredentialMeta(credential.Meta)
+		meta, err := disabledAccountCredentialMeta(credential.Meta)
 		if err != nil {
 			return err
 		}
@@ -101,11 +101,11 @@ func (h Handler) markGrokCredentialReauthRequired(ctx context.Context, credentia
 		return err
 	})
 	if err != nil && h.logger != nil {
-		h.logger.WarnContext(ctx, "failed to update grok credential sync state", "scope", "gateway", "site_id", credential.SiteID, "site_credential_id", credential.ID, "error", err)
+		h.logger.WarnContext(ctx, "failed to update account credential sync state", "scope", "gateway", "site_id", credential.SiteID, "site_credential_id", credential.ID, "error", err)
 	}
 }
 
-func disabledGrokCredentialMeta(raw store.JSON) (store.JSON, error) {
+func disabledAccountCredentialMeta(raw store.JSON) (store.JSON, error) {
 	meta := map[string]any{}
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &meta); err != nil {

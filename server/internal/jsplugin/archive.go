@@ -65,10 +65,8 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 		if err := json.Unmarshal(rawFixture, &fixture); err != nil {
 			return Package{}, fmt.Errorf("%s: %w", name, err)
 		}
+		fixture.File = name
 		fixtures = append(fixtures, fixture)
-	}
-	if requireFixtures && len(fixtures) == 0 {
-		return Package{}, fmt.Errorf("at least one fixtures/*.json is required")
 	}
 	manifest, err := ParseManifest(manifestRaw)
 	if err != nil {
@@ -77,8 +75,11 @@ func ReadPackage(raw []byte, requireFixtures bool) (Package, error) {
 	if err := validateUploadedManifest(manifest); err != nil {
 		return Package{}, err
 	}
-	if err := validateManifest(manifest, string(source)); err != nil {
+	if err := validateManifestFiles(manifest, string(source), files); err != nil {
 		return Package{}, err
+	}
+	if requireFixtures && len(fixtures) == 0 && manifest.Kind != KindSiteProvider {
+		return Package{}, fmt.Errorf("at least one fixtures/*.json is required")
 	}
 	signer := ""
 	if sigRaw := files[signatureFileName]; len(sigRaw) > 0 {
@@ -143,6 +144,28 @@ func validateUploadedManifest(manifest Manifest) error {
 	return nil
 }
 
+func packageFile(raw []byte, name string) ([]byte, error) {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("package is empty")
+	}
+	if len(raw) > MaxPackageBytes {
+		return nil, fmt.Errorf("package exceeds %d bytes", MaxPackageBytes)
+	}
+	reader, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		return nil, fmt.Errorf("package is not a zip archive: %w", err)
+	}
+	files, err := readPackageFiles(reader)
+	if err != nil {
+		return nil, err
+	}
+	data, ok := files[name]
+	if !ok {
+		return nil, fmt.Errorf("file %q is not in the package", name)
+	}
+	return data, nil
+}
+
 func readZipEntry(file *zip.File, limit int) ([]byte, error) {
 	rc, err := file.Open()
 	if err != nil {
@@ -161,7 +184,12 @@ func readZipEntry(file *zip.File, limit int) ([]byte, error) {
 
 // CompilePackage builds a runtime plugin from a decoded package.
 func CompilePackage(pkg Package) (*Plugin, error) {
-	return NewPlugin(pkg.Manifest, pkg.Source, pkg.Fixtures, 0)
+	plugin, err := NewPlugin(pkg.Manifest, pkg.Source, pkg.Fixtures, 0)
+	if err != nil {
+		return nil, err
+	}
+	plugin.packageSHA256 = pkg.SHA256
+	return plugin, nil
 }
 
 // Contract versions this build supports; the developer CLI prints them.

@@ -33,7 +33,10 @@
       "refreshPartialDescFallback": "部分站点刷新失败",
       "statusFailed": "站点状态更新失败",
       "syncQueued": "已保存，正在后台同步"
-    }
+    },
+    "count": "共 {{count}} 个站点",
+    "clearFilters": "清除筛选",
+    "typeFilter": "类型"
   },
   "table": {
     "headers": {
@@ -91,16 +94,20 @@
     "resources": {
       "models": "{{count}} 个模型",
       "keys": "{{enabled}}/{{total}} 个 Key",
-      "accounts": "{{count}} 个账号"
+      "accounts": "{{valid}}/{{total}} 个账号"
     },
     "updatedAtMode": {
       "showAbsolute": "切换为绝对时间",
       "showRelative": "切换为相对时间"
-    }
+    },
+    "providerUnavailable": "提供方插件未启用",
+    "providerUnavailableHint": "该站点类型由插件提供，插件已停用或卸载；站点数据保留，但不参与路由"
   },
   "form": {
     "createTitle": "新增站点",
+    "backToProviders": "返回服务商列表",
     "editTitle": "编辑站点",
+    "pluginTag": "插件",
     "sections": {
       "basic": "基础信息",
       "connection": "连接配置",
@@ -214,7 +221,8 @@
       "addHeader": "添加 Header",
       "removeHeader": "删除 Header"
     },
-    "grokDeviceHint": "站点创建后再添加 Grok 账号——打开站点的账号面板，通过 xAI 设备授权登录。"
+    "grokDeviceHint": "站点创建后再添加 Grok 账号——打开站点的账号面板，通过 xAI 设备授权登录。",
+    "accountLoginHint": "站点创建后再添加账号——打开站点的账号面板，按页面提示完成登录。"
   },
   "apiKeys": {
     "title": "APIKey",
@@ -238,6 +246,7 @@
     "complete": "补全",
     "refresh": "刷新",
     "refreshLabel": "刷新 {{name}}",
+    "refreshAll": "全部刷新",
     "delete": "删除 Apikey",
     "deleteLabel": "删除 {{name}}",
     "save": "保存",
@@ -258,7 +267,11 @@
       "updated": "已更新",
       "modelToggleFailed": "模型开关更新失败",
       "refreshed": "Key 状态已刷新",
-      "refreshFailed": "Key 刷新失败"
+      "refreshFailed": "Key 刷新失败",
+      "refreshedAll": "全部 Key 已刷新",
+      "refreshAllPartial": "部分 Key 刷新失败",
+      "refreshAllPartialDesc": "{{count}} 把 Key 刷新失败：{{message}}",
+      "refreshAllFailed": "Key 批量刷新失败"
     },
     "deleteDialog": {
       "title": "删除 Apikey",
@@ -289,6 +302,92 @@
       "unknown": "未同步",
       "pending": "等待同步",
       "syncing": "同步中"
+    }
+  },
+  "accountModels": {
+    "available": "可用模型",
+    "backToAccounts": "返回账号列表",
+    "cancel": "取消",
+    "save": "保存",
+    "protocol": {
+      "title": "配置模型协议",
+      "configure": "配置协议",
+      "configureLabel": "配置 {{name}} 协议",
+      "description": "选择该账号请求此模型时允许使用的上游协议。",
+      "namedDescription": "为 {{name}} 选择该账号允许使用的上游协议。",
+      "modeInherit": "当前使用站点默认协议",
+      "modeAllowlist": "当前仅使用已勾选协议",
+      "modeDisabled": "当前已禁用全部协议",
+      "empty": "该模型没有可配置的协议"
+    }
+  },
+  "accounts": {
+    "title": "账号",
+    "add": "添加账号",
+    "import": "导入账号",
+    "loading": "正在加载账号",
+    "empty": "暂无账号",
+    "unnamed": "账号",
+    "refresh": "刷新账号",
+    "refreshAll": "全部刷新",
+    "reauthorize": "重新授权账号",
+    "delete": "删除账号",
+    "toggleLabel": "切换 {{name}}",
+    "cancel": "取消",
+    "toast": {
+      "created": "账号已创建",
+      "updateFailed": "账号更新失败",
+      "updated": "账号已更新",
+      "deleteFailed": "账号删除失败",
+      "deleted": "账号已删除",
+      "refreshed": "账号已刷新",
+      "refreshFailed": "账号刷新失败",
+      "refreshedAll": "全部账号已刷新",
+      "refreshAllPartial": "部分账号刷新失败",
+      "refreshAllPartialDesc": "{{count}} 个账号刷新失败",
+      "refreshAllFailed": "账号批量刷新失败"
+    },
+    "deleteDialog": {
+      "title": "删除账号",
+      "confirm": "确定删除「{{name}}」？该账号的状态、额度和模型关系也会一起删除。",
+      "delete": "确认删除"
+    },
+    "login": {
+      "title": "添加账号",
+      "reauthTitle": "重新授权账号",
+      "starting": "正在准备登录…",
+      "instructions": "在打开的页面完成授权。如果页面没有打开，请点击下方按钮。",
+      "authorize": "打开授权页面",
+      "waiting": "等待授权中…"
+    },
+    "sync": {
+      "synced": "已同步",
+      "failed": "失败",
+      "reauthRequired": "需要重新授权",
+      "stale": "使用上次同步模型",
+      "partial": "部分",
+      "unknown": "未同步"
+    },
+    "regionDialog": {
+      "title": "选择区域",
+      "description": "请选择账号所在区域，之后会跳转到对应地址完成登录。",
+      "continue": "继续登录"
+    },
+    "importDialog": {
+      "title": "导入账号",
+      "dropzone": "拖拽 JSON 文件到此处，或点击选择",
+      "hint": "上传该站点类型的账号 JSON，由服务端解析",
+      "selectedCount": "已选择 {{count}} 个文件",
+      "import": "导入",
+      "importWithCount": "导入 {{count}} 个文件",
+      "cancel": "取消",
+      "done": "完成",
+      "summary": "共 {{total}} 个账号，成功 {{imported}} 个，失败 {{failed}} 个",
+      "imported": "已导入",
+      "failed": "失败",
+      "unnamed": "未命名账号",
+      "toastDone": "账号导入完成",
+      "toastFailed": "账号导入失败"
     }
   },
   "grokAccounts": {
@@ -339,6 +438,7 @@
       "unknown": "未同步"
     }
   },
+
   "test": {
     "title": "{{name}} 模型测试",
     "headers": {
@@ -418,6 +518,15 @@
       "deleteFailed": "模型删除失败",
       "deleteSuccess": "模型已删除"
     }
+  },
+
+  "quotaEntries": {
+    "allowance": "套餐额度",
+    "credits": "积分",
+    "balance": "余额",
+    "resetsOn": "{{date}} 重置",
+    "expiresOn": "{{date}} 到期",
+    "unknown": "额度未同步，点击刷新账号获取"
   },
   "utils": {
     "justNow": "刚刚"

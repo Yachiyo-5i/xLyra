@@ -175,7 +175,11 @@ func (r RouteCandidateRepository) ListByCanonicalModel(ctx context.Context, cano
 		fillRouteKeyCounts(&row, apiKeyModels, credentialsByID, keyStatesByCredentialID, cooldowns)
 		fillRouteSiteCredentialCount(&row, credentials, keyStatesByCredentialID, cooldowns)
 		fillRoutePricing(&row, pricings)
-		row.SupportedEndpointTypes = effectiveSupportedEndpointTypes(canonical, model, overrideByModel[model.ID])
+		endpointPolicy, err := ResolveSiteModelEndpointPolicyForSite(canonical, model, overrideByModel[model.ID], site.SiteType, site.BaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("resolve route candidate endpoint policy: %w", err)
+		}
+		row.SupportedEndpointTypes = endpointPolicy.SupportedEndpointTypes
 		items = append(items, row)
 	}
 	sort.SliceStable(items, func(i, j int) bool {
@@ -244,7 +248,7 @@ func fillRouteKeyCounts(row *RouteCandidateRow, apiKeyModels []SiteAPIKeyModel, 
 		}
 		total[apiKeyModel.SiteCredentialID] = struct{}{}
 		credential, ok := credentials[apiKeyModel.SiteCredentialID]
-		if !ok || credential.ID == uuid.Nil || credential.SiteID != row.SiteID || !isModelBoundCredentialType(credential.CredentialType) {
+		if !ok || credential.ID == uuid.Nil || credential.SiteID != row.SiteID || !IsModelBoundCredentialType(credential.CredentialType) {
 			continue
 		}
 		state := states[apiKeyModel.SiteCredentialID]
@@ -268,7 +272,7 @@ func fillRouteSiteCredentialCount(row *RouteCandidateRow, credentials []SiteCred
 	items := make([]GatewayCredential, 0)
 	now := time.Now()
 	for _, credential := range credentials {
-		if credential.SiteID != row.SiteID || !isAPIKeyCredentialType(credential.CredentialType) || !credentialUsable(credential) || credentialCooling(cooldowns, row.SiteID, uuid.Nil, credential.ID) {
+		if credential.SiteID != row.SiteID || !IsAPIKeyCredentialType(credential.CredentialType) || !credentialUsable(credential) || credentialCooling(cooldowns, row.SiteID, uuid.Nil, credential.ID) {
 			continue
 		}
 		state := states[credential.ID]

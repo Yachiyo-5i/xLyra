@@ -2,8 +2,10 @@ package adapter
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -250,11 +252,19 @@ type PricingParser interface {
 type Registry struct {
 	modulesByType map[string]Module
 	modules       []Module
+	// dynamic is shared by copies of a Registry. The snapshot is immutable; readers load it without a lock.
+	dynamic *atomic.Pointer[dynamicModuleSnapshot]
+}
+
+type dynamicModuleSnapshot struct {
+	byType  map[string]Module
+	modules []Module
 }
 
 func NewRegistry() Registry {
 	registry := Registry{
 		modulesByType: map[string]Module{},
+		dynamic:       &atomic.Pointer[dynamicModuleSnapshot]{},
 	}
 	registry.Register(NewCodex())
 	registry.Register(NewAntigravity())
@@ -284,14 +294,91 @@ func (r *Registry) Register(module Module) {
 }
 
 func (r Registry) ModuleForSiteType(siteType string) (Module, bool) {
-	module, ok := r.modulesByType[normalizeSiteType(siteType)]
+	key := normalizeSiteType(siteType)
+	if module, ok := r.modulesByType[key]; ok {
+		return module, true
+	}
+	snapshot := r.dynamicModules()
+	if snapshot == nil {
+		return nil, false
+	}
+	module, ok := snapshot.byType[key]
 	return module, ok
 }
 
 func (r Registry) Modules() []Module {
-	modules := make([]Module, len(r.modules))
-	copy(modules, r.modules)
+	modules := make([]Module, 0, len(r.modules))
+	modules = append(modules, r.modules...)
+	if snapshot := r.dynamicModules(); snapshot != nil {
+		modules = append(modules, snapshot.modules...)
+	}
 	return modules
+}
+
+func (r *Registry) SetDynamicModules(modules []Module) error {
+	if r == nil {
+		return fmt.Errorf("registry is nil")
+	}
+	snapshot, err := newDynamicModuleSnapshot(r.modulesByType, modules)
+	if err != nil {
+		return err
+	}
+	r.ensureDynamic().Store(snapshot)
+	return nil
+}
+
+func (r *Registry) ClearDynamicModules() {
+	if r == nil || r.dynamic == nil {
+		return
+	}
+	r.dynamic.Store(nil)
+}
+
+func (r *Registry) ensureDynamic() *atomic.Pointer[dynamicModuleSnapshot] {
+	if r.dynamic == nil {
+		r.dynamic = &atomic.Pointer[dynamicModuleSnapshot]{}
+	}
+	return r.dynamic
+}
+
+func (r Registry) dynamicModules() *dynamicModuleSnapshot {
+	if r.dynamic == nil {
+		return nil
+	}
+	return r.dynamic.Load()
+}
+
+func newDynamicModuleSnapshot(static map[string]Module, modules []Module) (*dynamicModuleSnapshot, error) {
+	byType := make(map[string]Module, len(modules))
+	listed := make([]Module, 0, len(modules))
+	for _, module := range modules {
+		if module == nil {
+			return nil, fmt.Errorf("dynamic module is nil")
+		}
+		siteTypes := module.SiteTypes()
+		if len(siteTypes) == 0 {
+			return nil, fmt.Errorf("dynamic module has no site type")
+		}
+		added := false
+		for _, siteType := range siteTypes {
+			id := normalizeSiteType(siteType)
+			if !strings.Contains(id, "/") {
+				return nil, fmt.Errorf("dynamic module site type %q must contain \"/\"", id)
+			}
+			if _, ok := static[id]; ok {
+				return nil, fmt.Errorf("dynamic module site type %q conflicts with a built-in site type", id)
+			}
+			if _, ok := byType[id]; ok {
+				return nil, fmt.Errorf("duplicate dynamic module site type %q", id)
+			}
+			byType[id] = module
+			if !added {
+				listed = append(listed, module)
+				added = true
+			}
+		}
+	}
+	return &dynamicModuleSnapshot{byType: byType, modules: listed}, nil
 }
 
 func AsCredentialValidator(module Module) (CredentialValidator, bool) {
@@ -419,7 +506,7 @@ func ModuleCapabilities(module Module) []Capability {
 }
 
 func normalizeSiteType(siteType string) string {
-	return strings.TrimSpace(siteType)
+	return strings.ToLower(strings.TrimSpace(siteType))
 }
 
 func uniqueCapabilities(values []Capability) []Capability {

@@ -1,0 +1,71 @@
+import type { PluginMeta } from "../types/xlyra";
+
+export const meta: PluginMeta = { apiVersion: 1, id: "{{.ID}}", kind: "site_provider" };
+
+// 五个钩子都是可选的，默认不导出，取消注释后宿主才会调用。
+// 取消注释某个钩子后，在 fixtures/ 下添加带 hook 字段的样本，再用 xlyra-plugin test 自检。
+//
+// 取消注释时补上类型导入，例如：
+// import type { CredentialCheckDecision, ErrorClassifyContext, ErrorClassifyInput, ErrorClassifyResult, ModelListDecision, ProbeContext, ProbeDecision, ProbeStep, RewritePayloadContext } from "../types/xlyra";
+//
+// 样本示例（保存为 fixtures/list-models.json）：
+// {
+//   "name": "list models",
+//   "hook": "listModels",
+//   "ctx": { "siteType": "{{.ID}}/example", "baseURL": "https://api.example.com", "credentialType": "api_key", "now": 0 },
+//   "responses": [
+//     { "match": { "method": "GET", "path": "/v1/models" }, "status": 200, "json": { "data": [{ "id": "demo" }] } }
+//   ],
+//   "expect": {
+//     "requests": [{ "path": "/v1/models" }],
+//     "result": { "models": [{ "name": "demo" }] }
+//   }
+// }
+//
+// probe、check 的样本与 listModels 一样是分步样本，classify、rewritePayload 不写 responses，
+// 用 input 和 expect.result（或 expect.error 子串）。hook 必须是要测的导出名字。
+//
+// export function probe(_ctx: ProbeContext, steps: ProbeStep[]): ProbeDecision {
+//   if (steps.length === 0) {
+//     return { request: { method: "GET", path: "/api/usage" } };
+//   }
+//   const body = steps[0].response.json;
+//   if (steps[0].response.status !== 200 || body == null) {
+//     return { error: `usage endpoint returned ${steps[0].response.status}` };
+//   }
+//   const limit = Number(body.total);
+//   const used = Number(body.used);
+//   return { result: { kind: "balance", entries: [{ label: "balance", unit: "usd", limit, used, remaining: limit - used }] } };
+// }
+//
+// export function listModels(_ctx: ProbeContext, steps: ProbeStep[]): ModelListDecision {
+//   if (steps.length === 0) {
+//     return { request: { method: "GET", path: "/v1/models" } };
+//   }
+//   const data = steps[0].response.json?.data;
+//   if (!Array.isArray(data)) {
+//     return { error: "models response has no data array" };
+//   }
+//   return { result: { models: data.map((item: any) => ({ name: String(item.id) })) } };
+// }
+//
+// export function check(_ctx: ProbeContext, steps: ProbeStep[]): CredentialCheckDecision {
+//   if (steps.length === 0) {
+//     return { request: { method: "GET", path: "/api/me" } };
+//   }
+//   const status = steps[0].response.status;
+//   if (status === 200) return { result: { status: "ok" } };
+//   if (status === 401 || status === 403) return { result: { status: "invalid", message: `rejected with ${status}` } };
+//   return { result: { status: "unavailable", message: `site answered ${status}` } };
+// }
+//
+// export function classify(_ctx: ErrorClassifyContext, input: ErrorClassifyInput): ErrorClassifyResult {
+//   if (input.status === 429) return { class: "limited", reason: input.code };
+//   if (input.status === 401 || input.status === 403) return { class: "credential_invalid" };
+//   return { class: "unknown" };
+// }
+//
+// rewritePayload 是纯函数，只改业务字段。model 和 stream 必须原样保留，宿主用它们做计费和流式判断。
+// export function rewritePayload(ctx: RewritePayloadContext, payload: Record<string, unknown>): Record<string, unknown> {
+//   return { ...payload, model: ctx.model, stream: ctx.stream };
+// }

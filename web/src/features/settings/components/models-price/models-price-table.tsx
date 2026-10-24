@@ -6,9 +6,9 @@ import { EmptyState } from '@/components/common/empty-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Card } from '@/components/ui/card'
 import {
   buildModelGlyph,
-  resolveThemedIconPath,
 } from '@/components/common/brand-utils'
 import {
   Select,
@@ -20,7 +20,6 @@ import {
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { providerCatalog } from '@/lib/brands'
-import { useResolvedTheme } from '@/hooks/theme-context'
 import type {
   ModelPriceCredentialPricing,
   ModelPriceInput,
@@ -165,6 +164,7 @@ export function ModelsPriceTable({
         </div>
       </div>
 
+      <Card material="thick" className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
       {siteGroup ? (
         <SiteView
           key={siteGroup.siteId}
@@ -179,7 +179,7 @@ export function ModelsPriceTable({
         />
       ) : groups.length === 0 ? (
         loading ? (
-          <div className="text-muted-soft flex min-h-56 items-center justify-center text-sm">
+          <div className="text-label-2 flex min-h-56 items-center justify-center text-body">
             {t('modelsPrice.loading')}
           </div>
         ) : (
@@ -191,7 +191,7 @@ export function ModelsPriceTable({
       ) : (
         <>
           <div
-            className="grid shrink-0 border-y border-[hsl(var(--divider))] bg-[hsl(var(--surface-base))] px-3 py-3 text-xs font-medium text-muted-soft"
+            className="grid shrink-0 border-y border-separator bg-elevated-1 px-3 py-3 text-footnote font-medium text-label-2"
             style={{ gridTemplateColumns: tableColumns }}
           >
             <div />
@@ -229,7 +229,7 @@ export function ModelsPriceTable({
           </div>
 
           <div className="scrollbar-hidden min-h-0 flex-1 overflow-auto">
-            <div className="divide-y divide-[hsl(var(--divider))]">
+            <div className="divide-y divide-separator">
               {groups.map((group) => {
                 const expanded = expandedId === group.id
                 const bulkDisabled =
@@ -243,13 +243,13 @@ export function ModelsPriceTable({
                 return (
                   <div key={group.id}>
                     <div
-                      className="grid cursor-pointer items-center gap-0 px-3 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle)/0.35)]"
+                      className="grid cursor-pointer items-center gap-0 px-3 py-3 transition-colors hover:bg-fill-4"
                       style={{ gridTemplateColumns: tableColumns }}
                       onClick={() => setExpandedId(expanded ? null : group.id)}
                     >
                       <button
                         type="button"
-                        className="flex size-8 items-center justify-center rounded-md hover:bg-[hsl(var(--surface-subtle))]"
+                        className="flex size-8 items-center justify-center rounded-control hover:bg-fill-3"
                         onClick={(event) => {
                           event.stopPropagation()
                           setExpandedId(expanded ? null : group.id)
@@ -262,7 +262,7 @@ export function ModelsPriceTable({
                       >
                         <ChevronRight
                           className={cn(
-                            'h-4 w-4 text-muted-soft transition-transform',
+                            'h-4 w-4 text-label-2 transition-transform',
                             expanded && 'rotate-90',
                           )}
                         />
@@ -276,12 +276,12 @@ export function ModelsPriceTable({
                         />
                         <div className="min-w-0">
                           <div
-                            className="truncate text-sm font-semibold text-foreground"
+                            className="truncate text-headline text-label"
                             title={group.modelKey}
                           >
                             {group.modelKey}
                           </div>
-                          <div className="text-muted-soft mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <div className="text-label-2 mt-1 flex flex-wrap items-center gap-2 text-footnote">
                             <span>
                               {t('modelsPrice.subtitle.sites', {
                                 count: group.uniqueSiteCount,
@@ -353,7 +353,7 @@ export function ModelsPriceTable({
                     </div>
 
                     {expanded ? (
-                      <div className="divide-y divide-[hsl(var(--divider))] bg-[hsl(var(--surface-subtle)/0.18)]">
+                      <div className="divide-y divide-separator bg-fill-4">
                         {group.rows.map((row) => {
                           const rowKey = rowDraftKey(row)
                           const rowFallback = createDraftFromPricing(row)
@@ -369,13 +369,13 @@ export function ModelsPriceTable({
                                 <div />
                                 <div className="min-w-0 pr-3">
                                   <div
-                                    className="truncate text-sm font-medium text-foreground"
+                                    className="truncate text-body font-medium text-label"
                                     title={row.site.name}
                                   >
                                     {row.site.name}
                                   </div>
                                   <div
-                                    className="text-muted-soft mt-1 truncate text-xs"
+                                    className="text-label-2 mt-1 truncate text-footnote"
                                     title={row.model.upstream_model_name}
                                   >
                                     {row.site.type} ·{' '}
@@ -412,7 +412,7 @@ export function ModelsPriceTable({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-6 gap-1 px-1.5 text-xs"
+                                      className="h-6 gap-1 px-1.5 text-footnote"
                                       disabled={rowPending}
                                       title={t('modelsPrice.resetTooltip')}
                                       onClick={() => setResetTarget(row)}
@@ -444,6 +444,7 @@ export function ModelsPriceTable({
           </div>
         </>
       )}
+      </Card>
 
       <ConfirmDialog
         open={resetTarget !== null}
@@ -519,7 +520,7 @@ function SiteView({
   return (
     <>
       <div
-        className="grid shrink-0 border-y border-[hsl(var(--divider))] bg-[hsl(var(--surface-base))] px-3 py-3 text-xs font-medium text-muted-soft"
+        className="grid shrink-0 border-y border-separator bg-elevated-1 px-3 py-3 text-footnote font-medium text-label-2"
         style={{ gridTemplateColumns: tableColumns }}
       >
         <div />
@@ -549,15 +550,15 @@ function SiteView({
       </div>
 
       <div className="scrollbar-hidden min-h-0 flex-1 overflow-auto">
-        <div className="divide-y divide-[hsl(var(--divider))]">
+        <div className="divide-y divide-separator">
           <div>
             <div
-              className="flex cursor-pointer items-center gap-3 px-3 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle)/0.35)]"
+              className="flex cursor-pointer items-center gap-3 px-3 py-3 transition-colors hover:bg-fill-4"
               onClick={() => setExpanded(!expanded)}
             >
               <button
                 type="button"
-                className="flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--surface-subtle))]"
+                className="flex size-8 shrink-0 items-center justify-center rounded-control hover:bg-fill-3"
                 onClick={(event) => {
                   event.stopPropagation()
                   setExpanded(!expanded)
@@ -570,17 +571,17 @@ function SiteView({
               >
                 <ChevronRight
                   className={cn(
-                    'h-4 w-4 text-muted-soft transition-transform',
+                    'h-4 w-4 text-label-2 transition-transform',
                     expanded && 'rotate-90',
                   )}
                 />
               </button>
 
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-foreground">
+                <div className="truncate text-headline text-label">
                   {siteGroup.siteName}
                 </div>
-                <div className="text-muted-soft mt-1 flex flex-wrap items-center gap-2 text-xs">
+                <div className="text-label-2 mt-1 flex flex-wrap items-center gap-2 text-footnote">
                   <span>
                     {t('modelsPrice.siteView.summary', {
                       total: siteGroup.totalCount,
@@ -605,7 +606,7 @@ function SiteView({
                 ) : null}
                 {siteGroup.manualCount > 0 ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     className="gap-1.5"
                     onClick={(event) => {
@@ -621,7 +622,7 @@ function SiteView({
             </div>
 
             {expanded ? (
-              <div className="divide-y divide-[hsl(var(--divider))] bg-[hsl(var(--surface-subtle)/0.18)]">
+              <div className="divide-y divide-separator bg-fill-4">
                 {siteGroup.rows.length === 0 ? (
                   <div className="px-3 py-10">
                     <EmptyState
@@ -651,13 +652,13 @@ function SiteView({
                             />
                             <div className="min-w-0">
                               <div
-                                className="truncate text-sm font-medium text-foreground"
+                                className="truncate text-body font-medium text-label"
                                 title={row.displayKey}
                               >
                                 {row.displayKey}
                               </div>
                               <div
-                                className="text-muted-soft mt-0.5 truncate text-xs"
+                                className="text-label-2 mt-0.5 truncate text-footnote"
                                 title={row.model.upstream_model_name}
                               >
                                 {row.model.upstream_model_name}
@@ -690,7 +691,7 @@ function SiteView({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 gap-1 px-1.5 text-xs"
+                                className="h-6 gap-1 px-1.5 text-footnote"
                                 disabled={rowPending}
                                 title={t('modelsPrice.resetTooltip')}
                                 onClick={() => onReset(row)}
@@ -718,17 +719,17 @@ function CredentialPricingRows({ row }: { row: ModelPriceItem }) {
   const { t } = useTranslation('settings')
   if (!row.credential_pricings?.length) return null
   return (
-    <div className="border-t border-[hsl(var(--glass-divider))] bg-[hsl(var(--surface-base)/0.45)]">
+    <div className="border-t border-separator bg-elevated-1/60">
       {row.credential_pricings.map((credential) => (
         <div
           key={`${row.site_model_id}:${credential.credential_id}`}
-          className="grid items-center px-3 py-2.5 text-xs"
+          className="grid items-center px-3 py-2.5 text-footnote"
           style={{ gridTemplateColumns: tableColumns }}
         >
           <div />
           <div className="min-w-0 pr-3 pl-3">
             <div
-              className="truncate font-medium text-foreground"
+              className="truncate font-medium text-label"
               title={credential.credential_name}
             >
               {credential.credential_name}
@@ -764,7 +765,7 @@ function CredentialPricingCells({
 }) {
   return (
     <>
-      <div className="pr-2 text-muted-soft">
+      <div className="pr-2 text-label-2">
         {credential.billing_type || '-'}
       </div>
       <CredentialPriceValue value={credential.input_value} />
@@ -774,7 +775,7 @@ function CredentialPricingCells({
       <CredentialPriceValue value={credential.create_cache_input_value} />
       <CredentialPriceValue value={credential.create_cache_1h_input_value} />
       <CredentialPriceValue value={credential.per_request_value} />
-      <div className="pr-2 font-medium tabular-nums text-foreground">
+      <div className="pr-2 font-medium tabular-nums text-label">
         x{credential.group_ratio}
       </div>
     </>
@@ -783,7 +784,7 @@ function CredentialPricingCells({
 
 function CredentialPriceValue({ value }: { value?: number | null }) {
   return (
-    <div className="pr-2 tabular-nums text-muted-soft">
+    <div className="pr-2 tabular-nums text-label-2">
       {typeof value === 'number'
         ? value.toLocaleString(undefined, { maximumFractionDigits: 6 })
         : '-'}
@@ -806,32 +807,31 @@ function ProviderMark({
   size?: 'sm' | 'lg'
 }) {
   const entry = getProviderEntry(provider)
-  const resolvedMode = useResolvedTheme()
   const label = entry?.name ?? provider ?? modelKey
-  const boxClassName = size === 'lg' ? 'size-9 rounded-md' : 'size-6 rounded-md'
+  const boxClassName = size === 'lg' ? 'size-9 rounded-control' : 'size-6 rounded-control'
   const imageClassName = size === 'lg' ? 'size-6' : 'size-4'
-  const textClassName = size === 'lg' ? 'text-xs font-semibold' : 'text-[11px]'
+  const textClassName = size === 'lg' ? 'text-footnote font-semibold' : 'text-[11px]'
 
   return (
     <span
       className={cn(
         'flex shrink-0 items-center justify-center',
         !entry
-          ? '[background-color:hsl(var(--primary)/0.18)] text-primary'
-          : 'bg-[hsl(var(--surface-subtle))]',
+          ? 'bg-tint/18 text-tint'
+          : 'bg-fill-3',
         boxClassName,
       )}
     >
       {entry?.iconPath ? (
         <img
-          src={resolveThemedIconPath(entry.iconPath, label, resolvedMode)}
+          src={entry.iconPath}
           alt={label}
           className={cn('object-contain', imageClassName)}
         />
       ) : (
         <span
           className={cn(
-            !entry ? 'text-primary' : 'text-foreground',
+            !entry ? 'text-tint' : 'text-label',
             textClassName,
           )}
         >
@@ -858,7 +858,7 @@ function GroupCell({ group, row }: GroupCellProps) {
             {groupName}
           </Badge>
         ) : (
-          <span className="text-muted-soft text-xs">-</span>
+          <span className="text-label-2 text-footnote">-</span>
         )}
       </div>
     )
@@ -880,7 +880,7 @@ function GroupCell({ group, row }: GroupCellProps) {
           {groupNames.length}
         </Badge>
       ) : (
-        <span className="text-muted-soft text-xs">-</span>
+        <span className="text-label-2 text-footnote">-</span>
       )}
     </div>
   )
@@ -919,7 +919,7 @@ function PriceDraftCells({
         >
           <SelectTrigger
             className={cn(
-              'h-9 px-2 text-xs',
+              'h-9 px-2 text-footnote',
               controlDisabled && 'cursor-not-allowed opacity-55',
             )}
           >
@@ -1008,7 +1008,7 @@ function PriceInputCell({
         placeholder={placeholder}
         disabled={disabled}
         inputMode="decimal"
-        className="h-9 px-2 text-xs"
+        className="h-9 px-2 text-footnote"
       />
     </div>
   )

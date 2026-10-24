@@ -88,16 +88,16 @@ func TestNormalizeModelPriceInputRequiresTokenValueForTokenPricing(t *testing.T)
 func TestIsSiteAPIKeyCredentialTypeMatchesOnlyAPIKeyCredentialPrefix(t *testing.T) {
 	t.Parallel()
 
-	if !isSiteAPIKeyCredentialType(defaultCredentialType) {
+	if !store.IsAPIKeyCredentialType(defaultCredentialType) {
 		t.Fatalf("%q should be treated as an api key credential type", defaultCredentialType)
 	}
-	if !isSiteAPIKeyCredentialType(defaultCredentialType + ":upstream-123") {
+	if !store.IsAPIKeyCredentialType(defaultCredentialType + ":upstream-123") {
 		t.Fatal("typed api key credential with upstream suffix should be treated as api key")
 	}
-	if isSiteAPIKeyCredentialType("api_key_backup") {
+	if store.IsAPIKeyCredentialType("api_key_backup") {
 		t.Fatal("api_key_backup should not match the strict api key type prefix")
 	}
-	if isSiteAPIKeyCredentialType(newAPIAccessTokenCredential) {
+	if store.IsAPIKeyCredentialType(newAPIAccessTokenCredential) {
 		t.Fatal("newapi access token credential should not be treated as a site api key")
 	}
 }

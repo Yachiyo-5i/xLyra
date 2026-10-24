@@ -21,9 +21,10 @@ export default defineConfig(({ command, mode }) => {
       VitePWA({
         includeAssets: [
           'apple-touch-icon.png',
+          'favicon.ico',
           'favicon-16.png',
           'favicon-32.png',
-          'logo.png',
+          'logo-mark.webp',
         ],
         injectRegister: false,
         registerType: 'prompt',
@@ -32,8 +33,8 @@ export default defineConfig(({ command, mode }) => {
           short_name: 'xLyra',
           description: 'xLyra 管理控制台',
           lang: 'zh-CN',
-          theme_color: '#f4f7fb',
-          background_color: '#f4f7fb',
+          theme_color: '#0a0b0d',
+          background_color: '#0a0b0d',
           display: 'standalone',
           scope: '/',
           start_url: '/',

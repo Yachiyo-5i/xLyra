@@ -1,7 +1,6 @@
 import { useMemo, type CSSProperties } from 'react'
-import { siteTypeIconPath } from '@/components/common/brand-utils'
 import type { TrafficFlowNode, TrafficFlowRequest, TrafficFlowUsageTotal } from '@/features/traffic-flow/api/traffic-flow'
-import { formatCompactTokens, formatDuration, formatLatency, formatPaddedCount, formatPercent } from '@/features/traffic-flow/lib/traffic-flow-format'
+import { formatCompactTokens, formatDuration, formatLatency, formatPercent } from '@/features/traffic-flow/lib/traffic-flow-format'
 import { modelVisual } from '@/features/traffic-flow/lib/model-visual'
 import { primaryRequestForNode, type TrafficFlowNodeRef, type WingPlacement } from '@/features/traffic-flow/lib/wing-layout'
 
@@ -41,8 +40,6 @@ export function FlowNodeCard({
     [placement.id, placement.kind, requests, retiringRequestIDs],
   )
   const visual = request ? modelVisual(request.model_provider, request.model_key) : undefined
-  const iconPath = placement.kind === 'upstream' ? siteTypeIconPath(placement.siteType ?? '') : visual?.iconPath
-  const fallback = visual?.fallback ?? placement.name.trim().slice(0, 2)
   const color = visual?.color ?? '#d8d8d8'
   const node = { kind: placement.kind, id: placement.id }
   const scale = reducedMotion ? 1 : placement.scale
@@ -72,42 +69,39 @@ export function FlowNodeCard({
     >
       <button
         type="button"
-        className="traffic-flow-node-card"
+        className="traffic-flow-node-star"
+        aria-label={`${placement.name} ${request?.model_key ?? nodeCaption(placement.node, placement.kind, t)}`}
         onClick={(event) => {
           event.stopPropagation()
           onSelect(node)
         }}
       >
-        <span className="traffic-flow-node-card-head">
-          <span className="traffic-flow-node-card-orb">
-            {iconPath ? <img src={iconPath} alt="" /> : <b>{fallback}</b>}
-          </span>
-          <span className="traffic-flow-node-card-copy">
-            <strong>{placement.name}</strong>
-            <i>{request?.model_key ?? nodeCaption(placement.node, placement.kind, t)}</i>
-          </span>
+        <span className="traffic-flow-star-dot" aria-hidden="true" />
+        <span className="traffic-flow-star-label">
+          <strong>{placement.name}</strong>
+          <i>{request?.model_key ?? nodeCaption(placement.node, placement.kind, t)}</i>
         </span>
-        {expanded ? (
-          <span className="traffic-flow-node-card-body">
-            <span><span>{t('inspector.inflightCount')}</span><strong>{placement.inflight}</strong></span>
-            <span><span>{t('inspector.tokens')}</span><strong>{formatCompactTokens(usage?.total_tokens ?? 0)}</strong></span>
-            {placement.node.recent_avg_latency_ms != null ? (
-              <span><span>{t('inspector.avgLatency')}</span><strong>{formatLatency(placement.node.recent_avg_latency_ms)}</strong></span>
-            ) : null}
-            {placement.node.recent_success_rate != null ? (
-              <span><span>{t('inspector.successRate')}</span><strong>{formatPercent(placement.node.recent_success_rate)}</strong></span>
-            ) : null}
-            {request ? (
-              <>
-                <span><span>{t('inspector.phase')}</span><strong>{t(`phase.${request.phase}`)}</strong></span>
-                <span><span>{t('inspector.duration')}</span><strong>{formatDuration(now - Date.parse(request.started_at))}</strong></span>
-              </>
-            ) : null}
-          </span>
-        ) : null}
       </button>
       {placement.lit && placement.inflight > 0 ? (
-        <span className="traffic-flow-node-card-count">{formatPaddedCount(placement.inflight)}</span>
+        <span className="traffic-flow-star-count">{placement.inflight}</span>
+      ) : null}
+      {expanded ? (
+        <div className="traffic-flow-star-popover traffic-flow-surface" onClick={(event) => event.stopPropagation()}>
+          <span><span>{t('inspector.inflightCount')}</span><strong>{placement.inflight}</strong></span>
+          <span><span>{t('inspector.tokens')}</span><strong>{formatCompactTokens(usage?.total_tokens ?? 0)}</strong></span>
+          {placement.node.recent_avg_latency_ms != null ? (
+            <span><span>{t('inspector.avgLatency')}</span><strong>{formatLatency(placement.node.recent_avg_latency_ms)}</strong></span>
+          ) : null}
+          {placement.node.recent_success_rate != null ? (
+            <span><span>{t('inspector.successRate')}</span><strong>{formatPercent(placement.node.recent_success_rate)}</strong></span>
+          ) : null}
+          {request ? (
+            <>
+              <span><span>{t('inspector.phase')}</span><strong>{t(`phase.${request.phase}`)}</strong></span>
+              <span><span>{t('inspector.duration')}</span><strong>{formatDuration(now - Date.parse(request.started_at))}</strong></span>
+            </>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

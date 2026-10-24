@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { getAppNavSections } from '@/lib/navigation'
 import { useMobileDevice } from '@/hooks/use-media-query'
 import { AppLogo } from '@/components/common/app-logo'
+import { SystemVersionText } from '@/components/layout/system-version-text'
 import { UserAccountMenu } from '@/components/layout/user-account-menu'
 import { useAgentAvailability } from '@/features/agent/lib/use-agent-availability'
 
@@ -26,8 +27,11 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
     onNavigate?.()
   }
 
+  // 尺寸沿用原侧边栏：14 / 500、行高 20、内边距 12 × 12
   const navItemClass =
-    'text-muted-soft relative flex w-full appearance-none items-center gap-3 rounded-lg px-3 py-3 text-left font-sans text-sm font-medium leading-5 transition-all duration-150 group'
+    'relative flex w-full appearance-none items-center gap-3 rounded-full px-3 py-3 text-left text-sm font-medium leading-5 transition-colors duration-150'
+  const navItemActiveClass = 'nav-item-selected text-label'
+  const navItemIdleClass = 'text-label-2 hover:bg-fill-4 hover:text-label'
   const navLabelClass = 'truncate text-sm font-medium leading-5'
 
   const navSections = getAppNavSections(t, { agent: agentAvailable }).map((section) => ({
@@ -36,17 +40,15 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
   }))
 
   return (
-    <div
-      className={cn(
-        'glass-panel-strong flex h-full min-h-0 flex-col overflow-hidden rounded-[18px]',
-        className,
-      )}
-    >
-      <div className="flex items-center gap-3 border-b border-[hsl(var(--divider))] px-6 py-6">
+    // 材质由外层容器提供（桌面为 Liquid Glass 浮动侧边栏），这里只负责内容
+    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
+      <div className="flex items-center gap-3 border-b border-separator px-6 py-6">
         <AppLogo className="size-10 rounded-2xl shadow-[0_14px_32px_rgba(0,0,0,0.12)]" decorative />
         <div className="min-w-0 space-y-1">
-          <p className="truncate text-base font-semibold text-foreground">xLyra</p>
-          <p className="text-muted-soft truncate text-xs">Gateway Dark Admin</p>
+          <p className="truncate text-base font-semibold text-label">xLyra</p>
+          <p className="truncate text-xs text-label-3">
+            <SystemVersionText />
+          </p>
         </div>
       </div>
 
@@ -54,7 +56,7 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
         <div className="space-y-8">
           {navSections.map((section) => (
             <div key={section.key} className="space-y-2">
-              <p className="text-faint px-3 text-[11px] font-semibold uppercase tracking-[0.24em]">
+              <p className="px-3 text-[11px] font-semibold text-label-3">
                 {section.label}
               </p>
               <nav className="grid gap-1">
@@ -77,27 +79,19 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
                               [item.to]: !isExpanded,
                             }))
                           }
-                          className={cn(
-                            navItemClass,
-                            isChildActive
-                              ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                              : 'hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-                          )}
+                          className={cn(navItemClass, isChildActive ? navItemActiveClass : navItemIdleClass)}
                         >
-                          {isChildActive && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-md bg-[hsl(var(--primary))] shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
-                          )}
-                          <Icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                          <Icon className={cn('h-4 w-4 shrink-0', isChildActive && 'text-tint')} />
                           <span className={navLabelClass}>{item.label}</span>
                           <ChevronDown
                             className={cn(
-                              'ml-auto h-4 w-4 shrink-0 transition-transform duration-200',
+                              'ml-auto h-4 w-4 shrink-0 text-label-3 transition-transform duration-200',
                               isExpanded ? 'rotate-0' : '-rotate-90',
                             )}
                           />
                         </button>
                         {isExpanded && (
-                          <div className="mt-1 ml-4 grid gap-1 border-l border-[hsl(var(--divider))] pl-4">
+                          <div className="mt-1 ml-4 grid gap-1 border-l border-separator pl-4">
                             {item.children!.map((child) => {
                               const ChildIcon = child.icon
                               return (
@@ -107,19 +101,14 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
                                   onClick={handleNavigate}
                                   className={({ isActive }) =>
                                     cn(
-                                      'text-muted-soft flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 relative group',
-                                      isActive
-                                        ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                                        : 'hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
+                                      'flex items-center gap-3 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-150',
+                                      isActive ? navItemActiveClass : navItemIdleClass,
                                     )
                                   }
                                 >
                                   {({ isActive }) => (
                                     <>
-                                      {isActive && (
-                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 rounded-r-md bg-[hsl(var(--primary))] shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
-                                      )}
-                                      <ChildIcon className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                                      <ChildIcon className={cn('h-3.5 w-3.5 shrink-0', isActive && 'text-tint')} />
                                       <span className="truncate">{child.label}</span>
                                     </>
                                   )}
@@ -137,21 +126,11 @@ export function AppSidebar({ className, onNavigate }: AppSidebarProps) {
                       key={item.to}
                       to={item.to}
                       onClick={handleNavigate}
-                      className={({ isActive }) =>
-                        cn(
-                          navItemClass,
-                          isActive
-                            ? 'bg-[hsl(var(--surface-selected))] text-foreground'
-                            : 'hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground',
-                        )
-                      }
+                      className={({ isActive }) => cn(navItemClass, isActive ? navItemActiveClass : navItemIdleClass)}
                     >
                       {({ isActive }) => (
                         <>
-                          {isActive && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-md bg-[hsl(var(--primary))] shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
-                          )}
-                          <Icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                          <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-tint')} />
                           <span className={navLabelClass}>{item.label}</span>
                         </>
                       )}

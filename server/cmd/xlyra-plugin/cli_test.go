@@ -3,9 +3,14 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"xlyra/server/internal/jsplugin"
@@ -136,6 +141,40 @@ func TestWriteTreeKeepsPackages(t *testing.T) {
 	}
 }
 
+func TestUsageListsSupportedKinds(t *testing.T) {
+	out := captureStderr(t, usage)
+	names := make([]string, 0, len(jsplugin.SupportedKinds()))
+	for _, info := range jsplugin.SupportedKinds() {
+		names = append(names, info.Name)
+	}
+	want := "[--kind " + strings.Join(names, "|") + "]"
+	if !strings.Contains(out, want) || !strings.Contains(want, "site_provider") {
+		t.Fatalf("usage kind list missing %q:\n%s", want, out)
+	}
+}
+
+func TestKindsListsSiteProvider(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	runKinds()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "site_provider") || !strings.Contains(out, "provider") {
+		t.Fatalf("kinds output missing site_provider:\n%s", out)
+	}
+}
+
 func TestInitRefusesNonEmptyDirAndReservedID(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "x"), nil, 0o644); err != nil {
@@ -169,5 +208,252 @@ func TestSDKTypesInSync(t *testing.T) {
 		if string(got) != want {
 			t.Errorf("%s is stale; run `go generate ./cmd/xlyra-plugin` in server/", name)
 		}
+	}
+	for _, needle := range []string{"SiteProviderProbe", "SiteProviderListModels", "SiteProviderCheck", "SiteProviderClassify", "SiteProviderRewritePayload", "SiteProviderHooks", "RewritePayloadContext"} {
+		if !strings.Contains(want, needle) {
+			t.Errorf("generated types missing %s", needle)
+		}
+	}
+}
+
+func TestRunSiteProviderHook(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "provider")
+	if err := scaffold(dir, jsplugin.KindSiteProvider, "acme.example", "Example"); err != nil {
+		t.Fatal(err)
+	}
+	source := `export const meta = { apiVersion: 1, id: "acme.example", kind: "site_provider" };
+export function listModels(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "GET", path: "/v1/models" } };
+  const rows = (steps[0].response.json && steps[0].response.json.data) || [];
+  return { result: { models: rows.map((row) => ({ name: row.id })) } };
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "src", "index.ts"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := executeRun([]string{dir})
+	if err == nil || !strings.Contains(err.Error(), "--hook") || !strings.Contains(err.Error(), "listModels") {
+		t.Fatalf("missing --hook error = %v", err)
+	}
+	if err := executeRun([]string{"--hook", "classify", dir}); err == nil || !strings.Contains(err.Error(), "test") {
+		t.Fatalf("classify error = %v", err)
+	}
+	if err := executeRun([]string{"--hook", "probe", dir}); err == nil || !strings.Contains(err.Error(), "not exported") || !strings.Contains(err.Error(), "listModels") {
+		t.Fatalf("unexported hook error = %v", err)
+	}
+
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer sk-test" {
+			http.Error(w, "missing key", http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, `{"data":[{"id":"demo-model"}]}`)
+	}))
+	defer server.Close()
+	t.Setenv("SITE_KEY", "sk-test")
+	out := captureStdout(t, func() {
+		err = executeRun([]string{"--hook", "listModels", "--base-url", server.URL, "--key-env", "SITE_KEY", "--site-type", "acme.example/example", dir})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("upstream hits = %d, want one request then a result", hits.Load())
+	}
+	if !strings.Contains(out, "demo-model") {
+		t.Fatalf("output = %s", out)
+	}
+
+	other := newProject(t, jsplugin.KindQuotaProbe, "acme-quota")
+	if err := executeRun([]string{"--hook", "listModels", other}); err == nil || !strings.Contains(err.Error(), "only for site_provider") || !strings.Contains(err.Error(), "quota_probe") {
+		t.Fatalf("other kind error = %v", err)
+	}
+}
+
+func TestSiteProviderFixturesPassTestAndVerify(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "provider")
+	if err := scaffold(dir, jsplugin.KindSiteProvider, "acme.example", "Example"); err != nil {
+		t.Fatal(err)
+	}
+	source := `export const meta = { apiVersion: 1, id: "acme.example", kind: "site_provider" };
+export function probe(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "GET", path: "/api/usage" } };
+  const total = Number(steps[0].response.json.total);
+  const used = Number(steps[0].response.json.used);
+  return { result: { kind: "balance", entries: [{ label: "balance", remaining: total - used }] } };
+}
+export function listModels(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "GET", path: "/v1/models" } };
+  const rows = (steps[0].response.json && steps[0].response.json.data) || [];
+  return { result: { models: rows.map((row) => ({ name: row.id })) } };
+}
+export function check(ctx, steps) {
+  if (steps.length === 0) return { request: { method: "GET", path: "/api/me" } };
+  return { result: { status: steps[0].response.status === 200 ? "ok" : "invalid" } };
+}
+export function classify(ctx, input) {
+  return { class: input.status === 429 ? "limited" : "unknown" };
+}
+export function rewritePayload(ctx, payload) {
+  const next = Object.assign({}, payload);
+  next.model = ctx.model;
+  next.stream = ctx.stream;
+  return next;
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "src", "index.ts"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "fixtures"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"probe.json": `{
+  "name": "probe ok",
+  "hook": "probe",
+  "ctx": {"siteType": "acme.example/example", "baseURL": "https://api.example.com", "credentialType": "api_key", "now": 1},
+  "responses": [{"match": {"method": "GET", "path": "/api/usage"}, "status": 200, "json": {"total": 10, "used": 4}}],
+  "expect": {"requests": [{"path": "/api/usage"}], "result": {"kind": "balance", "entries": [{"label": "balance", "remaining": 6}]}}
+}`,
+		"list-models.json": `{
+  "name": "list models",
+  "hook": "listModels",
+  "ctx": {"siteType": "acme.example/example", "baseURL": "https://api.example.com", "credentialType": "api_key"},
+  "responses": [{"match": {"method": "GET", "path": "/v1/models"}, "status": 200, "json": {"data": [{"id": "demo"}]}}],
+  "expect": {"requests": [{"path": "/v1/models"}], "result": {"models": [{"name": "demo"}]}}
+}`,
+		"check.json": `{
+  "name": "check ok",
+  "hook": "check",
+  "ctx": {"siteType": "acme.example/example", "baseURL": "https://api.example.com", "credentialType": "api_key"},
+  "responses": [{"match": {"path": "/api/me"}, "status": 200, "json": {}}],
+  "expect": {"requests": [{"path": "/api/me"}], "result": {"status": "ok"}}
+}`,
+		"classify.json": `{
+  "name": "classify limited",
+  "hook": "classify",
+  "ctx": {"siteType": "acme.example/example"},
+  "input": {"status": 429, "code": "rate_limit"},
+  "expect": {"result": {"class": "limited"}}
+}`,
+		"rewrite.json": `{
+  "name": "rewrite payload",
+  "hook": "rewritePayload",
+  "ctx": {"siteType": "acme.example/example", "model": "m1", "stream": true, "protocol": "openai_chat"},
+  "input": {"model": "m1", "stream": true, "temperature": 0.2},
+  "expect": {"result": {"model": "m1", "stream": true, "temperature": 0.2}}
+}`,
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, "fixtures", name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var passed bool
+	out := captureStdout(t, func() { passed = testOnce(dir) })
+	if !passed {
+		t.Fatalf("test failed:\n%s", out)
+	}
+	for _, needle := range []string{"probe ok", "list models", "check ok", "classify limited", "rewrite payload", "hook=probe", "hook=listModels", "hook=check", "hook=classify", "hook=rewritePayload", "5 passed, 0 failed"} {
+		if !strings.Contains(out, needle) {
+			t.Fatalf("test output missing %q:\n%s", needle, out)
+		}
+	}
+	built, err := buildProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _, _, err := built.assemble()
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyOut := captureStdout(t, func() { err = verifyPackage(raw) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{"fixtures/probe.json", "probe ok", "hook=probe", "fixtures/rewrite.json", "hook=rewritePayload"} {
+		if !strings.Contains(verifyOut, needle) {
+			t.Fatalf("verify output missing %q:\n%s", needle, verifyOut)
+		}
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = old }()
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+func TestBuildProjectIncludesSiteProviderIcon(t *testing.T) {
+	dir := newProject(t, "site_provider", "acme-icon")
+	manifestPath := filepath.Join(dir, "manifest.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := strings.Replace(string(raw), `"subtitle":`, `"icon": "assets/icon.png",
+      "subtitle":`, 1)
+	if next == string(raw) {
+		t.Fatal("manifest has no subtitle to attach an icon to")
+	}
+	if err := os.WriteFile(manifestPath, []byte(next), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	icon := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00}
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "assets", "icon.png"), icon, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	built, err := buildProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(built.Files["assets/icon.png"]) != string(icon) {
+		t.Fatalf("package icon = %d bytes", len(built.Files["assets/icon.png"]))
+	}
+	if _, _, _, err := built.assemble(); err != nil {
+		t.Fatal(err)
 	}
 }

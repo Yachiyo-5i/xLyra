@@ -1,29 +1,22 @@
 import { useTranslation } from 'react-i18next'
-import { AuthShell } from '@/features/auth/components/auth-shell'
+import { AuthCard } from '@/features/auth/components/auth-card'
+import { AuthViewport } from '@/features/auth/components/auth-viewport'
 import { LoginForm } from '@/features/auth/components/login-form'
-import { MobileAuthShell } from '@/features/auth/components/mobile-auth-shell'
-import { useMobileLayout } from '@/hooks/use-media-query'
+import { LyraAuthScene } from '@/features/auth/components/lyra-auth-scene'
 
+/** 登录页：天琴座夜空 + 「登录」入口按钮，点开后升起登录卡片 */
 export function LoginPage() {
   const { t } = useTranslation('auth')
-  const isMobile = useMobileLayout()
-
-  if (isMobile) {
-    return (
-      <MobileAuthShell title={t('login.title')} description={t('login.description')}>
-        <LoginForm variant="mobile" />
-      </MobileAuthShell>
-    )
-  }
 
   return (
-    <AuthShell
-      mode="login"
-      eyebrow={t('login.eyebrow')}
-      title={t('login.title')}
-      description={t('login.description')}
-    >
-      <LoginForm />
-    </AuthShell>
+    <AuthViewport>
+      <LyraAuthScene entryLabel={t('login.loginButton')}>
+        {() => (
+          <AuthCard title={`${t('login.title')} xLyra`} description={t('login.description')}>
+            <LoginForm />
+          </AuthCard>
+        )}
+      </LyraAuthScene>
+    </AuthViewport>
   )
 }

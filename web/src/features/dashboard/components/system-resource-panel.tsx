@@ -1,3 +1,4 @@
+import { chartColors, chartGridStroke, chartTick } from '@/components/charts/chart-theme'
 import { useEffect, useMemo, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { Activity, Cpu, Database, HardDrive, Network } from 'lucide-react'
@@ -81,15 +82,15 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
   const resourceMeta = useMemo(() => buildResourceMeta(activeTab, latest, t), [activeTab, latest, t])
 
   return (
-    <Card className={cn('flex min-h-0 flex-col rounded-lg p-5', className)}>
+    <Card className={cn('flex min-h-0 flex-col p-5', className)}>
       <div className="mb-4 shrink-0 space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <h3 className="text-base font-semibold text-foreground">{t('resources.title')}</h3>
+          <h3 className="text-headline text-label">{t('resources.title')}</h3>
           <div className="scrollbar-hidden min-w-0 max-w-full overflow-x-auto">
             <Tabs variant="slash" value={activeTab} onValueChange={(value) => setActiveTab(value as ResourceTab)}>
               <TabsList>
                 {resourceTabs.map((item) => (
-                  <TabsTrigger key={item.value} value={item.value} className="text-sm">
+                  <TabsTrigger key={item.value} value={item.value} className="text-body">
                     {item.label}
                   </TabsTrigger>
                 ))}
@@ -97,10 +98,11 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
             </Tabs>
           </div>
         </div>
-        <p className="text-sm text-muted-soft">{formatStreamState(streamState, latest, t)}</p>
+        <p className="text-body text-label-2">{formatStreamState(streamState, latest, t)}</p>
       </div>
 
-      <div className="scrollbar-hidden min-h-0 flex-1 overflow-auto">
+      {/* 各标签页内容高度不同：给一个统一的最低高度，切换时卡片不跳动 */}
+      <div className="scrollbar-hidden flex min-h-[288px] flex-1 flex-col overflow-auto">
         {samples.length ? (
           <div className="flex h-full min-h-0 flex-col gap-3">
             {activeTab === 'overview' ? (
@@ -112,8 +114,8 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
                 <div className="grid shrink-0 grid-cols-[minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1.35fr)] gap-3">
                   {resourceMeta.metrics.map((metric) => (
                     <div key={metric.label} className="min-w-0">
-                      <p className="text-xs text-muted-soft">{metric.label}</p>
-                      <p className="mt-1 truncate text-sm font-semibold tabular-nums text-foreground" title={metric.value}>
+                      <p className="text-footnote text-label-2">{metric.label}</p>
+                      <p className="mt-1 truncate text-body font-semibold tabular-nums text-label" title={metric.value}>
                         {metric.value}
                       </p>
                     </div>
@@ -132,10 +134,10 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
             )}
           </div>
         ) : (
-          <div className="flex h-full min-h-0 items-center justify-center rounded-lg bg-[hsl(var(--surface-subtle)/0.42)]">
+          <div className="flex h-full min-h-0 items-center justify-center rounded-lg bg-fill-4">
             <div className="space-y-1 text-center">
-              <p className="text-sm font-medium text-foreground">{t('resources.status.connecting', { label: active.label })}</p>
-              <p className="text-sm text-muted-soft">{t('resources.status.waiting')}</p>
+              <p className="text-body font-medium text-label">{t('resources.status.connecting', { label: active.label })}</p>
+              <p className="text-body text-label-2">{t('resources.status.waiting')}</p>
             </div>
           </div>
         )}
@@ -147,9 +149,11 @@ export function SystemResourcePanel({ className }: SystemResourcePanelProps) {
 function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint; t: (key: string) => string }) {
   if (!latest) return null
 
+  // 四项指标铺满卡片的可用高度：不加底色，用细分隔线分成田字格（窄屏单列、上下分隔）
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid min-h-0 flex-1 grid-cols-1 sm:grid-cols-2 sm:grid-rows-2">
       <ResourceOverviewItem
+        position="top-left"
         icon={Cpu}
         label="CPU"
         value={`${formatFixed(latest.cpu.usage_percent)}%`}
@@ -158,6 +162,7 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
         progress={latest.cpu.usage_percent}
       />
       <ResourceOverviewItem
+        position="top-right"
         icon={Database}
         label={t('resources.tabs.memory')}
         value={`${formatFixed(latest.memory.usage_percent)}%`}
@@ -166,6 +171,7 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
         progress={latest.memory.usage_percent}
       />
       <ResourceOverviewItem
+        position="bottom-left"
         icon={HardDrive}
         label={t('resources.tabs.disk')}
         value={`${formatFixed(latest.disk.usage_percent)}%`}
@@ -174,6 +180,7 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
         progress={latest.disk.usage_percent}
       />
       <ResourceOverviewItem
+        position="bottom-right"
         icon={Network}
         label={t('resources.tabs.network')}
         value={formatBytesPerSecond(latest.network.rx_bytes_per_sec + latest.network.tx_bytes_per_sec)}
@@ -186,7 +193,15 @@ function ResourceOverview({ latest, t }: { latest?: DashboardSystemResourcePoint
   )
 }
 
+const overviewCellClasses: Record<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', string> = {
+  'top-left': 'border-b sm:border-r sm:pr-5',
+  'top-right': 'border-b sm:pl-5',
+  'bottom-left': 'border-b sm:border-b-0 sm:border-r sm:pr-5',
+  'bottom-right': 'sm:pl-5',
+}
+
 function ResourceOverviewItem({
+  position,
   icon: Icon,
   label,
   value,
@@ -195,6 +210,7 @@ function ResourceOverviewItem({
   progress,
   children,
 }: {
+  position: keyof typeof overviewCellClasses
   icon: ComponentType<{ className?: string }>
   label: string
   value: string
@@ -204,23 +220,21 @@ function ResourceOverviewItem({
   children?: ReactNode
 }) {
   return (
-    <div className="flex flex-col rounded-lg bg-[hsl(var(--surface-subtle)/0.42)] p-3">
-      <div className="flex min-w-0 items-start justify-between gap-3">
+    <div className={cn('flex min-w-0 flex-col justify-center gap-2.5 border-separator py-4', overviewCellClasses[position])}>
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Icon className="h-4 w-4 shrink-0 text-muted-soft" />
-          <span className="text-sm font-medium text-foreground">{label}</span>
+          <Icon className="size-4 shrink-0 text-label-3" />
+          <span className="text-footnote font-medium text-label-2">{label}</span>
         </div>
-        <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
+        <span className="font-mono text-[20px] font-semibold leading-6 tabular-nums text-label">{value}</span>
       </div>
-      <div className="mt-2 min-w-0 space-y-2">
-        <p className="truncate text-xs text-muted-soft" title={description}>{description}</p>
-        {typeof progress === 'number' ? (
-          <Progress value={progress} thresholds={usageThresholds} className="h-1.5" />
-        ) : (
-          children
-        )}
-        <p className="truncate text-xs text-muted-soft" title={caption}>{caption}</p>
-      </div>
+      <p className="truncate text-footnote text-label-2" title={description}>{description}</p>
+      {typeof progress === 'number' ? (
+        <Progress value={progress} thresholds={usageThresholds} className="h-1.5" />
+      ) : (
+        children
+      )}
+      <p className="truncate text-caption-1 text-label-3" title={caption}>{caption}</p>
     </div>
   )
 }
@@ -230,9 +244,9 @@ function NetworkThroughputBar({ rx, tx }: { rx: number; tx: number }) {
   const rxPercent = total > 0 ? (Math.max(0, rx) / total) * 100 : 50
 
   return (
-    <div className="flex h-1.5 overflow-hidden rounded-full bg-[hsl(var(--glass-border))]">
-      <div className="bg-[hsl(190_88%_42%)]" style={{ width: `${rxPercent}%` }} />
-      <div className="flex-1 bg-[hsl(154_70%_38%)]" />
+    <div className="flex h-1.5 overflow-hidden rounded-full bg-separator">
+      <div className="bg-chart-2" style={{ width: `${rxPercent}%` }} />
+      <div className="flex-1 bg-chart-3" />
     </div>
   )
 }
@@ -251,29 +265,29 @@ function DiskResourceView({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="grid shrink-0 gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="min-w-0 rounded-lg bg-[hsl(var(--surface-subtle)/0.42)] p-3">
+        <div className="min-w-0 rounded-lg bg-fill-4 p-3">
           <div className="mb-2 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">{t('resources.metrics.capacity')}</p>
-              <p className="truncate text-xs text-muted-soft" title={latest.disk.path}>{t('resources.metrics.mountPoint')} {latest.disk.path}</p>
+              <p className="text-body font-medium text-label">{t('resources.metrics.capacity')}</p>
+              <p className="truncate text-footnote text-label-2" title={latest.disk.path}>{t('resources.metrics.mountPoint')} {latest.disk.path}</p>
             </div>
-            <p className="text-sm font-semibold tabular-nums text-foreground">{formatFixed(latest.disk.usage_percent)}%</p>
+            <p className="text-body font-semibold tabular-nums text-label">{formatFixed(latest.disk.usage_percent)}%</p>
           </div>
           <Progress value={latest.disk.usage_percent} thresholds={usageThresholds} className="h-1.5" />
-          <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
+          <div className="mt-2 grid grid-cols-3 gap-3 text-footnote">
             <DiskCapacityMetric label={t('resources.metrics.used')} value={formatBytes(latest.disk.used_bytes)} />
             <DiskCapacityMetric label={t('resources.metrics.available')} value={formatBytes(latest.disk.free_bytes)} />
             <DiskCapacityMetric label={t('resources.metrics.total')} value={formatBytes(latest.disk.total_bytes)} />
           </div>
         </div>
-        <div className="min-w-0 rounded-lg bg-[hsl(var(--surface-subtle)/0.42)] p-3">
-          <p className="text-sm font-medium text-foreground">{t('resources.metrics.readWrite')}</p>
+        <div className="min-w-0 rounded-lg bg-fill-4 p-3">
+          <p className="text-body font-medium text-label">{t('resources.metrics.readWrite')}</p>
           <div className="mt-2 grid grid-cols-2 gap-3">
             <DiskIOMetric label={t('resources.metrics.read')} value={formatBytesPerSecond(latest.disk.read_bytes_per_sec)} />
             <DiskIOMetric label={t('resources.metrics.write')} value={formatBytesPerSecond(latest.disk.write_bytes_per_sec)} />
           </div>
           <p
-            className="mt-2 truncate text-xs text-muted-soft"
+            className="mt-2 truncate text-footnote text-label-2"
             title={`${t('resources.metrics.read')} ${formatBytes(latest.disk.read_bytes_total)} / ${t('resources.metrics.write')} ${formatBytes(latest.disk.write_bytes_total)}`}
           >
             {(t as (key: string, options?: Record<string, unknown>) => string)('resources.description.totalReadWrite', { read: formatBytes(latest.disk.read_bytes_total), write: formatBytes(latest.disk.write_bytes_total) })}
@@ -293,8 +307,8 @@ function DiskResourceView({
 function DiskCapacityMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-muted-soft">{label}</p>
-      <p className="mt-0.5 truncate font-medium tabular-nums text-foreground" title={value}>{value}</p>
+      <p className="text-label-2">{label}</p>
+      <p className="mt-0.5 truncate font-medium tabular-nums text-label" title={value}>{value}</p>
     </div>
   )
 }
@@ -302,45 +316,49 @@ function DiskCapacityMetric({ label, value }: { label: string; value: string }) 
 function DiskIOMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs text-muted-soft">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold tabular-nums text-foreground" title={value}>{value}</p>
+      <p className="text-footnote text-label-2">{label}</p>
+      <p className="mt-1 truncate text-body font-semibold tabular-nums text-label" title={value}>{value}</p>
     </div>
   )
 }
 
 function ResourceChart({ tab, data, t }: { tab: Exclude<ResourceTab, 'overview' | 'disk' | 'network'>; data: DashboardSystemResourcePoint[]; t: (key: string) => string }) {
   return (
-    <div className="min-h-0 flex-1">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
-          <XAxis
-            dataKey="time"
-            minTickGap={28}
-            tickLine={false}
-            axisLine={false}
-            tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
-          />
-          <YAxis
-            domain={[0, 100]}
-            tickFormatter={formatPercentTick}
-            tickLine={false}
-            axisLine={false}
-            width={48}
-            tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
-          />
-          <Tooltip
-            contentStyle={dashboardTooltipStyle}
-            itemStyle={dashboardTooltipItemStyle}
-            labelStyle={dashboardTooltipLabelStyle}
-            formatter={(value, name) => [
-              `${formatFixed(Number(value))}%`,
-              name,
-            ]}
-          />
-          <Line type="monotone" dataKey={resourceDataKey(tab)} name={tab === 'memory' ? t('resources.tabs.memory') : 'CPU'} stroke={dashboardChartColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        </LineChart>
-      </ResponsiveContainer>
+    // 卡片高度随内容，不再固定：给折线图一个最低高度，同一行另一张卡更高时随之拉伸。
+    // 图表绝对定位铺满外层：外层只有 min-height 时百分比高度无法解析，直接 height="100%" 会变成 0
+    <div className="relative min-h-[220px] flex-1">
+      <div className="absolute inset-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid stroke={chartGridStroke} vertical={false} />
+            <XAxis
+              dataKey="time"
+              minTickGap={28}
+              tickLine={false}
+              axisLine={false}
+              tick={chartTick}
+            />
+            <YAxis
+              domain={[0, 100]}
+              tickFormatter={formatPercentTick}
+              tickLine={false}
+              axisLine={false}
+              width={48}
+              tick={chartTick}
+            />
+            <Tooltip
+              contentStyle={dashboardTooltipStyle}
+              itemStyle={dashboardTooltipItemStyle}
+              labelStyle={dashboardTooltipLabelStyle}
+              formatter={(value, name) => [
+                `${formatFixed(Number(value))}%`,
+                name,
+              ]}
+            />
+            <Line type="monotone" dataKey={resourceDataKey(tab)} name={tab === 'memory' ? t('resources.tabs.memory') : 'CPU'} stroke={dashboardChartColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }
@@ -362,8 +380,8 @@ function ResourceDivergingChart({
         data={data}
         positiveLabel={positiveLabel}
         negativeLabel={negativeLabel}
-        positiveColor="hsl(324 86% 58%)"
-        negativeColor="hsl(211 96% 52%)"
+        positiveColor={chartColors[5]}
+        negativeColor={chartColors[0]}
         valueFormatter={formatBytesPerSecond}
         height="100%"
         barCategoryGap={0}

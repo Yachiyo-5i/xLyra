@@ -2,27 +2,24 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
+/**
+ * 标签：胶囊、系统色 16% 底 + 系统色文字，高 20、Caption 1。
+ * 只用颜色区分不可靠，所以必须带文字；`dot` 在文字前加 6px 圆点。
+ */
 const badgeVariants = cva(
-  'inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium tracking-wide',
+  'inline-flex h-5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-caption-1',
   {
     variants: {
       variant: {
-        default:
-          'text-[hsl(var(--badge-neutral-text))] bg-[hsl(var(--badge-neutral-bg))] border-[hsl(var(--badge-neutral-border))]',
-        neutral:
-          'text-[hsl(var(--badge-neutral-text))] bg-[hsl(var(--badge-neutral-bg))] border-[hsl(var(--badge-neutral-border))]',
-        secondary:
-          'text-[hsl(var(--badge-info-text))] bg-[hsl(var(--badge-info-bg))] border-[hsl(var(--badge-info-border))]',
-        outline:
-          'text-[hsl(var(--badge-neutral-text))] bg-[hsl(var(--badge-neutral-bg))] border-[hsl(var(--badge-neutral-border))]',
-        success:
-          'text-[hsl(var(--badge-success-text))] bg-[hsl(var(--badge-success-bg))] border-[hsl(var(--badge-success-border))]',
-        info:
-          'text-[hsl(var(--badge-info-text))] bg-[hsl(var(--badge-info-bg))] border-[hsl(var(--badge-info-border))]',
-        warning:
-          'text-[hsl(var(--badge-warning-text))] bg-[hsl(var(--badge-warning-bg))] border-[hsl(var(--badge-warning-border))]',
-        accent:
-          'text-[hsl(var(--badge-accent-text))] bg-[hsl(var(--badge-accent-bg))] border-[hsl(var(--badge-accent-border))]',
+        neutral: 'bg-fill-3 text-label-2',
+        default: 'bg-fill-3 text-label-2',
+        outline: 'border border-separator bg-transparent text-label-2',
+        accent: 'bg-tint/14 text-tint',
+        secondary: 'bg-info/16 text-info',
+        info: 'bg-info/16 text-info',
+        success: 'bg-success/16 text-success',
+        warning: 'bg-warning/16 text-warning',
+        danger: 'bg-danger/16 text-danger',
       },
     },
     defaultVariants: {
@@ -31,8 +28,15 @@ const badgeVariants = cva(
   },
 )
 
-export interface BadgeProps extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
+export interface BadgeProps extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {
+  dot?: boolean
+}
 
-export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />
+export function Badge({ className, variant, dot = false, children, ...props }: BadgeProps) {
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props}>
+      {dot ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" /> : null}
+      {children}
+    </div>
+  )
 }

@@ -10,7 +10,8 @@ import (
 
 // SteppedDecision is one hook return of a stepped kind other than quota_probe:
 // the next request, the final result, or an error. Result holds a
-// *ModelListResult, *CredentialCheckResult or *SiteDetectResult.
+// *ModelListResult, *CredentialCheckResult, *SiteDetectResult,
+// *AccountLoginResult, *AccountRefreshResult, or *AccountSummaryResult.
 type SteppedDecision struct {
 	Request     *ProbeRequest
 	Result      any
@@ -27,27 +28,78 @@ func newSteppedResult(kind string) any {
 		return &CredentialCheckResult{}
 	case KindSiteDetect:
 		return &SiteDetectResult{}
+	case KindAccountLogin:
+		return &AccountLoginResult{}
+	case KindAccountRefresh:
+		return &AccountRefreshResult{}
+	case KindAccountSummary:
+		return &AccountSummaryResult{}
 	}
 	return nil
+}
+
+func isAccountResultKind(kind string) bool {
+	switch kind {
+	case KindAccountLogin, KindAccountRefresh, KindAccountSummary:
+		return true
+	default:
+		return false
+	}
 }
 
 // CallStepped runs the hook of a model_list, credential_check or site_detect
 // plugin once. steps are the exchanges finished so far.
 func (p *Plugin) CallStepped(ctx context.Context, probeCtx ProbeContext, steps []ProbeStep) (SteppedDecision, error) {
 	spec, ok := lookupKind(p.Manifest.Kind)
-	if !ok || spec.Family != FamilyStepped || p.Manifest.Kind == KindQuotaProbe {
+	if !ok || spec.Family != FamilyStepped || p.Manifest.Kind == KindQuotaProbe || len(spec.Hooks) == 0 {
 		return SteppedDecision{}, fmt.Errorf("kind %q is not a stepped kind", p.Manifest.Kind)
 	}
-	hook := spec.Hooks[0]
+	return p.CallSteppedHook(ctx, spec.Hooks[0], p.Manifest.Kind, probeCtx, steps)
+}
+
+// CallSteppedHook runs one exported hook and decodes the return as resultKind
+// (model_list, credential_check, or site_detect). hook is the export name, so
+// one package can serve several stepped contracts. A missing export returns an
+// error and does not enter the runtime.
+func (p *Plugin) CallSteppedHook(ctx context.Context, hook, resultKind string, probeCtx ProbeContext, steps []ProbeStep) (SteppedDecision, error) {
+	if p == nil || !p.HasHook(hook) {
+		return SteppedDecision{}, fmt.Errorf("%s hook is missing", hook)
+	}
+	spec, ok := lookupKind(resultKind)
+	if !ok || spec.Family != FamilyStepped || resultKind == KindQuotaProbe {
+		return SteppedDecision{}, fmt.Errorf("kind %q is not a stepped result kind", resultKind)
+	}
 	ctxValue := probeCtx.asMap()
-	if p.Manifest.Kind == KindSiteDetect {
+	if resultKind == KindSiteDetect {
 		ctxValue = encodeValue(DetectContext{BaseURL: probeCtx.BaseURL, Now: probeCtx.Now}).(map[string]any)
 	}
 	out, logs, dropped, err := p.callHook(ctx, hook, spec.Timeout, len(steps), ctxValue, stepsAsValue(steps))
 	if err != nil {
 		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, err
 	}
-	decision, err := decodeSteppedDecision(out, p.Manifest.Kind)
+	decision, err := decodeSteppedDecision(out, resultKind)
+	if err != nil {
+		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, hook, len(steps), 0)
+	}
+	decision.Logs, decision.DroppedLogs = logs, dropped
+	return decision, nil
+}
+
+// CallAccountHook runs one account-pool hook and decodes resultKind
+// (account_login, account_refresh, or account_summary). The timeout is the
+// stepped hook budget, 200ms. A missing export does not enter the runtime.
+func (p *Plugin) CallAccountHook(ctx context.Context, hook, resultKind string, ctxValue map[string]any, steps []ProbeStep) (SteppedDecision, error) {
+	if p == nil || !p.HasHook(hook) {
+		return SteppedDecision{}, fmt.Errorf("%s hook is missing", hook)
+	}
+	if !isAccountResultKind(resultKind) {
+		return SteppedDecision{}, fmt.Errorf("kind %q is not an account result kind", resultKind)
+	}
+	out, logs, dropped, err := p.callHook(ctx, hook, probeHookTimeout, len(steps), ctxValue, stepsAsValue(steps))
+	if err != nil {
+		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, err
+	}
+	decision, err := decodeSteppedDecision(out, resultKind)
 	if err != nil {
 		return SteppedDecision{Logs: logs, DroppedLogs: dropped}, annotate(p, err, hook, len(steps), 0)
 	}
@@ -112,6 +164,57 @@ func (p *Plugin) CallErrorClassify(ctx context.Context, c ErrorClassifyContext, 
 	return out, nil
 }
 
+// CallErrorClassifyHook runs one exported hook and decodes it as an
+// error_classifier verdict. hook is the export name, so a site_provider can
+// serve the same contract with the same 50 ms limit. A missing export returns
+// an error and does not enter the runtime.
+func (p *Plugin) CallErrorClassifyHook(ctx context.Context, hook string, c ErrorClassifyContext, in ErrorClassifyInput) (ErrorClassifyResult, error) {
+	var out ErrorClassifyResult
+	if err := p.callOneShotHook(ctx, hook, KindErrorClassifier, &out, encodeValue(c), encodeValue(in)); err != nil {
+		return ErrorClassifyResult{}, err
+	}
+	if len(out.Reason) > 200 {
+		return ErrorClassifyResult{}, annotate(p, shapeError("result.reason: longer than 200 bytes"), hook, 0, 0)
+	}
+	return out, nil
+}
+
+// CallRewritePayload runs one exported rewritePayload hook. hook is the export
+// name. The hook receives ctx and payload and must return a new object. A
+// missing export, or an input whose JSON exceeds MaxResultBytes, returns an
+// error and does not enter the runtime. The call budget is protocolHookTimeout.
+// Plugin authors must not log user messages; the host does not record the payload.
+func (p *Plugin) CallRewritePayload(ctx context.Context, hook string, c RewritePayloadContext, payload map[string]any) (map[string]any, error) {
+	if p == nil || !p.HasHook(hook) {
+		return nil, fmt.Errorf("%s hook is missing", hook)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, annotate(p, err, hook, 0, 0)
+	}
+	if int64(len(encoded)) > MaxResultBytes {
+		return nil, annotate(p, &CallError{Kind: KindResponseTooLarge, Detail: fmt.Sprintf("payload exceeds %d bytes", MaxResultBytes)}, hook, 0, 0)
+	}
+	started := time.Now()
+	value, logs, dropped, err := p.callHook(ctx, hook, protocolHookTimeout, 0, encodeValue(c), payload)
+	EmitLogs(ctx, p, hook, 0, logs, dropped)
+	if err != nil {
+		return nil, err
+	}
+	object, ok := value.(map[string]any)
+	if !ok || object == nil {
+		return nil, annotate(p, shapeError("hook return value: expected object"), hook, 0, time.Since(started).Milliseconds())
+	}
+	outEncoded, err := json.Marshal(object)
+	if err != nil {
+		return nil, annotate(p, err, hook, 0, time.Since(started).Milliseconds())
+	}
+	if int64(len(outEncoded)) > MaxResultBytes {
+		return nil, annotate(p, &CallError{Kind: KindResponseTooLarge, Detail: fmt.Sprintf("result exceeds %d bytes", MaxResultBytes)}, hook, 0, time.Since(started).Milliseconds())
+	}
+	return object, nil
+}
+
 // CallModelMetadata runs a model_metadata plugin. Every id in the result must
 // be one of the input names.
 func (p *Plugin) CallModelMetadata(ctx context.Context, c ModelMetadataContext, in ModelMetadataInput) (ModelMetadataResult, error) {
@@ -171,7 +274,19 @@ func (p *Plugin) callOneShot(ctx context.Context, kind string, out any, args ...
 	if !ok || p.Manifest.Kind != kind {
 		return fmt.Errorf("plugin %s is not a %s plugin", p.Manifest.ID, kind)
 	}
-	hook := spec.Hooks[0]
+	return p.callOneShotHook(ctx, spec.Hooks[0], kind, out, args...)
+}
+
+// callOneShotHook runs hook with kind's timeout and decodes into out.
+// It checks that hook is exported, not that the plugin's kind equals kind.
+func (p *Plugin) callOneShotHook(ctx context.Context, hook, kind string, out any, args ...any) error {
+	if p == nil || !p.HasHook(hook) {
+		return fmt.Errorf("%s hook is missing", hook)
+	}
+	spec, ok := lookupKind(kind)
+	if !ok {
+		return fmt.Errorf("kind %q is unknown", kind)
+	}
 	started := time.Now()
 	value, _, _, err := p.callHook(ctx, hook, spec.Timeout, 0, args...)
 	if err != nil {
@@ -223,6 +338,12 @@ func (p *Plugin) runOneShotFixture(ctx context.Context, fixture Fixture) error {
 	default:
 		return fmt.Errorf("selftest does not support kind %q", p.Manifest.Kind)
 	}
+	return compareOneShot(result, err, fixture)
+}
+
+// compareOneShot applies the one-shot fixture rule: expect.error is a substring
+// of the call error; expect.result is compared field by field, recursively.
+func compareOneShot(result any, err error, fixture Fixture) error {
 	if err != nil {
 		if fixture.Expect.Error != "" && strings.Contains(err.Error(), fixture.Expect.Error) {
 			return nil
@@ -245,6 +366,10 @@ func decodeFixtureInput(input any, out any) error {
 }
 
 func (p *Plugin) runSteppedFixture(ctx context.Context, fixture Fixture) error {
+	return p.runSteppedFixtureHook(ctx, fixture, "", "")
+}
+
+func (p *Plugin) runSteppedFixtureHook(ctx context.Context, fixture Fixture, hook, resultKind string) error {
 	probeCtx := ProbeContext{
 		SiteType:       fixture.Ctx.SiteType,
 		BaseURL:        fixture.Ctx.BaseURL,
@@ -255,7 +380,13 @@ func (p *Plugin) runSteppedFixture(ctx context.Context, fixture Fixture) error {
 	var requests []ProbeRequest
 	used := make([]bool, len(fixture.Responses))
 	for step := 0; step < MaxProbeSteps; step++ {
-		decision, err := p.CallStepped(ctx, probeCtx, steps)
+		var decision SteppedDecision
+		var err error
+		if hook == "" {
+			decision, err = p.CallStepped(ctx, probeCtx, steps)
+		} else {
+			decision, err = p.CallSteppedHook(ctx, hook, resultKind, probeCtx, steps)
+		}
 		if err != nil {
 			return err
 		}

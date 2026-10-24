@@ -258,30 +258,30 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && outcome !== 'running') onClose() }}>
-      <DialogContent className="w-[min(92vw,560px)]">
+      <DialogContent presentation="center" className="w-[min(92vw,560px)]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-4">
-          <div className="truncate rounded-xl border border-[hsl(var(--glass-border))] bg-[hsl(var(--surface-subtle))] px-3 py-2 font-mono text-xs text-muted-soft">
+          <div className="truncate rounded-card border border-separator bg-fill-3 px-3 py-2 font-mono text-footnote text-label-2">
             {filename}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-[hsl(var(--glass-border))]" aria-live="polite">
+          <div className="overflow-hidden rounded-card border border-separator" aria-live="polite">
             {visibleSteps.map((step, index) => {
               const state = steps[step.id]
               return (
                 <div
                   key={step.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${index ? 'border-t border-[hsl(var(--glass-divider))]' : ''}`}
+                  className={`flex items-center gap-3 px-4 py-3 ${index ? 'border-t border-separator' : ''}`}
                 >
                   <StepIcon state={state} />
-                  <span className={`min-w-0 flex-1 text-sm ${state === 'in_progress' ? 'font-medium text-foreground' : 'text-muted-soft'}`}>
+                  <span className={`min-w-0 flex-1 text-body ${state === 'in_progress' ? 'font-medium text-label' : 'text-label-2'}`}>
                     {t(step.tKey)}
                   </span>
-                  <span className={`text-xs ${state === 'error' ? 'text-[hsl(var(--destructive))]' : state === 'complete' ? 'text-[hsl(var(--badge-success-text))]' : 'text-muted-soft'}`}>
+                  <span className={`text-footnote ${state === 'error' ? 'text-danger' : state === 'complete' ? 'text-success' : 'text-label-2'}`}>
                     {t(`backup.automatic.restoreProgress.status.${state}`)}
                   </span>
                 </div>
@@ -290,9 +290,9 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
           </div>
 
           {steps.download === 'in_progress' && downloadTotal > 0 ? (
-            <div role="status" className="space-y-2 rounded-xl bg-[hsl(var(--surface-subtle))] px-4 py-3">
+            <div role="status" className="space-y-2 rounded-card bg-fill-3 px-4 py-3">
               <Progress value={downloadBytes} max={downloadTotal} variant="accent" showValue />
-              <p className="text-xs text-muted-soft">
+              <p className="text-footnote text-label-2">
                 {t('backup.automatic.restoreProgress.downloaded', {
                   downloaded: formatBytes(downloadBytes, i18n.language),
                   total: formatBytes(downloadTotal, i18n.language),
@@ -302,16 +302,16 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
           ) : null}
 
           {steps.import === 'in_progress' ? (
-            <div role="status" className="space-y-3 rounded-xl bg-[hsl(var(--surface-subtle))] px-4 py-3">
+            <div role="status" className="space-y-3 rounded-card bg-fill-3 px-4 py-3">
               <div className="flex items-center gap-3">
-                <DatabaseBackup aria-hidden className="h-4 w-4 text-primary" />
-                <p className="min-w-0 text-sm text-foreground">{currentTableLabel(currentTable, t)}</p>
+                <DatabaseBackup aria-hidden className="h-4 w-4 text-tint" />
+                <p className="min-w-0 text-body text-label">{currentTableLabel(currentTable, t)}</p>
               </div>
               {totalRows > 0 ? (
                 <Progress value={displayedRows} max={totalRows} variant="accent" showValue />
               ) : null}
               <div className="pl-7">
-                <p className="mt-0.5 text-xs text-muted-soft">
+                <p className="mt-0.5 text-footnote text-label-2">
                   {totalRows > 0
                     ? t('backup.automatic.restoreProgress.rowsImportedWithTotal', {
                         count: displayedRows.toLocaleString(i18n.language),
@@ -324,12 +324,12 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
           ) : null}
 
           {outcome === 'error' ? (
-            <div role="alert" className="rounded-xl border border-[hsl(var(--destructive)/0.35)] bg-[hsl(var(--destructive)/0.08)] px-4 py-3 text-sm leading-6 text-[hsl(var(--destructive))]">
+            <div role="alert" className="rounded-card border border-danger/35 bg-danger/80 px-4 py-3 text-body leading-6 text-danger">
               {errorMessage || t('backup.automatic.restoreProgress.unknownError')}
             </div>
           ) : null}
           {cancelError ? (
-            <div role="alert" className="rounded-xl border border-[hsl(var(--destructive)/0.35)] bg-[hsl(var(--destructive)/0.08)] px-4 py-3 text-sm leading-6 text-[hsl(var(--destructive))]">
+            <div role="alert" className="rounded-card border border-danger/35 bg-danger/80 px-4 py-3 text-body leading-6 text-danger">
               {cancelError}
             </div>
           ) : null}
@@ -338,7 +338,7 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
         <DialogFooter>
           {outcome === 'running' && task.type === 'automatic' ? (
             <>
-              <Button variant="outline" onClick={handleBackground} disabled={!automaticRestore}>
+              <Button variant="secondary" onClick={handleBackground} disabled={!automaticRestore}>
                 {t('backup.automatic.restoreProgress.background')}
               </Button>
               <Button
@@ -353,19 +353,19 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
               </Button>
             </>
           ) : outcome === 'running' ? (
-            <p role="status" className="text-xs text-muted-soft">
+            <p role="status" className="text-footnote text-label-2">
               {t('backup.automatic.restoreProgress.keepOpen')}
             </p>
           ) : outcome === 'error' || outcome === 'canceled' ? (
             <>
-              <Button variant="outline" onClick={onClose}>{t('backup.automatic.restoreProgress.close')}</Button>
+              <Button variant="secondary" onClick={onClose}>{t('backup.automatic.restoreProgress.close')}</Button>
               <Button onClick={onRetry}>
                 <RotateCcw aria-hidden className="h-4 w-4" />
                 {t('backup.automatic.restoreProgress.retry')}
               </Button>
             </>
           ) : (
-            <p role="status" className="flex items-center gap-2 text-xs text-muted-soft">
+            <p role="status" className="flex items-center gap-2 text-footnote text-label-2">
               <LoaderCircle aria-hidden className="h-4 w-4 animate-spin" />
               {t('backup.automatic.restoreProgress.reload')}
             </p>
@@ -378,18 +378,18 @@ function RestoreProgressRun({ task, onClose, onRetry, onBackground }: RestorePro
 
 function StepIcon({ state }: { state: StepState }) {
   if (state === 'complete') {
-    return <CheckCircle2 aria-hidden className="h-5 w-5 text-[hsl(var(--badge-success-text))]" />
+    return <CheckCircle2 aria-hidden className="h-5 w-5 text-success" />
   }
   if (state === 'in_progress') {
-    return <LoaderCircle aria-hidden className="h-5 w-5 animate-spin text-primary" />
+    return <LoaderCircle aria-hidden className="h-5 w-5 animate-spin text-tint" />
   }
   if (state === 'error') {
-    return <XCircle aria-hidden className="h-5 w-5 text-[hsl(var(--destructive))]" />
+    return <XCircle aria-hidden className="h-5 w-5 text-danger" />
   }
   if (state === 'canceled') {
-    return <XCircle aria-hidden className="h-5 w-5 text-muted-soft" />
+    return <XCircle aria-hidden className="h-5 w-5 text-label-2" />
   }
-  return <Circle aria-hidden className="h-5 w-5 text-muted-soft" />
+  return <Circle aria-hidden className="h-5 w-5 text-label-2" />
 }
 
 function advanceRestoreSteps(current: Record<StepId, StepState>, step: StepId, status: RestoreProgressEvent['status']) {

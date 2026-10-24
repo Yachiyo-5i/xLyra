@@ -5,7 +5,7 @@ import { BrandMark } from '@/components/common/brand-mark'
 import { buildModelGlyph, siteTypeIconPath } from '@/components/common/brand-utils'
 import { copyToClipboard } from '@/components/common/copy-to-clipboard'
 import { Badge } from '@/components/ui/badge'
-import { Draw, DrawBody, DrawContent, DrawHeader, DrawTitle } from '@/components/ui/draw'
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { DownstreamAPIKey } from '@/features/api-keys/api/api-keys'
@@ -124,18 +124,17 @@ export function APIKeyModelsDraw({
   }, [allRows, search, filterModel])
 
   return (
-    <Draw open={Boolean(apiKey)} onOpenChange={onOpenChange}>
-      <DrawContent
-        side="right"
-        onOpenAutoFocus={(event) => event.preventDefault()}
+    <Sheet open={Boolean(apiKey)} onOpenChange={onOpenChange}>
+      <SheetContent
+onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DrawHeader>
-          <DrawTitle>{t('modelsDraw.title')}</DrawTitle>
-        </DrawHeader>
-        <DrawBody className="flex flex-col gap-3 overflow-hidden">
+        <SheetHeader>
+          <SheetTitle>{t('modelsDraw.title')}</SheetTitle>
+        </SheetHeader>
+        <SheetBody className="flex flex-col gap-3 overflow-hidden">
           <div className="flex shrink-0 gap-2">
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-foreground/40" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-label-3" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -157,7 +156,7 @@ export function APIKeyModelsDraw({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {rows.length === 0 ? (
-              <div className="py-10 text-center text-muted-soft">
+              <div className="py-10 text-center text-label-2">
                 {t('modelsDraw.noModels')}
               </div>
             ) : (
@@ -167,8 +166,8 @@ export function APIKeyModelsDraw({
                   <button
                     key={`${row.siteId}:${row.modelKey}:${i}`}
                     type="button"
-                    className="flex w-full items-center gap-2.5 border-t border-[hsl(var(--glass-divider))] px-1 py-2 text-left first:border-t-0 hover:bg-[hsl(var(--surface-raised))]"
-                    onClick={() => copyToClipboard(row.modelKey, t('table.copySuccess'), t('table.copyFailed'))}
+                    className="flex w-full items-center gap-2.5 border-t border-separator px-1 py-2 text-left first:border-t-0 hover:bg-fill-3"
+                    onClick={() => copyToClipboard(row.modelKey, t('modelsDraw.modelCopied'), t('table.copyFailed'))}
                   >
                     <BrandMark
                       iconPath={row.modelIconPath}
@@ -177,7 +176,7 @@ export function APIKeyModelsDraw({
                       fallbackText={buildModelGlyph(row.provider)}
                       size="xs"
                     />
-                    <span className="min-w-0 flex-1 truncate text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-label">
                       {row.modelKey}
                     </span>
                     {isAllowListModel && row.siteName && (
@@ -195,9 +194,9 @@ export function APIKeyModelsDraw({
               })
             )}
           </div>
-        </DrawBody>
-      </DrawContent>
-    </Draw>
+        </SheetBody>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -217,11 +216,12 @@ function SiteBadge({
   t: (key: string) => string
 }) {
   return (
-    <span className="flex shrink-0 items-center gap-1">
+    // 站点与权重是两项信息：站点（图标 + 名称）在前，权重单独一列右对齐，行与行之间对齐；都不加底色
+    <span className="flex shrink-0 items-center gap-3 text-footnote">
       {disabled && (
         <Badge variant="warning">{t('modelsDraw.siteDisabled')}</Badge>
       )}
-      <span className="inline-flex items-center gap-1 rounded bg-[hsl(var(--surface-sunken))] px-1.5 py-0.5">
+      <span className="flex min-w-0 max-w-[10rem] items-center gap-1.5">
         <BrandMark
           iconPath={siteIconPath}
           label={siteName}
@@ -230,12 +230,12 @@ function SiteBadge({
           transparent
           size="xs"
         />
-        <span className="leading-tight text-muted-soft">
+        <span className="truncate text-label-2" title={siteName}>
           {siteName}
         </span>
-        <span className="leading-tight tabular-nums text-muted-soft opacity-60">
-          P{priority}
-        </span>
+      </span>
+      <span className="w-9 shrink-0 text-right tabular-nums text-label-3" title={t('modelsDraw.priority')}>
+        P{priority}
       </span>
     </span>
   )

@@ -1,12 +1,7 @@
+import { chartCursorFill, chartGridStroke, chartSliceStroke, chartTick } from '@/components/charts/chart-theme'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Gauge,
-  Hash,
-  RefreshCw,
-  Timer,
-  WalletCards,
+  RotateCcw,
   X,
 } from 'lucide-react'
 import {
@@ -26,8 +21,8 @@ import {
   YAxis,
 } from 'recharts'
 import { useTranslation } from 'react-i18next'
-import { TokenUsageHoverCard, type TokenUsageLabels } from '@/components/common/token-usage-hover-card'
 import { ErrorState } from '@/components/common/error-state'
+import { PageHeader } from '@/components/common/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -36,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import type { AnalyticsUsage } from '@/features/analytics/api/analytics'
 import type { AnalyticsFiltersState } from '@/features/analytics/components/analytics-filter-bar'
+import { AnalyticsKpiCards } from '@/features/analytics/components/analytics-kpi-cards'
 import { AnalyticsSlashTabs } from '@/features/analytics/components/analytics-panel'
 import { AnalyticsUserRanking } from '@/features/analytics/components/analytics-user-ranking'
 import {
@@ -62,7 +58,6 @@ import {
 } from '@/features/dashboard/components/chart-style'
 import type { ApiKeyContributions } from '@/features/dashboard/lib/dashboard-utils'
 import {
-  formatCompactNumber,
   formatDashboardCurrency,
   formatDashboardRefreshTime,
   formatDashboardTokens,
@@ -127,23 +122,22 @@ export function MobileAnalytics({
 
   return (
     <div className="space-y-4 pb-2">
-      {/* 头部 */}
-      <section className="space-y-1.5">
-        <p className="text-xs font-medium uppercase tracking-[0.24em] text-faint">{t('page.eyebrow')}</p>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground">{t('page.title')}</h2>
-          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching}>
-            <RefreshCw className={cn('size-4', isFetching && 'animate-spin')} />
-            {t('page.refresh')}
-          </Button>
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1.5">
-          <p className="max-w-[18rem] text-sm leading-6 text-muted-soft">{t('page.description')}</p>
-          <span className="whitespace-nowrap pt-1 text-xs text-muted-soft">
-            {t('page.update')} {formatDashboardRefreshTime(usage.meta.generated_at, language)}
-          </span>
-        </div>
-      </section>
+      <PageHeader
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
+        actions={
+          <>
+            <span className="text-footnote text-label-3">
+              {t('page.update')} {formatDashboardRefreshTime(usage.meta.generated_at, language)}
+            </span>
+            <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isFetching}>
+              <RotateCcw className={cn('size-4', isFetching && 'animate-spin')} />
+              {t('page.refresh')}
+            </Button>
+          </>
+        }
+      />
 
       <MobileFilters
         filters={filters}
@@ -158,7 +152,7 @@ export function MobileAnalytics({
         dataFrom={usage.meta.data_from}
       />
 
-      <MobileKpiCards usage={usage} />
+      <AnalyticsKpiCards usage={usage} compact />
 
       <MobileTrendPanel
         usage={usage}
@@ -193,7 +187,7 @@ export function MobileAnalytics({
           onSelectedKeyChange={onContributionKeyChange}
         />
       ) : (
-        <Card className="h-[400px] rounded-2xl p-5"><Skeleton className="h-full w-full" /></Card>
+        <Card className="h-[400px] p-5"><Skeleton className="h-full w-full" /></Card>
       )}
     </div>
   )
@@ -257,7 +251,8 @@ function MobileFilters({
   return (
     <section className="space-y-2">
       {/* 全部筛选横向铺开，限制在视口宽度内，超出部分横向滚动 */}
-      <div className="scrollbar-hidden flex items-center gap-2 overflow-x-auto pb-1">
+      {/* 筛选胶囊横向滚动：右侧淡出提示还有更多，末尾留白让最后一个胶囊能完整滑出 */}
+      <div className="scrollbar-hidden -mr-4 flex items-center gap-2 overflow-x-auto pb-1 pr-8 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)]">
         <Select
           value={filters.preset}
           onValueChange={(value) => handlePresetChange(value as AnalyticsRangePreset)}
@@ -346,7 +341,7 @@ function MobileFilters({
             clearable={false}
             triggerClassName="h-10"
           />
-          <span className="text-xs text-faint">→</span>
+          <span className="text-footnote text-label-3">→</span>
           <DatePicker
             value={toDateObj}
             onValueChange={(date) => {
@@ -363,7 +358,7 @@ function MobileFilters({
       ) : null}
 
       {optionsError ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">
+        <div className="flex items-center justify-between gap-3 rounded-inner bg-danger/12 px-3 py-2 text-footnote text-danger">
           <span>{t('page.optionsLoadFailed')}: {optionsError}</span>
           {onRetryOptions ? <Button variant="outline" size="sm" onClick={onRetryOptions}>{t('page.retry')}</Button> : null}
         </div>
@@ -374,128 +369,9 @@ function MobileFilters({
 
 /* ---------------------------------- KPI 卡 ---------------------------------- */
 
-type KpiDelta = {
-  current: number
-  previous: number
-  invert?: boolean
-}
 
-function MobileKpiCards({ usage }: { usage: AnalyticsUsage }) {
-  const { t } = useTranslation('analytics')
-  const { totals, meta } = usage
-  const currency = meta.currency || 'USD'
-  const previous = totals.previous_period ?? null
-  const extraCurrencies = Object.entries(totals.cost_by_currency ?? {}).filter(
-    ([code]) => code !== currency,
-  )
 
-  const tokenLabels: TokenUsageLabels = {
-    total: t('tokens.total'),
-    input: t('tokens.input'),
-    output: t('tokens.output'),
-    cached: t('tokens.cached'),
-    hitRate: t('tokens.hitRate'),
-  }
 
-  return (
-    <div className="grid gap-3">
-      <MobileKpiCard
-        icon={WalletCards}
-        title={t('kpis.cost')}
-        value={formatDashboardCurrency(totals.cost, currency)}
-        note={extraCurrencies.length
-          ? t('kpis.multiCurrency', { count: extraCurrencies.length + 1 })
-          : undefined}
-        delta={previous ? { current: totals.cost, previous: previous.cost } : undefined}
-      />
-      <MobileKpiCard
-        icon={Hash}
-        title={t('kpis.tokens')}
-        value={(
-          <TokenUsageHoverCard
-            columns={[{
-              usage: {
-                total: totals.total_tokens,
-                input: totals.prompt_tokens,
-                output: totals.completion_tokens,
-                cached: totals.cached_tokens,
-              },
-            }]}
-            labels={tokenLabels}
-          >
-            <span>{formatCompactNumber(totals.total_tokens)}</span>
-          </TokenUsageHoverCard>
-        )}
-        note={t('kpis.cacheHitRate', { value: formatPercent(totals.cache_hit_rate) })}
-        delta={previous ? { current: totals.total_tokens, previous: previous.total_tokens } : undefined}
-      />
-      <MobileKpiCard
-        icon={Gauge}
-        title={t('kpis.requests')}
-        value={formatCompactNumber(totals.requests)}
-        note={t('kpis.successRate', { value: formatPercent(totals.success_rate) })}
-        delta={previous ? { current: totals.requests, previous: previous.requests } : undefined}
-      />
-      <MobileKpiCard
-        icon={Timer}
-        title={t('kpis.avgLatency')}
-        value={formatLatencyMs(totals.avg_latency_ms)}
-        note={t('kpis.maxLatency', { value: formatLatencyMs(totals.max_latency_ms) })}
-        delta={previous ? { current: totals.avg_latency_ms, previous: previous.avg_latency_ms, invert: true } : undefined}
-      />
-    </div>
-  )
-}
-
-function MobileKpiCard({
-  icon: Icon,
-  title,
-  value,
-  note,
-  delta,
-}: {
-  icon: typeof WalletCards
-  title: string
-  value: React.ReactNode
-  note?: string
-  delta?: KpiDelta
-}) {
-  const { t } = useTranslation('analytics')
-  return (
-    <Card className="rounded-2xl p-4">
-      <div className="mb-3 flex items-center gap-2 text-muted-soft">
-        <Icon className="size-4 shrink-0" />
-        <span className="text-xs font-medium">{title}</span>
-      </div>
-      <div className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">{value}</div>
-      <div className="mt-2 flex min-h-5 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-soft">
-        {note}
-        {delta ? <MobileDeltaBadge delta={delta} label={t('kpis.vsPrevious')} /> : null}
-      </div>
-    </Card>
-  )
-}
-
-function MobileDeltaBadge({ delta, label }: { delta: KpiDelta; label: string }) {
-  if (!Number.isFinite(delta.previous) || delta.previous === 0) return null
-  const ratio = (delta.current - delta.previous) / Math.abs(delta.previous)
-  if (!Number.isFinite(ratio)) return null
-  const up = ratio >= 0
-  const good = delta.invert ? !up : up
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-0.5 font-medium tabular-nums',
-        good ? 'text-emerald-500' : 'text-rose-500',
-      )}
-      title={label}
-    >
-      <span className="text-muted-soft">{label}</span>
-      {up ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-      {`${Math.abs(ratio * 100).toFixed(1)}%`}
-    </span>
-  )
-}
 
 /* ---------------------------------- 趋势图 ---------------------------------- */
 
@@ -536,7 +412,7 @@ function MobileTrendPanel({
   const hasData = series.length > 0 && data.length > 0
 
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <AnalyticsSlashTabs
@@ -558,15 +434,16 @@ function MobileTrendPanel({
             ]}
           />
         </div>
-        <p className="text-xs text-muted-soft">
+        <p className="text-footnote text-label-2">
           {isHour
             ? t('trend.hourDescription', { date: usage.meta.from })
             : t('trend.description', { from: usage.meta.from, to: usage.meta.to })}
         </p>
       </div>
 
+      {/* 图例在图内占一部分高度，整体加高到 300，绘图区约 220 */}
       {hasData ? (
-        <div className="h-[240px]">
+        <div className="h-[300px]">
           <MobileTrendChart
             data={data}
             series={seriesWithColor}
@@ -578,7 +455,7 @@ function MobileTrendPanel({
           />
         </div>
       ) : (
-        <div className="flex h-[240px] items-center justify-center text-sm text-muted-soft">
+        <div className="flex h-[300px] items-center justify-center text-body text-label-2">
           {t('trend.empty')}
         </div>
       )}
@@ -617,7 +494,7 @@ function MobileTrendChart({
       tickFormatter={xTickFormatter}
       tickLine={false}
       axisLine={false}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
+      tick={chartTick}
     />
   )
   const yAxis = (
@@ -626,13 +503,13 @@ function MobileTrendChart({
       tickLine={false}
       axisLine={false}
       width={44}
-      tick={{ fill: 'hsl(var(--text-muted-soft))', fontSize: 11 }}
+      tick={chartTick}
     />
   )
-  const grid = <CartesianGrid stroke="hsl(var(--glass-border))" vertical={false} />
+  const grid = <CartesianGrid stroke={chartGridStroke} vertical={false} />
   const tooltip = (
     <Tooltip
-      cursor={{ fill: 'hsl(var(--surface-subtle))' }}
+      cursor={{ fill: chartCursorFill }}
       content={(props) => (
         <MobileTrendTooltip {...props} series={series} formatValue={formatValue} />
       )}
@@ -642,9 +519,9 @@ function MobileTrendChart({
     <Legend
       iconType="square"
       iconSize={8}
-      wrapperStyle={{ fontSize: 11, paddingTop: 4, color: 'hsl(var(--text-muted-soft))' }}
+      wrapperStyle={{ fontSize: 11, paddingTop: 4, color: 'var(--label-tertiary)' }}
       formatter={(value) => (
-        <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+        <span style={{ color: 'var(--label-primary)' }}>{value}</span>
       )}
     />
   )
@@ -724,7 +601,7 @@ function MobileTrendTooltip({ active, label, payload, series, formatValue }: Mob
       return {
         key: dataKey,
         name: seriesItem?.name ?? String(item.name ?? dataKey),
-        color: seriesItem?.color ?? item.color ?? 'hsl(var(--text-muted-soft))',
+        color: seriesItem?.color ?? item.color ?? 'var(--label-tertiary)',
         value,
       }
     })
@@ -736,13 +613,13 @@ function MobileTrendTooltip({ active, label, payload, series, formatValue }: Mob
 
   return (
     <div style={dashboardTooltipStyle} className="min-w-[148px] max-w-[240px]">
-      <div className="mb-2 flex items-center justify-between gap-4 text-xs">
-        <span className="text-muted-soft">{label}</span>
-        <span className="font-medium tabular-nums text-foreground">{formatValue(total)}</span>
+      <div className="mb-2 flex items-center justify-between gap-4 text-footnote">
+        <span className="text-label-2">{label}</span>
+        <span className="font-medium tabular-nums text-label">{formatValue(total)}</span>
       </div>
       <div className="space-y-1">
         {items.map((item) => (
-          <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-xs text-foreground">
+          <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-footnote text-label">
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
               <span className="truncate">{item.name}</span>
@@ -847,19 +724,19 @@ function MobileCostBreakdown({
   const hasActive = activeKeys.length > 0
 
   return (
-    <Card className="rounded-2xl p-4">
+    <Card className="p-4">
       <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-foreground">{t('donut.title')}</h3>
-            <p className="text-xs text-muted-soft">{t('donut.description')}</p>
+            <h3 className="text-headline text-label">{t('donut.title')}</h3>
+            <p className="text-footnote text-label-2">{t('donut.description')}</p>
           </div>
           <div className="flex items-center gap-2">
             {hasActive ? (
               <button
                 type="button"
                 onClick={() => onClearDrillDown(dimension)}
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-xs text-muted-soft hover:text-foreground"
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-fill-3 px-1.5 py-0.5 text-footnote text-label-2 hover:text-label"
                 title={t('donut.clearFilter')}
               >
                 <X className="h-3 w-3" />
@@ -902,7 +779,7 @@ function MobileCostBreakdown({
                   innerRadius={MOBILE_ROSE_INNER_R}
                   outerRadius={(point: MobileRoseSlice) => point.outerRadius}
                   paddingAngle={roseSlices.length > 8 ? 1 : 2}
-                  stroke="hsl(var(--surface-panel))"
+                  stroke={chartSliceStroke}
                   strokeWidth={1.5}
                   isAnimationActive
                   animationDuration={500}
@@ -932,13 +809,13 @@ function MobileCostBreakdown({
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <span
-                className="leading-tight text-muted-soft"
+                className="leading-tight text-label-2"
                 style={{ fontSize: Math.round(MOBILE_ROSE_SIZE * 0.065) }}
               >
                 {t('donut.total')}
               </span>
               <span
-                className="font-semibold tabular-nums leading-tight text-foreground"
+                className="font-semibold tabular-nums leading-tight text-label"
                 style={{ fontSize: Math.round(MOBILE_ROSE_SIZE * 0.08) }}
               >
                 {formatDashboardCurrency(total, currency)}
@@ -947,7 +824,7 @@ function MobileCostBreakdown({
           </div>
 
           {/* 占比列表：限高内部滚动 */}
-          <div className="scrollbar-hidden flex max-h-[180px] flex-col divide-y divide-[hsl(var(--glass-divider))] overflow-y-auto">
+          <div className="scrollbar-hidden flex max-h-[180px] flex-col divide-y divide-separator overflow-y-auto">
             {rows.map((item, index) => {
             const pct = total > 0 ? item.cost / total : 0
             const color = dashboardChartColors[index % dashboardChartColors.length]
@@ -959,10 +836,10 @@ function MobileCostBreakdown({
                 className="flex min-w-0 items-center gap-1.5 py-2 text-left first:pt-0 last:pb-0"
               >
                 <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={item.label}>
+                <span className="min-w-0 flex-1 truncate text-body text-label" title={item.label}>
                   {item.label}
                 </span>
-                <span className="shrink-0 text-xs tabular-nums text-muted-soft">
+                <span className="shrink-0 text-footnote tabular-nums text-label-2">
                   {`${formatDashboardCurrency(item.cost, currency, 2)} · ${formatDashboardTokens(item.total_tokens)} · ${formatPercent(pct, 1)}`}
                 </span>
               </button>
@@ -971,7 +848,7 @@ function MobileCostBreakdown({
           </div>
         </div>
       ) : (
-        <div className="flex h-24 items-center justify-center text-sm text-muted-soft">
+        <div className="flex h-24 items-center justify-center text-body text-label-2">
           {t('donut.empty')}
         </div>
       )}
@@ -985,12 +862,12 @@ function MobileRoseTooltip({ active, payload, currency, total }: TooltipContentP
   const value = Number(item.value ?? 0)
   const tokens = Number((item.payload as MobileRoseSlice | undefined)?.tokens ?? 0)
   return (
-    <div style={dashboardTooltipStyle} className="min-w-[150px] text-xs">
-      <div className="mb-1 flex items-center gap-1.5 text-foreground">
+    <div style={dashboardTooltipStyle} className="min-w-[150px] text-footnote">
+      <div className="mb-1 flex items-center gap-1.5 text-label">
         <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.payload?.fill ?? item.color }} />
         <span className="truncate font-medium">{item.name}</span>
       </div>
-      <div className="tabular-nums text-muted-soft">
+      <div className="tabular-nums text-label-2">
         {formatDashboardCurrency(value, currency, 4)}
         {` · ${formatDashboardTokens(tokens)}`}
         {total > 0 ? ` · ${((value / total) * 100).toFixed(1)}%` : ''}
