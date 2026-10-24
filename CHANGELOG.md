@@ -2,137 +2,54 @@
 
 ## [1.16.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.2...v1.16.0) (2026-10-24)
 
+本版本是一次大更新：新增「站点类型插件」与「插件账号池」，并把前端整体重构为新的深色视觉（Apple HIG + Liquid Glass）。
 
 ### Features
 
-* ✨ 404 页：等宽展示字号数字加 Title 2 标题，改用语义文字层级 ([583f721](https://github.com/Yachiyo-5i/xLyra/commit/583f72159b31f30e41a426be5593de122da83257))
-* ✨ adapter 注册表支持动态模块替换，新增通用 API Key 适配器 GenericProvider，插件站点类型不再按模型名推断端点 ([86cdac1](https://github.com/Yachiyo-5i/xLyra/commit/86cdac1e15652a9eed8b0492fae76fbcc6af7820))
-* ✨ Agent 设置：状态点改用系统色，悬浮状态卡换成 Liquid Glass，次要按钮统一为 secondary ([cadd36c](https://github.com/Yachiyo-5i/xLyra/commit/cadd36c3e1697b90ddda555a6cbdc4d94e81e3fe))
-* ✨ API 密钥：网关地址移到标题旁、表格放进卡片并重排列宽，移动端卡片与状态分段条 ([ab4ddc8](https://github.com/Yachiyo-5i/xLyra/commit/ab4ddc8901817141a8475c5382d262361fc3cbeb))
-* ✨ Card 布局统一：ItemCard / CardHeading / CardMetrics / CardMetric / CardFooter / CardAction ([1998a85](https://github.com/Yachiyo-5i/xLyra/commit/1998a854135ebab4c94c5af5ada56b03e9c26de2))
-* ✨ Claude Code 客户端伪装：对齐真实 CLI 指纹（请求头、billing 块、账号级内存身份、Node TLS 指纹） ([f813ec6](https://github.com/Yachiyo-5i/xLyra/commit/f813ec6f7f7717c5f5bb96848e7bd1de138653a7))
-* ✨ Grok 账号同步官方套餐剩余额度，并在账号与站点额度列展示 ([0f5b811](https://github.com/Yachiyo-5i/xLyra/commit/0f5b8114b1ee65f72a6d3e10af9bb7b4089b2d90))
-* ✨ Grok 账号额度输出标准 entries，前端用 QuotaEntries 渲染 ([16663ba](https://github.com/Yachiyo-5i/xLyra/commit/16663ba9526c6b4b8320b9af8fc0ffff466d0a9d))
-* ✨ JS 插件目录多实例同步：数据库代号加轮询，启用/停用/删除/协议路径变更数秒内同步到所有实例 ([0f9deb8](https://github.com/Yachiyo-5i/xLyra/commit/0f9deb884edfe5240cc47469a6c22dffd6db8481))
-* ✨ jsplugin 新增密钥袋纯函数库：secretPaths 响应脱敏、{{secret.x}} 请求占位符替换、字符串/错误擦除（尚未接线） ([b7e4fec](https://github.com/Yachiyo-5i/xLyra/commit/b7e4fec713b720a480bc3e6533bf2a347b58c08b))
-* ✨ OAuth 接入前增加风险免责声明弹窗，需勾选确认后才能继续 ([75dc00c](https://github.com/Yachiyo-5i/xLyra/commit/75dc00c2c7d2498b1cf786c19020291d098f1829))
-* ✨ OAuth：卡片统一为上方 3×2 指标、下方额度，来源改为横向 Tabs 且只列出已添加的类型 ([19c7bec](https://github.com/Yachiyo-5i/xLyra/commit/19c7bec702389687ce797625ff9b2c3a4773225f))
-* ✨ quota.aggregate（sum/min/none）：API Key 插件显式配置时改道站点额度汇总，默认行为不变 ([ae65260](https://github.com/Yachiyo-5i/xLyra/commit/ae65260f54368fe344345c7af284ce8b3142abcf))
-* ✨ site_provider 的 classify 钩子参与上游错误分类（手工绑定优先，失败时保持原分类） ([542f821](https://github.com/Yachiyo-5i/xLyra/commit/542f821f949aa3cd40281a7a28a54f9c3c145025))
-* ✨ site_provider 的 fixtures 按 hook 分发自检，xlyra-plugin run --hook，脚手架示例与钩子 TS 类型声明 ([8dd7a9c](https://github.com/Yachiyo-5i/xLyra/commit/8dd7a9c9a48acb871ece8452ab3621a6d2345515))
-* ✨ site_provider 的 listModels / check 钩子按站点类型自动绑定（模型同步、凭据校验、健康检查），熔断对其只记指标不停用 ([22e5987](https://github.com/Yachiyo-5i/xLyra/commit/22e59871c564739db88cde63d2d63584f5cd5df4))
-* ✨ site_provider 的 probe 钩子为插件站点类型自动开启额度探测；修复成功探测被熔断器记为失败的问题 ([471d701](https://github.com/Yachiyo-5i/xLyra/commit/471d701405e355954731b2cbaca8f068ef238778))
-* ✨ site_provider 的 rewritePayload 钩子改写上游请求体（model/stream 不可变，失败 502 且不发请求，早于 Claude 伪装） ([31363c5](https://github.com/Yachiyo-5i/xLyra/commit/31363c52e476b8b890ba6ee58ce3955365333148))
-* ✨ site_provider 请求头模板（request.headers / stripDownstreamHeaders）：在透传之后、签名之前单点应用，不改协议适配器接口 ([7b0ccda](https://github.com/Yachiyo-5i/xLyra/commit/7b0ccda7215c07a5100ba2b5583cf17965ee63c4))
-* ✨ site_provider 账号池 manifest（credential.model=account_pool）校验、站点类型描述与启用闸门（登录/刷新/网关接线待后续） ([d8ac07c](https://github.com/Yachiyo-5i/xLyra/commit/d8ac07cd621924b913af1706a0cf1cfda15a9317))
-* ✨ 个人信息设置：改用语义 token 与新字号层级，会话表格圆角同心 ([c658a1f](https://github.com/Yachiyo-5i/xLyra/commit/c658a1f948b6a39132e92b3a0a78e681be5068ae))
-* ✨ 仪表盘：指标卡按容器宽度排布、列表与图表卡片按新设计调整，修复资源图表在移动端不显示 ([0603af2](https://github.com/Yachiyo-5i/xLyra/commit/0603af2f26b73e06060e8571470e11d77aa7936e))
-* ✨ 仪表盘：站点可用性不再撑高所在行，系统资源总览去掉指标底色铺满卡片 ([75202d7](https://github.com/Yachiyo-5i/xLyra/commit/75202d7e58a23052ca46945ce47133314e84b5fc))
-* ✨ 会话取真实客户端 IP(优先 CF-Connecting-IP),个人设置会话表格新增设备列(解析 UA 显示浏览器与系统) ([2a60400](https://github.com/Yachiyo-5i/xLyra/commit/2a60400104e33e2e47b982ba024e396450a699aa))
-* ✨ 全局材质改为半透明提亮 + 全局星空背景，统一弹窗与浮层材质 ([f11508e](https://github.com/Yachiyo-5i/xLyra/commit/f11508e49b73d58bb1a783bcd6ff563358bf4ca2))
-* ✨ 全局设置：二级导航与通用设置页对齐新设计 ([84ba7f7](https://github.com/Yachiyo-5i/xLyra/commit/84ba7f72892652568ce9be1f272e3b6e2eb53d00))
-* ✨ 全局限流设置：旧 token 换成语义类，重置改为 secondary ([cc60d23](https://github.com/Yachiyo-5i/xLyra/commit/cc60d230d408f826997aa638af824b0dddb24bcf))
-* ✨ 公共组件：模型抽屉、品牌标记、PWA 更新提示等清理旧 token，提示条改用 Liquid Glass ([7540659](https://github.com/Yachiyo-5i/xLyra/commit/7540659c90c4de560d6f6aa4d2c0022a35def507))
-* ✨ 分组配置设置：工具条换成 TableToolbar，列表放进厚材质卡片，状态改用 Badge ([6a9878a](https://github.com/Yachiyo-5i/xLyra/commit/6a9878ae62868f18eb2a3404796a0b76b5aa59c7))
-* ✨ 前端：插件账号池类型的抽屉（行 pills/操作/区域/设备码登录对话/图标） ([77d5bad](https://github.com/Yachiyo-5i/xLyra/commit/77d5bada7bbcafb4276080ace4c4388350a2c63b))
-* ✨ 前端支持 site_provider 插件：启用时确认主机列表、新错误码提示、插件详情站点类型区块、站点列表的提供方未启用徽标与类型墙插件标签 ([6a83369](https://github.com/Yachiyo-5i/xLyra/commit/6a833696e2f92ce19bed7253e0429f3c4e0c60b9))
-* ✨ 前端视觉重构为单一深色主题（Apple HIG + Liquid Glass） ([ae2e405](https://github.com/Yachiyo-5i/xLyra/commit/ae2e405c716e0a2fe1b625b61655d6c97f8ef667))
-* ✨ 前端账号池文案与站点判断改为通用表述，去掉重复的登录文案键 ([ff1e7eb](https://github.com/Yachiyo-5i/xLyra/commit/ff1e7ebb740e0ac1d075255981be08c464764bfe))
-* ✨ 协议规格增加运行时覆盖表（整份原子替换、复用内置解析校验、受限字段白名单），为插件站点类型提供协议规格做准备 ([2bc798d](https://github.com/Yachiyo-5i/xLyra/commit/2bc798de2202c4500b8287e6213a5013c7acca76))
-* ✨ 图标改为深色底，清理 logo 里残留的透明格子 ([347d30a](https://github.com/Yachiyo-5i/xLyra/commit/347d30a279286f5f57aa108adb641cfffcaa41f6))
-* ✨ 声明式账号导入解析（containers + fieldMap），尚未接线 ([da7191a](https://github.com/Yachiyo-5i/xLyra/commit/da7191aabb2fe51071281279d595c4009664e548))
-* ✨ 审计：移动端卡片改用 mat-regular，旧 token 与次要按钮对齐新设计 ([e3f023d](https://github.com/Yachiyo-5i/xLyra/commit/e3f023dc3626bfebbd40b307783cad37a1d7571f))
-* ✨ 密钥门户设置：模块开关行改为 fill 底、去掉描边，重置改为 secondary ([3b888b2](https://github.com/Yachiyo-5i/xLyra/commit/3b888b2b7a24464282ed8529844e147c6d6beb8e))
-* ✨ 对齐门户页视觉（卡片、图表、请求记录、手机卡片列表） ([1b67b0c](https://github.com/Yachiyo-5i/xLyra/commit/1b67b0cb94751e69d6074e9f9bf1ab7aaf8271c9))
-* ✨ 已启用的 site_provider 插件在目录重载后自动接入站点类型、协议覆盖表与 adapter 动态模块（含多实例同步） ([d3ffff4](https://github.com/Yachiyo-5i/xLyra/commit/d3ffff4f56cbec9e42cf91163f6a142d4613b238))
-* ✨ 开发者（插件）：已上传插件表格放进厚材质卡片，旧 token 与次要按钮对齐新设计 ([d2fccbc](https://github.com/Yachiyo-5i/xLyra/commit/d2fccbc8c7ab30100ab71b1158fae6dcfd20d814))
-* ✨ 把聊天 SSE 聚合拆到 protocol_openai_chat_sse.go ([3d9a3e5](https://github.com/Yachiyo-5i/xLyra/commit/3d9a3e5033e3bffa73aad46efc57b0c57789aede))
-* ✨ 抽出凭据解析与 Grok 账号池，统一账号接口和抽屉 ([184708e](https://github.com/Yachiyo-5i/xLyra/commit/184708e0625c31d37f03a54ce7c949a1d8d872c2))
-* ✨ 插件图标服务：GET /api/v1/plugin-icons/{pluginID}（管理端会话、按魔数判类型、ETag、安全头），站点类型 icon_url 指向它 ([951f415](https://github.com/Yachiyo-5i/xLyra/commit/951f41515cbdcc4c18b169b151161b270a598526))
-* ✨ 插件站点类型生命周期：停用后不参与路由与下游模型目录、provider_status、卸载保护、站点类型 ID 锁定 ([a7d4b23](https://github.com/Yachiyo-5i/xLyra/commit/a7d4b23b848ffb69dcd92f9184f6e50736a52d33))
-* ✨ 插件站点类型的出站主机白名单生效：站点创建/更新、通用适配器、网关转发（含重定向）按精确主机名校验 ([bc096a5](https://github.com/Yachiyo-5i/xLyra/commit/bc096a598fa89ba764dfefbbd2c11370b578e7c7))
-* ✨ 插件管理的近 24 小时统计改为彩色圆点加成功/失败次数（绿/黄/红/灰），悬停说明统计口径 ([af8c5c0](https://github.com/Yachiyo-5i/xLyra/commit/af8c5c0025553531c76bea61a3b08e34f79af8c8))
-* ✨ 插件详情的站点提供方只显示当前版本一份（有启用版本用启用版本，否则用最新版本），并标注版本状态 ([3b6a7ca](https://github.com/Yachiyo-5i/xLyra/commit/3b6a7cadfe309dc742183e22d3f0a58276a164eb))
-* ✨ 插件账号池后台：定时刷新与健康检查覆盖插件账号、额度汇总与计数回写、账号行剩余/上限 ([ec1992e](https://github.com/Yachiyo-5i/xLyra/commit/ec1992ef0d0fb1ba8ca9f192dcd9da000643de33))
-* ✨ 支持跨协议转换模型原生 web_search（请求/响应/流式/历史折叠/用量统计） ([6a3f380](https://github.com/Yachiyo-5i/xLyra/commit/6a3f3802ac5e47184fa973053cace4b04b1cf43a))
-* ✨ 收尾：加载占位、鉴权错误页、表头小标题与残留的 section-soft / glass-panel 写法对齐新设计 ([fce0887](https://github.com/Yachiyo-5i/xLyra/commit/fce088768460d3e2c0c15a30361b110dfcb101de))
-* ✨ 新增 accountauth 包：声明式 OAuth2 设备码与 refresh_token 引擎、JWT 声明读取（出站校验、不跟随重定向、错误不含响应体；尚未接线） ([1d17a43](https://github.com/Yachiyo-5i/xLyra/commit/1d17a43b1277517b51a78f58dc0065d6b84e107c))
-* ✨ 新增插件类型 site_provider（API Key 站点类型）：manifest 校验、必须受信签名、启用时确认主机列表、CLI 脚手架 ([5206685](https://github.com/Yachiyo-5i/xLyra/commit/5206685f1d60595d4b14ea14ed35f247704b1e8f))
-* ✨ 模型：展开卡片、移动端列表与目录表面清理旧 token，状态色改用系统色 ([7cbd056](https://github.com/Yachiyo-5i/xLyra/commit/7cbd056f4ae7e14e23a056eeb37420ccbf1378e9))
-* ✨ 模型价格：表格放进厚材质卡片，旧 token 清理，移动端卡片改用 mat-regular ([808ec8a](https://github.com/Yachiyo-5i/xLyra/commit/808ec8a0aa421fccbb6b1ae52a52c236e2b10e70))
-* ✨ 模型体验：输入框右上方加一只会动的小螃蟹（Clawd） ([60f2a62](https://github.com/Yachiyo-5i/xLyra/commit/60f2a62540f4dfa2c5e02424ddae37184d23bf01))
-* ✨ 模型体验：输入框浮起质感；移动端沉浸式头部、侧边抽屉、新的模型与推理强度选择器和附件菜单 ([9f3fa20](https://github.com/Yachiyo-5i/xLyra/commit/9f3fa20a300d59f10a466db1ce7484ae605e1f04))
-* ✨ 流量驾驶舱视觉重做：宇宙网络数据流（星空背景、天琴座星系中枢、发光节点、渐变航道与彗星） ([ab70160](https://github.com/Yachiyo-5i/xLyra/commit/ab70160af845f4e58b265cab7c92d7c47ec59b31))
-* ✨ 渠道拆分弹窗：旧 token 与次要按钮对齐新设计 ([a890cfa](https://github.com/Yachiyo-5i/xLyra/commit/a890cfa71add6b62af3f1767a8eab9a4a0d36a4a))
-* ✨ 用量分析：桌面与移动端共用 KPI 卡，趋势维度改为分段控件，筛选与图例调整 ([30a1e9b](https://github.com/Yachiyo-5i/xLyra/commit/30a1e9b3fc2039e70a46d38d41a2cce8552d3f8a))
-* ✨ 站点：新增、API Key、模型、测试等抽屉与弹窗清理旧 token，状态色改用系统色 ([dc33ec5](https://github.com/Yachiyo-5i/xLyra/commit/dc33ec5e2b00f80cff73a8eee69bd82d68b4e907))
-* ✨ 站点：表格放进厚材质卡片、操作列固定在右侧；新增移动端筛选区 MobileFilterBar ([4f78d1e](https://github.com/Yachiyo-5i/xLyra/commit/4f78d1eca5e542d42e61a639e3213708b2a5402a))
-* ✨ 站点类型元信息收敛为注册表，凭据分类按前缀统一判断 ([89d0536](https://github.com/Yachiyo-5i/xLyra/commit/89d0536cfb61692057951359eeaf2682fd8470ce))
-* ✨ 站点类型徽标按 logo 主色着色；开发者页操作改为图标，版本菜单补图标与停用项 ([10877f3](https://github.com/Yachiyo-5i/xLyra/commit/10877f38ef133bad3f758a7c770503b527eed5fe))
-* ✨ 站点类型注册表支持合并插件站点类型（ID 格式校验、原子快照），站点类型归一化统一为小写 ([913574f](https://github.com/Yachiyo-5i/xLyra/commit/913574f8e75646949737ddad552a5d7cf8afb6a3))
-* ✨ 站点级额度展示按 unit（credits/percent）走通用路径 ([e750714](https://github.com/Yachiyo-5i/xLyra/commit/e750714d455d57daf3c4b86425f6298337b44cc6))
-* ✨ 系统代理设置：列表放进厚材质卡片，工具条换成 TableToolbar ([88f4f72](https://github.com/Yachiyo-5i/xLyra/commit/88f4f720f78f7ff098883add7c2b2d0daaedd91d))
-* ✨ 统一 /accounts/* API 接入插件账号池（pluginAccountAPI、运行时适配、导入、刷新租约），移除启用闸门 ([83f770c](https://github.com/Yachiyo-5i/xLyra/commit/83f770cce1711c2f8d62172ae36bf353f3e59656))
-* ✨ 网关侧插件账号池：通用凭据解析、401/传输切换、upstreamStreamOnly 与 SSE 聚合、quota_weighted 选择、额度耗尽冷却 ([740b4ef](https://github.com/Yachiyo-5i/xLyra/commit/740b4ef1a8249d93ff4c28ccb0d692edf07384c8))
-* ✨ 覆盖层按端切换：桌面 Sheet / 配置 Dialog 在移动端变为 Draw，确认弹窗保持居中 ([d467679](https://github.com/Yachiyo-5i/xLyra/commit/d4676790f71b087a8791bb320a50614bf8ac747e))
-* ✨ 覆盖层统一：Dialog 居中、Draw 底部、Sheet 右侧，页脚与关闭方式由组件定义 ([0ffacd8](https://github.com/Yachiyo-5i/xLyra/commit/0ffacd8b3935bff586120d287427c2a5a09c7829))
-* ✨ 请求：筛选区合并为两行、时间范围改为筛选胶囊，表格放进卡片；移动端卡片与汇总行重做 ([f6f311d](https://github.com/Yachiyo-5i/xLyra/commit/f6f311d757a7d639f8ab791711ea43f5b8c0d0a0))
-* ✨ 账号导入文案键加入 ui.texts 白名单，并写明账号池没有入库示例 ([d659662](https://github.com/Yachiyo-5i/xLyra/commit/d659662d334fc01e72bdb50311be396ce29e2823))
-* ✨ 账号摘要写入状态与失败时保留额度的辅助函数改为通用命名，健康探测使用解析后的站点配置 ([12544e0](https://github.com/Yachiyo-5i/xLyra/commit/12544e024f7fe0a1c7204239d0edae36d1d88689))
-* ✨ 账号池凭据类型 account:&lt;siteType&gt;:&lt;uuid&gt; 的解析与通用判断（内置 Grok 前缀语义不变） ([f12082a](https://github.com/Yachiyo-5i/xLyra/commit/f12082aa267f7a1f040b126a62148441e055d8be))
-* ✨ 账号池插件按账号模型同步（models.perAccount + listModels，令牌经占位符注入不进 JS），并按 realm/domain 解析区域、修正 custom_poll 轮询重放 ([3801a83](https://github.com/Yachiyo-5i/xLyra/commit/3801a836f340ea38c7a9088d4989ca8ac141d023))
-* ✨ 账号池插件表达力补齐：区域属性与条件头、身份回退/display/expiresFrom、导入 valueMap/msThreshold、摘要 reauth、轮询非 JSON 容错 ([90b978a](https://github.com/Yachiyo-5i/xLyra/commit/90b978a9e8b6a7fb6b4bdf2dc5a9b2793b2a1b74))
-* ✨ 账号池插件运行时：设备码/自定义登录、令牌刷新、账号摘要钩子（密钥经 secretPaths 摘除，不进 JS；尚未接网关与 HTTP API） ([2bfbc98](https://github.com/Yachiyo-5i/xLyra/commit/2bfbc987c362e79c0e035fc1c852cef49dabbbcf))
-* ✨ 账号池插件链路接通：网关刷新在租约内写回密文、leadSeconds 提前刷新、accounts.ui 暴露给前端、移除启用闸门，含端到端泄漏扫描测试 ([0358086](https://github.com/Yachiyo-5i/xLyra/commit/03580863362569e46f521cea92b0fc9265455d9e))
-* ✨ 路由、模型、审计、模型价格的移动端筛选改用 MobileFilterBar ([b59a3f9](https://github.com/Yachiyo-5i/xLyra/commit/b59a3f9b9129d35243b4aab67bc635b65e0e9602))
-* ✨ 路由：展开卡片、移动端列表与详情清理旧 token，去掉小节标题的宽字距 ([a33a4ab](https://github.com/Yachiyo-5i/xLyra/commit/a33a4abe529c67d1aa65e7baf43fb6452bce5ae0))
-* ✨ 近黑色调与组件顶光，天琴座登录注册页 ([c4215db](https://github.com/Yachiyo-5i/xLyra/commit/c4215db9a79c9c0b17d916b3386fc20383810598))
-* ✨ 配置备份：手动 / 自动切换改为强调色分段控件，页面级危险操作改为 destructive-soft，提示块去描边 ([9b787cc](https://github.com/Yachiyo-5i/xLyra/commit/9b787cc359a5a3a3ddc3081746098a9258392c12))
-* ✨ 额度探测 entries 增加可选的 kind（balance/window/package）与 name 字段 ([be17289](https://github.com/Yachiyo-5i/xLyra/commit/be1728992f95e20903e2085df1e65857f33cd948))
+#### 插件：站点类型（site_provider）
+* ✨ 新增插件类型 site_provider（API Key 站点类型）：manifest 校验、必须受信签名、启用时确认主机列表、CLI 脚手架
+* ✨ 站点类型注册表支持合并插件站点类型（ID 格式校验、原子快照）；已启用插件在目录重载后自动接入站点类型、协议覆盖表与 adapter 动态模块，并在多实例间数秒内同步
+* ✨ 钩子：`listModels` / `check` / `probe` / `classify` / `rewritePayload`，请求头模板（`request.headers` / `stripDownstreamHeaders`），`quota.aggregate`（sum/min/none）；fixtures 按 hook 自检，`xlyra-plugin run --hook`
+* ✨ 生命周期与安全：停用后不参与路由与下游模型目录；站点类型 ID 锁定、卸载保护；出站主机白名单（创建/更新、通用适配器、网关转发含重定向均按精确主机名校验）
+* ✨ 插件图标服务 `GET /api/v1/plugin-icons/{pluginID}`；插件详情按当前版本展示站点提供方并标注版本状态；近 24 小时统计改为彩色圆点加成功/失败次数
+* ✨ adapter 注册表支持动态模块替换，新增通用 API Key 适配器 GenericProvider，插件站点类型不再按模型名推断端点；协议规格增加运行时覆盖表
 
+#### 插件账号池（account_pool）
+* ✨ 声明式账号池：设备码/自定义登录、令牌刷新、账号导入（containers + fieldMap、valueMap）、账号摘要、按账号模型同步（`models.perAccount`），令牌经占位符注入、不进入 JS
+* ✨ 网关接入：通用凭据解析、401/传输切换、upstreamStreamOnly 与 SSE 聚合、quota_weighted 选择、额度耗尽冷却、刷新租约
+* ✨ 后台与前端：定时刷新与健康检查覆盖插件账号、额度汇总；统一 `/accounts/*` API；账号抽屉支持行状态、区域、设备码登录与图标
+* ✨ 抽出凭据解析与 Grok 账号池，统一账号接口和抽屉；Grok 账号同步官方套餐剩余额度并输出标准 entries（额度探测 entries 增加可选的 kind 与 name）
+
+#### 网关与协议
+* ✨ 支持跨协议转换模型原生 web_search（请求/响应/流式/历史折叠/用量统计）
+* ✨ Claude Code 客户端伪装：对齐真实 CLI 指纹（请求头、billing 块、账号级内存身份、Node TLS 指纹）
+
+#### 界面重构
+* ✨ 前端视觉重构为单一深色主题（Apple HIG + Liquid Glass）：全局半透明材质与星空背景、近黑色调、统一的 Dialog / Draw / Sheet 覆盖层、统一的 Card 与表格卡片布局、天琴座登录注册页与流量驾驶舱
+* ✨ 各页面按新设计调整：仪表盘、站点、路由、模型、模型价格、请求、审计、用量分析、API 密钥、OAuth、开发者、全局/分组/限流/代理/配置备份/个人信息等设置页
+* ✨ 移动端：沉浸式头部与侧边抽屉、新的模型与推理强度选择器、统一的 MobileFilterBar 筛选区与卡片列表
+* ✨ 模型体验：输入框浮起质感，右上角新增会动的小螃蟹（Clawd）
+
+#### 账号与安全
+* ✨ 会话取真实客户端 IP（优先 CF-Connecting-IP），个人设置会话表格新增设备列（浏览器与系统）
+* ✨ OAuth 接入前增加风险免责声明弹窗，需勾选确认后才能继续
 
 ### Bug Fixes
 
-* 🐛 DeepSeek v4 的 max_tokens 兜底只保留给 Messages 协议并调大到 32768，chat/responses 不再强补 ([ffa4356](https://github.com/Yachiyo-5i/xLyra/commit/ffa4356e555103c4794c471ec5153bc80e70caf2))
-* 🐛 Grok 新周期用量为 0 时额度被当作获取失败，按 0% 已用处理 ([7a19f2c](https://github.com/Yachiyo-5i/xLyra/commit/7a19f2cf2cc07af73a9de6e17d7549745871074e))
-* 🐛 Responses 下游对接 Anthropic 上游：thinking 签名经 encrypted_content 往返，缺签名的 thinking 块与工具调用轮降级处理；工具 input_schema 顶层 oneOf/anyOf/allOf 合并规整 ([f433a61](https://github.com/Yachiyo-5i/xLyra/commit/f433a6180facf9ed7b095d11c66bb493c960d079))
-* 🐛 Responses 转 chat 时合并并行工具调用为同一条 assistant 消息，修复部分上游对并行工具调用拆分的校验 ([eb843dd](https://github.com/Yachiyo-5i/xLyra/commit/eb843dd2cd69fd24d8df5820d253a7445504dcf7))
-* 🐛 xlyra-plugin 帮助文本中的 --kind 列表改为从支持的 kind 表派生 ([3e07932](https://github.com/Yachiyo-5i/xLyra/commit/3e0793257c1871adfb895477da33a0d1a0218d76))
-* 🐛 xlyra-plugin 打包时带上 manifest 声明的站点类型图标，缺图标的包上传不再校验失败 ([584a3da](https://github.com/Yachiyo-5i/xLyra/commit/584a3da430eeaafb420b846df23dcd99172e1af3))
-* 🐛 修正 OpenCode 请求头、默认工具和模型端点映射 ([d2b6be4](https://github.com/Yachiyo-5i/xLyra/commit/d2b6be4d9345cea211ce3f10cb7d124c3fad1481))
-* 🐛 内置模块与站点类型计数改为当前内置集合，并补上插件账号维护测试与注释 ([7635066](https://github.com/Yachiyo-5i/xLyra/commit/7635066496174a16e543005741d304a8ecafab65))
-* 🐛 升级 Go 至 1.26.10，Dockerfile 固定 golang:1.26.10-alpine，README 同步版本要求 ([29c554c](https://github.com/Yachiyo-5i/xLyra/commit/29c554c2aa9148938eed2db5d31390fa54de6cff))
-* 🐛 升级 zod 修复前端 npm audit 高危漏洞 ([3473ca3](https://github.com/Yachiyo-5i/xLyra/commit/3473ca3ad85a1778e0340afafb4d647ab16207b3))
-* 🐛 升级 zod 至 4.6.7，修复前端生产依赖 npm audit 的高危漏洞 ([243ea93](https://github.com/Yachiyo-5i/xLyra/commit/243ea9384d6679497505aeab9ba1c84807a413c3))
-* 🐛 复审修复：失败刷新保留 usage、轻量并发健康检查、perAccount 校验与账号文案 ([a866355](https://github.com/Yachiyo-5i/xLyra/commit/a866355d1c8c93a272080482890c2d1c0a5d475c))
-* 🐛 外壳内容区改为内容 + 页脚两行网格，整页高度页面重新撑满，页脚固定在底部 ([5cce3bb](https://github.com/Yachiyo-5i/xLyra/commit/5cce3bbe53cd1891d14e7bce4508a160f441dcdd))
-* 🐛 导入 valueMap 匹配忽略大小写，与内置 realm 归一一致 ([d1016ae](https://github.com/Yachiyo-5i/xLyra/commit/d1016ae4c127ce0355c8256b5c2618029b4d2639))
-* 🐛 开发者页：站点查询与其他页面共用缓存 key 导致读到对象，打开时报 sites is not iterable ([343a083](https://github.com/Yachiyo-5i/xLyra/commit/343a0838aa47343f4bdd6442e6bf4888d32a921d))
-* 🐛 悬停浮层同一时间只显示一个，修复额度列等位置同时出现两个浮窗 ([0546350](https://github.com/Yachiyo-5i/xLyra/commit/0546350c076d205a4e56ca5739b5a84f938f736e))
-* 🐛 手机端抽屉：关闭按钮移到左上角，账号与 API Key 抽屉操作改为标题行图标，新增 API Key 全部刷新 ([b13126c](https://github.com/Yachiyo-5i/xLyra/commit/b13126c1bb8c643f8e1d3e52fb54ad97bf9ddfbb))
-* 🐛 手机端抽屉二级页面的返回并入左上角按钮，不再与关闭按钮同时出现 ([87f59fb](https://github.com/Yachiyo-5i/xLyra/commit/87f59fbcf386c505e046550e1019170828faea66))
-* 🐛 插件停用后站点图标仍然显示（回退到插件图标接口），提供方不可用时图标灰化；账号弹窗桌面端导入按钮去掉图标，保持桌面纯文字、移动端纯图标 ([2b9f74c](https://github.com/Yachiyo-5i/xLyra/commit/2b9f74c52d67ce8d7d4969f94f01f4238badc135))
-* 🐛 插件列表与受信公钥列表接口在请求被客户端取消时不再记 ERROR 日志，也不再返回 500 ([4cd60aa](https://github.com/Yachiyo-5i/xLyra/commit/4cd60aaac8ffb95235fb060804a5caf19e181e16))
-* 🐛 插件提供方不可用时，站点刷新与健康检查改为跳过并说明原因，不再自动停用站点或累计失败冷却 ([56e70eb](https://github.com/Yachiyo-5i/xLyra/commit/56e70eb977dece104abe58a8b0e1ebdd8b31b759))
-* 🐛 插件站点类型的显示名与副标题按界面语言展示，非中文界面不再隐藏插件副标题 ([d822a27](https://github.com/Yachiyo-5i/xLyra/commit/d822a27e9aee437526591111c013236460f879f1))
-* 🐛 插件账号刷新失败记账语义：取消不再掩盖上游明确的重新授权、换票后失败不清除原有重新授权、落库失败保留上游错误；写库加有限超时并核对租约；提供方不可用的健康检查显式标记跳过；模型行缺失保持原行为；登录前预检区域容量；账号接口提示提供方未启用 ([9686467](https://github.com/Yachiyo-5i/xLyra/commit/96864678dce9045075851755f393d0d20b0e97a4))
-* 🐛 插件账号刷新换到的新令牌在同一租约内原子落库（取消、探针交错、类型被改均不丢失或覆盖）；模型开关失败不再静默成功；待定登录区域加上限 ([b86db01](https://github.com/Yachiyo-5i/xLyra/commit/b86db0188b5e16dfd65a25c6c550fd5869b929dc))
-* 🐛 插件账号池站点零账号时保持正常状态；登录、导入、刷新时把可读账号名写入凭据显示名与掩码，请求日志与测试不再显示内部 uuid ([8dcd39e](https://github.com/Yachiyo-5i/xLyra/commit/8dcd39e031cb488367370f7bf64f725ab66df154))
-* 🐛 清理不再使用的旧样式 ([3365c03](https://github.com/Yachiyo-5i/xLyra/commit/3365c0349d4538ff3573337a2f40fa8ef5ed6cae))
-* 🐛 登录注册页：收起时不能再上滑，展开表单时字标只略微上移、星座留在上方 ([c981939](https://github.com/Yachiyo-5i/xLyra/commit/c981939f806280df36853fb677fbc9b90d977dd6))
-* 🐛 目录同步启动重载失败后继续重试；登录会话加上限并在回收时擦除令牌；账号池出站请求接入拨号前内网与元数据地址拦截 ([d9b367e](https://github.com/Yachiyo-5i/xLyra/commit/d9b367e8ff67ac5f327665e2f9eaf64be52bfea6))
-* 🐛 移动端 playground 左侧抽屉改为贴边全高的侧边栏，修复 PWA 顶部留空 ([c100096](https://github.com/Yachiyo-5i/xLyra/commit/c10009642a0b8a271b491c3f63db390cf968f6fd))
-* 🐛 移动端底部胶囊在宽屏手机上居中，并去掉胶囊下方的模糊与渐暗 ([a00c9ac](https://github.com/Yachiyo-5i/xLyra/commit/a00c9ac5a777835045fce38e351719f355f5fba1))
-* 🐛 移动端底部胶囊收起后回到屏幕左侧，而不是停在居中列的左端 ([f4dc83f](https://github.com/Yachiyo-5i/xLyra/commit/f4dc83fa025c0534d1a785f22a6a9273da234cfd))
-* 🐛 自动化事件的到期与重试时间只用数据库时钟，不再混用应用时钟，消除时钟偏差导致的事件延迟与测试偶发失败 ([4cc27fd](https://github.com/Yachiyo-5i/xLyra/commit/4cc27fdb7d387fdc730c63d72399cc5b37c1d704))
-* 🐛 补回 OAuth 导入的 JSON 拖放、嵌套对话框和刷新图标 ([da67ae6](https://github.com/Yachiyo-5i/xLyra/commit/da67ae6b9fff63f9be3cb3cb7272c3d34364d241))
-* 🐛 调度器、同步 worker 与路由器共用同一个站点服务实例，插件站点类型在后台刷新与健康检查中不再报 unsupported site_type ([a613d01](https://github.com/Yachiyo-5i/xLyra/commit/a613d0153293b8e97f9ade1eec1417f9f6b6c0bf))
-* 🐛 调用方取消后仍写入超时健康快照和插件账号刷新结果 ([45263f7](https://github.com/Yachiyo-5i/xLyra/commit/45263f7888604209d8227dd2845c3fd8b129ad82))
-* 🐛 账号抽屉的文案前缀和区域字段收窄到 Grok 账号类型 ([6e2b0d5](https://github.com/Yachiyo-5i/xLyra/commit/6e2b0d5ed48af38e36002757f28da514cc03b7a1))
-* 🐛 账号池 token 刷新改用数据库租约表，修复多实例并发刷新竞争；site_credentials 的 meta/secret/类型更新改为按列写入避免丢失更新 ([09ec04a](https://github.com/Yachiyo-5i/xLyra/commit/09ec04aedfbbbd432c1da31c03715a7cf76304de))
-* 🐛 账号池出站守卫保留环境代理并放行代理自身地址；错误文本清洗覆盖单引号 URL 与 userinfo；补强图标回退与守卫的真实请求测试 ([da92c7f](https://github.com/Yachiyo-5i/xLyra/commit/da92c7fb8402e927870e62747ff3dd4c04915136))
-* 🐛 账号池插件站点刷新后补上标准模型价格回退与无定价警告（与通用刷新路径共用同一段逻辑） ([b0561a1](https://github.com/Yachiyo-5i/xLyra/commit/b0561a181cf665a796553782285934e3b9321629))
-* 🐛 配置备份：导入按钮不再用红色，自动备份的三个开关固定为一行两个 ([bc47b98](https://github.com/Yachiyo-5i/xLyra/commit/bc47b985ead470fa109fb0f53b85cae003581cc9))
+* 🐛 Responses 下游对接 Anthropic 上游：thinking 签名经 encrypted_content 往返，缺签名的 thinking 块与工具调用轮降级处理；工具 `input_schema` 顶层 oneOf/anyOf/allOf 合并规整
+* 🐛 Responses 转 chat 时合并并行工具调用为同一条 assistant 消息
+* 🐛 DeepSeek v4 的 max_tokens 兜底只保留给 Messages 协议并调大到 32768
+* 🐛 修正 OpenCode 请求头、默认工具和模型端点映射
+* 🐛 Grok 新周期用量为 0 时额度被当作获取失败，改按 0% 已用处理
+* 🐛 插件账号池稳定性：刷新换到的新令牌在同一租约内原子落库；刷新失败记账语义修正（取消不掩盖重新授权、落库失败保留上游错误）；账号池刷新改用数据库租约表，修复多实例并发刷新竞争；`site_credentials` 更新改为按列写入避免丢失更新；零账号站点保持正常状态；请求日志不再显示内部 uuid
+* 🐛 账号池出站安全：出站请求接入拨号前内网与元数据地址拦截（保留环境代理并放行代理自身地址）；错误文本清洗覆盖单引号 URL 与 userinfo；登录会话加上限并在回收时擦除令牌
+* 🐛 插件提供方不可用时，站点刷新与健康检查改为跳过并说明原因，不再自动停用站点或累计失败冷却；调度器、同步 worker 与路由器共用同一个站点服务实例
+* 🐛 插件图标与展示：停用后站点图标回退到插件图标接口，提供方不可用时灰化；站点类型显示名与副标题按界面语言展示；`xlyra-plugin` 打包带上声明的站点类型图标
+* 🐛 插件列表与受信公钥列表接口在请求被客户端取消时不再记 ERROR 日志，也不再返回 500；调用方取消后仍写入超时健康快照和刷新结果的问题
+* 🐛 自动化事件的到期与重试时间只用数据库时钟，消除时钟偏差导致的事件延迟
+* 🐛 升级 Go 至 1.26.10，Dockerfile 固定 golang:1.26.10-alpine
+* 🐛 前端：开发者页站点查询缓存 key 冲突导致 `sites is not iterable`；悬停浮层同一时间只显示一个；外壳页脚固定在底部；手机端抽屉按钮与返回逻辑、底部胶囊位置、playground 侧边栏与 PWA 顶部留空；登录注册页收起/展开表现；配置备份按钮与开关布局；补回 OAuth 导入的 JSON 拖放、嵌套对话框和刷新图标
+* 🐛 升级 zod 至 4.6.7，修复前端生产依赖 npm audit 的高危漏洞
 
 ## [1.15.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.1...v1.15.2) (2026-10-15)
 
