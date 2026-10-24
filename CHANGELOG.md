@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.16.0](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.2...v1.16.0) (2026-10-24)
+
+本版本是一次大更新：新增「站点类型插件」与「插件账号池」，并把前端整体重构为新的深色视觉（Apple HIG + Liquid Glass）。
+
+### Features
+
+#### 插件：站点类型（site_provider）
+* ✨ 新增插件类型 site_provider（API Key 站点类型）：manifest 校验、必须受信签名、启用时确认主机列表、CLI 脚手架
+* ✨ 站点类型注册表支持合并插件站点类型（ID 格式校验、原子快照）；已启用插件在目录重载后自动接入站点类型、协议覆盖表与 adapter 动态模块，并在多实例间数秒内同步
+* ✨ 钩子：`listModels` / `check` / `probe` / `classify` / `rewritePayload`，请求头模板（`request.headers` / `stripDownstreamHeaders`），`quota.aggregate`（sum/min/none）；fixtures 按 hook 自检，`xlyra-plugin run --hook`
+* ✨ 生命周期与安全：停用后不参与路由与下游模型目录；站点类型 ID 锁定、卸载保护；出站主机白名单（创建/更新、通用适配器、网关转发含重定向均按精确主机名校验）
+* ✨ 插件图标服务 `GET /api/v1/plugin-icons/{pluginID}`；插件详情按当前版本展示站点提供方并标注版本状态；近 24 小时统计改为彩色圆点加成功/失败次数
+* ✨ adapter 注册表支持动态模块替换，新增通用 API Key 适配器 GenericProvider，插件站点类型不再按模型名推断端点；协议规格增加运行时覆盖表
+
+#### 插件账号池（account_pool）
+* ✨ 声明式账号池：设备码/自定义登录、令牌刷新、账号导入（containers + fieldMap、valueMap）、账号摘要、按账号模型同步（`models.perAccount`），令牌经占位符注入、不进入 JS
+* ✨ 网关接入：通用凭据解析、401/传输切换、upstreamStreamOnly 与 SSE 聚合、quota_weighted 选择、额度耗尽冷却、刷新租约
+* ✨ 后台与前端：定时刷新与健康检查覆盖插件账号、额度汇总；统一 `/accounts/*` API；账号抽屉支持行状态、区域、设备码登录与图标
+* ✨ 抽出凭据解析与 Grok 账号池，统一账号接口和抽屉；Grok 账号同步官方套餐剩余额度并输出标准 entries（额度探测 entries 增加可选的 kind 与 name）
+
+#### 网关与协议
+* ✨ 支持跨协议转换模型原生 web_search（请求/响应/流式/历史折叠/用量统计）
+* ✨ Claude Code 客户端伪装：对齐真实 CLI 指纹（请求头、billing 块、账号级内存身份、Node TLS 指纹）
+
+#### 界面重构
+* ✨ 前端视觉重构为单一深色主题（Apple HIG + Liquid Glass）：全局半透明材质与星空背景、近黑色调、统一的 Dialog / Draw / Sheet 覆盖层、统一的 Card 与表格卡片布局、天琴座登录注册页与流量驾驶舱
+* ✨ 各页面按新设计调整：仪表盘、站点、路由、模型、模型价格、请求、审计、用量分析、API 密钥、OAuth、开发者、全局/分组/限流/代理/配置备份/个人信息等设置页
+* ✨ 移动端：沉浸式头部与侧边抽屉、新的模型与推理强度选择器、统一的 MobileFilterBar 筛选区与卡片列表
+* ✨ 模型体验：输入框浮起质感，右上角新增会动的小螃蟹（Clawd）
+
+#### 账号与安全
+* ✨ 会话取真实客户端 IP（优先 CF-Connecting-IP），个人设置会话表格新增设备列（浏览器与系统）
+* ✨ OAuth 接入前增加风险免责声明弹窗，需勾选确认后才能继续
+
+### Bug Fixes
+
+* 🐛 Responses 下游对接 Anthropic 上游：thinking 签名经 encrypted_content 往返，缺签名的 thinking 块与工具调用轮降级处理；工具 `input_schema` 顶层 oneOf/anyOf/allOf 合并规整
+* 🐛 Responses 转 chat 时合并并行工具调用为同一条 assistant 消息
+* 🐛 DeepSeek v4 的 max_tokens 兜底只保留给 Messages 协议并调大到 32768
+* 🐛 修正 OpenCode 请求头、默认工具和模型端点映射
+* 🐛 Grok 新周期用量为 0 时额度被当作获取失败，改按 0% 已用处理
+* 🐛 插件账号池稳定性：刷新换到的新令牌在同一租约内原子落库；刷新失败记账语义修正（取消不掩盖重新授权、落库失败保留上游错误）；账号池刷新改用数据库租约表，修复多实例并发刷新竞争；`site_credentials` 更新改为按列写入避免丢失更新；零账号站点保持正常状态；请求日志不再显示内部 uuid
+* 🐛 账号池出站安全：出站请求接入拨号前内网与元数据地址拦截（保留环境代理并放行代理自身地址）；错误文本清洗覆盖单引号 URL 与 userinfo；登录会话加上限并在回收时擦除令牌
+* 🐛 插件提供方不可用时，站点刷新与健康检查改为跳过并说明原因，不再自动停用站点或累计失败冷却；调度器、同步 worker 与路由器共用同一个站点服务实例
+* 🐛 插件图标与展示：停用后站点图标回退到插件图标接口，提供方不可用时灰化；站点类型显示名与副标题按界面语言展示；`xlyra-plugin` 打包带上声明的站点类型图标
+* 🐛 插件列表与受信公钥列表接口在请求被客户端取消时不再记 ERROR 日志，也不再返回 500；调用方取消后仍写入超时健康快照和刷新结果的问题
+* 🐛 自动化事件的到期与重试时间只用数据库时钟，消除时钟偏差导致的事件延迟
+* 🐛 升级 Go 至 1.26.10，Dockerfile 固定 golang:1.26.10-alpine
+* 🐛 前端：开发者页站点查询缓存 key 冲突导致 `sites is not iterable`；悬停浮层同一时间只显示一个；外壳页脚固定在底部；手机端抽屉按钮与返回逻辑、底部胶囊位置、playground 侧边栏与 PWA 顶部留空；登录注册页收起/展开表现；配置备份按钮与开关布局；补回 OAuth 导入的 JSON 拖放、嵌套对话框和刷新图标
+* 🐛 升级 zod 至 4.6.7，修复前端生产依赖 npm audit 的高危漏洞
+
 ## [1.15.2](https://github.com/Yachiyo-5i/xLyra/compare/v1.15.1...v1.15.2) (2026-10-15)
 
 
